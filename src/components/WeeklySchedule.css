@@ -257,3 +257,31 @@
     height: 16px;
     border-radius: 4px;
 }
+/* My Class Highlight */
+.schedule-cell.my-class {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: bold;
+    border: 2px solid #5a67d8;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.schedule-cell.my-class .seat-count {
+    color: white;
+}
+
+.schedule-cell.my-class:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.my-class-badge {
+    background-color: #fbbf24;
+    color: #1f2937;
+    font-size: 0.7em;
+    padding: 2px 6px;
+    border-radius: 9999px;
+    margin-top: 4px;
+    font-weight: 800;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}

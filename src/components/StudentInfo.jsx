@@ -1,18 +1,28 @@
-import { useState } from 'react';
-import { STUDENT_MEMBERSHIPS, calculateDaysRemaining, isExpiringSoon, isExpired } from '../data/mockData';
+import { useState, useMemo } from 'react';
+import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
+import { isExpiringSoon, isExpired } from '../data/mockData';
 import './StudentInfo.css';
 
-const StudentInfo = ({ user, onBack }) => {
-    // Simulate current user's membership info
-    const [membershipInfo] = useState({
-        studentName: user.username,
-        startDate: '2025-12-20',
-        endDate: '2026-01-19',
-        daysRemaining: 10,
-        totalHoldingDays: 2,
-        attendanceCount: 18,
-        totalClasses: 24
-    });
+const StudentInfo = ({ user, studentData, onBack }) => {
+    const { calculateMembershipStats } = useGoogleSheets();
+
+    // 구글 시트 데이터로부터 수강권 정보 계산
+    const membershipInfo = useMemo(() => {
+        if (!studentData) {
+            // 구글 시트 데이터가 없는 경우 목 데이터 사용 (폴백)
+            return {
+                studentName: user.username,
+                startDate: '2025-12-20',
+                endDate: '2026-01-19',
+                daysRemaining: 10,
+                totalHoldingDays: 2,
+                attendanceCount: 0,
+                totalClasses: 0
+            };
+        }
+
+        return calculateMembershipStats(studentData);
+    }, [studentData, user.username, calculateMembershipStats]);
 
     const [attendanceHistory] = useState([
         { date: '2026-01-08', period: '4교시', type: '정규', status: '출석' },
@@ -31,7 +41,9 @@ const StudentInfo = ({ user, onBack }) => {
         }
     };
 
-    const attendanceRate = ((membershipInfo.attendanceCount / membershipInfo.totalClasses) * 100).toFixed(1);
+    const attendanceRate = membershipInfo.totalClasses > 0
+        ? ((membershipInfo.attendanceCount / membershipInfo.totalClasses) * 100).toFixed(1)
+        : '0.0';
 
     return (
         <div className="student-info-container">

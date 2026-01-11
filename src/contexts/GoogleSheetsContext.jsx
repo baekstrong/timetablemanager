@@ -9,7 +9,9 @@ import {
     updateStudentHolding,
     readSheetData,
     getAllSheetNames,
-    getCurrentSheetName
+    getCurrentSheetName,
+    getStudentByName,
+    calculateMembershipStats
 } from '../services/googleSheetsService';
 
 const GoogleSheetsContext = createContext();
@@ -231,8 +233,14 @@ export const GoogleSheetsProvider = ({ children }) => {
         refresh,
         fetchStudents,
         changeMonth,
+        changeMonth,
         currentSheetName: getCurrentSheetName(new Date(selectedYear, selectedMonth - 1)),
-        isConnected: isAuthenticated
+        isConnected: isAuthenticated,
+        getStudentByName: async (name) => {
+            const student = await getStudentByName(name, selectedYear, selectedMonth);
+            return student;
+        },
+        calculateMembershipStats
     };
 
     return (

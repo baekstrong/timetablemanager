@@ -151,8 +151,8 @@ const transformGoogleSheetsData = (students) => {
     };
 };
 
-const WeeklySchedule = ({ user, onBack }) => {
-    const [mode, setMode] = useState(user?.role || 'student'); // 'student' | 'coach'
+const WeeklySchedule = ({ user, studentData, onBack }) => {
+    const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student'); // 'student' | 'coach'
     const { students, isAuthenticated, loading } = useGoogleSheets();
 
     // Class disabled state (stored in localStorage)
@@ -196,6 +196,18 @@ const WeeklySchedule = ({ user, onBack }) => {
         console.log('📅 Transformed data:', transformed);
         return transformed;
     }, [students]);
+
+    // 수강생 시간표 파싱
+    const studentSchedule = useMemo(() => {
+        if (!studentData) return [];
+        const scheduleStr = studentData['요일 및 시간'];
+        return parseScheduleString(scheduleStr);
+    }, [studentData]);
+
+    // 현재 셀이 수강생의 등록된 수업인지 확인
+    const isMyClass = (day, periodId) => {
+        return studentSchedule.some(s => s.day === day && s.period === periodId);
+    };
 
     // --- Logic to process raw data into cell data ---
     const getCellData = (day, periodObj) => {
@@ -271,12 +283,30 @@ const WeeklySchedule = ({ user, onBack }) => {
 
         // --- STUDENT MODE RENDER ---
         if (mode === 'student') {
+            // Check if this is my class
+            const myClass = isMyClass(day, periodObj.id);
+
             // Check if there are registered students (even if on hold)
             const hasRegisteredStudents = data.studentNames.length > 0;
 
             // If class is disabled by coach AND no registered students, show "수업 없음"
             if (classDisabled && !hasRegisteredStudents) {
                 return <div className="schedule-cell cell-empty"><span style={{ color: '#999' }}>수업 없음</span></div>;
+            }
+
+            // If it is my class, highlight it!
+            if (myClass) {
+                return (
+                    <div
+                        className="schedule-cell cell-available my-class"
+                        onClick={() => handleCellClick(day, periodObj, data)}
+                    >
+                        <div className="cell-content">
+                            <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
+                            <span className="my-class-badge">MY</span>
+                        </div>
+                    </div>
+                );
             }
 
             // If class is NOT disabled and no registered students, show available seats (7 자리)
@@ -458,20 +488,22 @@ const WeeklySchedule = ({ user, onBack }) => {
                 </h1>
             </div>
 
-            <div className="controls">
-                <button
-                    className={`mode-toggle ${mode === 'student' ? 'active' : ''}`}
-                    onClick={() => setMode('student')}
-                >
-                    수강생 모드
-                </button>
-                <button
-                    className={`mode-toggle ${mode === 'coach' ? 'active' : ''}`}
-                    onClick={() => setMode('coach')}
-                >
-                    코치 모드
-                </button>
-            </div>
+            {user?.role === 'coach' && (
+                <div className="controls">
+                    <button
+                        className={`mode-toggle ${mode === 'student' ? 'active' : ''}`}
+                        onClick={() => setMode('student')}
+                    >
+                        수강생 모드
+                    </button>
+                    <button
+                        className={`mode-toggle ${mode === 'coach' ? 'active' : ''}`}
+                        onClick={() => setMode('coach')}
+                    >
+                        코치 모드
+                    </button>
+                </div>
+            )}
 
             {students && students.length > 0 && (
                 <div style={{ textAlign: 'center', marginBottom: '1rem', color: '#666', fontSize: '0.9rem' }}>

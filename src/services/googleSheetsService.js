@@ -258,6 +258,99 @@ export const getStudentField = (student, fieldName) => {
 };
 
 /**
+ * 구글 시트에서 이름으로 수강생 찾기
+ * @param {string} studentName - 검색할 수강생 이름
+ * @param {number} year - 연도 (기본값: 현재 연도)
+ * @param {number} month - 월 (1-12) (기본값: 현재 월)
+ * @returns {Promise<Object|null>} - 수강생 객체 또는 찾지 못한 경우 null
+ */
+export const getStudentByName = async (studentName, year = null, month = null) => {
+    try {
+        const students = await getAllStudents(year, month);
+        const student = students.find(s => s['이름'] === studentName);
+
+        if (!student) {
+            console.warn(`Student "${studentName}" not found in Google Sheets`);
+            return null;
+        }
+
+        console.log(`✅ Found student: ${studentName}`, student);
+        return student;
+    } catch (error) {
+        console.error('Error finding student:', error);
+        throw error;
+    }
+};
+
+/**
+ * 수강생 데이터로부터 수강권 통계 계산
+ * @param {Object} student - 구글 시트의 수강생 객체
+ * @returns {Object} - 수강권 통계
+ */
+export const calculateMembershipStats = (student) => {
+    if (!student) return null;
+
+    const startDateStr = getStudentField(student, '시작날짜');
+    const endDateStr = getStudentField(student, '종료날짜');
+    const holdingDaysStr = getStudentField(student, '총 홀딩일수') ||
+        getStudentField(student, '홀딩일수') || '0';
+
+    // 날짜 파싱 (형식: YYMMDD 또는 YYYYMMDD)
+    const parseDate = (dateStr) => {
+        if (!dateStr) return null;
+        const cleaned = dateStr.replace(/\D/g, '');
+
+        if (cleaned.length === 6) {
+            // YYMMDD 형식
+            const year = parseInt('20' + cleaned.substring(0, 2));
+            const month = parseInt(cleaned.substring(2, 4)) - 1;
+            const day = parseInt(cleaned.substring(4, 6));
+            return new Date(year, month, day);
+        } else if (cleaned.length === 8) {
+            // YYYYMMDD 형식
+            const year = parseInt(cleaned.substring(0, 4));
+            const month = parseInt(cleaned.substring(4, 6)) - 1;
+            const day = parseInt(cleaned.substring(6, 8));
+            return new Date(year, month, day);
+        }
+        return null;
+    };
+
+    const startDate = parseDate(startDateStr);
+    const endDate = parseDate(endDateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 남은 기간 계산
+    let daysRemaining = 0;
+    if (endDate) {
+        const timeDiff = endDate.getTime() - today.getTime();
+        daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+    }
+
+    // 표시용 날짜 포맷팅
+    const formatDate = (date) => {
+        if (!date) return '';
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    return {
+        studentName: getStudentField(student, '이름'),
+        startDate: formatDate(startDate),
+        endDate: formatDate(endDate),
+        daysRemaining: Math.max(0, daysRemaining),
+        totalHoldingDays: parseInt(holdingDaysStr) || 0,
+        schedule: getStudentField(student, '요일 및 시간'),
+        // 참고: 출석 통계는 나중에 출석 추적 기능이 구현되면 계산될 예정입니다.
+        attendanceCount: 0,
+        totalClasses: 0
+    };
+};
+
+/**
  * Get all student data from the sheet
  * @param {number} year - Year (defaults to current year)
  * @param {number} month - Month 1-12 (defaults to current month)
