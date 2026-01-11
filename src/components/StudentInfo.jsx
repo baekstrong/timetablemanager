@@ -4,7 +4,7 @@ import { isExpiringSoon, isExpired } from '../data/mockData';
 import './StudentInfo.css';
 
 const StudentInfo = ({ user, studentData, onBack }) => {
-    const { calculateMembershipStats } = useGoogleSheets();
+    const { calculateMembershipStats, generateAttendanceHistory } = useGoogleSheets();
 
     // 구글 시트 데이터로부터 수강권 정보 계산
     const membershipInfo = useMemo(() => {
@@ -14,23 +14,32 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                 studentName: user.username,
                 startDate: '2025-12-20',
                 endDate: '2026-01-19',
-                daysRemaining: 10,
-                totalHoldingDays: 2,
+                weeklyFrequency: 2,
+                totalSessions: 8,
+                completedSessions: 0,
+                remainingSessions: 8,
+                remainingHolding: 1,
                 attendanceCount: 0,
-                totalClasses: 0
+                totalClasses: 8
             };
         }
 
         return calculateMembershipStats(studentData);
     }, [studentData, user.username, calculateMembershipStats]);
 
-    const [attendanceHistory] = useState([
-        { date: '2026-01-08', period: '4교시', type: '정규', status: '출석' },
-        { date: '2026-01-07', period: '2교시', type: '정규', status: '출석' },
-        { date: '2026-01-06', period: '4교시', type: '보강', status: '출석' },
-        { date: '2026-01-05', period: '2교시', type: '정규', status: '홀딩' },
-        { date: '2026-01-03', period: '4교시', type: '정규', status: '출석' },
-    ]);
+    // 출석 내역 생성
+    const attendanceHistory = useMemo(() => {
+        if (!studentData) {
+            // 폴백: 목 데이터
+            return [
+                { date: '2026-01-08', period: '4교시', type: '정규', status: '출석' },
+                { date: '2026-01-07', period: '2교시', type: '정규', status: '출석' },
+            ];
+        }
+
+        // 구글 시트에서 출석 내역 생성
+        return generateAttendanceHistory(studentData);
+    }, [studentData, generateAttendanceHistory]);
 
     const getStatusColor = (status) => {
         switch (status) {
@@ -62,10 +71,10 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                 <div className="membership-card">
                     <div className="card-header">
                         <h2>무제한 수강권</h2>
-                        {isExpiringSoon(membershipInfo.daysRemaining) && (
+                        {membershipInfo.remainingSessions <= 2 && membershipInfo.remainingSessions > 0 && (
                             <span className="warning-badge">⚠️ 만료 임박</span>
                         )}
-                        {isExpired(membershipInfo.daysRemaining) && (
+                        {membershipInfo.remainingSessions === 0 && (
                             <span className="expired-badge">❌ 만료됨</span>
                         )}
                     </div>
@@ -76,6 +85,10 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                             <span className="detail-value">{membershipInfo.studentName}</span>
                         </div>
                         <div className="detail-row">
+                            <span className="detail-label">주횟수</span>
+                            <span className="detail-value">주 {membershipInfo.weeklyFrequency}회</span>
+                        </div>
+                        <div className="detail-row">
                             <span className="detail-label">시작일</span>
                             <span className="detail-value">{membershipInfo.startDate}</span>
                         </div>
@@ -84,29 +97,29 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                             <span className="detail-value highlight">{membershipInfo.endDate}</span>
                         </div>
                         <div className="detail-row">
-                            <span className="detail-label">남은 기간</span>
-                            <span className={`detail-value ${isExpiringSoon(membershipInfo.daysRemaining) ? 'warning' : ''}`}>
-                                {membershipInfo.daysRemaining}일
+                            <span className="detail-label">남은 횟수</span>
+                            <span className={`detail-value ${membershipInfo.remainingSessions <= 2 ? 'warning' : ''}`}>
+                                {membershipInfo.remainingSessions}회
                             </span>
                         </div>
                         <div className="detail-row">
-                            <span className="detail-label">총 홀딩 일수</span>
-                            <span className="detail-value">{membershipInfo.totalHoldingDays}일</span>
+                            <span className="detail-label">남은 홀딩 횟수</span>
+                            <span className="detail-value">{membershipInfo.remainingHolding}회</span>
                         </div>
                     </div>
 
                     {/* 진행률 바 */}
                     <div className="progress-section">
                         <div className="progress-header">
-                            <span>수강권 사용 기간</span>
-                            <span>{membershipInfo.daysRemaining}일 남음</span>
+                            <span>수업 진행률</span>
+                            <span>{membershipInfo.remainingSessions}회 남음</span>
                         </div>
                         <div className="progress-bar">
                             <div
                                 className="progress-fill"
                                 style={{
-                                    width: `${Math.max(0, Math.min(100, ((30 - membershipInfo.daysRemaining) / 30) * 100))}%`,
-                                    background: isExpiringSoon(membershipInfo.daysRemaining)
+                                    width: `${Math.max(0, Math.min(100, ((membershipInfo.totalSessions - membershipInfo.remainingSessions) / membershipInfo.totalSessions) * 100))}%`,
+                                    background: membershipInfo.remainingSessions <= 2
                                         ? 'linear-gradient(90deg, #f093fb 0%, #f5576c 100%)'
                                         : 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
                                 }}
@@ -114,12 +127,12 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                         </div>
                     </div>
 
-                    {isExpiringSoon(membershipInfo.daysRemaining) && (
+                    {membershipInfo.remainingSessions <= 2 && membershipInfo.remainingSessions > 0 && (
                         <div className="alert-box warning">
                             <span className="alert-icon">⚠️</span>
                             <div className="alert-content">
                                 <strong>수강권 만료 임박</strong>
-                                <p>수강권이 {membershipInfo.daysRemaining}일 후 만료됩니다. 연장을 원하시면 문의해주세요.</p>
+                                <p>수강권이 {membershipInfo.remainingSessions}회 남았습니다. 연장을 원하시면 문의해주세요.</p>
                             </div>
                         </div>
                     )}
@@ -153,8 +166,8 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                         <div className="stat-item">
                             <div className="stat-icon">⏸️</div>
                             <div className="stat-info">
-                                <div className="stat-value">{membershipInfo.totalHoldingDays}</div>
-                                <div className="stat-label">홀딩</div>
+                                <div className="stat-value">{membershipInfo.remainingHolding}</div>
+                                <div className="stat-label">남은 홀딩</div>
                             </div>
                         </div>
                     </div>

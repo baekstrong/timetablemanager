@@ -209,6 +209,31 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         return studentSchedule.some(s => s.day === day && s.period === periodId);
     };
 
+    // 이번 주 날짜 계산 (월~금)
+    const weekDates = useMemo(() => {
+        const today = new Date();
+        const dayOfWeek = today.getDay(); // 0(일) ~ 6(토)
+
+        // 이번 주 월요일 찾기
+        const monday = new Date(today);
+        const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // 일요일이면 -6, 아니면 1-dayOfWeek
+        monday.setDate(today.getDate() + diff);
+
+        // 월~금 날짜 생성
+        const dates = {};
+        const dayNames = ['월', '화', '수', '목', '금'];
+
+        dayNames.forEach((dayName, index) => {
+            const date = new Date(monday);
+            date.setDate(monday.getDate() + index);
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            dates[dayName] = `${month}/${day}`;
+        });
+
+        return dates;
+    }, []);
+
     // --- Logic to process raw data into cell data ---
     const getCellData = (day, periodObj) => {
         // 1. Find Regular Enrollments for this slot
@@ -515,7 +540,9 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 {/* Top Header: Time Label + Days */}
                 <div className="grid-header"></div> {/* Empty corner slot */}
                 {DAYS.map(day => (
-                    <div key={day} className="grid-header">{day}</div>
+                    <div key={day} className="grid-header">
+                        {day} ({weekDates[day]})
+                    </div>
                 ))}
 
                 {/* Rows: Each Period */}

@@ -11,7 +11,8 @@ import {
     getAllSheetNames,
     getCurrentSheetName,
     getStudentByName,
-    calculateMembershipStats
+    calculateMembershipStats,
+    generateAttendanceHistory
 } from '../services/googleSheetsService';
 
 const GoogleSheetsContext = createContext();
@@ -240,7 +241,8 @@ export const GoogleSheetsProvider = ({ children }) => {
             const student = await getStudentByName(name, selectedYear, selectedMonth);
             return student;
         },
-        calculateMembershipStats
+        calculateMembershipStats,
+        generateAttendanceHistory
     };
 
     return (

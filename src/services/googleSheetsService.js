@@ -283,6 +283,81 @@ export const getStudentByName = async (studentName, year = null, month = null) =
 };
 
 /**
+ * 요일 및 시간 문자열 파싱
+ * 예: "월5수5" → [{day: '월', period: 5}, {day: '수', period: 5}]
+ */
+const parseScheduleString = (scheduleStr) => {
+    if (!scheduleStr || typeof scheduleStr !== 'string') return [];
+
+    const result = [];
+    const dayMap = { '월': '월', '화': '화', '수': '수', '목': '목', '금': '금', '토': '토', '일': '일' };
+
+    const chars = scheduleStr.replace(/\s/g, '');
+
+    let i = 0;
+    while (i < chars.length) {
+        const char = chars[i];
+
+        if (dayMap[char]) {
+            const day = char;
+            i++;
+
+            let periodStr = '';
+            while (i < chars.length && /\d/.test(chars[i])) {
+                periodStr += chars[i];
+                i++;
+            }
+
+            if (periodStr) {
+                const period = parseInt(periodStr);
+                if (period >= 1 && period <= 6) {
+                    result.push({ day, period });
+                }
+            }
+        } else {
+            i++;
+        }
+    }
+
+    return result;
+};
+
+/**
+ * 시작일부터 오늘까지 완료된 수업 횟수 계산
+ * @param {Date} startDate - 시작일
+ * @param {Date} today - 오늘 날짜
+ * @param {string} scheduleStr - 요일 및 시간 (예: "화1목1")
+ * @returns {number} - 완료된 수업 횟수
+ */
+const calculateCompletedSessions = (startDate, today, scheduleStr) => {
+    if (!startDate || !scheduleStr) return 0;
+
+    // 시작일이 미래인 경우 0 반환
+    if (startDate > today) return 0;
+
+    // 요일 파싱
+    const schedule = parseScheduleString(scheduleStr);
+    const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
+    const classDays = schedule.map(s => dayMap[s.day]).filter(d => d !== undefined);
+
+    if (classDays.length === 0) return 0;
+
+    // 시작일부터 오늘까지 각 요일이 몇 번 나왔는지 계산
+    let count = 0;
+    const current = new Date(startDate);
+
+    while (current <= today) {
+        const dayOfWeek = current.getDay(); // 0(일) ~ 6(토)
+        if (classDays.includes(dayOfWeek)) {
+            count++;
+        }
+        current.setDate(current.getDate() + 1);
+    }
+
+    return count;
+};
+
+/**
  * 수강생 데이터로부터 수강권 통계 계산
  * @param {Object} student - 구글 시트의 수강생 객체
  * @returns {Object} - 수강권 통계
@@ -291,9 +366,13 @@ export const calculateMembershipStats = (student) => {
     if (!student) return null;
 
     const startDateStr = getStudentField(student, '시작날짜');
-    const endDateStr = getStudentField(student, '종료날짜');
-    const holdingDaysStr = getStudentField(student, '총 홀딩일수') ||
-        getStudentField(student, '홀딩일수') || '0';
+    const scheduleStr = getStudentField(student, '요일 및 시간');
+    const weeklyFrequencyStr = getStudentField(student, '주횟수');
+
+    // 홀딩 사용여부 필드 확인 (여러 가능한 필드명 체크)
+    const holdingStatusStr = getStudentField(student, '홀딩 사용여부') ||
+        getStudentField(student, '홀딩 상태') ||
+        getStudentField(student, '홀딩사용여부');
 
     // 날짜 파싱 (형식: YYMMDD 또는 YYYYMMDD)
     const parseDate = (dateStr) => {
@@ -317,16 +396,30 @@ export const calculateMembershipStats = (student) => {
     };
 
     const startDate = parseDate(startDateStr);
-    const endDate = parseDate(endDateStr);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // 남은 기간 계산
-    let daysRemaining = 0;
-    if (endDate) {
-        const timeDiff = endDate.getTime() - today.getTime();
-        daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-    }
+    // 주횟수 (기본값: 2)
+    const weeklyFrequency = parseInt(weeklyFrequencyStr) || 2;
+
+    // 총 횟수 = 주횟수 × 4주
+    const totalSessions = weeklyFrequency * 4;
+
+    // 완료된 수업 횟수 계산
+    const completedSessions = calculateCompletedSessions(startDate, today, scheduleStr);
+
+    // 남은 횟수
+    const remainingSessions = Math.max(0, totalSessions - completedSessions);
+
+    // 남은 홀딩 횟수 (기본 1회, 사용 시 0회)
+    // 홀딩 사용여부가 "O", "사용", "Y", "o" 등이면 0, 아니면 1
+    const holdingUsed = holdingStatusStr && (
+        holdingStatusStr.toUpperCase().trim() === 'O' ||
+        holdingStatusStr.trim() === 'o' ||
+        holdingStatusStr === '사용' ||
+        holdingStatusStr.toUpperCase().trim() === 'Y'
+    );
+    const remainingHolding = holdingUsed ? 0 : 1;
 
     // 표시용 날짜 포맷팅
     const formatDate = (date) => {
@@ -337,17 +430,197 @@ export const calculateMembershipStats = (student) => {
         return `${year}-${month}-${day}`;
     };
 
+    // 종료일 계산 (시작일 + 4주 기간 동안 총 횟수만큼 수업)
+    let endDate = null;
+    if (startDate && scheduleStr) {
+        const schedule = parseScheduleString(scheduleStr);
+        const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
+        const classDays = schedule.map(s => dayMap[s.day]).filter(d => d !== undefined);
+
+        if (classDays.length > 0) {
+            let sessionCount = 0;
+            const current = new Date(startDate);
+
+            while (sessionCount < totalSessions) {
+                const dayOfWeek = current.getDay();
+                if (classDays.includes(dayOfWeek)) {
+                    sessionCount++;
+                    if (sessionCount === totalSessions) {
+                        endDate = new Date(current);
+                        break;
+                    }
+                }
+                current.setDate(current.getDate() + 1);
+            }
+        }
+    }
+
+    // 출석 횟수 계산 (완료된 수업 중 홀딩 제외)
+    let attendanceCount = completedSessions;
+
+    // 홀딩 기간 내 수업 횟수 계산
+    if (holdingUsed && startDate && scheduleStr) {
+        const holdingStartDate = parseDate(getStudentField(student, '홀딩 시작일'));
+        const holdingEndDate = parseDate(getStudentField(student, '홀딩 종료일'));
+
+        if (holdingStartDate && holdingEndDate) {
+            const schedule = parseScheduleString(scheduleStr);
+            const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
+            const classDays = schedule.map(s => dayMap[s.day]).filter(d => d !== undefined);
+
+            // 홀딩 기간 내 수업 횟수 계산
+            let holdingSessionCount = 0;
+            const current = new Date(holdingStartDate);
+            while (current <= holdingEndDate) {
+                const dayOfWeek = current.getDay();
+                if (classDays.includes(dayOfWeek)) {
+                    holdingSessionCount++;
+                }
+                current.setDate(current.getDate() + 1);
+            }
+
+            attendanceCount -= holdingSessionCount;
+        }
+    }
+
     return {
         studentName: getStudentField(student, '이름'),
         startDate: formatDate(startDate),
         endDate: formatDate(endDate),
-        daysRemaining: Math.max(0, daysRemaining),
-        totalHoldingDays: parseInt(holdingDaysStr) || 0,
-        schedule: getStudentField(student, '요일 및 시간'),
-        // 참고: 출석 통계는 나중에 출석 추적 기능이 구현되면 계산될 예정입니다.
-        attendanceCount: 0,
-        totalClasses: 0
+        weeklyFrequency,
+        totalSessions,
+        completedSessions,
+        remainingSessions,
+        remainingHolding,
+        schedule: scheduleStr,
+        attendanceCount: Math.max(0, attendanceCount),
+        totalClasses: totalSessions
     };
+};
+
+/**
+ * 출석 내역 생성
+ * @param {Object} student - 수강생 데이터
+ * @returns {Array} - 출석 내역 배열
+ */
+export const generateAttendanceHistory = (student) => {
+    if (!student) return [];
+
+    const startDateStr = getStudentField(student, '시작날짜');
+    const scheduleStr = getStudentField(student, '요일 및 시간');
+    const holdingUsed = getStudentField(student, '홀딩 사용여부');
+    const holdingStartStr = getStudentField(student, '홀딩 시작일');
+    const holdingEndStr = getStudentField(student, '홀딩 종료일');
+    const makeupScheduleStr = getStudentField(student, '보강 요일 및 시간');
+    const makeupDateStr = getStudentField(student, '보강 날짜');
+
+    const history = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 날짜 파싱 함수 (재사용)
+    const parseDate = (dateStr) => {
+        if (!dateStr) return null;
+        const cleaned = dateStr.replace(/\D/g, '');
+
+        if (cleaned.length === 6) {
+            const year = parseInt('20' + cleaned.substring(0, 2));
+            const month = parseInt(cleaned.substring(2, 4)) - 1;
+            const day = parseInt(cleaned.substring(4, 6));
+            return new Date(year, month, day);
+        } else if (cleaned.length === 8) {
+            const year = parseInt(cleaned.substring(0, 4));
+            const month = parseInt(cleaned.substring(4, 6)) - 1;
+            const day = parseInt(cleaned.substring(6, 8));
+            return new Date(year, month, day);
+        }
+        return null;
+    };
+
+    // 날짜를 한국 형식으로 포맷팅
+    const formatDateKorean = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    // 1. 정규 수업 출석 내역 생성
+    const startDate = parseDate(startDateStr);
+    if (startDate && scheduleStr) {
+        const schedule = parseScheduleString(scheduleStr);
+        const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
+        const classDays = schedule.map(s => ({
+            day: dayMap[s.day],
+            dayName: s.day,
+            period: s.period
+        })).filter(c => c.day !== undefined);
+
+        // 홀딩 기간 파싱
+        const holdingStart = (holdingUsed === 'O' || holdingUsed === 'o') ? parseDate(holdingStartStr) : null;
+        const holdingEnd = (holdingUsed === 'O' || holdingUsed === 'o') ? parseDate(holdingEndStr) : null;
+
+        // 시작일부터 오늘까지 순회
+        const current = new Date(startDate);
+        while (current <= today) {
+            const dayOfWeek = current.getDay();
+            const classInfo = classDays.find(c => c.day === dayOfWeek);
+
+            if (classInfo) {
+                const dateStr = formatDateKorean(current);
+                const periodName = `${classInfo.period}교시`;
+
+                // 홀딩 기간 체크
+                if (holdingStart && holdingEnd &&
+                    current >= holdingStart && current <= holdingEnd) {
+                    history.push({
+                        date: dateStr,
+                        period: periodName,
+                        type: '정규',
+                        status: '홀딩'
+                    });
+                } else {
+                    history.push({
+                        date: dateStr,
+                        period: periodName,
+                        type: '정규',
+                        status: '출석'
+                    });
+                }
+            }
+
+            current.setDate(current.getDate() + 1);
+        }
+    }
+
+    // 2. 보강 수업 출석 내역 추가
+    if (makeupDateStr && makeupScheduleStr) {
+        const makeupDate = parseDate(makeupDateStr);
+        if (makeupDate && makeupDate <= today) {
+            const makeupSchedule = parseScheduleString(makeupScheduleStr);
+            if (makeupSchedule.length > 0) {
+                const dateStr = formatDateKorean(makeupDate);
+                const periodName = `${makeupSchedule[0].period}교시`;
+
+                history.push({
+                    date: dateStr,
+                    period: periodName,
+                    type: '보강',
+                    status: '출석'
+                });
+            }
+        }
+    }
+
+    // 3. 날짜 역순 정렬 (최신순)
+    history.sort((a, b) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return dateB - dateA;
+    });
+
+    // 4. 최근 10개만 반환
+    return history.slice(0, 10);
 };
 
 /**
