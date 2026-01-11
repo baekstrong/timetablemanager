@@ -1,0 +1,50 @@
+.app {
+  width: 100%;
+  min-height: 100vh;
+}
+
+.coming-soon {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 40px;
+  gap: 24px;
+}
+
+.coming-soon h1 {
+  font-size: 48px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.coming-soon p {
+  font-size: 20px;
+  color: #6b7280;
+}
+
+.coming-soon .back-button {
+  position: absolute;
+  top: 40px;
+  left: 40px;
+  padding: 12px 20px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.coming-soon .back-button:hover {
+  background: #f9fafb;
+  border-color: #667eea;
+  color: #667eea;
+}

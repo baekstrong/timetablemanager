@@ -1,0 +1,144 @@
+.timetable-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    overflow-x: auto;
+    padding-bottom: 2rem;
+}
+
+.timetable-grid {
+    display: grid;
+    grid-template-columns: 80px repeat(7, minmax(120px, 1fr));
+    /* Time col + 7 days */
+    background-color: var(--bg-glass);
+    border: 1px solid var(--border-glass);
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Header Row */
+.header-cell {
+    background-color: var(--bg-secondary);
+    padding: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: center;
+    border-bottom: 1px solid var(--border-glass);
+    border-right: 1px solid var(--border-glass);
+}
+
+.header-cell:last-child {
+    border-right: none;
+}
+
+/* Time Column */
+.time-col {
+    display: flex;
+    flex-direction: column;
+}
+
+.time-slot-label {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-glass);
+    background-color: var(--bg-secondary);
+}
+
+/* Day Columns */
+.day-col {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    /* For absolute positioning of events */
+    border-right: 1px solid var(--border-color);
+}
+
+.day-col:last-child {
+    border-right: none;
+}
+
+.time-slot {
+    height: 60px;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.1s;
+    cursor: pointer;
+}
+
+.time-slot:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Event Card */
+.event-card {
+    position: absolute;
+    width: 90%;
+    left: 5%;
+    padding: 8px;
+    border-radius: 8px;
+    background: var(--accent-secondary);
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 500;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    z-index: 10;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.event-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-glow);
+    z-index: 20;
+}
+
+.event-time {
+    font-size: 0.75rem;
+    opacity: 0.9;
+    margin-bottom: 2px;
+}
+
+/* Loading and Error Messages */
+.not-connected-message,
+.loading-message {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    padding: 3rem;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+    margin: 2rem auto;
+    max-width: 500px;
+}
+
+.not-connected-message h3,
+.loading-message p {
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+}
+
+.not-connected-message p {
+    color: #6b7280;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid rgba(102, 126, 234, 0.2);
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1.5rem;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
