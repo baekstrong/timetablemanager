@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
+import { getStudentField } from '../services/googleSheetsService';
 import './TimeTable.css';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -90,7 +91,7 @@ const TimeTable = () => {
         students.forEach((student, index) => {
             const schedule = student['요일 및 시간'];
             const name = student['이름'];
-            const isHolding = student['홀딩 사용여부'] === 'O';
+            const isHolding = getStudentField(student, '홀딩 사용여부') === 'O';
 
             // Skip students on holding
             if (isHolding) return;

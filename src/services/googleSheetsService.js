@@ -228,6 +228,36 @@ export const parseStudentData = (rows) => {
 };
 
 /**
+ * Get student field value with flexible field name matching
+ * Handles both space-separated and newline-separated field names
+ * @param {Object} student - Student object
+ * @param {string} fieldName - Field name (e.g., "홀딩 사용여부")
+ * @returns {string} - Field value or empty string
+ */
+export const getStudentField = (student, fieldName) => {
+    if (!student) return '';
+
+    // Try exact match first
+    if (student[fieldName] !== undefined) {
+        return student[fieldName];
+    }
+
+    // Try with newline instead of space
+    const fieldNameWithNewline = fieldName.replace(/ /g, '\n');
+    if (student[fieldNameWithNewline] !== undefined) {
+        return student[fieldNameWithNewline];
+    }
+
+    // Try with space instead of newline
+    const fieldNameWithSpace = fieldName.replace(/\n/g, ' ');
+    if (student[fieldNameWithSpace] !== undefined) {
+        return student[fieldNameWithSpace];
+    }
+
+    return '';
+};
+
+/**
  * Get all student data from the sheet
  * @param {number} year - Year (defaults to current year)
  * @param {number} month - Month 1-12 (defaults to current month)
@@ -324,12 +354,16 @@ export const updateStudentData = async (rowIndex, studentData, year = null, mont
         // Column mapping based on typical structure
         // Adjust these column letters based on your actual Google Sheet structure
         // Row 1: Merged cells, Row 2: Headers, Data starts from Row 3
+        // Note: Google Sheets headers may contain newlines (\n) instead of spaces
         const columnMap = {
             '주횟수': 'C',           // Column C
             '요일 및 시간': 'D',      // Column D
             '홀딩 사용여부': 'M',     // Column M
+            '홀딩\n사용여부': 'M',    // Column M (with newline)
             '홀딩 시작일': 'N',       // Column N
-            '홀딩 종료일': 'O'        // Column O
+            '홀딩\n시작일': 'N',      // Column N (with newline)
+            '홀딩 종료일': 'O',       // Column O
+            '홀딩\n종료일': 'O'       // Column O (with newline)
         };
 
         // Update each field that exists in studentData

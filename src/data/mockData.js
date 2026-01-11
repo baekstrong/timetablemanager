@@ -11,7 +11,7 @@ export const PERIODS = [
 export const DAYS = ['월', '화', '수', '목', '금'];
 
 // Max capacity per slot setup
-export const MAX_CAPACITY = 8;
+export const MAX_CAPACITY = 7;
 
 // Student Membership Information
 export const STUDENT_MEMBERSHIPS = [

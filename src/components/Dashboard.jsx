@@ -64,7 +64,31 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                 </header>
 
                 {/* Google Sheets 연동 */}
-                {user.role === 'coach' && <GoogleSheetsSync />}
+                {user.role === 'coach' && (
+                    <>
+                        <GoogleSheetsSync />
+                        <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                            <button
+                                onClick={() => onNavigate('test')}
+                                style={{
+                                    padding: '0.75rem 1.5rem',
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontSize: '1rem',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    transition: 'transform 0.2s'
+                                }}
+                                onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
+                                onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
+                            >
+                                🧪 Google Sheets 연동 테스트
+                            </button>
+                        </div>
+                    </>
+                )}
 
                 {/* 공지사항 섹션 */}
                 <section className="notices-section">

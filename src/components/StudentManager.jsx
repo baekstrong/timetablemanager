@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
+import { getStudentField } from '../services/googleSheetsService';
 import './StudentManager.css';
 
 const StudentManager = ({ onBack }) => {
@@ -156,7 +157,7 @@ const StudentManager = ({ onBack }) => {
                                             <td>
                                                 {editingStudent === index ? (
                                                     <select
-                                                        value={editForm['홀딩 사용여부'] || 'X'}
+                                                        value={getStudentField(editForm, '홀딩 사용여부') || 'X'}
                                                         onChange={(e) => handleFieldChange('홀딩 사용여부', e.target.value)}
                                                         className="edit-select"
                                                     >
@@ -164,8 +165,8 @@ const StudentManager = ({ onBack }) => {
                                                         <option value="X">X</option>
                                                     </select>
                                                 ) : (
-                                                    <span className={`holding-status ${student['홀딩 사용여부'] === 'O' ? 'active' : 'inactive'}`}>
-                                                        {student['홀딩 사용여부'] || 'X'}
+                                                    <span className={`holding-status ${getStudentField(student, '홀딩 사용여부') === 'O' ? 'active' : 'inactive'}`}>
+                                                        {getStudentField(student, '홀딩 사용여부') || 'X'}
                                                     </span>
                                                 )}
                                             </td>
@@ -175,12 +176,12 @@ const StudentManager = ({ onBack }) => {
                                                 {editingStudent === index ? (
                                                     <input
                                                         type="date"
-                                                        value={editForm['홀딩 시작일'] || ''}
+                                                        value={getStudentField(editForm, '홀딩 시작일') || ''}
                                                         onChange={(e) => handleFieldChange('홀딩 시작일', e.target.value)}
                                                         className="edit-input"
                                                     />
                                                 ) : (
-                                                    student['홀딩 시작일'] || '-'
+                                                    getStudentField(student, '홀딩 시작일') || '-'
                                                 )}
                                             </td>
 
@@ -189,12 +190,12 @@ const StudentManager = ({ onBack }) => {
                                                 {editingStudent === index ? (
                                                     <input
                                                         type="date"
-                                                        value={editForm['홀딩 종료일'] || ''}
+                                                        value={getStudentField(editForm, '홀딩 종료일') || ''}
                                                         onChange={(e) => handleFieldChange('홀딩 종료일', e.target.value)}
                                                         className="edit-input"
                                                     />
                                                 ) : (
-                                                    student['홀딩 종료일'] || '-'
+                                                    getStudentField(student, '홀딩 종료일') || '-'
                                                 )}
                                             </td>
 

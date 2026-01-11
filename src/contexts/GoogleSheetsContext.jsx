@@ -43,7 +43,33 @@ export const GoogleSheetsProvider = ({ children }) => {
                 await initializeGIS();
                 setIsInitialized(true);
 
-                // Check if already signed in
+                // Try to restore saved token from localStorage
+                const savedToken = localStorage.getItem('google_sheets_token');
+                if (savedToken) {
+                    try {
+                        const tokenData = JSON.parse(savedToken);
+                        // Check if token is expired
+                        const expiresAt = tokenData.expires_at;
+                        if (expiresAt && Date.now() < expiresAt) {
+                            // Token is still valid, restore it
+                            const { gapi } = await import('gapi-script');
+                            gapi.client.setToken(tokenData);
+                            console.log('✅ Restored saved Google authentication');
+                            setIsAuthenticated(true);
+                            await fetchAvailableSheets();
+                            await fetchStudents();
+                            return;
+                        } else {
+                            console.log('⏰ Saved token expired, clearing...');
+                            localStorage.removeItem('google_sheets_token');
+                        }
+                    } catch (err) {
+                        console.error('Failed to restore saved token:', err);
+                        localStorage.removeItem('google_sheets_token');
+                    }
+                }
+
+                // Check if already signed in (without saved token)
                 if (isSignedIn()) {
                     setIsAuthenticated(true);
                     await fetchAvailableSheets();
@@ -98,6 +124,20 @@ export const GoogleSheetsProvider = ({ children }) => {
     const signIn = async () => {
         try {
             await signInToGoogle();
+
+            // Save token to localStorage for persistence
+            const { gapi } = await import('gapi-script');
+            const token = gapi.client.getToken();
+            if (token) {
+                // Add expiration time (tokens typically last 1 hour)
+                const tokenWithExpiry = {
+                    ...token,
+                    expires_at: Date.now() + (3600 * 1000) // 1 hour from now
+                };
+                localStorage.setItem('google_sheets_token', JSON.stringify(tokenWithExpiry));
+                console.log('💾 Saved Google authentication token');
+            }
+
             setIsAuthenticated(true);
             await fetchAvailableSheets();
             await fetchStudents();
@@ -111,6 +151,8 @@ export const GoogleSheetsProvider = ({ children }) => {
     // Sign out from Google
     const signOut = () => {
         signOutFromGoogle();
+        localStorage.removeItem('google_sheets_token');
+        console.log('🗑️ Cleared saved Google authentication token');
         setIsAuthenticated(false);
         setStudents([]);
     };

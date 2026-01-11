@@ -6,11 +6,12 @@ import WeeklySchedule from './components/WeeklySchedule';
 import HoldingManager from './components/HoldingManager';
 import StudentInfo from './components/StudentInfo';
 import StudentManager from './components/StudentManager';
+import GoogleSheetsTest from './components/GoogleSheetsTest';
 import './App.css';
 
 function App() {
   const [user, setUser] = useState(null);
-  const [currentPage, setCurrentPage] = useState('login'); // 'login', 'dashboard', 'schedule', 'holding', 'myinfo', 'students', 'training'
+  const [currentPage, setCurrentPage] = useState('login'); // 'login', 'dashboard', 'schedule', 'holding', 'myinfo', 'students', 'training', 'test'
 
   const handleLogin = (userData) => {
     setUser(userData);
@@ -59,6 +60,9 @@ function App() {
             <p>준비 중입니다...</p>
           </div>
         );
+
+      case 'test':
+        return <GoogleSheetsTest />;
 
       default:
         return <Login onLogin={handleLogin} />;
