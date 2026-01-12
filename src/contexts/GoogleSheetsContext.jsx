@@ -235,7 +235,7 @@ export const GoogleSheetsProvider = ({ children }) => {
         refresh,
         fetchStudents,
         changeMonth,
-        changeMonth,
+
         currentSheetName: getCurrentSheetName(new Date(selectedYear, selectedMonth - 1)),
         isConnected: isAuthenticated,
         getStudentByName: async (name) => {
