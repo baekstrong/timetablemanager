@@ -304,3 +304,240 @@
         gap: 12px;
     }
 }
+/* 달력 카드 */
+.calendar-card {
+    background: white;
+    padding: 32px;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    animation: fadeIn 0.6s ease-out;
+}
+
+/* 달력 */
+.calendar {
+    margin-top: 20px;
+}
+
+.calendar-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.calendar-header h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.weekday {
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: #6b7280;
+    padding: 8px;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border-radius: 12px;
+    border: 2px solid #e5e7eb;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.calendar-day.empty {
+    border: none;
+    cursor: default;
+}
+
+.calendar-day:not(.empty):not(.disabled):hover {
+    border-color: #667eea;
+    background: #f0f4ff;
+    transform: scale(1.05);
+}
+
+.calendar-day.class-day {
+    border-color: #667eea;
+    background: #f0f4ff;
+}
+
+.calendar-day.holding-day {
+    border-color: #f59e0b;
+    background: #fff7ed;
+}
+
+.calendar-day.selected {
+    border-color: #667eea;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.calendar-day.selected .day-number,
+.calendar-day.selected .class-indicator {
+    color: white;
+}
+
+.calendar-day.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.calendar-day.disabled:hover {
+    transform: none;
+    border-color: #e5e7eb;
+    background: white;
+}
+
+.calendar-day.past {
+    opacity: 0.5;
+}
+
+.day-number {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.class-indicator {
+    font-size: 8px;
+    color: #667eea;
+    margin-top: 2px;
+}
+
+.holding-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 8px;
+    padding: 2px 4px;
+    background: #f59e0b;
+    color: white;
+    border-radius: 4px;
+    font-weight: 700;
+}
+
+/* 달력 범례 */
+.calendar-legend {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #6b7280;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.legend-dot.class {
+    background: #667eea;
+}
+
+.legend-dot.holding {
+    background: #f59e0b;
+}
+
+/* 선택된 정보 */
+.selected-info {
+    margin-top: 24px;
+    padding: 20px;
+    background: #f0f4ff;
+    border-radius: 12px;
+    border: 2px solid #667eea;
+}
+
+.selected-info p {
+    margin: 8px 0;
+    font-size: 15px;
+    color: #374151;
+}
+
+.selected-info strong {
+    color: #667eea;
+    font-weight: 700;
+}
+
+.selected-info .submit-button {
+    margin-top: 16px;
+    width: 100%;
+}
+
+.submit-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.submit-button:disabled:hover {
+    transform: none;
+}
+
+/* 달력 부제목 */
+.calendar-subtitle {
+    text-align: center;
+    color: #6b7280;
+    font-size: 14px;
+    margin-bottom: 16px;
+}
+
+/* 선택된 날짜 목록 */
+.selected-dates-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.selected-date-chip {
+    padding: 6px 12px;
+    background: #667eea;
+    color: white;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* 선택된 날짜 범례 추가 */
+.legend-dot.selected {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* 홀딩 내역 일수 표시 */
+.history-days {
+    padding: 4px 12px;
+    background: #fef3c7;
+    color: #92400e;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+}

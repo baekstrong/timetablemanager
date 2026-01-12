@@ -73,7 +73,7 @@ function AppContent() {
         return <WeeklySchedule user={user} studentData={studentData} onBack={handleBackToDashboard} />;
 
       case 'holding':
-        return <HoldingManager user={user} onBack={handleBackToDashboard} />;
+        return <HoldingManager user={user} studentData={studentData} onBack={handleBackToDashboard} />;
 
       case 'myinfo':
         return <StudentInfo user={user} studentData={studentData} onBack={handleBackToDashboard} />;

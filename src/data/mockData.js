@@ -1,11 +1,11 @@
 // Enhanced Mock Data with Start/End Dates and Holding Features
 export const PERIODS = [
-    { id: 1, name: '1교시', time: '10:00 ~ 11:30' },
-    { id: 2, name: '2교시', time: '12:00 ~ 13:30' },
-    { id: 3, name: '3교시(자율)', time: '15:00 ~ 17:00', type: 'free' },
-    { id: 4, name: '4교시', time: '18:00 ~ 19:30' },
-    { id: 5, name: '5교시', time: '19:50 ~ 21:20' },
-    { id: 6, name: '6교시', time: '21:40 ~ 23:10' },
+    { id: 1, name: '1교시', time: '10:00 ~ 11:30', startHour: 10, startMinute: 0 },
+    { id: 2, name: '2교시', time: '12:00 ~ 13:30', startHour: 12, startMinute: 0 },
+    { id: 3, name: '3교시(자율)', time: '15:00 ~ 17:00', type: 'free', startHour: 15, startMinute: 0 },
+    { id: 4, name: '4교시', time: '18:00 ~ 19:30', startHour: 18, startMinute: 0 },
+    { id: 5, name: '5교시', time: '19:50 ~ 21:20', startHour: 19, startMinute: 50 },
+    { id: 6, name: '6교시', time: '21:40 ~ 23:10', startHour: 21, startMinute: 40 },
 ];
 
 export const DAYS = ['월', '화', '수', '목', '금'];

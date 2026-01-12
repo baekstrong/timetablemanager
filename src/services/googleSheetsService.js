@@ -748,3 +748,145 @@ export const updateStudentData = async (rowIndex, studentData, year = null, mont
         throw error;
     }
 };
+
+/**
+ * 홀딩 신청
+ * @param {string} studentName - 학생 이름
+ * @param {Date} holdingStartDate - 홀딩 시작 날짜
+ * @param {Date} holdingEndDate - 홀딩 종료 날짜 (선택사항, 없으면 시작일과 동일)
+ * @param {number} year - 년도
+ * @param {number} month - 월 (1-12)
+ * @returns {Promise<Object>} - 성공 여부
+ */
+export const requestHolding = async (studentName, holdingStartDate, holdingEndDate = null, year = null, month = null) => {
+    try {
+        // 종료일이 없으면 시작일과 동일하게 설정
+        const endDate = holdingEndDate || holdingStartDate;
+
+        // 선택한 날짜를 기준으로 시트 이름 결정
+        const sheetName = getCurrentSheetName(holdingStartDate);
+        const range = `${sheetName}!A:Z`;
+
+        console.log(`🔍 홀딩 신청 시작: ${studentName}, ${holdingStartDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}`);
+        console.log(`📋 시트 이름: ${sheetName}`);
+
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: range,
+        });
+
+        const rows = response.result.values;
+        if (!rows || rows.length < 2) {
+            throw new Error('시트 데이터를 찾을 수 없습니다.');
+        }
+
+        // 학생 찾기
+        const headers = rows[1];
+        const nameColIndex = headers.indexOf('이름');
+
+        if (nameColIndex === -1) {
+            throw new Error('이름 필드를 찾을 수 없습니다.');
+        }
+
+        const studentIndex = rows.findIndex((row, idx) =>
+            idx >= 2 && row[nameColIndex] === studentName
+        );
+
+        if (studentIndex === -1) {
+            throw new Error(`학생 정보를 찾을 수 없습니다: ${studentName}`);
+        }
+
+        console.log(`✅ 학생 찾음: 행 ${studentIndex + 1}`);
+
+        // 홀딩 정보 업데이트 - 필드명에 줄바꿈이 있을 수 있으므로 유연하게 찾기
+        const findColumnIndex = (fieldName) => {
+            // 정확한 일치
+            let index = headers.indexOf(fieldName);
+            if (index !== -1) return index;
+
+            // 띄어쓰기를 줄바꿈으로 변환하여 찾기
+            const fieldNameWithNewline = fieldName.replace(/ /g, '\n');
+            index = headers.indexOf(fieldNameWithNewline);
+            if (index !== -1) return index;
+
+            // 줄바꿈을 띄어쓰기로 변환하여 찾기
+            const fieldNameWithSpace = fieldName.replace(/\n/g, ' ');
+            index = headers.indexOf(fieldNameWithSpace);
+            if (index !== -1) return index;
+
+            return -1;
+        };
+
+        const holdingUsedCol = findColumnIndex('홀딩 사용여부');
+        const holdingStartCol = findColumnIndex('홀딩 시작일');
+        const holdingEndCol = findColumnIndex('홀딩 종료일');
+
+        console.log(`📍 필드 위치: 사용여부=${holdingUsedCol}, 시작일=${holdingStartCol}, 종료일=${holdingEndCol}`);
+
+        if (holdingUsedCol === -1 || holdingStartCol === -1 || holdingEndCol === -1) {
+            console.error('헤더:', headers);
+            console.error('찾은 인덱스:', { holdingUsedCol, holdingStartCol, holdingEndCol });
+            throw new Error('홀딩 관련 필드를 찾을 수 없습니다. (홀딩 사용여부, 홀딩 시작일, 홀딩 종료일)');
+        }
+
+        const startDateStr = formatDateToYYMMDD(holdingStartDate);
+        const endDateStr = formatDateToYYMMDD(endDate);
+
+        console.log(`📝 업데이트할 데이터: 사용여부=O, 시작일=${startDateStr}, 종료일=${endDateStr}`);
+
+        const updates = [
+            {
+                range: `${sheetName}!${getColumnLetter(holdingUsedCol)}${studentIndex + 1}`,
+                values: [['O']]
+            },
+            {
+                range: `${sheetName}!${getColumnLetter(holdingStartCol)}${studentIndex + 1}`,
+                values: [[startDateStr]]
+            },
+            {
+                range: `${sheetName}!${getColumnLetter(holdingEndCol)}${studentIndex + 1}`,
+                values: [[endDateStr]]
+            }
+        ];
+
+        await gapi.client.sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: SPREADSHEET_ID,
+            resource: {
+                valueInputOption: 'RAW',
+                data: updates
+            }
+        });
+
+        console.log(`✅ 홀딩 신청 완료: ${studentName}, ${startDateStr} ~ ${endDateStr}`);
+        return { success: true };
+    } catch (error) {
+        console.error('❌ 홀딩 신청 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 날짜를 YYMMDD 형식으로 변환
+ * @param {Date} date - 날짜 객체
+ * @returns {string} - YYMMDD 형식 문자열
+ */
+const formatDateToYYMMDD = (date) => {
+    const year = String(date.getFullYear()).slice(2);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}${month}${day}`;
+};
+
+/**
+ * 컬럼 인덱스를 문자로 변환 (0 -> A, 1 -> B, ...)
+ * @param {number} index - 컬럼 인덱스
+ * @returns {string} - 컬럼 문자
+ */
+const getColumnLetter = (index) => {
+    let letter = '';
+    while (index >= 0) {
+        letter = String.fromCharCode((index % 26) + 65) + letter;
+        index = Math.floor(index / 26) - 1;
+    }
+    return letter;
+};

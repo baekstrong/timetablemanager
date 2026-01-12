@@ -12,7 +12,8 @@ import {
     getCurrentSheetName,
     getStudentByName,
     calculateMembershipStats,
-    generateAttendanceHistory
+    generateAttendanceHistory,
+    requestHolding
 } from '../services/googleSheetsService';
 
 const GoogleSheetsContext = createContext();
@@ -242,7 +243,10 @@ export const GoogleSheetsProvider = ({ children }) => {
             return student;
         },
         calculateMembershipStats,
-        generateAttendanceHistory
+        generateAttendanceHistory,
+        requestHolding: async (studentName, holdingStartDate, holdingEndDate) => {
+            return await requestHolding(studentName, holdingStartDate, holdingEndDate, selectedYear, selectedMonth);
+        }
     };
 
     return (
