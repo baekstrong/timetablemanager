@@ -323,6 +323,49 @@ const parseScheduleString = (scheduleStr) => {
 };
 
 /**
+ * Calculate end date based on start date, total sessions, schedule, and optional holding period
+ * @param {Date} startDate - Start date of membership
+ * @param {number} totalSessions - Total number of sessions (e.g., weeklyFrequency * 4)
+ * @param {string} scheduleStr - Schedule string (e.g., "화1목1")
+ * @param {Object} holdingRange - Optional holding period {start: Date, end: Date}
+ * @returns {Date|null} - Calculated end date
+ */
+const calculateEndDate = (startDate, totalSessions, scheduleStr, holdingRange = null) => {
+    if (!startDate || !scheduleStr || !totalSessions) return null;
+
+    const schedule = parseScheduleString(scheduleStr);
+    const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
+    const classDays = schedule.map(s => dayMap[s.day]).filter(d => d !== undefined);
+
+    if (classDays.length === 0) return null;
+
+    let sessionCount = 0;
+    const current = new Date(startDate);
+
+    while (sessionCount < totalSessions) {
+        const dayOfWeek = current.getDay();
+        
+        // Check if this is a class day
+        if (classDays.includes(dayOfWeek)) {
+            // Check if this date falls within holding period
+            const isInHoldingPeriod = holdingRange && 
+                current >= holdingRange.start && 
+                current <= holdingRange.end;
+
+            // Only count this session if it's NOT in holding period
+            if (!isInHoldingPeriod) {
+                sessionCount++;
+                if (sessionCount === totalSessions) {
+                    return new Date(current);
+                }
+            }
+        }
+        current.setDate(current.getDate() + 1);
+    }
+
+    return null;
+};
+/**
  * 시작일부터 오늘까지 완료된 수업 횟수 계산
  * @param {Date} startDate - 시작일
  * @param {Date} today - 오늘 날짜
@@ -430,29 +473,21 @@ export const calculateMembershipStats = (student) => {
         return `${year}-${month}-${day}`;
     };
 
-    // 종료일 계산 (시작일 + 4주 기간 동안 총 횟수만큼 수업)
+    // 종료일 계산 (홀딩 기간 고려)
     let endDate = null;
     if (startDate && scheduleStr) {
-        const schedule = parseScheduleString(scheduleStr);
-        const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
-        const classDays = schedule.map(s => dayMap[s.day]).filter(d => d !== undefined);
-
-        if (classDays.length > 0) {
-            let sessionCount = 0;
-            const current = new Date(startDate);
-
-            while (sessionCount < totalSessions) {
-                const dayOfWeek = current.getDay();
-                if (classDays.includes(dayOfWeek)) {
-                    sessionCount++;
-                    if (sessionCount === totalSessions) {
-                        endDate = new Date(current);
-                        break;
-                    }
-                }
-                current.setDate(current.getDate() + 1);
+        // 홀딩 기간 파싱
+        let holdingRange = null;
+        if (holdingUsed) {
+            const holdingStartDate = parseDate(getStudentField(student, '홀딩 시작일'));
+            const holdingEndDate = parseDate(getStudentField(student, '홀딩 종료일'));
+            if (holdingStartDate && holdingEndDate) {
+                holdingRange = { start: holdingStartDate, end: holdingEndDate };
             }
         }
+
+        // calculateEndDate 헬퍼 함수 사용
+        endDate = calculateEndDate(startDate, totalSessions, scheduleStr, holdingRange);
     }
 
     // 출석 횟수 계산 (완료된 수업 중 홀딩 제외)
@@ -820,8 +855,9 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
         const holdingUsedCol = findColumnIndex('홀딩 사용여부');
         const holdingStartCol = findColumnIndex('홀딩 시작일');
         const holdingEndCol = findColumnIndex('홀딩 종료일');
+        const endDateCol = findColumnIndex('종료날짜');
 
-        console.log(`📍 필드 위치: 사용여부=${holdingUsedCol}, 시작일=${holdingStartCol}, 종료일=${holdingEndCol}`);
+        console.log(`📍 필드 위치: 사용여부=${holdingUsedCol}, 시작일=${holdingStartCol}, 종료일=${holdingEndCol}, 종료날짜=${endDateCol}`);
 
         if (holdingUsedCol === -1 || holdingStartCol === -1 || holdingEndCol === -1) {
             console.error('헤더:', headers);
@@ -829,10 +865,59 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
             throw new Error('홀딩 관련 필드를 찾을 수 없습니다. (홀딩 사용여부, 홀딩 시작일, 홀딩 종료일)');
         }
 
+        // 학생 데이터 가져오기
+        const studentRow = rows[studentIndex];
+        const studentData = {};
+        headers.forEach((header, idx) => {
+            studentData[header] = studentRow[idx] || '';
+        });
+
+        // 새 종료일 계산
+        const parseDate = (dateStr) => {
+            if (!dateStr) return null;
+            const cleaned = dateStr.replace(/\D/g, '');
+            if (cleaned.length === 6) {
+                const year = parseInt('20' + cleaned.substring(0, 2));
+                const month = parseInt(cleaned.substring(2, 4)) - 1;
+                const day = parseInt(cleaned.substring(4, 6));
+                return new Date(year, month, day);
+            } else if (cleaned.length === 8) {
+                const year = parseInt(cleaned.substring(0, 4));
+                const month = parseInt(cleaned.substring(4, 6)) - 1;
+                const day = parseInt(cleaned.substring(6, 8));
+                return new Date(year, month, day);
+            }
+            return null;
+        };
+
+        const startDateField = getStudentField(studentData, '시작날짜');
+        const scheduleStr = getStudentField(studentData, '요일 및 시간');
+        const weeklyFrequencyStr = getStudentField(studentData, '주횟수');
+
+        const membershipStartDate = parseDate(startDateField);
+        const weeklyFrequency = parseInt(weeklyFrequencyStr) || 2;
+        const totalSessions = weeklyFrequency * 4;
+
+        console.log(`📊 수강생 정보: 시작일=${startDateField}, 주횟수=${weeklyFrequency}, 총 횟수=${totalSessions}`);
+
+        // 홀딩 기간 설정
+        const holdingRange = {
+            start: holdingStartDate,
+            end: endDate
+        };
+
+        // 새 종료일 계산
+        const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, holdingRange);
+
+        if (!newEndDate) {
+            throw new Error('종료일 계산에 실패했습니다.');
+        }
+
         const startDateStr = formatDateToYYMMDD(holdingStartDate);
         const endDateStr = formatDateToYYMMDD(endDate);
+        const newEndDateStr = formatDateToYYMMDD(newEndDate);
 
-        console.log(`📝 업데이트할 데이터: 사용여부=O, 시작일=${startDateStr}, 종료일=${endDateStr}`);
+        console.log(`📝 업데이트할 데이터: 사용여부=O, 시작일=${startDateStr}, 종료일=${endDateStr}, 새 종료날짜=${newEndDateStr}`);
 
         const updates = [
             {
@@ -849,6 +934,14 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
             }
         ];
 
+        // 종료날짜 컬럼이 존재하면 업데이트에 추가
+        if (endDateCol !== -1) {
+            updates.push({
+                range: `${sheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`,
+                values: [[newEndDateStr]]
+            });
+        }
+
         await gapi.client.sheets.spreadsheets.values.batchUpdate({
             spreadsheetId: SPREADSHEET_ID,
             resource: {
@@ -858,7 +951,8 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
         });
 
         console.log(`✅ 홀딩 신청 완료: ${studentName}, ${startDateStr} ~ ${endDateStr}`);
-        return { success: true };
+        console.log(`📅 종료일 연장: ${newEndDateStr}`);
+        return { success: true, newEndDate: newEndDateStr };
     } catch (error) {
         console.error('❌ 홀딩 신청 실패:', error);
         throw error;

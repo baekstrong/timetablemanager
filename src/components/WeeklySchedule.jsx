@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField } from '../services/googleSheetsService';
+import { getActiveMakeupRequest, createMakeupRequest, cancelMakeupRequest } from '../services/firebaseService';
 import { PERIODS, DAYS, MOCK_DATA, MAX_CAPACITY } from '../data/mockData';
 import './WeeklySchedule.css';
 
@@ -155,6 +156,13 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student'); // 'student' | 'coach'
     const { students, isAuthenticated, loading } = useGoogleSheets();
 
+    // Makeup request state
+    const [showMakeupModal, setShowMakeupModal] = useState(false);
+    const [selectedMakeupSlot, setSelectedMakeupSlot] = useState(null);
+    const [selectedOriginalClass, setSelectedOriginalClass] = useState(null);
+    const [activeMakeupRequest, setActiveMakeupRequest] = useState(null);
+    const [isSubmittingMakeup, setIsSubmittingMakeup] = useState(false);
+
     // Class disabled state (stored in localStorage)
     const [disabledClasses, setDisabledClasses] = useState(() => {
         const saved = localStorage.getItem('disabled_classes');
@@ -200,9 +208,75 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     // 수강생 시간표 파싱
     const studentSchedule = useMemo(() => {
         if (!studentData) return [];
-        const scheduleStr = studentData['요일 및 시간'];
-        return parseScheduleString(scheduleStr);
+        const scheduleStr = getStudentField(studentData, '요일 및 시간');
+        console.log('📋 Student schedule string:', scheduleStr);
+        const parsed = parseScheduleString(scheduleStr);
+        console.log('📋 Parsed student schedule:', parsed);
+        return parsed;
     }, [studentData]);
+
+    // Load active makeup request on mount
+    useEffect(() => {
+        const loadActiveMakeup = async () => {
+            if (mode === 'student' && user) {
+                try {
+                    const makeup = await getActiveMakeupRequest(user.username);
+                    setActiveMakeupRequest(makeup);
+                } catch (error) {
+                    console.error('Failed to load active makeup:', error);
+                }
+            }
+        };
+        loadActiveMakeup();
+    }, [mode, user]);
+
+    // Handle available seat click
+    const handleAvailableSeatClick = (day, periodId, date) => {
+        if (mode !== 'student') return;
+
+        if (activeMakeupRequest) {
+            alert('이미 활성화된 보강 신청이 있습니다. 먼저 취소해주세요.');
+            return;
+        }
+
+        const period = PERIODS.find(p => p.id === periodId);
+        setSelectedMakeupSlot({ day, period: periodId, periodName: period.name, date });
+        setShowMakeupModal(true);
+    };
+
+    // Handle makeup submission
+    const handleMakeupSubmit = async () => {
+        if (!selectedOriginalClass || !selectedMakeupSlot) return;
+
+        setIsSubmittingMakeup(true);
+        try {
+            await createMakeupRequest(user.username, selectedOriginalClass, selectedMakeupSlot);
+            alert(`보강 신청 완료!\n${selectedOriginalClass.day}요일 ${selectedOriginalClass.periodName} → ${selectedMakeupSlot.day}요일 ${selectedMakeupSlot.periodName}`);
+
+            const makeup = await getActiveMakeupRequest(user.username);
+            setActiveMakeupRequest(makeup);
+            setShowMakeupModal(false);
+            setSelectedMakeupSlot(null);
+            setSelectedOriginalClass(null);
+        } catch (error) {
+            alert(`보강 신청 실패: ${error.message}`);
+        } finally {
+            setIsSubmittingMakeup(false);
+        }
+    };
+
+    // Handle makeup cancellation
+    const handleMakeupCancel = async () => {
+        if (!activeMakeupRequest || !confirm('보강 신청을 취소하시겠습니까?')) return;
+
+        try {
+            await cancelMakeupRequest(activeMakeupRequest.id);
+            alert('보강 신청이 취소되었습니다.');
+            setActiveMakeupRequest(null);
+        } catch (error) {
+            alert(`보강 신청 취소 실패: ${error.message}`);
+        }
+    };
 
     // 현재 셀이 수강생의 등록된 수업인지 확인
     const isMyClass = (day, periodId) => {
@@ -276,11 +350,17 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
         if (mode === 'student') {
             if (cellData.isFull) {
-                alert('만석입니다. 대기 신청을 하시겠습니까?');
+                alert('만석입니다.');
             } else {
-                if (confirm(`${day}요일 ${periodObj.name}에 수강 신청(보강) 하시겠습니까?`)) {
-                    // Logic to add current user as substitute would go here
-                    alert('신청되었습니다!');
+                // Calculate date for this slot
+                const dateStr = weekDates[day];
+                if (dateStr) {
+                    const [month, dayNum] = dateStr.split('/');
+                    const year = new Date().getFullYear();
+                    const date = new Date(year, parseInt(month) - 1, parseInt(dayNum));
+                    const dateFormatted = date.toISOString().split('T')[0];
+
+                    handleAvailableSeatClick(day, periodObj.id, dateFormatted);
                 }
             }
         } else {
@@ -579,6 +659,89 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     </>
                 )}
             </div>
+
+            {/* Makeup Request Modal */}
+            {showMakeupModal && mode === 'student' && (
+                <div className="makeup-modal-overlay" onClick={() => setShowMakeupModal(false)}>
+                    <div className="makeup-modal" onClick={(e) => e.stopPropagation()}>
+                        <h2>보강 신청</h2>
+                        <p className="makeup-modal-subtitle">
+                            선택한 시간: <strong>{selectedMakeupSlot?.day}요일 {selectedMakeupSlot?.periodName}</strong>
+                        </p>
+
+                        <div className="makeup-modal-content">
+                            <h3>어느 수업을 옮기시겠습니까?</h3>
+                            <div className="original-class-list">
+                                {studentSchedule.map((schedule, index) => {
+                                    const periodInfo = PERIODS.find(p => p.id === schedule.period);
+                                    return (
+                                        <div
+                                            key={index}
+                                            className={`original-class-item ${selectedOriginalClass?.day === schedule.day && selectedOriginalClass?.period === schedule.period ? 'selected' : ''}`}
+                                            onClick={() => {
+                                                const today = new Date();
+                                                const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
+                                                const targetDay = dayMap[schedule.day];
+                                                const currentDay = today.getDay();
+
+                                                let daysUntilTarget = targetDay - currentDay;
+                                                if (daysUntilTarget <= 0) daysUntilTarget += 7;
+
+                                                const originalDate = new Date(today);
+                                                originalDate.setDate(today.getDate() + daysUntilTarget);
+                                                const originalDateStr = originalDate.toISOString().split('T')[0];
+
+                                                setSelectedOriginalClass({
+                                                    day: schedule.day,
+                                                    period: schedule.period,
+                                                    periodName: periodInfo.name,
+                                                    date: originalDateStr
+                                                });
+                                            }}
+                                        >
+                                            <span className="day-badge">{schedule.day}</span>
+                                            <span className="period-name">{periodInfo?.name}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div className="makeup-modal-actions">
+                            <button
+                                className="btn-cancel"
+                                onClick={() => {
+                                    setShowMakeupModal(false);
+                                    setSelectedMakeupSlot(null);
+                                    setSelectedOriginalClass(null);
+                                }}
+                            >
+                                취소
+                            </button>
+                            <button
+                                className="btn-submit"
+                                onClick={handleMakeupSubmit}
+                                disabled={!selectedOriginalClass || isSubmittingMakeup}
+                            >
+                                {isSubmittingMakeup ? '신청 중...' : '보강 신청'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Active Makeup Banner */}
+            {activeMakeupRequest && mode === 'student' && (
+                <div className="active-makeup-banner">
+                    <div className="banner-content">
+                        <span className="banner-icon">🔄</span>
+                        <div className="banner-text">
+                            <strong>활성 보강:</strong> {activeMakeupRequest.originalClass.day}요일 {activeMakeupRequest.originalClass.periodName} → {activeMakeupRequest.makeupClass.day}요일 {activeMakeupRequest.makeupClass.periodName}
+                        </div>
+                        <button className="banner-cancel-btn" onClick={handleMakeupCancel}>취소</button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

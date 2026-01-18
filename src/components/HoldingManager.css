@@ -19,7 +19,7 @@
     border-radius: 12px;
     font-size: 14px;
     font-weight: 600;
-    color: #374151;
+    color: #667eea !important;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -304,6 +304,7 @@
         gap: 12px;
     }
 }
+
 /* 달력 카드 */
 .calendar-card {
     background: white;

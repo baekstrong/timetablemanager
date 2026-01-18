@@ -272,8 +272,23 @@ const HoldingManager = ({ user, studentData, onBack }) => {
             console.log(`📆 Date 객체: ${startDate.toLocaleDateString()} ~ ${endDate.toLocaleDateString()}`);
 
             // 홀딩 신청 (시작일과 종료일 전달)
-            await requestHolding(user.username, startDate, endDate);
-            alert('홀딩 신청이 완료되었습니다.');
+            const result = await requestHolding(user.username, startDate, endDate);
+
+            // 새 종료일 정보가 있으면 표시
+            if (result.newEndDate) {
+                // YYMMDD 형식을 YYYY-MM-DD로 변환
+                const formatEndDate = (yymmdd) => {
+                    const year = '20' + yymmdd.substring(0, 2);
+                    const month = yymmdd.substring(2, 4);
+                    const day = yymmdd.substring(4, 6);
+                    return `${year}-${month}-${day}`;
+                };
+                const formattedEndDate = formatEndDate(result.newEndDate);
+                alert(`홀딩 신청이 완료되었습니다.\n수강 종료일이 ${formattedEndDate}로 연장되었습니다.`);
+            } else {
+                alert('홀딩 신청이 완료되었습니다.');
+            }
+
             setSelectedDates([]);
             // 대시보드로 돌아가기
             onBack();
