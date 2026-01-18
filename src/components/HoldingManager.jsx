@@ -1,7 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { PERIODS } from '../data/mockData';
 import { getStudentField } from '../services/googleSheetsService';
+import {
+    createHoldingRequest,
+    createAbsenceRequest,
+    getActiveHolding,
+    getAbsencesByStudent,
+    cancelHolding,
+    cancelAbsence
+} from '../services/firebaseService';
 import './HoldingManager.css';
 
 // 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (timezone 문제 방지)
@@ -14,8 +22,11 @@ const formatLocalDate = (date) => {
 
 const HoldingManager = ({ user, studentData, onBack }) => {
     const { requestHolding } = useGoogleSheets();
+    const [requestType, setRequestType] = useState('holding'); // 'holding' | 'absence'
     const [selectedDates, setSelectedDates] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [activeHolding, setActiveHolding] = useState(null);
+    const [absences, setAbsences] = useState([]);
 
     // 수강생의 정규 수업 요일 파싱
     const schedule = useMemo(() => {
@@ -135,6 +146,24 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         return [];
     }, [studentData]);
 
+    // Load active holding and absences from Firebase
+    useEffect(() => {
+        const loadData = async () => {
+            if (!user) return;
+
+            try {
+                const holding = await getActiveHolding(user.username);
+                setActiveHolding(holding);
+
+                const absenceList = await getAbsencesByStudent(user.username);
+                setAbsences(absenceList);
+            } catch (error) {
+                console.error('Failed to load holding/absence data:', error);
+            }
+        };
+        loadData();
+    }, [user]);
+
     // 이번 달 달력 생성 (수강 기간 내로 제한)
     const calendar = useMemo(() => {
         const today = new Date();
@@ -251,47 +280,49 @@ const HoldingManager = ({ user, studentData, onBack }) => {
     };
 
     // 홀딩 신청 핸들러
+    // 홀딩 신청 핸들러
     const handleSubmit = async () => {
         if (selectedDates.length === 0 || !user) return;
 
         setIsSubmitting(true);
         try {
-            // 시작일과 종료일 결정
             const sortedDates = [...selectedDates].sort();
 
-            // 날짜 문자열을 로컬 시간대로 파싱 (timezone 문제 방지)
-            const parseLocalDate = (dateStr) => {
-                const [year, month, day] = dateStr.split('-').map(Number);
-                return new Date(year, month - 1, day);
-            };
+            if (requestType === 'holding') {
+                // 홀딩 신청 - Firebase에 저장
+                const startDate = sortedDates[0];
+                const endDate = sortedDates[sortedDates.length - 1];
 
-            const startDate = parseLocalDate(sortedDates[0]);
-            const endDate = parseLocalDate(sortedDates[sortedDates.length - 1]);
+                await createHoldingRequest(user.username, startDate, endDate);
 
-            console.log(`📅 선택한 날짜: ${sortedDates[0]} ~ ${sortedDates[sortedDates.length - 1]}`);
-            console.log(`📆 Date 객체: ${startDate.toLocaleDateString()} ~ ${endDate.toLocaleDateString()}`);
-
-            // 홀딩 신청 (시작일과 종료일 전달)
-            const result = await requestHolding(user.username, startDate, endDate);
-
-            // 새 종료일 정보가 있으면 표시
-            if (result.newEndDate) {
-                // YYMMDD 형식을 YYYY-MM-DD로 변환
-                const formatEndDate = (yymmdd) => {
-                    const year = '20' + yymmdd.substring(0, 2);
-                    const month = yymmdd.substring(2, 4);
-                    const day = yymmdd.substring(4, 6);
-                    return `${year}-${month}-${day}`;
+                // Google Sheets에도 저장 (기존 시스템 호환)
+                const parseLocalDate = (dateStr) => {
+                    const [year, month, day] = dateStr.split('-').map(Number);
+                    return new Date(year, month - 1, day);
                 };
-                const formattedEndDate = formatEndDate(result.newEndDate);
-                alert(`홀딩 신청이 완료되었습니다.\n수강 종료일이 ${formattedEndDate}로 연장되었습니다.`);
+                const startDateObj = parseLocalDate(startDate);
+                const endDateObj = parseLocalDate(endDate);
+                await requestHolding(user.username, startDateObj, endDateObj);
+
+                alert(`홀딩 신청이 완료되었습니다.\n기간: ${startDate} ~ ${endDate}`);
+
+                // Reload data
+                const holding = await getActiveHolding(user.username);
+                setActiveHolding(holding);
             } else {
-                alert('홀딩 신청이 완료되었습니다.');
+                // 결석 신청 - Firebase에 저장
+                for (const date of sortedDates) {
+                    await createAbsenceRequest(user.username, date);
+                }
+
+                alert(`결석 신청이 완료되었습니다.\n날짜: ${sortedDates.join(', ')}`);
+
+                // Reload data
+                const absenceList = await getAbsencesByStudent(user.username);
+                setAbsences(absenceList);
             }
 
             setSelectedDates([]);
-            // 대시보드로 돌아가기
-            onBack();
         } catch (error) {
             alert(`홀딩 신청에 실패했습니다: ${error.message}`);
             console.error('홀딩 신청 오류:', error);
@@ -327,6 +358,127 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                     </div>
                 </div>
 
+                {/* 현재 활성 홀딩/결석 목록 */}
+                {(activeHolding || absences.length > 0) && (
+                    <div className="info-card" style={{ marginBottom: '24px', background: '#fff3cd', borderColor: '#ffc107' }}>
+                        <div className="info-icon">📋</div>
+                        <div className="info-content">
+                            <h3>현재 신청 내역</h3>
+
+                            {activeHolding && (
+                                <div style={{ marginTop: '12px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #f59e0b' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <strong style={{ color: '#f59e0b' }}>🟠 홀딩</strong>
+                                            <div style={{ fontSize: '14px', marginTop: '4px' }}>
+                                                {activeHolding.startDate} ~ {activeHolding.endDate}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={async () => {
+                                                if (confirm('홀딩을 취소하시겠습니까?')) {
+                                                    try {
+                                                        await cancelHolding(activeHolding.id);
+                                                        setActiveHolding(null);
+                                                        alert('홀딩이 취소되었습니다.');
+                                                    } catch (error) {
+                                                        alert('취소 실패: ' + error.message);
+                                                    }
+                                                }
+                                            }}
+                                            style={{
+                                                padding: '6px 12px',
+                                                background: '#dc2626',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                cursor: 'pointer',
+                                                fontSize: '13px'
+                                            }}
+                                        >
+                                            취소
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {absences.length > 0 && (
+                                <div style={{ marginTop: '12px' }}>
+                                    <strong style={{ color: '#ef4444' }}>🔴 결석</strong>
+                                    {absences.map(absence => (
+                                        <div key={absence.id} style={{ marginTop: '8px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #ef4444' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div style={{ fontSize: '14px' }}>
+                                                    {absence.date}
+                                                </div>
+                                                <button
+                                                    onClick={async () => {
+                                                        if (confirm('결석을 취소하시겠습니까?')) {
+                                                            try {
+                                                                await cancelAbsence(absence.id);
+                                                                const updated = await getAbsencesByStudent(user.username);
+                                                                setAbsences(updated);
+                                                                alert('결석이 취소되었습니다.');
+                                                            } catch (error) {
+                                                                alert('취소 실패: ' + error.message);
+                                                            }
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        padding: '6px 12px',
+                                                        background: '#dc2626',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: '6px',
+                                                        cursor: 'pointer',
+                                                        fontSize: '13px'
+                                                    }}
+                                                >
+                                                    취소
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* 신청 유형 선택 */}
+                <div className="request-type-selector">
+                    <label className={`type-option ${requestType === 'holding' ? 'selected' : ''}`}>
+                        <input
+                            type="radio"
+                            name="requestType"
+                            value="holding"
+                            checked={requestType === 'holding'}
+                            onChange={() => {
+                                setRequestType('holding');
+                                setSelectedDates([]);
+                            }}
+                        />
+                        <span className="type-icon">⏸️</span>
+                        <span className="type-label">홀딩 신청</span>
+                        <span className="type-desc">연속 기간 홀딩</span>
+                    </label>
+                    <label className={`type-option ${requestType === 'absence' ? 'selected' : ''}`}>
+                        <input
+                            type="radio"
+                            name="requestType"
+                            value="absence"
+                            checked={requestType === 'absence'}
+                            onChange={() => {
+                                setRequestType('absence');
+                                setSelectedDates([]);
+                            }}
+                        />
+                        <span className="type-icon">❌</span>
+                        <span className="type-label">결석 신청</span>
+                        <span className="type-desc">특정 날짜 결석</span>
+                    </label>
+                </div>
+
                 {/* 달력 */}
                 <div className="calendar-card">
                     <h2 className="form-title">홀딩 날짜 선택</h2>
@@ -350,9 +502,10 @@ const HoldingManager = ({ user, studentData, onBack }) => {
 
                                 const isClass = isClassDay(date);
                                 const isHolding = isHoldingDate(date);
-                                const canRequest = isClass && canRequestHolding(date) && !isHolding;
+                                const isAbsence = absences.some(a => a.date === formatLocalDate(date));
                                 const isSelected = selectedDates.includes(formatLocalDate(date));
                                 const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
+                                const canRequest = isClass && canRequestHolding(date) && !isHolding && !isAbsence;
 
                                 return (
                                     <div
@@ -360,6 +513,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                         className={`calendar-day 
                                             ${isClass ? 'class-day' : ''} 
                                             ${isHolding ? 'holding-day' : ''} 
+                                            ${isAbsence ? 'absence-day' : ''}
                                             ${isSelected ? 'selected' : ''}
                                             ${!canRequest ? 'disabled' : ''}
                                             ${isPast ? 'past' : ''}`}
@@ -368,6 +522,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                         <span className="day-number">{date.getDate()}</span>
                                         {isClass && <span className="class-indicator">●</span>}
                                         {isHolding && <span className="holding-badge">홀딩</span>}
+                                        {isAbsence && <span className="absence-badge">결석</span>}
                                     </div>
                                 );
                             })}
@@ -381,61 +536,64 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                 <span className="legend-dot holding">●</span> 홀딩 신청
                             </div>
                             <div className="legend-item">
+                                <span className="legend-dot absence">●</span> 결석 신청
+                            </div>
+                            <div className="legend-item">
                                 <span className="legend-dot selected">●</span> 선택됨
                             </div>
                         </div>
                     </div>
-
-                    {selectedDates.length > 0 && (
-                        <div className="selected-info">
-                            <p>선택한 날짜: <strong>{selectedDates.length}일</strong></p>
-                            <div className="selected-dates-list">
-                                {selectedDates.map(dateStr => (
-                                    <span key={dateStr} className="selected-date-chip">
-                                        {new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
-                                    </span>
-                                ))}
-                            </div>
-                            <button
-                                onClick={handleSubmit}
-                                className="submit-button"
-                                disabled={isSubmitting}
-                            >
-                                <span>{isSubmitting ? '신청 중...' : '홀딩 신청하기'}</span>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                            </button>
-                        </div>
-                    )}
                 </div>
 
-                {/* 홀딩 내역 */}
-                <div className="history-card">
-                    <h2 className="form-title">홀딩 신청 내역</h2>
-                    <div className="history-list">
-                        {holdingHistory.length === 0 ? (
-                            <p className="empty-message">홀딩 신청 내역이 없습니다.</p>
-                        ) : (
-                            holdingHistory.map((item, index) => (
-                                <div key={index} className="history-item">
-                                    <div className="history-info">
-                                        <div className="history-date">
-                                            {item.startDate === item.endDate
-                                                ? item.startDate
-                                                : `${item.startDate} ~ ${item.endDate}`}
-                                        </div>
-                                        <div className="history-days">
-                                            {item.dates.length}일
-                                        </div>
+                {selectedDates.length > 0 && (
+                    <div className="selected-info">
+                        <p>선택한 날짜: <strong>{selectedDates.length}일</strong></p>
+                        <div className="selected-dates-list">
+                            {selectedDates.map(dateStr => (
+                                <span key={dateStr} className="selected-date-chip">
+                                    {new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                                </span>
+                            ))}
+                        </div>
+                        <button
+                            onClick={handleSubmit}
+                            className="submit-button"
+                            disabled={isSubmitting}
+                        >
+                            <span>{isSubmitting ? '신청 중...' : '홀딩 신청하기'}</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* 홀딩 내역 */}
+            <div className="history-card">
+                <h2 className="form-title">홀딩 신청 내역</h2>
+                <div className="history-list">
+                    {holdingHistory.length === 0 ? (
+                        <p className="empty-message">홀딩 신청 내역이 없습니다.</p>
+                    ) : (
+                        holdingHistory.map((item, index) => (
+                            <div key={index} className="history-item">
+                                <div className="history-info">
+                                    <div className="history-date">
+                                        {item.startDate === item.endDate
+                                            ? item.startDate
+                                            : `${item.startDate} ~ ${item.endDate}`}
                                     </div>
-                                    <div className={`history-status approved`}>
-                                        {item.status}
+                                    <div className="history-days">
+                                        {item.dates.length}일
                                     </div>
                                 </div>
-                            ))
-                        )}
-                    </div>
+                                <div className={`history-status approved`}>
+                                    {item.status}
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
         </div>

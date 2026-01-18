@@ -225,3 +225,223 @@ export const completeMakeupRequest = async (requestId) => {
         throw error;
     }
 };
+// ============================================
+// HOLDING REQUEST FUNCTIONS
+// ============================================
+
+/**
+ * 홀딩 신청 생성
+ * @param {string} studentName - 학생 이름
+ * @param {string} startDate - 시작일 (YYYY-MM-DD)
+ * @param {string} endDate - 종료일 (YYYY-MM-DD)
+ * @returns {Promise<Object>} - {success: boolean, id: string}
+ */
+export const createHoldingRequest = async (studentName, startDate, endDate) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        console.log('🔄 홀딩 신청 생성:', { studentName, startDate, endDate });
+
+        const docRef = await addDoc(collection(db, 'holdingRequests'), {
+            studentName,
+            startDate,
+            endDate,
+            status: 'active',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+
+        console.log('✅ 홀딩 신청 생성 완료:', docRef.id);
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('❌ 홀딩 신청 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 학생의 활성 홀딩 조회
+ * @param {string} studentName - 학생 이름
+ * @returns {Promise<Object|null>} - 홀딩 정보 또는 null
+ */
+export const getActiveHolding = async (studentName) => {
+    if (!isFirebaseAvailable()) return null;
+
+    try {
+        const q = query(
+            collection(db, 'holdingRequests'),
+            where('studentName', '==', studentName),
+            where('status', '==', 'active')
+        );
+
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            return null;
+        }
+
+        const docData = snapshot.docs[0];
+        return { id: docData.id, ...docData.data() };
+    } catch (error) {
+        console.error('❌ 홀딩 조회 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 특정 주의 홀딩 목록 조회
+ * @param {string} startDate - 주 시작일 (YYYY-MM-DD)
+ * @param {string} endDate - 주 종료일 (YYYY-MM-DD)
+ * @returns {Promise<Array>} - 홀딩 목록
+ */
+export const getHoldingsByWeek = async (startDate, endDate) => {
+    if (!isFirebaseAvailable()) return [];
+
+    try {
+        const q = query(
+            collection(db, 'holdingRequests'),
+            where('status', '==', 'active')
+        );
+
+        const snapshot = await getDocs(q);
+        const holdings = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(h => h.endDate >= startDate && h.startDate <= endDate);
+
+        console.log(`📅 ${startDate} ~ ${endDate} 홀딩 목록:`, holdings.length);
+        return holdings;
+    } catch (error) {
+        console.error('❌ 주간 홀딩 조회 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 홀딩 취소
+ * @param {string} holdingId - 홀딩 ID
+ * @returns {Promise<void>}
+ */
+export const cancelHolding = async (holdingId) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        console.log('🗑️ 홀딩 취소:', holdingId);
+
+        await updateDoc(doc(db, 'holdingRequests', holdingId), {
+            status: 'cancelled',
+            updatedAt: serverTimestamp()
+        });
+
+        console.log('✅ 홀딩 취소 완료');
+    } catch (error) {
+        console.error('❌ 홀딩 취소 실패:', error);
+        throw error;
+    }
+};
+
+// ============================================
+// ABSENCE REQUEST FUNCTIONS
+// ============================================
+
+/**
+ * 결석 신청 생성
+ * @param {string} studentName - 학생 이름
+ * @param {string} date - 결석 날짜 (YYYY-MM-DD)
+ * @returns {Promise<Object>} - {success: boolean, id: string}
+ */
+export const createAbsenceRequest = async (studentName, date) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        console.log('🔄 결석 신청 생성:', { studentName, date });
+
+        const docRef = await addDoc(collection(db, 'absenceRequests'), {
+            studentName,
+            date,
+            status: 'active',
+            createdAt: serverTimestamp()
+        });
+
+        console.log('✅ 결석 신청 생성 완료:', docRef.id);
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('❌ 결석 신청 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 학생의 결석 목록 조회
+ * @param {string} studentName - 학생 이름
+ * @returns {Promise<Array>} - 결석 목록
+ */
+export const getAbsencesByStudent = async (studentName) => {
+    if (!isFirebaseAvailable()) return [];
+
+    try {
+        const q = query(
+            collection(db, 'absenceRequests'),
+            where('studentName', '==', studentName),
+            where('status', '==', 'active')
+        );
+
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error('❌ 결석 목록 조회 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 특정 날짜의 결석 목록 조회
+ * @param {string} date - 날짜 (YYYY-MM-DD)
+ * @returns {Promise<Array>} - 결석 목록
+ */
+export const getAbsencesByDate = async (date) => {
+    if (!isFirebaseAvailable()) return [];
+
+    try {
+        const q = query(
+            collection(db, 'absenceRequests'),
+            where('date', '==', date),
+            where('status', '==', 'active')
+        );
+
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error('❌ 날짜별 결석 조회 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 결석 취소
+ * @param {string} absenceId - 결석 ID
+ * @returns {Promise<void>}
+ */
+export const cancelAbsence = async (absenceId) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        console.log('🗑️ 결석 취소:', absenceId);
+
+        await updateDoc(doc(db, 'absenceRequests', absenceId), {
+            status: 'cancelled'
+        });
+
+        console.log('✅ 결석 취소 완료');
+    } catch (error) {
+        console.error('❌ 결석 취소 실패:', error);
+        throw error;
+    }
+};

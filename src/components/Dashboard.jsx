@@ -37,7 +37,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         : [
             { id: 'schedule', title: '시간표 조회', icon: '📅', description: '내 시간표 및 보강 신청' },
             { id: 'myinfo', title: '내 정보', icon: '👤', description: '수강권 현황 및 출석 기록' },
-            { id: 'holding', title: '홀딩 신청', icon: '⏸️', description: '수업 홀딩 및 기간 연장' }
+            { id: 'holding', title: '홀딩 및 결석 신청', icon: '⏸️', description: '수업 홀딩 및 결석 신청' }
         ];
 
     return (

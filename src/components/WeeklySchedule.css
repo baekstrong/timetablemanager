@@ -497,3 +497,19 @@
 .banner-cancel-btn:hover {
     background: rgba(255, 255, 255, 0.3);
 }
+
+/* Makeup Absent Student Tag */
+.student-tag.makeup-absent {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+
+/* Holding Student Tag (strikethrough) */
+.student-tag.holding {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+    text-decoration: line-through;
+    opacity: 0.7;
+}
