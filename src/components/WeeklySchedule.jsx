@@ -284,78 +284,78 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         loadStudentData();
     }, [mode, user]);
 
-    // Load weekly Firebase data for coach mode
-    useEffect(() => {
-        const loadWeeklyData = async () => {
-            if (mode !== 'coach') return;
+    // Helper function to load weekly data
+    const loadWeeklyData = async () => {
+        try {
+            // Calculate this week's Monday-Friday dates
+            const today = new Date();
+            const dayOfWeek = today.getDay();
+            const monday = new Date(today);
+            const diff = dayOfWeek === 0 ? 1 : 1 - dayOfWeek;
+            monday.setDate(today.getDate() + diff);
 
-            try {
-                // Calculate this week's Monday-Friday dates
-                const today = new Date();
-                const dayOfWeek = today.getDay();
-                const monday = new Date(today);
-                const diff = dayOfWeek === 0 ? 1 : 1 - dayOfWeek;
-                monday.setDate(today.getDate() + diff);
+            // Get Monday and Friday dates in YYYY-MM-DD format
+            const formatDate = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
 
-                // Get Monday and Friday dates in YYYY-MM-DD format
-                const formatDate = (date) => {
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    return `${year}-${month}-${day}`;
-                };
+            const startDate = formatDate(monday);
+            // Extend to next Friday to include next week's makeup requests
+            const nextFriday = new Date(monday);
+            nextFriday.setDate(monday.getDate() + 11); // +11 days = next week Friday
+            const endDate = formatDate(nextFriday);
 
-                const startDate = formatDate(monday);
-                const friday = new Date(monday);
-                friday.setDate(monday.getDate() + 4);
-                const endDate = formatDate(friday);
+            console.log(`📅 Loading weekly data: ${startDate} ~ ${endDate}`);
 
-                console.log(`📅 Loading weekly data: ${startDate} ~ ${endDate}`);
+            // Load makeup requests and holdings for this week
+            const [makeups, holdings] = await Promise.all([
+                getMakeupRequestsByWeek(startDate, endDate).catch(err => {
+                    console.warn('Failed to load makeup requests:', err);
+                    return [];
+                }),
+                getHoldingsByWeek(startDate, endDate).catch(err => {
+                    console.warn('Failed to load holdings:', err);
+                    return [];
+                })
+            ]);
 
-                // Load makeup requests and holdings for this week
-                const [makeups, holdings] = await Promise.all([
-                    getMakeupRequestsByWeek(startDate, endDate).catch(err => {
-                        console.warn('Failed to load makeup requests:', err);
-                        return [];
-                    }),
-                    getHoldingsByWeek(startDate, endDate).catch(err => {
-                        console.warn('Failed to load holdings:', err);
-                        return [];
-                    })
-                ]);
-
-                // Load absences for each day of the week
-                const dates = [];
-                for (let i = 0; i < 5; i++) {
-                    const date = new Date(monday);
-                    date.setDate(monday.getDate() + i);
-                    dates.push(formatDate(date));
-                }
-
-                const absencePromises = dates.map(date =>
-                    getAbsencesByDate(date).catch(err => {
-                        console.warn(`Failed to load absences for ${date}:`, err);
-                        return [];
-                    })
-                );
-
-                const absenceArrays = await Promise.all(absencePromises);
-                const allAbsences = absenceArrays.flat();
-
-                setWeekMakeupRequests(makeups || []);
-                setWeekHoldings(holdings || []);
-                setWeekAbsences(allAbsences || []);
-
-                console.log(`✅ Loaded ${makeups?.length || 0} makeup requests, ${holdings?.length || 0} holdings, ${allAbsences?.length || 0} absences`);
-            } catch (error) {
-                console.error('Failed to load weekly data:', error);
-                // Don't crash, just set empty arrays
-                setWeekMakeupRequests([]);
-                setWeekHoldings([]);
-                setWeekAbsences([]);
+            // Load absences for each day of the week
+            const dates = [];
+            for (let i = 0; i < 5; i++) {
+                const date = new Date(monday);
+                date.setDate(monday.getDate() + i);
+                dates.push(formatDate(date));
             }
-        };
 
+            const absencePromises = dates.map(date =>
+                getAbsencesByDate(date).catch(err => {
+                    console.warn(`Failed to load absences for ${date}:`, err);
+                    return [];
+                })
+            );
+
+            const absenceArrays = await Promise.all(absencePromises);
+            const allAbsences = absenceArrays.flat();
+
+            setWeekMakeupRequests(makeups || []);
+            setWeekHoldings(holdings || []);
+            setWeekAbsences(allAbsences || []);
+
+            console.log(`✅ Loaded ${makeups?.length || 0} makeup requests, ${holdings?.length || 0} holdings, ${allAbsences?.length || 0} absences`);
+        } catch (error) {
+            console.error('Failed to load weekly data:', error);
+            // Don't crash, just set empty arrays
+            setWeekMakeupRequests([]);
+            setWeekHoldings([]);
+            setWeekAbsences([]);
+        }
+    };
+
+    // Load weekly Firebase data for coach mode and student mode
+    useEffect(() => {
         loadWeeklyData();
     }, [mode]); // Only depend on mode, not weekDates
 
@@ -372,6 +372,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         // day는 이미 한글 요일 (월, 화, 수, 목, 금)
         const makeupSlot = { day, period: periodId, periodName: period.name, date };
         console.log('🎯 Selected makeup slot:', makeupSlot);
+        console.log('   day:', day, 'periodName:', period.name, 'date:', date);
         setSelectedMakeupSlot(makeupSlot);
         setShowMakeupModal(true);
     };
@@ -389,27 +390,8 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             const makeup = await getActiveMakeupRequest(user.username);
             setActiveMakeupRequest(makeup);
 
-            // Reload weekly makeup requests to update seat availability
-            const today = new Date();
-            const dayOfWeek = today.getDay();
-            const monday = new Date(today);
-            const diff = dayOfWeek === 0 ? 1 : 1 - dayOfWeek;
-            monday.setDate(today.getDate() + diff);
-
-            const formatDate = (date) => {
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            };
-
-            const startDate = formatDate(monday);
-            const friday = new Date(monday);
-            friday.setDate(monday.getDate() + 4);
-            const endDate = formatDate(friday);
-
-            const makeups = await getMakeupRequestsByWeek(startDate, endDate);
-            setWeekMakeupRequests(makeups || []);
+            // Reload weekly data to update seat availability immediately
+            await loadWeeklyData();
 
             setShowMakeupModal(false);
             setSelectedMakeupSlot(null);
@@ -513,20 +495,28 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
             // Find makeup students coming TO this slot
             makeupStudents = weekMakeupRequests
-                .filter(m =>
-                    m.makeupClass.day === day &&
-                    m.makeupClass.period === periodObj.id &&
-                    m.makeupClass.date === slotDate
-                )
+                .filter(m => {
+                    const match = m.makeupClass.day === day &&
+                        m.makeupClass.period === periodObj.id &&
+                        m.makeupClass.date === slotDate;
+                    if (match && mode === 'coach') {
+                        console.log(`   ✓ Makeup TO found: ${m.studentName} (${m.originalClass.day} ${m.originalClass.periodName} → ${m.makeupClass.day} ${m.makeupClass.periodName})`);
+                    }
+                    return match;
+                })
                 .map(m => m.studentName);
 
             // Find students absent FROM this slot due to makeup
             makeupAbsentStudents = weekMakeupRequests
-                .filter(m =>
-                    m.originalClass.day === day &&
-                    m.originalClass.period === periodObj.id &&
-                    m.originalClass.date === slotDate
-                )
+                .filter(m => {
+                    const match = m.originalClass.day === day &&
+                        m.originalClass.period === periodObj.id &&
+                        m.originalClass.date === slotDate;
+                    if (match && mode === 'coach') {
+                        console.log(`   ✓ Makeup FROM found: ${m.studentName} (${m.originalClass.day} ${m.originalClass.periodName} → ${m.makeupClass.day} ${m.makeupClass.periodName})`);
+                    }
+                    return match;
+                })
                 .map(m => m.studentName);
 
             // Find students on holding during this date
@@ -569,6 +559,13 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             !makeupAbsentStudents.includes(name) &&
             !holdingStudents.includes(name)
         );
+
+        // Regular students who are on the roster (not holding, but may be makeup-absent)
+        const regularStudentsPresent = studentNames.filter(name =>
+            !holdNames.includes(name) &&
+            !holdingStudents.includes(name)
+        );
+
         const currentCount = activeStudents.length + subs.length + makeupStudents.length;
         const availableSeats = Math.max(0, MAX_CAPACITY - currentCount);
         const isFull = availableSeats === 0;
@@ -583,7 +580,8 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             activeStudents,
             makeupStudents,
             makeupAbsentStudents,
-            holdingStudents
+            holdingStudents,
+            regularStudentsPresent
         };
     };
 
@@ -599,8 +597,8 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 if (dateStr) {
                     const [month, dayNum] = dateStr.split('/');
                     const year = new Date().getFullYear();
-                    const date = new Date(year, parseInt(month) - 1, parseInt(dayNum));
-                    const dateFormatted = date.toISOString().split('T')[0];
+                    // Use UTC to avoid timezone issues
+                    const dateFormatted = `${year}-${month.padStart(2, '0')}-${dayNum.padStart(2, '0')}`;
 
                     handleAvailableSeatClick(day, periodObj.id, dateFormatted);
                 }
@@ -750,33 +748,36 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     </div>
 
                     <div className="student-list">
-                        {/* 1. Active Students (not on hold, not absent for makeup, not holding) */}
-                        {data.activeStudents.map(name => (
-                            <span key={name} className="student-tag">{name}</span>
-                        ))}
+                        {/* 1. Regular Students Present (not on hold, not holding) - show with makeup-absent styling if applicable */}
+                        {data.regularStudentsPresent.map(name => {
+                            const isMakeupAbsent = data.makeupAbsentStudents.includes(name);
+                            if (isMakeupAbsent) {
+                                return (
+                                    <span key={name} className="student-tag" style={{ backgroundColor: '#fef3c7', color: '#92400e', textDecoration: 'line-through' }}>
+                                        {name}(보강결석)
+                                    </span>
+                                );
+                            }
+                            return <span key={name} className="student-tag">{name}</span>;
+                        })}
 
                         {/* 2. Makeup Students (coming TO this slot) */}
                         {data.makeupStudents.map(name => (
                             <span key={`makeup-${name}`} className="student-tag substitute">{name}(보강)</span>
                         ))}
 
-                        {/* 3. Makeup Absent Students (absent FROM this slot) */}
-                        {data.makeupAbsentStudents.map(name => (
-                            <span key={`absent-${name}`} className="student-tag makeup-absent">{name}(보강 결석)</span>
-                        ))}
-
-                        {/* 4. Holding Students */}
+                        {/* 3. Holding Students */}
                         {data.holdingStudents.map(name => (
-                            <span key={`holding-${name}`} className="student-tag holding">{name}</span>
+                            <span key={`holding-${name}`} className="student-tag" style={{ backgroundColor: '#fee2e2', color: '#991b1b', textDecoration: 'line-through' }}>{name}(홀딩)</span>
                         ))}
 
-                        {/* 5. Substitutes (legacy) */}
+                        {/* 4. Substitutes (legacy) */}
                         {data.subs.map(sub => (
                             <span key={sub.name} className="student-tag substitute">{sub.name}</span>
                         ))}
 
-                        {/* 3. Holds (Optional: Show struck through or red?) */}
-                        {data.holdNames.map(name => (
+                        {/* 5. Holds (legacy - already shown in holdingStudents) */}
+                        {data.holdNames.filter(name => !data.holdingStudents.includes(name)).map(name => (
                             <span key={name} className="student-tag" style={{ backgroundColor: '#fee2e2', color: '#991b1b', textDecoration: 'line-through' }}>{name}</span>
                         ))}
                     </div>
@@ -919,12 +920,12 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             </div>
 
             {/* Makeup Request Modal */}
-            {showMakeupModal && mode === 'student' && (
+            {showMakeupModal && mode === 'student' && selectedMakeupSlot && (
                 <div className="makeup-modal-overlay" onClick={() => setShowMakeupModal(false)}>
                     <div className="makeup-modal" onClick={(e) => e.stopPropagation()}>
                         <h2>보강 신청</h2>
                         <p className="makeup-modal-subtitle">
-                            선택한 시간: <strong>{selectedMakeupSlot?.day}요일 {selectedMakeupSlot?.periodName}</strong>
+                            선택한 시간: <strong>{selectedMakeupSlot.day}요일 {selectedMakeupSlot.periodName}</strong>
                         </p>
 
                         <div className="makeup-modal-content">
@@ -932,6 +933,11 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                             <div className="original-class-list">
                                 {studentSchedule.map((schedule, index) => {
                                     const periodInfo = PERIODS.find(p => p.id === schedule.period);
+                                    console.log('📝 Rendering schedule item:');
+                                    console.log('   schedule.day:', schedule.day);
+                                    console.log('   schedule.period:', schedule.period);
+                                    console.log('   periodInfo:', periodInfo);
+                                    console.log('   periodInfo?.name:', periodInfo?.name);
                                     return (
                                         <div
                                             key={index}
@@ -957,8 +963,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                                 });
                                             }}
                                         >
-                                            <span className="day-badge">{schedule.day}</span>
-                                            <span className="period-name">{periodInfo?.name}</span>
+                                            <span className="period-name">{schedule.day}요일 {periodInfo?.name}</span>
                                         </div>
                                     );
                                 })}

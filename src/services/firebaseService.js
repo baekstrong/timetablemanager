@@ -137,14 +137,25 @@ export const getMakeupRequestsByWeek = async (startDate, endDate) => {
         const snapshot = await getDocs(q);
 
         // 클라이언트 측에서 날짜 범위 필터링
+        // 원본 수업 날짜 OR 보강 수업 날짜가 이번 주에 포함되면 조회
         const requests = snapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() }))
             .filter(req => {
                 const makeupDate = req.makeupClass.date;
-                return makeupDate >= startDate && makeupDate <= endDate;
+                const originalDate = req.originalClass.date;
+                const isMakeupInRange = makeupDate >= startDate && makeupDate <= endDate;
+                const isOriginalInRange = originalDate >= startDate && originalDate <= endDate;
+                return isMakeupInRange || isOriginalInRange;
             });
 
         console.log(`📅 ${startDate} ~ ${endDate} 보강 신청 목록:`, requests.length);
+        if (requests.length > 0) {
+            console.log('   보강 신청 상세:', requests.map(r => ({
+                student: r.studentName,
+                original: `${r.originalClass.day} ${r.originalClass.periodName} (${r.originalClass.date})`,
+                makeup: `${r.makeupClass.day} ${r.makeupClass.periodName} (${r.makeupClass.date})`
+            })));
+        }
         return requests;
     } catch (error) {
         console.error('❌ 주간 보강 신청 조회 실패:', error);

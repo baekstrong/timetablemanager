@@ -289,13 +289,13 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
                         {step >= 3 && selectedDate && (
                             <div className="step-card">
                                 <h2 className="step-title">3단계: 보강 시간 선택</h2>
-                                <p className="step-subtitle">선택한 날짜: {selectedDate} ({getDayName(new Date(selectedDate))}요일)</p>
+                                <p className="step-subtitle">선택한 날짜: {selectedDate} ({getDayName(new Date(selectedDate + 'T00:00:00'))}요일)</p>
                                 <div className="period-grid">
                                     {PERIODS.filter(p => p.type !== 'free').map((period) => (
                                         <div
                                             key={period.id}
                                             className={`period-item ${selectedMakeup?.period === period.id ? 'selected' : ''}`}
-                                            onClick={() => handleMakeupSelect(getDayName(new Date(selectedDate)), period.id)}
+                                            onClick={() => handleMakeupSelect(getDayName(new Date(selectedDate + 'T00:00:00')), period.id)}
                                         >
                                             <div className="period-name">{period.name}</div>
                                             <div className="period-time">{period.time}</div>
