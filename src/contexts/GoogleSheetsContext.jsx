@@ -6,11 +6,13 @@ import {
     signOutFromGoogle,
     isSignedIn,
     getAllStudents,
+    getAllStudentsFromAllSheets,
     updateStudentHolding,
     readSheetData,
     getAllSheetNames,
     getCurrentSheetName,
     getStudentByName,
+    findStudentAcrossSheets,
     calculateMembershipStats,
     generateAttendanceHistory,
     requestHolding
@@ -28,7 +30,7 @@ export const useGoogleSheets = () => {
 
 export const GoogleSheetsProvider = ({ children }) => {
     const [isInitialized, setIsInitialized] = useState(false);
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isAuthenticated, setIsAuthenticated] = useState(true); // 서비스 계정은 항상 인증됨
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -39,49 +41,24 @@ export const GoogleSheetsProvider = ({ children }) => {
     const [selectedYear, setSelectedYear] = useState(now.getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
 
-    // Initialize Google APIs
+    // Initialize (서비스 계정 사용 시 초기화만 필요)
     useEffect(() => {
         const init = async () => {
             try {
+                // 서비스 계정 방식에서는 클라이언트 초기화 불필요
                 await initializeGoogleAPI();
                 await initializeGIS();
                 setIsInitialized(true);
+                setIsAuthenticated(true);
 
-                // Try to restore saved token from localStorage
-                const savedToken = localStorage.getItem('google_sheets_token');
-                if (savedToken) {
-                    try {
-                        const tokenData = JSON.parse(savedToken);
-                        // Check if token is expired
-                        const expiresAt = tokenData.expires_at;
-                        if (expiresAt && Date.now() < expiresAt) {
-                            // Token is still valid, restore it
-                            const { gapi } = await import('gapi-script');
-                            gapi.client.setToken(tokenData);
-                            console.log('✅ Restored saved Google authentication');
-                            setIsAuthenticated(true);
-                            await fetchAvailableSheets();
-                            await fetchStudents();
-                            return;
-                        } else {
-                            console.log('⏰ Saved token expired, clearing...');
-                            localStorage.removeItem('google_sheets_token');
-                        }
-                    } catch (err) {
-                        console.error('Failed to restore saved token:', err);
-                        localStorage.removeItem('google_sheets_token');
-                    }
-                }
+                console.log('✅ Firebase Functions 연결 준비 완료');
 
-                // Check if already signed in (without saved token)
-                if (isSignedIn()) {
-                    setIsAuthenticated(true);
-                    await fetchAvailableSheets();
-                    await fetchStudents();
-                }
+                // 초기 데이터 로드
+                await fetchAvailableSheets();
+                await fetchStudents();
             } catch (err) {
-                console.error('Failed to initialize Google APIs:', err);
-                setError('Google API 초기화 실패');
+                console.error('Failed to initialize:', err);
+                setError('초기화 실패');
             }
         };
 
@@ -100,17 +77,16 @@ export const GoogleSheetsProvider = ({ children }) => {
         }
     };
 
-    // Fetch students from Google Sheets
+    // Fetch students from all Google Sheets
     const fetchStudents = async () => {
         setLoading(true);
         setError(null);
         try {
-            console.log(`🔍 Attempting to fetch students for ${selectedYear}년 ${selectedMonth}월`);
-            console.log(`📋 Expected sheet name: 등록생 목록(${selectedYear.toString().slice(-2)}년${selectedMonth}월)`);
+            console.log('🔍 Fetching students from all available sheets...');
 
-            const data = await getAllStudents(selectedYear, selectedMonth);
+            const data = await getAllStudentsFromAllSheets();
             setStudents(data);
-            console.log(`✅ Fetched students for ${selectedYear}년 ${selectedMonth}월:`, data);
+            console.log(`✅ Fetched ${data.length} students from all sheets`);
         } catch (err) {
             console.error('❌ Failed to fetch students:', err);
             console.error('Error details:', {
@@ -118,47 +94,24 @@ export const GoogleSheetsProvider = ({ children }) => {
                 result: err.result,
                 status: err.status
             });
-            setError(`학생 데이터 불러오기 실패 (${selectedYear}년 ${selectedMonth}월)`);
+            setError('학생 데이터 불러오기 실패');
         } finally {
             setLoading(false);
         }
     };
 
-    // Sign in to Google
+    // Sign in (서비스 계정에서는 불필요하지만 호환성을 위해 유지)
     const signIn = async () => {
-        try {
-            await signInToGoogle();
-
-            // Save token to localStorage for persistence
-            const { gapi } = await import('gapi-script');
-            const token = gapi.client.getToken();
-            if (token) {
-                // Add expiration time (tokens typically last 1 hour)
-                const tokenWithExpiry = {
-                    ...token,
-                    expires_at: Date.now() + (3600 * 1000) // 1 hour from now
-                };
-                localStorage.setItem('google_sheets_token', JSON.stringify(tokenWithExpiry));
-                console.log('💾 Saved Google authentication token');
-            }
-
-            setIsAuthenticated(true);
-            await fetchAvailableSheets();
-            await fetchStudents();
-        } catch (err) {
-            console.error('Sign in failed:', err);
-            setError('Google 로그인 실패');
-            throw err;
-        }
+        console.log('서비스 계정 사용 - 로그인 불필요');
+        setIsAuthenticated(true);
+        await fetchAvailableSheets();
+        await fetchStudents();
     };
 
-    // Sign out from Google
+    // Sign out (서비스 계정에서는 불필요하지만 호환성을 위해 유지)
     const signOut = () => {
-        signOutFromGoogle();
-        localStorage.removeItem('google_sheets_token');
-        console.log('🗑️ Cleared saved Google authentication token');
-        setIsAuthenticated(false);
-        setStudents([]);
+        console.log('서비스 계정 사용 - 로그아웃 불필요');
+        // 실제로는 로그아웃하지 않음
     };
 
     // Update student holding status
@@ -214,9 +167,7 @@ export const GoogleSheetsProvider = ({ children }) => {
 
     // Refresh data from Google Sheets
     const refresh = async () => {
-        if (isAuthenticated) {
-            await fetchStudents();
-        }
+        await fetchStudents();
     };
 
     const value = {
@@ -241,6 +192,9 @@ export const GoogleSheetsProvider = ({ children }) => {
         getStudentByName: async (name) => {
             const student = await getStudentByName(name, selectedYear, selectedMonth);
             return student;
+        },
+        findStudentAcrossSheets: async (name) => {
+            return await findStudentAcrossSheets(name);
         },
         calculateMembershipStats,
         generateAttendanceHistory,

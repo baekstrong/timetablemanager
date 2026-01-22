@@ -1,0 +1,151 @@
+.month-selector {
+    position: relative;
+    z-index: 100;
+}
+
+.month-selector-button {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    background: rgba(255, 255, 255, 0.95);
+    border: none;
+    border-radius: 12px;
+    color: #333;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.month-selector-button:hover {
+    background: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.selected-month {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dropdown-arrow {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.3s ease;
+}
+
+.dropdown-arrow.open {
+    transform: rotate(180deg);
+}
+
+.month-dropdown-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 99;
+}
+
+.month-dropdown {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 0;
+    min-width: 200px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    padding: 0.5rem;
+    z-index: 100;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.month-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: none;
+    background: none;
+    color: #333;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+
+.month-option:hover:not(:disabled) {
+    background: #f3f4f6;
+}
+
+.month-option.selected {
+    background: #667eea;
+    color: white;
+}
+
+.month-option.current:not(.selected) {
+    background: #e0e7ff;
+    color: #667eea;
+}
+
+.month-option:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.month-option.not-exist {
+    opacity: 0.5;
+}
+
+.month-label {
+    flex: 1;
+}
+
+.current-badge,
+.not-exist-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.current-badge {
+    background: #10b981;
+    color: white;
+}
+
+.not-exist-badge {
+    background: #ef4444;
+    color: white;
+}
+
+.month-option.selected .current-badge,
+.month-option.selected .not-exist-badge {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* 스크롤바 스타일 */
+.month-dropdown::-webkit-scrollbar {
+    width: 6px;
+}
+
+.month-dropdown::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.month-dropdown::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.month-dropdown::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}

@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField } from '../services/googleSheetsService';
+import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import './StudentManager.css';
 
 const StudentManager = ({ onBack }) => {
-    const { students, isConnected, updateStudent, loading, error } = useGoogleSheets();
+    const {
+        students,
+        isConnected,
+        updateStudent,
+        loading,
+        error
+    } = useGoogleSheets();
     const [editingStudent, setEditingStudent] = useState(null);
     const [editForm, setEditForm] = useState({});
+    const [viewMode, setViewMode] = useState('table'); // 'table' or 'sheet'
 
     // Start editing a student
     const handleEdit = (student, index) => {
@@ -44,6 +52,11 @@ const StudentManager = ({ onBack }) => {
         }));
     };
 
+    // 시트 임베드 모드인 경우
+    if (viewMode === 'sheet') {
+        return <GoogleSheetsEmbed onBack={() => setViewMode('table')} />;
+    }
+
     if (!isConnected) {
         return (
             <div className="student-manager-container">
@@ -75,7 +88,15 @@ const StudentManager = ({ onBack }) => {
                     뒤로가기
                 </button>
                 <h1 className="student-title">수강생 관리</h1>
-                <div className="student-count">총 {students.length}명</div>
+                <div className="header-actions">
+                    <div className="info-message" style={{ fontSize: '0.9rem', color: '#666', marginRight: '1rem' }}>
+                        📋 전체 시트 조회 중 (날짜 기반 자동 필터링)
+                    </div>
+                    <button onClick={() => setViewMode('sheet')} className="view-switch-btn">
+                        📊 구글 시트로 보기
+                    </button>
+                    <div className="student-count">총 {students.length}명</div>
+                </div>
             </div>
 
             {error && (

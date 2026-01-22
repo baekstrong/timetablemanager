@@ -14,7 +14,7 @@ function AppContent() {
   const [user, setUser] = useState(null);
   const [studentData, setStudentData] = useState(null);
   const [currentPage, setCurrentPage] = useState('login'); // 'login', 'dashboard', 'schedule', 'holding', 'myinfo', 'students', 'training', 'test'
-  const { getStudentByName } = useGoogleSheets();
+  const { getStudentByName, findStudentAcrossSheets } = useGoogleSheets();
 
   const handleLogin = async (userData) => {
     setUser(userData);
@@ -22,9 +22,20 @@ function AppContent() {
     // If student role, fetch their data from Google Sheets
     if (userData.role === 'student') {
       try {
-        const data = await getStudentByName(userData.username);
-        setStudentData(data);
-        console.log('📊 Loaded student data:', data);
+        // 먼저 여러 시트에서 검색 시도
+        console.log('🔍 Searching for student across multiple sheets...');
+        const result = await findStudentAcrossSheets(userData.username);
+
+        if (result) {
+          setStudentData(result.student);
+          console.log(`📊 Loaded student data from ${result.sheetName}:`, result.student);
+        } else {
+          // 못 찾으면 현재 월에서만 검색 (fallback)
+          console.log('⚠️ Student not found in recent sheets, trying current month only...');
+          const data = await getStudentByName(userData.username);
+          setStudentData(data);
+          console.log('📊 Loaded student data:', data);
+        }
       } catch (error) {
         console.error('Failed to load student data:', error);
         // Continue with login even if data fetch fails
