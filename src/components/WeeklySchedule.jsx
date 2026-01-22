@@ -112,13 +112,60 @@ const isCurrentlyOnHold = (student) => {
 };
 
 /**
+ * Check if student is currently enrolled based on start and end dates
+ * @param {Object} student - Student object from Google Sheets
+ * @returns {boolean} - True if currently enrolled
+ */
+const isCurrentlyEnrolled = (student) => {
+    const startDateStr = student['시작날짜'];
+    const endDateStr = student['종료날짜'];
+
+    if (!startDateStr) {
+        console.warn('Student missing start date:', student['이름']);
+        return false;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const startDate = parseSheetDate(startDateStr);
+    if (!startDate) {
+        console.warn('Could not parse start date for student:', student['이름'], startDateStr);
+        return false;
+    }
+
+    // If no end date, check if start date has passed
+    if (!endDateStr) {
+        return startDate <= today;
+    }
+
+    const endDate = parseSheetDate(endDateStr);
+    if (!endDate) {
+        console.warn('Could not parse end date for student:', student['이름'], endDateStr);
+        return startDate <= today;
+    }
+
+    // Check if today is between start date and end date (inclusive)
+    const isEnrolled = startDate <= today && today <= endDate;
+
+    console.log(`📅 Enrollment check for ${student['이름']}: start=${startDateStr}, end=${endDateStr}, enrolled=${isEnrolled}`);
+
+    return isEnrolled;
+};
+
+/**
  * Transform Google Sheets student data into timetable format
  */
 const transformGoogleSheetsData = (students) => {
     const regularEnrollments = [];
     const holds = [];
 
-    students.forEach((student) => {
+    // Filter students to only include currently enrolled ones
+    const enrolledStudents = students.filter(isCurrentlyEnrolled);
+
+    console.log(`📊 Filtering students: ${students.length} total → ${enrolledStudents.length} currently enrolled`);
+
+    enrolledStudents.forEach((student) => {
         const name = student['이름'];
         const scheduleStr = student['요일 및 시간'];
         const isHolding = isCurrentlyOnHold(student);

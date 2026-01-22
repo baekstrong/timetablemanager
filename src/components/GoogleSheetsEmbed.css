@@ -1,0 +1,211 @@
+.google-sheets-embed-container {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    overflow: hidden;
+}
+
+.sheets-header {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.sheets-header h2 {
+    margin: 0;
+    color: #333;
+    font-size: 24px;
+}
+
+.view-toggle {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.view-toggle button,
+.open-new-tab-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #f0f0f0;
+    color: #333;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.view-toggle button:hover,
+.open-new-tab-btn:hover {
+    background: #e0e0e0;
+    transform: translateY(-2px);
+}
+
+.view-toggle button.active {
+    background: #667eea;
+    color: white;
+}
+
+.open-new-tab-btn {
+    background: #28a745;
+    color: white;
+}
+
+.open-new-tab-btn:hover {
+    background: #218838;
+}
+
+.sheets-content {
+    flex: 1;
+    padding: 20px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.sheets-iframe-wrapper {
+    flex: 1;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    position: relative;
+}
+
+.google-sheets-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+}
+
+.iframe-overlay-message {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 15px 25px;
+    border-radius: 8px;
+    text-align: center;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.iframe-overlay-message p {
+    margin: 5px 0;
+    font-size: 14px;
+}
+
+.sheets-info {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 20px;
+    margin-top: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.sheets-info h3 {
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 18px;
+}
+
+.sheets-info ul {
+    margin: 0;
+    padding-left: 20px;
+    list-style-type: none;
+}
+
+.sheets-info li {
+    margin: 10px 0;
+    color: #555;
+    font-size: 14px;
+    line-height: 1.6;
+    position: relative;
+    padding-left: 25px;
+}
+
+.sheets-info li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: #28a745;
+    font-weight: bold;
+}
+
+.sheets-info strong {
+    color: #333;
+}
+
+.back-button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #6c757d;
+    color: white;
+}
+
+.back-button:hover {
+    background: #5a6268;
+    transform: translateY(-2px);
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+    .sheets-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .view-toggle {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .view-toggle button,
+    .open-new-tab-btn {
+        flex: 1;
+    }
+
+    .sheets-content {
+        padding: 10px;
+    }
+
+    .sheets-info {
+        margin-top: 10px;
+    }
+
+    .iframe-overlay-message {
+        font-size: 12px;
+        padding: 10px 15px;
+    }
+}
+
+/* 로딩 상태 */
+.sheets-iframe-wrapper.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sheets-iframe-wrapper.loading::after {
+    content: "구글 시트 로딩 중...";
+    color: #666;
+    font-size: 16px;
+}
