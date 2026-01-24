@@ -568,11 +568,10 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             const year = new Date().getFullYear();
             const slotDate = `${year}-${month.padStart(2, '0')}-${dayNum.padStart(2, '0')}`;
 
-            if (mode === 'coach') {
-                console.log(`🔍 Checking ${day} ${periodObj.name} (${slotDate})`);
-                console.log(`   Makeup requests:`, weekMakeupRequests.length);
-                console.log(`   Holdings:`, weekHoldings.length);
-            }
+            // Debug log for both modes to troubleshoot seat calculation
+            console.log(`🔍 [${mode}] Checking ${day} ${periodObj.name} (${slotDate})`);
+            console.log(`   Makeup requests:`, weekMakeupRequests.length);
+            console.log(`   Holdings:`, weekHoldings.length);
 
             // Find makeup students coming TO this slot
             makeupStudents = weekMakeupRequests
@@ -580,7 +579,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     const match = m.makeupClass.day === day &&
                         m.makeupClass.period === periodObj.id &&
                         m.makeupClass.date === slotDate;
-                    if (match && mode === 'coach') {
+                    if (match) {
                         console.log(`   ✓ Makeup TO found: ${m.studentName} (${m.originalClass.day} ${m.originalClass.periodName} → ${m.makeupClass.day} ${m.makeupClass.periodName})`);
                     }
                     return match;
@@ -593,7 +592,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     const match = m.originalClass.day === day &&
                         m.originalClass.period === periodObj.id &&
                         m.originalClass.date === slotDate;
-                    if (match && mode === 'coach') {
+                    if (match) {
                         console.log(`   ✓ Makeup FROM found: ${m.studentName} (${m.originalClass.day} ${m.originalClass.periodName} → ${m.makeupClass.day} ${m.makeupClass.periodName})`);
                     }
                     return match;
@@ -604,7 +603,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             holdingStudents = weekHoldings
                 .filter(h => {
                     const isInRange = h.startDate <= slotDate && h.endDate >= slotDate;
-                    if (isInRange && mode === 'coach') {
+                    if (isInRange) {
                         console.log(`   ✓ Holding found: ${h.studentName} (${h.startDate} ~ ${h.endDate})`);
                     }
                     return isInRange;
@@ -620,16 +619,14 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             // Combine makeup absent and absence request students
             makeupAbsentStudents = [...new Set([...makeupAbsentStudents, ...absenceStudents])];
 
-            if (mode === 'coach') {
-                if (makeupStudents.length > 0) {
-                    console.log(`   → Makeup students: ${makeupStudents.join(', ')}`);
-                }
-                if (makeupAbsentStudents.length > 0) {
-                    console.log(`   → Makeup/Absence absent: ${makeupAbsentStudents.join(', ')}`);
-                }
-                if (holdingStudents.length > 0) {
-                    console.log(`   → Holding students: ${holdingStudents.join(', ')}`);
-                }
+            if (makeupStudents.length > 0) {
+                console.log(`   → Makeup students: ${makeupStudents.join(', ')}`);
+            }
+            if (makeupAbsentStudents.length > 0) {
+                console.log(`   → Makeup/Absence absent: ${makeupAbsentStudents.join(', ')}`);
+            }
+            if (holdingStudents.length > 0) {
+                console.log(`   → Holding students: ${holdingStudents.join(', ')}`);
             }
         }
 
