@@ -1,0 +1,91 @@
+body {
+    font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.card-enter {
+    animation: slideIn 0.3s ease-out;
+}
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+.calendar-day {
+    aspect-ratio: 1;
+    min-height: 40px;
+}
+button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+.has-workout {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: bold;
+}
+.has-feedback {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    font-weight: bold;
+}
+.today {
+    border: 3px solid #3b82f6;
+}
+.selected-date {
+    border: 3px solid #10b981;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+.student-badge {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+select {
+    max-width: 100px;
+    min-width: 80px;
+}
+.intensity-input {
+    flex: 1;
+    min-width: 0;
+}
+.student-badge:hover {
+    transform: scale(1.05);
+}
+.student-badge.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);
+}
+.set-row {
+    background: #f9fafb;
+    border-radius: 8px;
+    padding: 8px;
+    margin-bottom: 8px;
+}
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+.modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.modal-content {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}

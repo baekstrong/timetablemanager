@@ -248,8 +248,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                 className="menu-card"
                                 onClick={() => {
                                     if (item.id === 'training') {
-                                        // Open training log (running on separate port)
-                                        window.location.href = 'http://localhost:3000';
+                                        // Navigate to training log in same domain
+                                        window.location.href = '/training-log/index.html';
                                     } else {
                                         onNavigate(item.id);
                                     }
