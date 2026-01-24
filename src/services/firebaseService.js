@@ -573,3 +573,67 @@ export const deleteAnnouncement = async (announcementId) => {
         throw error;
     }
 };
+
+// ============================================
+// DISABLED CLASSES FUNCTIONS
+// ============================================
+
+/**
+ * 비활성화된 수업 목록 조회
+ * @returns {Promise<Array>} - 비활성화된 수업 키 목록 ["월-1", "수-3", ...]
+ */
+export const getDisabledClasses = async () => {
+    if (!isFirebaseAvailable()) return [];
+
+    try {
+        const q = query(collection(db, 'disabledClasses'));
+        const snapshot = await getDocs(q);
+
+        const disabledKeys = snapshot.docs.map(doc => doc.data().key);
+        console.log('📋 비활성화된 수업 조회:', disabledKeys);
+        return disabledKeys;
+    } catch (error) {
+        console.error('❌ 비활성화된 수업 조회 실패:', error);
+        return [];
+    }
+};
+
+/**
+ * 수업 비활성화 상태 토글
+ * @param {string} key - 수업 키 (예: "월-1")
+ * @returns {Promise<boolean>} - 토글 후 비활성화 상태 (true=비활성화됨)
+ */
+export const toggleDisabledClass = async (key) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        // 해당 키가 이미 존재하는지 확인
+        const q = query(
+            collection(db, 'disabledClasses'),
+            where('key', '==', key)
+        );
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            // 존재하지 않으면 추가 (비활성화)
+            await addDoc(collection(db, 'disabledClasses'), {
+                key,
+                createdAt: serverTimestamp()
+            });
+            console.log('🚫 수업 비활성화:', key);
+            return true;
+        } else {
+            // 존재하면 삭제 (활성화)
+            const docId = snapshot.docs[0].id;
+            const { deleteDoc } = await import('firebase/firestore');
+            await deleteDoc(doc(db, 'disabledClasses', docId));
+            console.log('✅ 수업 활성화:', key);
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ 수업 비활성화 토글 실패:', error);
+        throw error;
+    }
+};

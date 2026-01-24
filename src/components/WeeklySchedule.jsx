@@ -9,7 +9,9 @@ import {
     getHoldingsByWeek,
     getAbsencesByDate,
     getActiveHolding,
-    getAbsencesByStudent
+    getAbsencesByStudent,
+    getDisabledClasses,
+    toggleDisabledClass
 } from '../services/firebaseService';
 import { PERIODS, DAYS, MOCK_DATA, MAX_CAPACITY } from '../data/mockData';
 import './WeeklySchedule.css';
@@ -240,32 +242,52 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     const [weekHoldings, setWeekHoldings] = useState([]);
     const [weekAbsences, setWeekAbsences] = useState([]);
 
-    // Class disabled state (stored in localStorage)
-    const [disabledClasses, setDisabledClasses] = useState(() => {
-        const saved = localStorage.getItem('disabled_classes');
-        return saved ? JSON.parse(saved) : [];
-    });
+    // Class disabled state (stored in Firebase)
+    const [disabledClasses, setDisabledClasses] = useState([]);
+    const [disabledClassesLoading, setDisabledClassesLoading] = useState(true);
 
-    // Save disabled classes to localStorage whenever it changes
+    // Load disabled classes from Firebase on mount
     useEffect(() => {
-        localStorage.setItem('disabled_classes', JSON.stringify(disabledClasses));
-    }, [disabledClasses]);
-
-    // Toggle class disabled status
-    const toggleClassDisabled = (day, periodId) => {
-        const key = `${day} -${periodId} `;
-        setDisabledClasses(prev => {
-            if (prev.includes(key)) {
-                return prev.filter(k => k !== key);
-            } else {
-                return [...prev, key];
+        const loadDisabledClasses = async () => {
+            try {
+                const disabled = await getDisabledClasses();
+                setDisabledClasses(disabled);
+                console.log('📋 Disabled classes loaded from Firebase:', disabled);
+            } catch (error) {
+                console.error('Failed to load disabled classes:', error);
+                // Fallback to localStorage for backwards compatibility
+                const saved = localStorage.getItem('disabled_classes');
+                if (saved) {
+                    setDisabledClasses(JSON.parse(saved));
+                }
+            } finally {
+                setDisabledClassesLoading(false);
             }
-        });
+        };
+        loadDisabledClasses();
+    }, []);
+
+    // Toggle class disabled status (save to Firebase)
+    const toggleClassDisabledHandler = async (day, periodId) => {
+        const key = `${day}-${periodId}`;
+        try {
+            const isNowDisabled = await toggleDisabledClass(key);
+            setDisabledClasses(prev => {
+                if (isNowDisabled) {
+                    return [...prev, key];
+                } else {
+                    return prev.filter(k => k !== key);
+                }
+            });
+        } catch (error) {
+            console.error('Failed to toggle class disabled status:', error);
+            alert('수업 상태 변경에 실패했습니다.');
+        }
     };
 
     // Check if class is disabled
     const isClassDisabled = (day, periodId) => {
-        const key = `${day} -${periodId} `;
+        const key = `${day}-${periodId}`;
         return disabledClasses.includes(key);
     };
 
@@ -768,7 +790,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     <div
                         className="schedule-cell cell-disabled"
                         style={{ backgroundColor: '#f3f4f6', cursor: 'pointer' }}
-                        onClick={() => toggleClassDisabled(day, periodObj.id)}
+                        onClick={() => toggleClassDisabledHandler(day, periodObj.id)}
                     >
                         <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>수업 없음</div>
                         <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '4px' }}>클릭하여 활성화</div>
@@ -784,7 +806,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 return (
                     <div
                         className="schedule-cell"
-                        onClick={() => toggleClassDisabled(day, periodObj.id)}
+                        onClick={() => toggleClassDisabledHandler(day, periodObj.id)}
                         style={{ cursor: 'pointer' }}
                     >
                         <span style={{ color: '#ccc' }}>-</span>
@@ -1005,17 +1027,19 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                             key={index}
                                             className={`original-class-item ${selectedOriginalClass?.day === schedule.day && selectedOriginalClass?.period === schedule.period ? 'selected' : ''}`}
                                             onClick={() => {
-                                                const today = new Date();
-                                                const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
-                                                const targetDay = dayMap[schedule.day];
-                                                const currentDay = today.getDay();
+                                                // weekDates에서 해당 요일의 날짜를 가져옴 (이번 주 기준)
+                                                const dateStr = weekDates[schedule.day];
+                                                let originalDateStr = '';
+                                                if (dateStr) {
+                                                    const [month, dayNum] = dateStr.split('/');
+                                                    const year = new Date().getFullYear();
+                                                    originalDateStr = `${year}-${month.padStart(2, '0')}-${dayNum.padStart(2, '0')}`;
+                                                }
 
-                                                let daysUntilTarget = targetDay - currentDay;
-                                                if (daysUntilTarget <= 0) daysUntilTarget += 7;
-
-                                                const originalDate = new Date(today);
-                                                originalDate.setDate(today.getDate() + daysUntilTarget);
-                                                const originalDateStr = originalDate.toISOString().split('T')[0];
+                                                console.log('📅 Original class date calculation:');
+                                                console.log('   schedule.day:', schedule.day);
+                                                console.log('   weekDates[schedule.day]:', weekDates[schedule.day]);
+                                                console.log('   originalDateStr:', originalDateStr);
 
                                                 setSelectedOriginalClass({
                                                     day: schedule.day,
