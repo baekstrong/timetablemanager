@@ -50,8 +50,20 @@ exports.handler = async (event, context) => {
     return { statusCode: 200, headers, body: '' };
   }
 
+  // Debug logging
+  console.log('Request Debug:', {
+    path: event.path,
+    method: event.httpMethod,
+    spreadsheetId: SPREADSHEET_ID ? `${SPREADSHEET_ID.substring(0, 5)}...` : 'MISSING'
+  });
+
   try {
-    const path = event.path.replace('/.netlify/functions/sheets/', '');
+    // Robust path parsing
+    let path = event.path.replace('/.netlify/functions/sheets', '');
+    if (path.startsWith('/')) path = path.substring(1); // Remove leading slash
+
+    console.log('Parsed Path:', path);
+
     const sheets = await getGoogleSheetsClient();
 
     // GET /sheets/read?range=...
