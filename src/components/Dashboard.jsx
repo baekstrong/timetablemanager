@@ -248,17 +248,9 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                 className="menu-card"
                                 onClick={() => {
                                     if (item.id === 'training') {
-                                        // 1. Get user session from local storage
-                                        const userStr = localStorage.getItem('savedUser');
-
-                                        if (userStr) {
-                                            // 2. Encode to Base64 to pass via URL
-                                            // (Simple way to bypass cross-origin localStorage restriction)
-                                            const token = btoa(encodeURIComponent(userStr));
-                                            window.location.href = `http://localhost:3000?auth=${token}`;
-                                        } else {
-                                            window.location.href = 'http://localhost:3000';
-                                        }
+                                        // Navigate to internal training log (integrated in public folder)
+                                        // Same domain allows sharing localStorage automatically
+                                        window.location.href = '/training-log/index.html';
                                     } else {
                                         onNavigate(item.id);
                                     }
