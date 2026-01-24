@@ -156,5 +156,5 @@ export function logout() {
     state.selectedDate = new Date().toISOString().split('T')[0];
 
     // Redirect to timetable app login
-    window.location.href = '/';
+    window.location.href = '/timetablemanager/';
 }

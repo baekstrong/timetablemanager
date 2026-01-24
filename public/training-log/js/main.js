@@ -91,7 +91,7 @@ window.navigateToTimetable = function () {
     }
 
     // Navigate back to timetable app
-    window.location.href = '/';
+    window.location.href = '/timetablemanager/';
 }
 
 // ============================================
