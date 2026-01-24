@@ -9,11 +9,22 @@ const getGoogleSheetsClient = async () => {
   });
 
   try {
+    // Private key handling (support various formats)
+    let privateKey = process.env.GOOGLE_PRIVATE_KEY;
+    if (privateKey) {
+      // Remove wrapping quotes if present
+      if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+        privateKey = privateKey.slice(1, -1);
+      }
+      // Replace escaped newlines with actual newlines
+      privateKey = privateKey.replace(/\\n/g, '\n');
+    }
+
     const credentials = {
       type: 'service_account',
       project_id: process.env.GOOGLE_PROJECT_ID,
       private_key_id: process.env.GOOGLE_PRIVATE_KEY_ID,
-      private_key: process.env.GOOGLE_PRIVATE_KEY ? process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined,
+      private_key: privateKey,
       client_email: process.env.GOOGLE_CLIENT_EMAIL,
       client_id: process.env.GOOGLE_CLIENT_ID,
       auth_uri: 'https://accounts.google.com/o/oauth2/auth',
