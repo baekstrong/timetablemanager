@@ -1,11 +1,9 @@
 // Backend Functions URL
 // 로컬 테스트: http://localhost:5001
 // Netlify Functions: /.netlify/functions/sheets (자동으로 현재 도메인 사용)
-const FUNCTIONS_BASE_URL = import.meta.env.VITE_FUNCTIONS_URL || (
-  import.meta.env.MODE === 'production'
-    ? '/.netlify/functions/sheets'
-    : 'http://localhost:5001'
-);
+const FUNCTIONS_BASE_URL = import.meta.env.PROD
+  ? '/.netlify/functions/sheets'
+  : (import.meta.env.VITE_FUNCTIONS_URL || 'http://localhost:5001');
 const SPREADSHEET_ID = import.meta.env.VITE_GOOGLE_SHEETS_ID;
 
 /**
