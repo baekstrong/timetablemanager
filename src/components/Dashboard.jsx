@@ -249,7 +249,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                 onClick={() => {
                                     if (item.id === 'training') {
                                         // Navigate to training log in same domain
-                                        window.location.href = '/training-log/index.html';
+                                        window.location.href = '/timetablemanager/training-log/index.html';
                                     } else {
                                         onNavigate(item.id);
                                     }
