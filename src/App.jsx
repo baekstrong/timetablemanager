@@ -19,30 +19,39 @@ function AppContent() {
   const handleLogin = async (userData) => {
     setUser(userData);
 
-    // If student role, fetch their data from Google Sheets
-    if (userData.role === 'student') {
-      try {
-        // 먼저 여러 시트에서 검색 시도
-        console.log('🔍 Searching for student across multiple sheets...');
-        const result = await findStudentAcrossSheets(userData.username);
-
-        if (result) {
-          setStudentData(result.student);
-          console.log(`📊 Loaded student data from ${result.sheetName}:`, result.student);
-        } else {
-          // 못 찾으면 현재 월에서만 검색 (fallback)
-          console.log('⚠️ Student not found in recent sheets, trying current month only...');
-          const data = await getStudentByName(userData.username);
-          setStudentData(data);
-          console.log('📊 Loaded student data:', data);
-        }
-      } catch (error) {
-        console.error('Failed to load student data:', error);
-        // Continue with login even if data fetch fails
-      }
-    }
-
+    // Navigate to dashboard immediately for faster UX
     setCurrentPage('dashboard');
+
+    // If student role, fetch their data from Google Sheets in background
+    if (userData.role === 'student') {
+      // Don't await - let it load in background
+      (async () => {
+        try {
+          // 먼저 현재 월에서 빠르게 검색
+          console.log('🔍 Searching for student in current month...');
+          const data = await getStudentByName(userData.username);
+
+          if (data) {
+            setStudentData(data);
+            console.log('📊 Loaded student data from current month:', data);
+          } else {
+            // 현재 월에 없으면 여러 시트에서 검색 (더 느림)
+            console.log('⚠️ Student not found in current month, searching across multiple sheets...');
+            const result = await findStudentAcrossSheets(userData.username);
+
+            if (result) {
+              setStudentData(result.student);
+              console.log(`📊 Loaded student data from ${result.sheetName}:`, result.student);
+            } else {
+              console.warn('❌ Student not found in any sheet');
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load student data:', error);
+          // Continue even if data fetch fails
+        }
+      })();
+    }
   };
 
   const handleLogout = () => {
@@ -57,6 +66,9 @@ function AppContent() {
         console.error('Failed to update credentials:', err);
       }
     }
+
+    // Clear training log session to sync logout
+    localStorage.removeItem('savedUser');
 
     setUser(null);
     setStudentData(null);

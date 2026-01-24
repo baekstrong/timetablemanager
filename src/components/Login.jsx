@@ -25,6 +25,19 @@ const Login = ({ onLogin }) => {
                 // Auto-login if enabled
                 if (savedAutoLogin && savedUsername && savedPassword) {
                     console.log('🔄 Auto-login enabled, attempting login...');
+
+                    // Check if this is a quick return from training log
+                    const quickReturn = sessionStorage.getItem('quickReturn');
+                    if (quickReturn) {
+                        console.log('⚡ Quick return detected - using fast login');
+                        sessionStorage.removeItem('quickReturn');
+
+                        // Disable auto-login after this one-time use
+                        const credentials = JSON.parse(savedCredentials);
+                        credentials.autoLogin = false;
+                        localStorage.setItem('login_credentials', JSON.stringify(credentials));
+                    }
+
                     performLogin(savedUsername, savedPassword, true);
                 }
             } catch (err) {

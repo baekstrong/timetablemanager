@@ -1,0 +1,15 @@
+{
+  "name": "실전 훈련일지",
+  "short_name": "훈련일지",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "img/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
