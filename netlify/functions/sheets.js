@@ -12,18 +12,21 @@ const getGoogleSheetsClient = async () => {
     // Private key handling (support various formats)
     let privateKey = process.env.GOOGLE_PRIVATE_KEY;
     if (privateKey) {
-      // Remove wrapping quotes if present
-      if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-        privateKey = privateKey.slice(1, -1);
-      }
-      // Replace escaped newlines with actual newlines
-      privateKey = privateKey.replace(/\\n/g, '\n');
+      // 1. Remove all whitespace and headers/footers to get raw base64
+      let rawKey = privateKey
+        .replace(/\\n/g, '')
+        .replace(/\s/g, '')
+        .replace(/-----BEGINPRIVATEKEY-----/g, '')
+        .replace(/-----ENDPRIVATEKEY-----/g, '')
+        .replace(/"/g, '');
 
-      // Add PEM header/footer if missing
-      if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-        const header = '-----BEGIN PRIVATE KEY-----\n';
-        const footer = '\n-----END PRIVATE KEY-----';
-        privateKey = header + privateKey + footer;
+      // 2. Chunk into 64 characters (Standard PEM format requirement)
+      const chunked = rawKey.match(/.{1,64}/g)?.join('\n');
+
+      // 3. Reassemble with correct headers
+      if (chunked) {
+        privateKey = `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
+        console.log('Reformatted Private Key Length:', privateKey.length);
       }
     }
 
