@@ -3,13 +3,11 @@
   publish = "dist"
 
 # SPA routing을 위한 리다이렉트 설정
+# 모든 경로를 index.html로 리다이렉트 (실제 파일이 없을 때만)
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-  force = false
-  # 실제 파일이 존재하는 경우 (training-log 등) 리다이렉트하지 않음
-  conditions = {Role = ["user"]}
 
 # 환경 변수는 Netlify 대시보드에서 설정
 # VITE_FIREBASE_API_KEY
