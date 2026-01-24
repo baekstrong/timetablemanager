@@ -523,12 +523,14 @@
 }
 
 /* Mobile Horizontal Scroll Support */
-/* Mobile Layout Adjustments */
+/* Mobile Horizontal Scroll Support */
 @media (max-width: 768px) {
     .schedule-container {
         padding: 4px;
         /* Minimize padding */
-        overflow-x: hidden;
+        /* overflow-x: hidden; REMOVED to allow scrolling inside */
+        width: 100%;
+        box-sizing: border-box;
     }
 
     .schedule-page-header {
@@ -557,38 +559,38 @@
     /* === COACH MODE: Scrollable Layout === */
     .mode-coach .schedule-grid {
         display: grid;
+        width: 100%;
         overflow-x: auto;
-        min-width: 800px;
-        /* Force scroll to see names */
         padding-bottom: 5px;
-        grid-template-columns: 70px repeat(5, 1fr);
+
+        /* Force columns to be at least 130px wide using minmax */
+        /* 70px + 5 * 130px = 720px minimum grid width */
+        grid-template-columns: 70px repeat(5, minmax(130px, 1fr));
+
         -webkit-overflow-scrolling: touch;
         border-radius: 8px;
     }
 
     .mode-coach .schedule-cell {
         min-height: 100px;
-        /* Ensure enough height for names */
     }
 
     /* === STUDENT MODE: Fit-to-Screen Compact Layout === */
     .mode-student .schedule-grid {
         display: grid;
         width: 100%;
-        min-width: auto;
         overflow-x: hidden;
-        /* No scroll wanted */
-        /* Extremely compact columns: Time(35px) + 5 Days */
+
+        /* Compact columns */
         grid-template-columns: 35px repeat(5, 1fr);
+
         border-radius: 8px;
         font-size: 0.75rem;
-        /* Overall font shrink */
     }
 
     .mode-student .schedule-cell {
         padding: 2px;
         min-height: 60px;
-        /* Compact height */
         border-bottom: 1px solid #eee;
         border-right: 1px solid #eee;
     }
@@ -597,7 +599,6 @@
         padding: 6px 2px;
         font-size: 0.8rem;
         white-space: nowrap;
-        /* "월(1/19)" -> "월" only if needed? No, let it wrap or shrink */
         overflow: hidden;
         text-overflow: ellipsis;
     }
@@ -614,12 +615,10 @@
         line-height: 1.2;
     }
 
-    /* Hide detailed time range on mobile student view to save space */
     .mode-student .period-time {
         display: none;
     }
 
-    /* Adjust availability number size */
     .mode-student .seat-count {
         font-size: 1.4em !important;
         font-weight: 800;
@@ -629,14 +628,11 @@
         font-size: 1.1em;
     }
 
-    /* Hide "자리" text if too cramped, or make it tiny */
     .mode-student .schedule-cell span[style*="font-size: 0.8em"] {
         font-size: 0.7em !important;
         display: block;
-        /* Force new line */
     }
 
-    /* Adjust badges */
     .mode-student .my-class-badge {
         font-size: 0.6em;
         padding: 1px 4px;
