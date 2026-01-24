@@ -456,3 +456,120 @@ export const cancelAbsence = async (absenceId) => {
         throw error;
     }
 };
+
+// ============================================
+// ANNOUNCEMENT FUNCTIONS
+// ============================================
+
+/**
+ * 공지사항 생성
+ * @param {string} title - 제목
+ * @param {string} content - 내용
+ * @param {boolean} important - 중요 공지 여부
+ * @returns {Promise<Object>} - {success: boolean, id: string}
+ */
+export const createAnnouncement = async (title, content, important = false) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        console.log('📢 공지사항 생성:', { title, important });
+
+        const docRef = await addDoc(collection(db, 'announcements'), {
+            title,
+            content,
+            important,
+            date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+
+        console.log('✅ 공지사항 생성 완료:', docRef.id);
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('❌ 공지사항 생성 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 모든 공지사항 조회 (최신순)
+ * @returns {Promise<Array>} - 공지사항 목록
+ */
+export const getAnnouncements = async () => {
+    if (!isFirebaseAvailable()) return [];
+
+    try {
+        const q = query(collection(db, 'announcements'));
+        const snapshot = await getDocs(q);
+
+        const announcements = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(a => !a.deleted) // 삭제된 공지 제외
+            .sort((a, b) => {
+                // 중요 공지사항을 먼저, 그 다음 최신순
+                if (a.important && !b.important) return -1;
+                if (!a.important && b.important) return 1;
+                return (b.date || '').localeCompare(a.date || '');
+            });
+
+        console.log('📋 공지사항 조회:', announcements.length);
+        return announcements;
+    } catch (error) {
+        console.error('❌ 공지사항 조회 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 공지사항 수정
+ * @param {string} announcementId - 공지사항 ID
+ * @param {Object} data - 수정할 데이터 {title?, content?, important?}
+ * @returns {Promise<void>}
+ */
+export const updateAnnouncement = async (announcementId, data) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        console.log('✏️ 공지사항 수정:', announcementId, data);
+
+        await updateDoc(doc(db, 'announcements', announcementId), {
+            ...data,
+            updatedAt: serverTimestamp()
+        });
+
+        console.log('✅ 공지사항 수정 완료');
+    } catch (error) {
+        console.error('❌ 공지사항 수정 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 공지사항 삭제
+ * @param {string} announcementId - 공지사항 ID
+ * @returns {Promise<void>}
+ */
+export const deleteAnnouncement = async (announcementId) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        console.log('🗑️ 공지사항 삭제:', announcementId);
+
+        // Firestore에서 완전 삭제 대신 soft delete (상태 변경)
+        await updateDoc(doc(db, 'announcements', announcementId), {
+            deleted: true,
+            updatedAt: serverTimestamp()
+        });
+
+        console.log('✅ 공지사항 삭제 완료');
+    } catch (error) {
+        console.error('❌ 공지사항 삭제 실패:', error);
+        throw error;
+    }
+};

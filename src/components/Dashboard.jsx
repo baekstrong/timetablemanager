@@ -1,32 +1,89 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
+import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from '../services/firebaseService';
 import GoogleSheetsSync from './GoogleSheetsSync';
 import './Dashboard.css';
 
 const Dashboard = ({ user, onNavigate, onLogout }) => {
-    const [notices] = useState([
-        {
-            id: 1,
-            title: '무제한 수강권 안내',
-            content: '무제한 수강권은 구매일로부터 30일간 사용 가능합니다. 홀딩 기능을 통해 기간을 연장할 수 있습니다.',
-            date: '2026-01-09',
-            important: true
-        },
-        {
-            id: 2,
-            title: '홀딩 신청 방법',
-            content: '시간표에서 본인의 수업을 클릭하여 홀딩을 신청할 수 있습니다. 홀딩 시 해당 일수만큼 수강권 기간이 연장됩니다.',
-            date: '2026-01-08',
-            important: false
-        },
-        {
-            id: 3,
-            title: '보강 수업 신청',
-            content: '다른 수강생의 홀딩으로 빈 자리가 생기면 임시로 수강 신청이 가능합니다.',
-            date: '2026-01-07',
-            important: false
+    const [notices, setNotices] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    // Modal states
+    const [showModal, setShowModal] = useState(false);
+    const [editingNotice, setEditingNotice] = useState(null);
+    const [formData, setFormData] = useState({ title: '', content: '', important: false });
+    const [submitting, setSubmitting] = useState(false);
+
+    // Load announcements on mount
+    useEffect(() => {
+        loadAnnouncements();
+    }, []);
+
+    const loadAnnouncements = async () => {
+        try {
+            setLoading(true);
+            const data = await getAnnouncements();
+            setNotices(data);
+        } catch (error) {
+            console.error('Failed to load announcements:', error);
+        } finally {
+            setLoading(false);
         }
-    ]);
+    };
+
+    // Open create modal
+    const handleCreate = () => {
+        setEditingNotice(null);
+        setFormData({ title: '', content: '', important: false });
+        setShowModal(true);
+    };
+
+    // Open edit modal
+    const handleEdit = (notice) => {
+        setEditingNotice(notice);
+        setFormData({
+            title: notice.title,
+            content: notice.content,
+            important: notice.important
+        });
+        setShowModal(true);
+    };
+
+    // Delete announcement
+    const handleDelete = async (notice) => {
+        if (!confirm(`"${notice.title}" 공지를 삭제하시겠습니까?`)) return;
+
+        try {
+            await deleteAnnouncement(notice.id);
+            await loadAnnouncements();
+        } catch (error) {
+            alert('삭제 실패: ' + error.message);
+        }
+    };
+
+    // Submit form
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!formData.title.trim() || !formData.content.trim()) {
+            alert('제목과 내용을 입력해주세요.');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            if (editingNotice) {
+                await updateAnnouncement(editingNotice.id, formData);
+            } else {
+                await createAnnouncement(formData.title, formData.content, formData.important);
+            }
+            setShowModal(false);
+            await loadAnnouncements();
+        } catch (error) {
+            alert('저장 실패: ' + error.message);
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     const menuItems = user.role === 'coach'
         ? [
@@ -37,7 +94,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         : [
             { id: 'schedule', title: '시간표 조회', icon: '📅', description: '내 시간표 및 보강 신청' },
             { id: 'myinfo', title: '내 정보', icon: '👤', description: '수강권 현황 및 출석 기록' },
-            { id: 'holding', title: '홀딩 및 결석 신청', icon: '⏸️', description: '수업 홀딩 및 결석 신청' }
+            { id: 'holding', title: '홀딩 및 결석 신청', icon: '⏸️', description: '수업 홀딩 및 결석 신청' },
+            { id: 'training', title: '훈련일지', icon: '📝', description: '나의 운동 기록 관리' }
         ];
 
     return (
@@ -92,20 +150,89 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
 
                 {/* 공지사항 섹션 */}
                 <section className="notices-section">
-                    <h2 className="section-title">
-                        <span className="title-icon">📢</span>
-                        공지사항
-                    </h2>
-                    <div className="notices-grid">
-                        {notices.map(notice => (
-                            <div key={notice.id} className={`notice-card ${notice.important ? 'important' : ''}`}>
-                                {notice.important && <span className="important-badge">중요</span>}
-                                <h3 className="notice-title">{notice.title}</h3>
-                                <p className="notice-content">{notice.content}</p>
-                                <span className="notice-date">{notice.date}</span>
-                            </div>
-                        ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h2 className="section-title" style={{ marginBottom: 0 }}>
+                            <span className="title-icon">📢</span>
+                            공지사항
+                        </h2>
+                        {user.role === 'coach' && (
+                            <button
+                                onClick={handleCreate}
+                                style={{
+                                    padding: '0.5rem 1rem',
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    fontSize: '0.9rem',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.3rem'
+                                }}
+                            >
+                                ➕ 공지 작성
+                            </button>
+                        )}
                     </div>
+
+                    {loading ? (
+                        <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+                            공지사항을 불러오는 중...
+                        </div>
+                    ) : notices.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>
+                            등록된 공지사항이 없습니다.
+                        </div>
+                    ) : (
+                        <div className="notices-grid">
+                            {notices.map(notice => (
+                                <div key={notice.id} className={`notice-card ${notice.important ? 'important' : ''}`}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <div style={{ flex: 1 }}>
+                                            {notice.important && <span className="important-badge">중요</span>}
+                                            <h3 className="notice-title">{notice.title}</h3>
+                                        </div>
+                                        {user.role === 'coach' && (
+                                            <div style={{ display: 'flex', gap: '0.3rem', marginLeft: '0.5rem' }}>
+                                                <button
+                                                    onClick={() => handleEdit(notice)}
+                                                    style={{
+                                                        padding: '0.3rem 0.5rem',
+                                                        background: '#f0f0f0',
+                                                        border: 'none',
+                                                        borderRadius: '4px',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.8rem'
+                                                    }}
+                                                    title="수정"
+                                                >
+                                                    ✏️
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(notice)}
+                                                    style={{
+                                                        padding: '0.3rem 0.5rem',
+                                                        background: '#fee2e2',
+                                                        border: 'none',
+                                                        borderRadius: '4px',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.8rem'
+                                                    }}
+                                                    title="삭제"
+                                                >
+                                                    🗑️
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="notice-content">{notice.content}</p>
+                                    <span className="notice-date">{notice.date}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </section>
 
                 {/* 메뉴 섹션 */}
@@ -119,7 +246,14 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                             <div
                                 key={item.id}
                                 className="menu-card"
-                                onClick={() => onNavigate(item.id)}
+                                onClick={() => {
+                                    if (item.id === 'training') {
+                                        // Open training log (running on separate port)
+                                        window.location.href = 'http://localhost:3000';
+                                    } else {
+                                        onNavigate(item.id);
+                                    }
+                                }}
                             >
                                 <div className="menu-icon">{item.icon}</div>
                                 <h3 className="menu-title">{item.title}</h3>
@@ -134,6 +268,126 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                     </div>
                 </section>
             </div>
+
+            {/* 공지사항 작성/수정 모달 */}
+            {showModal && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: 'rgba(0,0,0,0.5)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        zIndex: 1000
+                    }}
+                    onClick={() => setShowModal(false)}
+                >
+                    <div
+                        style={{
+                            background: 'white',
+                            borderRadius: '12px',
+                            padding: '1.5rem',
+                            width: '90%',
+                            maxWidth: '500px',
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h2 style={{ marginTop: 0, marginBottom: '1rem' }}>
+                            📢 {editingNotice ? '공지사항 수정' : '공지사항 작성'}
+                        </h2>
+                        <form onSubmit={handleSubmit}>
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: '600' }}>
+                                    제목
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.title}
+                                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        border: '1px solid #ddd',
+                                        borderRadius: '8px',
+                                        fontSize: '1rem',
+                                        boxSizing: 'border-box'
+                                    }}
+                                    placeholder="공지사항 제목"
+                                />
+                            </div>
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: '600' }}>
+                                    내용
+                                </label>
+                                <textarea
+                                    value={formData.content}
+                                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        border: '1px solid #ddd',
+                                        borderRadius: '8px',
+                                        fontSize: '1rem',
+                                        minHeight: '120px',
+                                        resize: 'vertical',
+                                        boxSizing: 'border-box'
+                                    }}
+                                    placeholder="공지사항 내용을 입력하세요"
+                                />
+                            </div>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.important}
+                                        onChange={(e) => setFormData({ ...formData, important: e.target.checked })}
+                                        style={{ width: '18px', height: '18px' }}
+                                    />
+                                    <span style={{ fontWeight: '600', color: '#dc2626' }}>중요 공지사항으로 설정</span>
+                                </label>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowModal(false)}
+                                    style={{
+                                        padding: '0.75rem 1.5rem',
+                                        background: '#f0f0f0',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        fontSize: '1rem',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    취소
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={submitting}
+                                    style={{
+                                        padding: '0.75rem 1.5rem',
+                                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        fontSize: '1rem',
+                                        fontWeight: '600',
+                                        cursor: submitting ? 'not-allowed' : 'pointer',
+                                        opacity: submitting ? 0.7 : 1
+                                    }}
+                                >
+                                    {submitting ? '저장 중...' : (editingNotice ? '수정하기' : '작성하기')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

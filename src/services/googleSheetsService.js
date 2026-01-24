@@ -206,6 +206,8 @@ export const parseStudentData = (rows) => {
     headers.forEach((header, colIndex) => {
       student[header] = row[colIndex] || '';
     });
+    // Store original row index (0-based relative to data start) for updates
+    student._rowIndex = index;
     return student;
   }).filter(student => student['이름']);
 };
@@ -710,6 +712,10 @@ export const getAllStudentsFromAllSheets = async () => {
         const range = `${sheetName}!A:Z`;
         const rows = await readSheetData(range);
         const parsedData = parseStudentData(rows);
+        // Attach sheet name to each student for update tracking
+        parsedData.forEach(student => {
+          student._sheetName = sheetName;
+        });
         console.log(`✅ Loaded ${parsedData.length} students from ${sheetName}`);
         return parsedData;
       } catch (error) {
@@ -748,7 +754,10 @@ export const updateStudentHolding = async (rowIndex, holdingStatus, holdingStart
       sheetName = getCurrentSheetName();
     }
 
-    const actualRow = rowIndex + 2;
+    // Row 1: Merged header cells
+    // Row 2: Column names (headers)
+    // Row 3+: Data starts here
+    const actualRow = rowIndex + 3;
 
     await writeSheetData(`${sheetName}!M${actualRow}`, [[holdingStatus]]);
 
@@ -777,13 +786,22 @@ export const updateStudentHolding = async (rowIndex, holdingStatus, holdingStart
 export const updateStudentData = async (rowIndex, studentData, year = null, month = null) => {
   try {
     let sheetName;
-    if (year && month) {
+
+    // Prefer _sheetName from studentData if available (for multi-sheet scenarios)
+    if (studentData._sheetName) {
+      sheetName = studentData._sheetName;
+      console.log(`📍 Using sheet name from student data: ${sheetName}`);
+    } else if (year && month) {
       sheetName = getSheetNameByYearMonth(year, month);
     } else {
       sheetName = getCurrentSheetName();
     }
 
-    const actualRow = rowIndex + 2;
+    // Row 1: Merged header cells
+    // Row 2: Column names (headers)
+    // Row 3+: Data starts here
+    // So: actualRow = rowIndex + 3
+    const actualRow = rowIndex + 3;
 
     console.log(`📝 Updating student data for row ${actualRow} in sheet ${sheetName}`);
 

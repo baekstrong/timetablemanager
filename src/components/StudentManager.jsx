@@ -21,7 +21,7 @@ const StudentManager = ({ onBack }) => {
         setEditingStudent(index);
         setEditForm({
             ...student,
-            rowIndex: index
+            rowIndex: student._rowIndex // Use original row index
         });
     };
 
@@ -41,6 +41,23 @@ const StudentManager = ({ onBack }) => {
         } catch (err) {
             console.error('Failed to update student:', err);
             alert('수강생 정보 업데이트에 실패했습니다.');
+        }
+    };
+
+    // End class (Clear schedule)
+    const handleEndClass = async (student, index) => {
+        if (!confirm(`${student['이름']} 수강생의 수강을 종료하시겠습니까?\n\n- 시간표에서 제거됩니다.\n- 이름, 결제 내역 등은 시트에 보존됩니다.\n- 시트의 '요일 및 시간' 칸만 지워집니다.`)) {
+            return;
+        }
+
+        try {
+            const updatedStudent = { ...student, '요일 및 시간': '' };
+            // Use original row index
+            await updateStudent(student._rowIndex, updatedStudent);
+            alert('수강 종료 처리되었습니다.');
+        } catch (err) {
+            console.error('Failed to end class:', err);
+            alert('수강 종료 처리에 실패했습니다.');
         }
     };
 
@@ -232,9 +249,14 @@ const StudentManager = ({ onBack }) => {
                                                         </button>
                                                     </div>
                                                 ) : (
-                                                    <button onClick={() => handleEdit(student, index)} className="edit-btn">
-                                                        수정
-                                                    </button>
+                                                    <div className="action-buttons">
+                                                        <button onClick={() => handleEdit(student, index)} className="edit-btn">
+                                                            수정
+                                                        </button>
+                                                        <button onClick={() => handleEndClass(student, index)} className="end-class-btn" title="수강 종료 (시간표에서 제거)">
+                                                            종료
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </td>
                                         </tr>
