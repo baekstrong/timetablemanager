@@ -1,15 +1,18 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const { google } = require('googleapis');
-const path = require('path');
+const admin = require('firebase-admin');
 
-// 서비스 계정 키 파일 경로
-const SERVICE_ACCOUNT_PATH = path.join(__dirname, '..', 'timetable-manager-483823-71c27367cd6a.json');
-const SPREADSHEET_ID = process.env.VITE_GOOGLE_SHEETS_ID;
+// Initialize Firebase Admin (automatically uses default service account in Cloud Functions)
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
+const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID || process.env.VITE_GOOGLE_SHEETS_ID;
 
 // Google Sheets API 클라이언트 생성
 const getGoogleSheetsClient = async () => {
+  // In Cloud Functions, use Application Default Credentials
   const auth = new google.auth.GoogleAuth({
-    keyFile: SERVICE_ACCOUNT_PATH,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
 
@@ -19,7 +22,7 @@ const getGoogleSheetsClient = async () => {
 
 /**
  * 구글 시트 데이터 읽기
- * GET /api/sheets/read?range=시트이름!A:Z
+ * GET /readSheet?range=시트이름!A:Z
  */
 exports.readSheet = onRequest({ cors: true }, async (req, res) => {
   try {
@@ -50,7 +53,7 @@ exports.readSheet = onRequest({ cors: true }, async (req, res) => {
 
 /**
  * 구글 시트 데이터 쓰기
- * POST /api/sheets/write
+ * POST /writeSheet
  * Body: { range: "시트이름!A1", values: [["data1", "data2"]] }
  */
 exports.writeSheet = onRequest({ cors: true }, async (req, res) => {
@@ -87,7 +90,7 @@ exports.writeSheet = onRequest({ cors: true }, async (req, res) => {
 
 /**
  * 구글 시트 데이터 추가
- * POST /api/sheets/append
+ * POST /appendSheet
  * Body: { range: "시트이름!A:Z", values: [["data1", "data2"]] }
  */
 exports.appendSheet = onRequest({ cors: true }, async (req, res) => {
@@ -123,7 +126,7 @@ exports.appendSheet = onRequest({ cors: true }, async (req, res) => {
 
 /**
  * 스프레드시트 정보 가져오기
- * GET /api/sheets/info
+ * GET /getSheetInfo
  */
 exports.getSheetInfo = onRequest({ cors: true }, async (req, res) => {
   try {
@@ -147,7 +150,7 @@ exports.getSheetInfo = onRequest({ cors: true }, async (req, res) => {
 
 /**
  * 일괄 업데이트
- * POST /api/sheets/batchUpdate
+ * POST /batchUpdateSheet
  * Body: { data: [{ range: "시트!A1", values: [[...]] }, ...] }
  */
 exports.batchUpdateSheet = onRequest({ cors: true }, async (req, res) => {

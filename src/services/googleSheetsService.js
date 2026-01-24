@@ -1,7 +1,11 @@
-// Firebase Functions URL - 배포 후 실제 URL로 변경 필요
+// Backend Functions URL
 // 로컬 테스트: http://localhost:5001
-// 프로덕션: https://us-central1-timetable-manager-483823.cloudfunctions.net
-const FUNCTIONS_BASE_URL = import.meta.env.VITE_FUNCTIONS_URL || 'http://localhost:5001';
+// Netlify Functions: /.netlify/functions/sheets (자동으로 현재 도메인 사용)
+const FUNCTIONS_BASE_URL = import.meta.env.VITE_FUNCTIONS_URL || (
+  import.meta.env.MODE === 'production'
+    ? '/.netlify/functions/sheets'
+    : 'http://localhost:5001'
+);
 const SPREADSHEET_ID = import.meta.env.VITE_GOOGLE_SHEETS_ID;
 
 /**
@@ -59,7 +63,7 @@ export const getSheetNameByYearMonth = (year, month) => {
  */
 export const getAllSheetNames = async () => {
   try {
-    const response = await fetch(`${FUNCTIONS_BASE_URL}/getSheetInfo`);
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/info`);
     const data = await response.json();
 
     if (!data.success) {
@@ -85,7 +89,7 @@ export const readSheetData = async (range = null) => {
       range = `${sheetName}!A:Z`;
     }
 
-    const response = await fetch(`${FUNCTIONS_BASE_URL}/readSheet?range=${encodeURIComponent(range)}`);
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/read?range=${encodeURIComponent(range)}`);
     const data = await response.json();
 
     if (!data.success) {
@@ -107,7 +111,7 @@ export const readSheetData = async (range = null) => {
  */
 export const writeSheetData = async (range, values) => {
   try {
-    const response = await fetch(`${FUNCTIONS_BASE_URL}/writeSheet`, {
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/write`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -137,7 +141,7 @@ export const writeSheetData = async (range, values) => {
  */
 export const appendSheetData = async (range, values) => {
   try {
-    const response = await fetch(`${FUNCTIONS_BASE_URL}/appendSheet`, {
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/append`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -166,7 +170,7 @@ export const appendSheetData = async (range, values) => {
  */
 export const batchUpdateSheet = async (updates) => {
   try {
-    const response = await fetch(`${FUNCTIONS_BASE_URL}/batchUpdateSheet`, {
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/batchUpdate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
