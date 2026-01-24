@@ -18,6 +18,13 @@ const getGoogleSheetsClient = async () => {
       }
       // Replace escaped newlines with actual newlines
       privateKey = privateKey.replace(/\\n/g, '\n');
+
+      // Add PEM header/footer if missing
+      if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+        const header = '-----BEGIN PRIVATE KEY-----\n';
+        const footer = '\n-----END PRIVATE KEY-----';
+        privateKey = header + privateKey + footer;
+      }
     }
 
     const credentials = {
