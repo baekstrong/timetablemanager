@@ -159,10 +159,10 @@ export function renderCoachScreen() {
                         <p class="text-purple-100 mt-1">전체 수강생 훈련 현황</p>
                     </div>
                     <div class="flex gap-2">
-                        <button onclick="navigateToTimetable()" class="bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition flex items-center gap-1">
+                        <button onclick="navigateToTimetable()" class="bg-white text-blue-600 px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-blue-50 transition flex items-center gap-1">
                             ← 시간표
                         </button>
-                        <button onclick="logout()" class="bg-white text-purple-600 px-6 py-2 rounded-lg font-semibold hover:bg-purple-50 transition">
+                        <button onclick="logout()" class="bg-white text-purple-600 px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-purple-50 transition">
                             로그아웃
                         </button>
                     </div>

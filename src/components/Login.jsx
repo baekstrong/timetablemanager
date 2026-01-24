@@ -157,8 +157,7 @@ const Login = ({ onLogin }) => {
 
             <div className="login-card">
                 <div className="login-header">
-                    <h1 className="login-title">시간표 관리 시스템</h1>
-                    <p className="login-subtitle">무제한 수강권 관리 플랫폼</p>
+                    <h1 className="login-title">근력학교 수강 관리 시스템</h1>
                 </div>
 
                 <form onSubmit={handleSubmit} className="login-form">
@@ -228,7 +227,7 @@ const Login = ({ onLogin }) => {
                 </form>
 
                 <div className="login-footer">
-                    <p>훈련일지 계정으로 로그인하세요</p>
+                    <p>처음이신가요? 원하시는 아이디와 비밀번호로 로그인하면<br />자동으로 새 계정이 생성됩니다.</p>
                 </div>
             </div>
         </div>
