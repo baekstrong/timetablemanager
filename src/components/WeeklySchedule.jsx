@@ -899,7 +899,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     }
 
     return (
-        <div className="schedule-container">
+        <div className={`schedule-container mode-${mode}`}>
             <div className="schedule-page-header">
                 {onBack && (
                     <button onClick={onBack} className="back-button">
