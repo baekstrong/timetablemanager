@@ -23,13 +23,12 @@ const formatLocalDate = (date) => {
 // 한국 공휴일 데이터 (2026년 기준)
 const KOREAN_HOLIDAYS_2026 = {
     '2026-01-01': '신정',
-    '2026-01-28': '설날',
-    '2026-01-29': '설날',
-    '2026-01-30': '설날',
+    '2026-02-16': '설날',
+    '2026-02-17': '설날',
+    '2026-02-18': '설날',
     '2026-03-01': '3·1절',
-    '2026-04-05': '식목일',
     '2026-05-05': '어린이날',
-    '2026-05-24': '부처님 오신 날',
+    '2026-05-25': '부처님 오신 날',
     '2026-06-06': '현충일',
     '2026-08-15': '광복절',
     '2026-09-24': '추석',
@@ -203,13 +202,20 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         const lastDay = new Date(year, month + 1, 0);
 
         const dates = [];
-        const startDayOfWeek = firstDay.getDay();
 
-        // 이전 달 날짜로 채우기 (월요일부터 시작하도록 조정)
-        // startDayOfWeek: 0(일) ~ 6(토)
-        // 월요일 기준으로 조정: 월(1)=0칸, 화(2)=1칸, ..., 일(0)=6칸
-        const adjustedStartDay = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
-        for (let i = 0; i < adjustedStartDay; i++) {
+        // 첫 평일 (월~금) 찾기
+        let firstWeekday = firstDay;
+        while (firstWeekday.getDay() === 0 || firstWeekday.getDay() === 6) {
+            firstWeekday = new Date(firstWeekday);
+            firstWeekday.setDate(firstWeekday.getDate() + 1);
+        }
+
+        // 첫 평일이 무슨 요일인지 확인 (1=월, 2=화, 3=수, 4=목, 5=금)
+        const firstWeekdayOfWeek = firstWeekday.getDay();
+
+        // 빈 칸 추가 (월요일 = 0칸, 화요일 = 1칸, ...)
+        const emptySlots = firstWeekdayOfWeek - 1; // 1(월)=0, 2(화)=1, ...
+        for (let i = 0; i < emptySlots; i++) {
             dates.push(null);
         }
 
@@ -223,9 +229,18 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                 continue;
             }
 
-            // 수강 기간 체크
+            // 수강 기간 체크 (시간을 제거하고 날짜만 비교)
             if (membershipPeriod.start && membershipPeriod.end) {
-                if (date >= membershipPeriod.start && date <= membershipPeriod.end) {
+                const dateOnly = new Date(year, month, day);
+                dateOnly.setHours(0, 0, 0, 0);
+
+                const startOnly = new Date(membershipPeriod.start);
+                startOnly.setHours(0, 0, 0, 0);
+
+                const endOnly = new Date(membershipPeriod.end);
+                endOnly.setHours(0, 0, 0, 0);
+
+                if (dateOnly >= startOnly && dateOnly <= endOnly) {
                     dates.push(date);
                 } else {
                     dates.push(null);
