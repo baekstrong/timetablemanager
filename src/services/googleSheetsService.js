@@ -191,6 +191,36 @@ export const batchUpdateSheet = async (updates) => {
 };
 
 /**
+ * Highlight cells with yellow background (노란색 하이라이트)
+ * @param {Array<string>} ranges - Array of cell ranges (e.g., ["A5", "B5", "C5"])
+ * @param {string} sheetName - Sheet name
+ * @returns {Promise}
+ */
+export const highlightCells = async (ranges, sheetName) => {
+  try {
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/formatCells`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ranges, sheetName }),
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to highlight cells');
+    }
+
+    console.log(`✅ Highlighted ${ranges.length} cells with yellow background`);
+    return data;
+  } catch (error) {
+    console.error('Error highlighting cells:', error);
+    throw error;
+  }
+};
+
+/**
  * Parse student data from Google Sheets
  * Expected columns: 이름, 주횟수, 요일 및 시간, 특이사항, 학기/개월수, 시작날짜, 종료날짜, 홀딩 사용여부, 홀딩 시작일, 홀딩 종료일, etc.
  * Note: Row 1 contains merged cells, Row 2 contains actual headers
@@ -976,6 +1006,25 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
     }
 
     await batchUpdateSheet(updates);
+
+    // 변경된 셀들을 노란색으로 하이라이트
+    const cellsToHighlight = [
+      `${getColumnLetter(holdingUsedCol)}${studentIndex + 1}`,
+      `${getColumnLetter(holdingStartCol)}${studentIndex + 1}`,
+      `${getColumnLetter(holdingEndCol)}${studentIndex + 1}`
+    ];
+
+    if (endDateCol !== -1) {
+      cellsToHighlight.push(`${getColumnLetter(endDateCol)}${studentIndex + 1}`);
+    }
+
+    // 하이라이트 적용 (실패해도 홀딩 신청은 성공으로 처리)
+    try {
+      await highlightCells(cellsToHighlight, sheetName);
+      console.log(`🎨 셀 하이라이트 완료: ${cellsToHighlight.join(', ')}`);
+    } catch (highlightError) {
+      console.warn('⚠️ 셀 하이라이트 실패 (홀딩 신청은 완료됨):', highlightError);
+    }
 
     console.log(`✅ 홀딩 신청 완료: ${studentName}, ${startDateStr} ~ ${endDateStr}`);
     console.log(`📅 종료일 연장: ${newEndDateStr}`);

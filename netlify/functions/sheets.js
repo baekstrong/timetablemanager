@@ -216,6 +216,89 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // POST /sheets/formatCells - Highlight cells with yellow background
+    if (event.httpMethod === 'POST' && path === 'formatCells') {
+      const { ranges, sheetName } = JSON.parse(event.body);
+      if (!ranges || !Array.isArray(ranges) || !sheetName) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ranges (array) and sheetName are required' }),
+        };
+      }
+
+      // Get sheet ID from sheet name
+      const spreadsheet = await sheets.spreadsheets.get({
+        spreadsheetId: SPREADSHEET_ID,
+      });
+
+      const sheet = spreadsheet.data.sheets.find(s => s.properties.title === sheetName);
+      if (!sheet) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ error: `Sheet not found: ${sheetName}` }),
+        };
+      }
+
+      const sheetId = sheet.properties.sheetId;
+
+      // Build batch update requests for formatting
+      const requests = ranges.map(range => {
+        // Parse range like "A5" or "B10"
+        const match = range.match(/^([A-Z]+)(\d+)$/);
+        if (!match) {
+          throw new Error(`Invalid range format: ${range}`);
+        }
+
+        const columnLetter = match[1];
+        const rowNumber = parseInt(match[2]) - 1; // 0-indexed
+
+        // Convert column letter to index (A=0, B=1, ...)
+        let columnIndex = 0;
+        for (let i = 0; i < columnLetter.length; i++) {
+          columnIndex = columnIndex * 26 + (columnLetter.charCodeAt(i) - 64);
+        }
+        columnIndex -= 1; // 0-indexed
+
+        return {
+          repeatCell: {
+            range: {
+              sheetId: sheetId,
+              startRowIndex: rowNumber,
+              endRowIndex: rowNumber + 1,
+              startColumnIndex: columnIndex,
+              endColumnIndex: columnIndex + 1,
+            },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: {
+                  red: 1.0,
+                  green: 1.0,
+                  blue: 0.6, // Light yellow
+                },
+              },
+            },
+            fields: 'userEnteredFormat.backgroundColor',
+          },
+        };
+      });
+
+      const response = await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        resource: { requests },
+      });
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          updatedCells: ranges.length,
+        }),
+      };
+    }
+
     return {
       statusCode: 404,
       headers,

@@ -20,6 +20,32 @@ const formatLocalDate = (date) => {
     return `${year}-${month}-${day}`;
 };
 
+// 한국 공휴일 데이터 (2026년 기준)
+const KOREAN_HOLIDAYS_2026 = {
+    '2026-01-01': '신정',
+    '2026-01-28': '설날',
+    '2026-01-29': '설날',
+    '2026-01-30': '설날',
+    '2026-03-01': '3·1절',
+    '2026-04-05': '식목일',
+    '2026-05-05': '어린이날',
+    '2026-05-24': '부처님 오신 날',
+    '2026-06-06': '현충일',
+    '2026-08-15': '광복절',
+    '2026-09-24': '추석',
+    '2026-09-25': '추석',
+    '2026-09-26': '추석',
+    '2026-10-03': '개천절',
+    '2026-10-09': '한글날',
+    '2026-12-25': '크리스마스'
+};
+
+// 특정 날짜가 공휴일인지 확인
+const isHoliday = (date) => {
+    const dateStr = formatLocalDate(date);
+    return KOREAN_HOLIDAYS_2026[dateStr];
+};
+
 const HoldingManager = ({ user, studentData, onBack }) => {
     const { requestHolding } = useGoogleSheets();
     const [requestType, setRequestType] = useState('holding'); // 'holding' | 'absence'
@@ -27,6 +53,10 @@ const HoldingManager = ({ user, studentData, onBack }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [activeHolding, setActiveHolding] = useState(null);
     const [absences, setAbsences] = useState([]);
+
+    // 달력 월 선택 (기본값: 현재 월)
+    const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+    const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
 
     // 수강생의 정규 수업 요일 파싱
     const schedule = useMemo(() => {
@@ -164,11 +194,10 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         loadData();
     }, [user]);
 
-    // 이번 달 달력 생성 (수강 기간 내로 제한)
+    // 달력 생성 (수강 기간 내로 제한, 월~금만 표시)
     const calendar = useMemo(() => {
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = today.getMonth();
+        const year = calendarYear;
+        const month = calendarMonth;
 
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
@@ -176,14 +205,23 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         const dates = [];
         const startDayOfWeek = firstDay.getDay();
 
-        // 이전 달 날짜로 채우기
-        for (let i = 0; i < startDayOfWeek; i++) {
+        // 이전 달 날짜로 채우기 (월요일부터 시작하도록 조정)
+        // startDayOfWeek: 0(일) ~ 6(토)
+        // 월요일 기준으로 조정: 월(1)=0칸, 화(2)=1칸, ..., 일(0)=6칸
+        const adjustedStartDay = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
+        for (let i = 0; i < adjustedStartDay; i++) {
             dates.push(null);
         }
 
-        // 이번 달 날짜 (수강 기간 내만)
+        // 이번 달 날짜 (월~금만 표시, 토/일은 건너뛰기)
         for (let day = 1; day <= lastDay.getDate(); day++) {
             const date = new Date(year, month, day);
+            const dayOfWeek = date.getDay();
+
+            // 토요일(6) 또는 일요일(0)이면 건너뛰기
+            if (dayOfWeek === 0 || dayOfWeek === 6) {
+                continue;
+            }
 
             // 수강 기간 체크
             if (membershipPeriod.start && membershipPeriod.end) {
@@ -198,7 +236,29 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         }
 
         return { year, month, dates };
-    }, [membershipPeriod]);
+    }, [membershipPeriod, calendarYear, calendarMonth]);
+
+    // 이전 달로 이동
+    const goToPreviousMonth = () => {
+        if (calendarMonth === 0) {
+            setCalendarYear(calendarYear - 1);
+            setCalendarMonth(11);
+        } else {
+            setCalendarMonth(calendarMonth - 1);
+        }
+        setSelectedDates([]); // 선택된 날짜 초기화
+    };
+
+    // 다음 달로 이동
+    const goToNextMonth = () => {
+        if (calendarMonth === 11) {
+            setCalendarYear(calendarYear + 1);
+            setCalendarMonth(0);
+        } else {
+            setCalendarMonth(calendarMonth + 1);
+        }
+        setSelectedDates([]); // 선택된 날짜 초기화
+    };
 
     // 특정 날짜가 수업일인지 확인
     const isClassDay = (date) => {
@@ -485,11 +545,17 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                     <p className="calendar-subtitle">수업일을 클릭하여 홀딩할 날짜를 선택하세요 (여러 날짜 선택 가능)</p>
                     <div className="calendar">
                         <div className="calendar-header">
+                            <button onClick={goToPreviousMonth} className="month-nav-button">
+                                ◀
+                            </button>
                             <h3>{calendar.year}년 {calendar.month + 1}월</h3>
+                            <button onClick={goToNextMonth} className="month-nav-button">
+                                ▶
+                            </button>
                         </div>
 
                         <div className="calendar-weekdays">
-                            {['일', '월', '화', '수', '목', '금', '토'].map(day => (
+                            {['월', '화', '수', '목', '금'].map(day => (
                                 <div key={day} className="weekday">{day}</div>
                             ))}
                         </div>
@@ -505,16 +571,18 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                 const isAbsence = absences.some(a => a.date === formatLocalDate(date));
                                 const isSelected = selectedDates.includes(formatLocalDate(date));
                                 const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
-                                const canRequest = isClass && canRequestHolding(date) && !isHolding && !isAbsence;
+                                const holidayName = isHoliday(date);
+                                const canRequest = isClass && canRequestHolding(date) && !isHolding && !isAbsence && !holidayName;
 
                                 return (
                                     <div
                                         key={index}
-                                        className={`calendar-day 
-                                            ${isClass ? 'class-day' : ''} 
-                                            ${isHolding ? 'holding-day' : ''} 
+                                        className={`calendar-day
+                                            ${isClass ? 'class-day' : ''}
+                                            ${isHolding ? 'holding-day' : ''}
                                             ${isAbsence ? 'absence-day' : ''}
                                             ${isSelected ? 'selected' : ''}
+                                            ${holidayName ? 'holiday-day' : ''}
                                             ${!canRequest ? 'disabled' : ''}
                                             ${isPast ? 'past' : ''}`}
                                         onClick={() => handleDateClick(date)}
@@ -523,6 +591,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                         {isClass && <span className="class-indicator">●</span>}
                                         {isHolding && <span className="holding-badge">홀딩</span>}
                                         {isAbsence && <span className="absence-badge">결석</span>}
+                                        {holidayName && <span className="holiday-badge">{holidayName}</span>}
                                     </div>
                                 );
                             })}
@@ -537,6 +606,9 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                             </div>
                             <div className="legend-item">
                                 <span className="legend-dot absence">●</span> 결석 신청
+                            </div>
+                            <div className="legend-item">
+                                <span className="legend-dot holiday">●</span> 공휴일
                             </div>
                             <div className="legend-item">
                                 <span className="legend-dot selected">●</span> 선택됨

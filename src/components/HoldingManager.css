@@ -344,6 +344,11 @@
         right: 1px;
     }
 
+    .holiday-badge {
+        font-size: 6px;
+        padding: 1px 2px;
+    }
+
     .calendar-legend {
         flex-wrap: wrap;
         gap: 12px;
@@ -382,7 +387,9 @@
 }
 
 .calendar-header {
-    text-align: center;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 20px;
 }
 
@@ -390,11 +397,30 @@
     font-size: 20px;
     font-weight: 700;
     color: #1f2937;
+    flex: 1;
+    text-align: center;
+}
+
+.month-nav-button {
+    padding: 8px 16px;
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #667eea;
+    font-weight: bold;
+}
+
+.month-nav-button:hover {
+    background: #f0f4ff;
+    border-color: #667eea;
 }
 
 .calendar-weekdays {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 8px;
     margin-bottom: 8px;
 }
@@ -409,7 +435,7 @@
 
 .calendar-grid {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 8px;
 }
 
@@ -670,6 +696,31 @@
     color: white;
 }
 
+/* Holiday Day Styling (Red) */
+.calendar-day.holiday-day {
+    border-color: #dc2626 !important;
+    background: #fef2f2 !important;
+}
+
+.calendar-day.holiday-day .day-number {
+    color: #dc2626;
+    font-weight: bold;
+}
+
+.holiday-badge {
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 7px;
+    padding: 1px 3px;
+    background: #dc2626;
+    color: white;
+    border-radius: 4px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
 /* Update existing holding-day to be orange */
 .calendar-day.holding-day {
     border-color: #f59e0b !important;
@@ -708,4 +759,8 @@
 
 .legend-dot.absence {
     color: #ef4444;
+}
+
+.legend-dot.holiday {
+    color: #dc2626;
 }
