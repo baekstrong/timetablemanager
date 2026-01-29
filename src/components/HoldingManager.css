@@ -303,6 +303,68 @@
         align-items: flex-start;
         gap: 12px;
     }
+
+    /* 모바일 달력 최적화 */
+    .calendar-card {
+        padding: 16px;
+    }
+
+    .calendar-grid {
+        gap: 4px;
+    }
+
+    .calendar-weekdays {
+        gap: 4px;
+    }
+
+    .weekday {
+        font-size: 12px;
+        padding: 4px;
+    }
+
+    .calendar-day {
+        padding: 4px;
+        border-radius: 8px;
+    }
+
+    .day-number {
+        font-size: 14px;
+    }
+
+    .class-indicator {
+        font-size: 6px;
+        margin-top: 1px;
+    }
+
+    .holding-badge,
+    .absence-badge {
+        font-size: 7px;
+        padding: 1px 3px;
+        top: 1px;
+        right: 1px;
+    }
+
+    .calendar-legend {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .legend-item {
+        font-size: 12px;
+    }
+
+    .legend-dot {
+        width: 10px;
+        height: 10px;
+    }
+
+    .form-title {
+        font-size: 20px;
+    }
+
+    .calendar-subtitle {
+        font-size: 13px;
+    }
 }
 
 /* 달력 카드 */

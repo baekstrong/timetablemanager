@@ -438,6 +438,25 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     // Load weekly Firebase data for coach mode and student mode
     useEffect(() => {
         loadWeeklyData();
+
+        // Auto-refresh every 30 seconds when component is mounted
+        const refreshInterval = setInterval(() => {
+            console.log('🔄 Auto-refreshing weekly data...');
+            loadWeeklyData();
+        }, 30000); // 30 seconds
+
+        // Refresh when window gains focus (user comes back to the page)
+        const handleFocus = () => {
+            console.log('🔄 Window focused - refreshing data...');
+            loadWeeklyData();
+        };
+        window.addEventListener('focus', handleFocus);
+
+        // Cleanup
+        return () => {
+            clearInterval(refreshInterval);
+            window.removeEventListener('focus', handleFocus);
+        };
     }, [mode, students]); // Depend on students to reload holdings when Google Sheets data changes
 
     // Handle available seat click
