@@ -83,8 +83,8 @@ export const getAllSheetNames = async () => {
 export const readSheetData = async (range = null) => {
   try {
     if (!range) {
-      const sheetName = getCurrentSheetName();
-      range = `${sheetName}!A:Z`;
+      const foundSheetName = getCurrentSheetName();
+      range = `${foundSheetName}!A:Z`;
     }
 
     const response = await fetch(`${FUNCTIONS_BASE_URL}/read?range=${encodeURIComponent(range)}`);
@@ -193,17 +193,17 @@ export const batchUpdateSheet = async (updates) => {
 /**
  * Highlight cells with yellow background (노란색 하이라이트)
  * @param {Array<string>} ranges - Array of cell ranges (e.g., ["A5", "B5", "C5"])
- * @param {string} sheetName - Sheet name
+ * @param {string} foundSheetName - Sheet name
  * @returns {Promise}
  */
-export const highlightCells = async (ranges, sheetName) => {
+export const highlightCells = async (ranges, foundSheetName) => {
   try {
     const response = await fetch(`${FUNCTIONS_BASE_URL}/formatCells`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ranges, sheetName }),
+      body: JSON.stringify({ ranges, foundSheetName }),
     });
 
     const data = await response.json();
@@ -299,7 +299,7 @@ export const getStudentByName = async (studentName, year = null, month = null) =
 /**
  * 여러 시트에서 학생 찾기 (자동으로 현재 월부터 과거 6개월까지 검색)
  * @param {string} studentName - 검색할 수강생 이름
- * @returns {Promise<Object|null>} - { student: 학생데이터, year: 연도, month: 월, sheetName: 시트명 }
+ * @returns {Promise<Object|null>} - { student: 학생데이터, year: 연도, month: 월, foundSheetName: 시트명 }
  */
 export const findStudentAcrossSheets = async (studentName) => {
   try {
@@ -319,13 +319,13 @@ export const findStudentAcrossSheets = async (studentName) => {
         const student = students.find(s => s['이름'] === studentName);
 
         if (student) {
-          const sheetName = getSheetNameByYearMonth(year, month);
-          console.log(`✅ Found student "${studentName}" in ${sheetName}`);
+          const foundSheetName = getSheetNameByYearMonth(year, month);
+          console.log(`✅ Found student "${studentName}" in ${foundSheetName}`);
           return {
             student,
             year,
             month,
-            sheetName
+            foundSheetName
           };
         }
       } catch (err) {
@@ -692,15 +692,15 @@ export const generateAttendanceHistory = (student) => {
  */
 export const getAllStudents = async (year = null, month = null) => {
   try {
-    let sheetName;
+    let foundSheetName;
     if (year && month) {
-      sheetName = getSheetNameByYearMonth(year, month);
+      foundSheetName = getSheetNameByYearMonth(year, month);
     } else {
-      sheetName = getCurrentSheetName();
+      foundSheetName = getCurrentSheetName();
     }
 
-    console.log(`📖 Reading data from sheet: "${sheetName}"`);
-    const range = `${sheetName}!A:Z`;
+    console.log(`📖 Reading data from sheet: "${foundSheetName}"`);
+    const range = `${foundSheetName}!A:Z`;
     console.log(`📍 Full range: ${range}`);
 
     const rows = await readSheetData(range);
@@ -739,19 +739,19 @@ export const getAllStudentsFromAllSheets = async () => {
     }
 
     // Fetch students from all sheets
-    const allStudentsPromises = studentSheets.map(async (sheetName) => {
+    const allStudentsPromises = studentSheets.map(async (foundSheetName) => {
       try {
-        const range = `${sheetName}!A:Z`;
+        const range = `${foundSheetName}!A:Z`;
         const rows = await readSheetData(range);
         const parsedData = parseStudentData(rows);
         // Attach sheet name to each student for update tracking
         parsedData.forEach(student => {
-          student._sheetName = sheetName;
+          student._foundSheetName = foundSheetName;
         });
-        console.log(`✅ Loaded ${parsedData.length} students from ${sheetName}`);
+        console.log(`✅ Loaded ${parsedData.length} students from ${foundSheetName}`);
         return parsedData;
       } catch (error) {
-        console.warn(`⚠️ Failed to load sheet ${sheetName}:`, error);
+        console.warn(`⚠️ Failed to load sheet ${foundSheetName}:`, error);
         return [];
       }
     });
@@ -779,11 +779,11 @@ export const getAllStudentsFromAllSheets = async () => {
  */
 export const updateStudentHolding = async (rowIndex, holdingStatus, holdingStartDate, holdingEndDate, year = null, month = null) => {
   try {
-    let sheetName;
+    let foundSheetName;
     if (year && month) {
-      sheetName = getSheetNameByYearMonth(year, month);
+      foundSheetName = getSheetNameByYearMonth(year, month);
     } else {
-      sheetName = getCurrentSheetName();
+      foundSheetName = getCurrentSheetName();
     }
 
     // Row 1: Merged header cells
@@ -791,17 +791,17 @@ export const updateStudentHolding = async (rowIndex, holdingStatus, holdingStart
     // Row 3+: Data starts here
     const actualRow = rowIndex + 3;
 
-    await writeSheetData(`${sheetName}!M${actualRow}`, [[holdingStatus]]);
+    await writeSheetData(`${foundSheetName}!M${actualRow}`, [[holdingStatus]]);
 
     if (holdingStartDate) {
-      await writeSheetData(`${sheetName}!N${actualRow}`, [[holdingStartDate]]);
+      await writeSheetData(`${foundSheetName}!N${actualRow}`, [[holdingStartDate]]);
     }
 
     if (holdingEndDate) {
-      await writeSheetData(`${sheetName}!O${actualRow}`, [[holdingEndDate]]);
+      await writeSheetData(`${foundSheetName}!O${actualRow}`, [[holdingEndDate]]);
     }
 
-    console.log(`Updated holding for row ${actualRow} in sheet ${sheetName}`);
+    console.log(`Updated holding for row ${actualRow} in sheet ${foundSheetName}`);
   } catch (error) {
     console.error('Error updating holding:', error);
     throw error;
@@ -817,16 +817,16 @@ export const updateStudentHolding = async (rowIndex, holdingStatus, holdingStart
  */
 export const updateStudentData = async (rowIndex, studentData, year = null, month = null) => {
   try {
-    let sheetName;
+    let foundSheetName;
 
-    // Prefer _sheetName from studentData if available (for multi-sheet scenarios)
-    if (studentData._sheetName) {
-      sheetName = studentData._sheetName;
-      console.log(`📍 Using sheet name from student data: ${sheetName}`);
+    // Prefer _foundSheetName from studentData if available (for multi-sheet scenarios)
+    if (studentData._foundSheetName) {
+      foundSheetName = studentData._foundSheetName;
+      console.log(`📍 Using sheet name from student data: ${foundSheetName}`);
     } else if (year && month) {
-      sheetName = getSheetNameByYearMonth(year, month);
+      foundSheetName = getSheetNameByYearMonth(year, month);
     } else {
-      sheetName = getCurrentSheetName();
+      foundSheetName = getCurrentSheetName();
     }
 
     // Row 1: Merged header cells
@@ -835,7 +835,7 @@ export const updateStudentData = async (rowIndex, studentData, year = null, mont
     // So: actualRow = rowIndex + 3
     const actualRow = rowIndex + 3;
 
-    console.log(`📝 Updating student data for row ${actualRow} in sheet ${sheetName}`);
+    console.log(`📝 Updating student data for row ${actualRow} in sheet ${foundSheetName}`);
 
     const columnMap = {
       '주횟수': 'C',
@@ -851,7 +851,7 @@ export const updateStudentData = async (rowIndex, studentData, year = null, mont
     for (const [field, value] of Object.entries(studentData)) {
       if (columnMap[field] && value !== undefined) {
         const column = columnMap[field];
-        const range = `${sheetName}!${column}${actualRow}`;
+        const range = `${foundSheetName}!${column}${actualRow}`;
         await writeSheetData(range, [[value]]);
         console.log(`✅ Updated ${field} to "${value}" at ${range}`);
       }
@@ -876,34 +876,88 @@ export const updateStudentData = async (rowIndex, studentData, year = null, mont
 export const requestHolding = async (studentName, holdingStartDate, holdingEndDate = null, year = null, month = null) => {
   try {
     const endDate = holdingEndDate || holdingStartDate;
-    const sheetName = getCurrentSheetName(holdingStartDate);
-    const range = `${sheetName}!A:Z`;
 
     console.log(`🔍 홀딩 신청 시작: ${studentName}, ${holdingStartDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}`);
-    console.log(`📋 시트 이름: ${sheetName}`);
 
-    const rows = await readSheetData(range);
+    // 여러 시트에서 학생 찾기
+    let foundSheetName = null;
+    let rows = null;
+    let headers = null;
+    let nameColIndex = -1;
+    let studentIndex = -1;
 
-    if (!rows || rows.length < 2) {
-      throw new Error('시트 데이터를 찾을 수 없습니다.');
+    // 1. 먼저 홀딩 시작일 기준 시트에서 찾기
+    const primarySheetName = getCurrentSheetName(holdingStartDate);
+    console.log(`📋 우선 검색 시트: ${primarySheetName}`);
+
+    try {
+      const primaryRange = `${primarySheetName}!A:Z`;
+      rows = await readSheetData(primaryRange);
+
+      if (rows && rows.length >= 2) {
+        headers = rows[1];
+        nameColIndex = headers.indexOf('이름');
+
+        if (nameColIndex !== -1) {
+          studentIndex = rows.findIndex((row, idx) =>
+            idx >= 2 && row[nameColIndex] === studentName
+          );
+
+          if (studentIndex !== -1) {
+            foundSheetName = primarySheetName;
+            console.log(`✅ 학생 찾음 (${primarySheetName}): 행 ${studentIndex + 1}`);
+          }
+        }
+      }
+    } catch (primaryError) {
+      console.warn(`⚠️ ${primarySheetName} 시트 읽기 실패:`, primaryError.message);
     }
 
-    const headers = rows[1];
-    const nameColIndex = headers.indexOf('이름');
+    // 2. 못 찾았으면 모든 시트에서 검색
+    if (!foundSheetName) {
+      console.log(`🔄 ${primarySheetName}에서 못 찾음. 다른 시트 검색 시작...`);
 
-    if (nameColIndex === -1) {
-      throw new Error('이름 필드를 찾을 수 없습니다.');
+      const allSheets = await getAllSheetNames();
+      console.log(`📋 전체 시트 목록:`, allSheets);
+
+      // 등록생 목록 시트만 필터링 (YY년M월 형식)
+      const studentSheets = allSheets.filter(name => name.startsWith('등록생 목록'));
+
+      for (const foundSheetName of studentSheets) {
+        if (foundSheetName === primarySheetName) continue; // 이미 확인한 시트 건너뛰기
+
+        try {
+          const range = `${foundSheetName}!A:Z`;
+          rows = await readSheetData(range);
+
+          if (rows && rows.length >= 2) {
+            headers = rows[1];
+            nameColIndex = headers.indexOf('이름');
+
+            if (nameColIndex !== -1) {
+              studentIndex = rows.findIndex((row, idx) =>
+                idx >= 2 && row[nameColIndex] === studentName
+              );
+
+              if (studentIndex !== -1) {
+                foundSheetName = foundSheetName;
+                console.log(`✅ 학생 찾음 (${foundSheetName}): 행 ${studentIndex + 1}`);
+                break;
+              }
+            }
+          }
+        } catch (sheetError) {
+          console.warn(`⚠️ ${foundSheetName} 시트 읽기 실패:`, sheetError.message);
+        }
+      }
     }
 
-    const studentIndex = rows.findIndex((row, idx) =>
-      idx >= 2 && row[nameColIndex] === studentName
-    );
-
-    if (studentIndex === -1) {
+    // 3. 모든 시트에서 못 찾았으면 에러
+    if (!foundSheetName || studentIndex === -1) {
       throw new Error(`학생 정보를 찾을 수 없습니다: ${studentName}`);
     }
 
-    console.log(`✅ 학생 찾음: 행 ${studentIndex + 1}`);
+    console.log(`📄 최종 선택 시트: ${foundSheetName}`);
 
     const findColumnIndex = (fieldName) => {
       let index = headers.indexOf(fieldName);
@@ -985,22 +1039,22 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
 
     const updates = [
       {
-        range: `${sheetName}!${getColumnLetter(holdingUsedCol)}${studentIndex + 1}`,
+        range: `${foundSheetName}!${getColumnLetter(holdingUsedCol)}${studentIndex + 1}`,
         values: [['O']]
       },
       {
-        range: `${sheetName}!${getColumnLetter(holdingStartCol)}${studentIndex + 1}`,
+        range: `${foundSheetName}!${getColumnLetter(holdingStartCol)}${studentIndex + 1}`,
         values: [[startDateStr]]
       },
       {
-        range: `${sheetName}!${getColumnLetter(holdingEndCol)}${studentIndex + 1}`,
+        range: `${foundSheetName}!${getColumnLetter(holdingEndCol)}${studentIndex + 1}`,
         values: [[endDateStr]]
       }
     ];
 
     if (endDateCol !== -1) {
       updates.push({
-        range: `${sheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`,
+        range: `${foundSheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`,
         values: [[newEndDateStr]]
       });
     }
@@ -1020,7 +1074,7 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
 
     // 하이라이트 적용 (실패해도 홀딩 신청은 성공으로 처리)
     try {
-      await highlightCells(cellsToHighlight, sheetName);
+      await highlightCells(cellsToHighlight, foundSheetName);
       console.log(`🎨 셀 하이라이트 완료: ${cellsToHighlight.join(', ')}`);
     } catch (highlightError) {
       console.warn('⚠️ 셀 하이라이트 실패 (홀딩 신청은 완료됨):', highlightError);
