@@ -923,11 +923,11 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
       // 등록생 목록 시트만 필터링 (YY년M월 형식)
       const studentSheets = allSheets.filter(name => name.startsWith('등록생 목록'));
 
-      for (const foundSheetName of studentSheets) {
-        if (foundSheetName === primarySheetName) continue; // 이미 확인한 시트 건너뛰기
+      for (const sheetToCheck of studentSheets) {
+        if (sheetToCheck === primarySheetName) continue; // 이미 확인한 시트 건너뛰기
 
         try {
-          const range = `${foundSheetName}!A:Z`;
+          const range = `${sheetToCheck}!A:Z`;
           rows = await readSheetData(range);
 
           if (rows && rows.length >= 2) {
@@ -940,14 +940,14 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
               );
 
               if (studentIndex !== -1) {
-                foundSheetName = foundSheetName;
-                console.log(`✅ 학생 찾음 (${foundSheetName}): 행 ${studentIndex + 1}`);
+                foundSheetName = sheetToCheck;
+                console.log(`✅ 학생을 다음 시트에서 찾음: ${sheetToCheck}, 행 ${studentIndex + 1}`);
                 break;
               }
             }
           }
         } catch (sheetError) {
-          console.warn(`⚠️ ${foundSheetName} 시트 읽기 실패:`, sheetError.message);
+          console.warn(`⚠️ ${sheetToCheck} 시트 읽기 실패:`, sheetError.message);
         }
       }
     }
