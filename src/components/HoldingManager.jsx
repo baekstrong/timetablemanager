@@ -482,16 +482,19 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                     </div>
                 )}
 
-                {/* 현재 활성 홀딩/결석 목록 - Google Sheets와 동기화 */}
-                {((activeHolding && hasUsedHolding) || absences.length > 0) && (
+                {/* 현재 활성 홀딩/결석 목록 - Google Sheets 데이터 기준 */}
+                {(holdingHistory.length > 0 || absences.length > 0) && (
                     <div className="info-card" style={{ marginBottom: '24px', background: '#f0f4ff', borderColor: '#667eea' }}>
                         <div className="info-icon">📋</div>
                         <div className="info-content">
                             <h3 style={{ color: '#4338ca' }}>현재 신청 내역</h3>
 
-                            {activeHolding && hasUsedHolding && (() => {
+                            {holdingHistory.length > 0 && (() => {
+                                // Google Sheets의 홀딩 데이터 사용
+                                const holdingData = holdingHistory[0];
+
                                 // 홀딩 시작일의 첫 수업 시간이 지났는지 확인
-                                const holdingStartDate = new Date(activeHolding.startDate + 'T00:00:00');
+                                const holdingStartDate = new Date(holdingData.startDate + 'T00:00:00');
                                 const dayOfWeek = holdingStartDate.getDay();
                                 const dayMap = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금' };
                                 const dayName = dayMap[dayOfWeek];
@@ -513,10 +516,13 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                             <div>
                                                 <strong style={{ color: '#667eea' }}>⏸️ 홀딩</strong>
                                                 <div style={{ fontSize: '14px', marginTop: '4px', color: '#374151' }}>
-                                                    {activeHolding.startDate} ~ {activeHolding.endDate}
+                                                    {holdingData.startDate} ~ {holdingData.endDate}
+                                                    <span style={{ marginLeft: '8px', color: '#6b7280', fontSize: '12px' }}>
+                                                        ({holdingData.dates.length}일)
+                                                    </span>
                                                 </div>
                                             </div>
-                                            {canCancelHolding ? (
+                                            {canCancelHolding && activeHolding ? (
                                                 <button
                                                     onClick={async () => {
                                                         if (confirm('홀딩을 취소하시겠습니까?')) {
@@ -549,7 +555,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                                     borderRadius: '6px',
                                                     fontSize: '13px'
                                                 }}>
-                                                    수업 시작됨
+                                                    {canCancelHolding ? '승인됨' : '수업 시작됨'}
                                                 </span>
                                             )}
                                         </div>
