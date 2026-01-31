@@ -384,6 +384,47 @@ const parseScheduleString = (scheduleStr) => {
   return result;
 };
 
+// 한국 공휴일 데이터 (2026년 기준)
+const KOREAN_HOLIDAYS_2026 = {
+  '2026-01-01': '신정',
+  '2026-02-16': '설날',
+  '2026-02-17': '설날',
+  '2026-02-18': '설날',
+  '2026-03-01': '3·1절',
+  '2026-05-05': '어린이날',
+  '2026-05-25': '부처님 오신 날',
+  '2026-06-06': '현충일',
+  '2026-08-15': '광복절',
+  '2026-09-24': '추석',
+  '2026-09-25': '추석',
+  '2026-09-26': '추석',
+  '2026-10-03': '개천절',
+  '2026-10-09': '한글날',
+  '2026-12-25': '크리스마스'
+};
+
+// 특정 날짜가 공휴일인지 확인
+const isHolidayDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+  return !!KOREAN_HOLIDAYS_2026[dateStr];
+};
+
+// 날짜만 비교 (시간 무시)
+const isSameOrAfter = (date1, date2) => {
+  const d1 = new Date(date1.getFullYear(), date1.getMonth(), date1.getDate());
+  const d2 = new Date(date2.getFullYear(), date2.getMonth(), date2.getDate());
+  return d1 >= d2;
+};
+
+const isSameOrBefore = (date1, date2) => {
+  const d1 = new Date(date1.getFullYear(), date1.getMonth(), date1.getDate());
+  const d2 = new Date(date2.getFullYear(), date2.getMonth(), date2.getDate());
+  return d1 <= d2;
+};
+
 /**
  * Calculate end date based on start date, total sessions, schedule, and optional holding period
  * @param {Date} startDate - Start date of membership
@@ -403,16 +444,27 @@ const calculateEndDate = (startDate, totalSessions, scheduleStr, holdingRange = 
 
   let sessionCount = 0;
   const current = new Date(startDate);
+  current.setHours(0, 0, 0, 0);
 
-  while (sessionCount < totalSessions) {
+  // 최대 365일까지만 검색 (무한 루프 방지)
+  let maxIterations = 365;
+
+  while (sessionCount < totalSessions && maxIterations > 0) {
+    maxIterations--;
     const dayOfWeek = current.getDay();
 
+    // 해당 요일이 수업일인지 확인
     if (classDays.includes(dayOfWeek)) {
-      const isInHoldingPeriod = holdingRange &&
-        current >= holdingRange.start &&
-        current <= holdingRange.end;
+      // 공휴일인지 확인
+      const isHoliday = isHolidayDate(current);
 
-      if (!isInHoldingPeriod) {
+      // 홀딩 기간인지 확인 (날짜만 비교)
+      const isInHoldingPeriod = holdingRange &&
+        isSameOrAfter(current, holdingRange.start) &&
+        isSameOrBefore(current, holdingRange.end);
+
+      // 공휴일이 아니고 홀딩 기간이 아닌 경우에만 세션 카운트
+      if (!isHoliday && !isInHoldingPeriod) {
         sessionCount++;
         if (sessionCount === totalSessions) {
           return new Date(current);

@@ -115,7 +115,10 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         };
 
         const startDateStr = studentData['시작날짜'];
-        const endDateStr = studentData['종료일'] || studentData['endDate'];
+        // 종료날짜 필드명 확인 (여러 가지 이름 지원)
+        const endDateStr = studentData['종료날짜'] || studentData['종료일'] || studentData['endDate'];
+
+        console.log('📅 수강 기간 파싱:', { startDateStr, endDateStr });
 
         return {
             start: parseDate(startDateStr),
@@ -338,17 +341,16 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         // 새로운 날짜 추가
         const newDates = [...selectedDates, dateStr].sort();
 
-        // 연속성 검증 (최대 7일)
-        if (newDates.length > 1) {
-            const dates = newDates.map(d => new Date(d));
-            const firstDate = dates[0];
-            const lastDate = dates[dates.length - 1];
-            const daysDiff = Math.ceil((lastDate - firstDate) / (1000 * 60 * 60 * 24));
+        // 영업일 기준 최대 5일 제한 (수업일만 카운트)
+        // 선택된 날짜 중 실제 수업일만 카운트
+        const selectedClassDays = newDates.filter(d => {
+            const date = new Date(d + 'T00:00:00');
+            return isClassDay(date);
+        });
 
-            if (daysDiff > 7) {
-                alert('홀딩은 최대 연속 7일까지만 가능합니다.');
-                return;
-            }
+        if (selectedClassDays.length > 5) {
+            alert('홀딩은 영업일 기준 최대 5일까지만 가능합니다.');
+            return;
         }
 
         setSelectedDates(newDates);
@@ -428,7 +430,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                             <li>홀딩 신청 시 해당 일수만큼 수강권 기간이 자동으로 연장됩니다.</li>
                             <li>홀딩한 자리는 다른 수강생이 임시로 사용할 수 있습니다.</li>
                             <li>홀딩은 최소 1시간 전에 신청 가능합니다.</li>
-                            <li>홀딩은 최대 연속 7일까지 가능합니다.</li>
+                            <li>홀딩은 영업일 기준 최대 5일까지 가능합니다.</li>
                         </ul>
                     </div>
                 </div>
