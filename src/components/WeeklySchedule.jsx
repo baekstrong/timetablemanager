@@ -469,6 +469,15 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             return;
         }
 
+        // 과거 날짜 방지: 보강을 받을 날짜가 오늘 이전이면 신청 불가
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const selectedDate = new Date(date + 'T00:00:00');
+        if (selectedDate < today) {
+            alert('과거 날짜로는 보강 신청을 할 수 없습니다.');
+            return;
+        }
+
         const period = PERIODS.find(p => p.id === periodId);
         // day는 이미 한글 요일 (월, 화, 수, 목, 금)
         const makeupSlot = { day, period: periodId, periodName: period.name, date };
@@ -734,17 +743,26 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             let isMakeupTo = false; // 보강으로 출석하는 수업
 
             if (activeMakeupRequest && weekDates) {
-                const cellDateStr = weekDates[day]; // Get date string for this day from weekDates
+                // weekDates[day]는 "M/D" 형식 (예: "2/4")
+                // activeMakeupRequest의 date는 "YYYY-MM-DD" 형식 (예: "2026-02-04")
+                // 비교를 위해 weekDates를 YYYY-MM-DD 형식으로 변환
+                const cellDateMMDD = weekDates[day]; // "2/4"
+                let cellDateFormatted = '';
+                if (cellDateMMDD) {
+                    const [month, dayNum] = cellDateMMDD.split('/');
+                    const year = new Date().getFullYear();
+                    cellDateFormatted = `${year}-${month.padStart(2, '0')}-${dayNum.padStart(2, '0')}`;
+                }
 
                 // Check if this is the original class (makeup FROM)
-                if (activeMakeupRequest.originalClass.date === cellDateStr &&
+                if (activeMakeupRequest.originalClass.date === cellDateFormatted &&
                     activeMakeupRequest.originalClass.day === day &&
                     activeMakeupRequest.originalClass.period === periodObj.id) {
                     isMakeupFrom = true;
                 }
 
                 // Check if this is the makeup class (makeup TO)
-                if (activeMakeupRequest.makeupClass.date === cellDateStr &&
+                if (activeMakeupRequest.makeupClass.date === cellDateFormatted &&
                     activeMakeupRequest.makeupClass.day === day &&
                     activeMakeupRequest.makeupClass.period === periodObj.id) {
                     isMakeupTo = true;
@@ -1075,29 +1093,33 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                             <div className="original-class-list">
                                 {studentSchedule.map((schedule, index) => {
                                     const periodInfo = PERIODS.find(p => p.id === schedule.period);
-                                    console.log('📝 Rendering schedule item:');
-                                    console.log('   schedule.day:', schedule.day);
-                                    console.log('   schedule.period:', schedule.period);
-                                    console.log('   periodInfo:', periodInfo);
-                                    console.log('   periodInfo?.name:', periodInfo?.name);
+
+                                    // 해당 요일의 날짜 계산
+                                    const dateStr = weekDates[schedule.day];
+                                    let originalDateStr = '';
+                                    let isPastDate = false;
+                                    if (dateStr) {
+                                        const [month, dayNum] = dateStr.split('/');
+                                        const year = new Date().getFullYear();
+                                        originalDateStr = `${year}-${month.padStart(2, '0')}-${dayNum.padStart(2, '0')}`;
+
+                                        // 과거 날짜인지 확인
+                                        const today = new Date();
+                                        today.setHours(0, 0, 0, 0);
+                                        const classDate = new Date(originalDateStr + 'T00:00:00');
+                                        isPastDate = classDate < today;
+                                    }
+
                                     return (
                                         <div
                                             key={index}
-                                            className={`original-class-item ${selectedOriginalClass?.day === schedule.day && selectedOriginalClass?.period === schedule.period ? 'selected' : ''}`}
+                                            className={`original-class-item ${selectedOriginalClass?.day === schedule.day && selectedOriginalClass?.period === schedule.period ? 'selected' : ''} ${isPastDate ? 'disabled' : ''}`}
+                                            style={isPastDate ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: '#f3f4f6' } : {}}
                                             onClick={() => {
-                                                // weekDates에서 해당 요일의 날짜를 가져옴 (이번 주 기준)
-                                                const dateStr = weekDates[schedule.day];
-                                                let originalDateStr = '';
-                                                if (dateStr) {
-                                                    const [month, dayNum] = dateStr.split('/');
-                                                    const year = new Date().getFullYear();
-                                                    originalDateStr = `${year}-${month.padStart(2, '0')}-${dayNum.padStart(2, '0')}`;
+                                                if (isPastDate) {
+                                                    alert('이미 지난 수업은 보강 신청을 할 수 없습니다.');
+                                                    return;
                                                 }
-
-                                                console.log('📅 Original class date calculation:');
-                                                console.log('   schedule.day:', schedule.day);
-                                                console.log('   weekDates[schedule.day]:', weekDates[schedule.day]);
-                                                console.log('   originalDateStr:', originalDateStr);
 
                                                 setSelectedOriginalClass({
                                                     day: schedule.day,
@@ -1108,6 +1130,9 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                             }}
                                         >
                                             <span className="period-name">{schedule.day}요일 {periodInfo?.name}</span>
+                                            <span style={{ fontSize: '0.8em', color: isPastDate ? '#999' : '#666', marginLeft: '8px' }}>
+                                                ({dateStr}){isPastDate && ' - 지남'}
+                                            </span>
                                         </div>
                                     );
                                 })}

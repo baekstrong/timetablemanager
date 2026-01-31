@@ -255,6 +255,9 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
                         {step >= 1 && (
                             <div className="step-card">
                                 <h2 className="step-title">1단계: 옮길 수업 선택</h2>
+                                <p style={{ fontSize: '0.9em', color: '#666', marginBottom: '12px' }}>
+                                    이번 주 또는 다음 주에 예정된 수업 중 보강을 신청할 수업을 선택하세요.
+                                </p>
                                 <div className="schedule-list">
                                     {regularSchedule.map((schedule, index) => {
                                         // Calculate next occurrence of this day
@@ -269,6 +272,9 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
                                         const nextDate = new Date(today);
                                         nextDate.setDate(today.getDate() + daysUntilTarget);
                                         const dateStr = `${nextDate.getMonth() + 1}/${nextDate.getDate()}`;
+
+                                        // 항상 오늘 이후의 날짜만 보여주므로 과거 날짜 체크 불필요
+                                        // (daysUntilTarget <= 0일 때 +7을 했기 때문에 항상 미래)
 
                                         return (
                                             <div
