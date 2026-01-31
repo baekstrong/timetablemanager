@@ -250,7 +250,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                     if (item.id === 'training') {
                                         // Navigate to internal training log (integrated in public folder)
                                         // Same domain allows sharing localStorage automatically
-                                        window.location.href = '/training-log/index.html';
+                                        // Use relative path to work with GitHub Pages base URL
+                                        window.location.href = './training-log/index.html';
                                     } else {
                                         onNavigate(item.id);
                                     }
