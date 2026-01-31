@@ -685,6 +685,26 @@
     color: white;
 }
 
+.type-option.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
+
+.type-option.disabled:hover {
+    border-color: #d1d5db;
+    background: #f3f4f6;
+}
+
+.type-option.disabled .type-label {
+    color: #9ca3af;
+}
+
+.type-option.disabled .type-desc {
+    color: #9ca3af;
+}
+
 /* Absence Day Styling (Red) */
 .calendar-day.absence-day {
     border-color: #ef4444 !important;

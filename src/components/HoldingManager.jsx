@@ -126,7 +126,21 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         };
     }, [studentData]);
 
-    // 홀딩 내역 조회
+    // 주 횟수 (홀딩 가능 횟수 제한용)
+    const weeklyFrequency = useMemo(() => {
+        if (!studentData) return 2;
+        const freq = parseInt(studentData['주횟수']) || 2;
+        return freq;
+    }, [studentData]);
+
+    // 홀딩 사용 여부 확인 (1회 제한)
+    const hasUsedHolding = useMemo(() => {
+        if (!studentData) return false;
+        const holdingUsed = getStudentField(studentData, '홀딩 사용여부');
+        return holdingUsed === 'O' || holdingUsed === 'o';
+    }, [studentData]);
+
+    // 홀딩 내역 조회 (수업일만 표시)
     const holdingHistory = useMemo(() => {
         if (!studentData) return [];
 
@@ -148,12 +162,18 @@ const HoldingManager = ({ user, studentData, onBack }) => {
             };
 
             // 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (timezone 문제 방지)
-            const formatLocalDate = (date) => {
+            const formatLocalDateInner = (date) => {
                 const year = date.getFullYear();
                 const month = String(date.getMonth() + 1).padStart(2, '0');
                 const day = String(date.getDate()).padStart(2, '0');
                 return `${year}-${month}-${day}`;
             };
+
+            // 수업 요일 목록
+            const classDays = schedule.map(s => {
+                const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
+                return dayMap[s.day];
+            });
 
             const startDate = parseDate(holdingStart);
             const endDate = parseDate(holdingEnd) || startDate;
@@ -162,13 +182,16 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                 const dates = [];
                 const current = new Date(startDate);
                 while (current <= endDate) {
-                    dates.push(formatLocalDate(current));
+                    // 수업일인 경우에만 dates에 추가
+                    if (classDays.includes(current.getDay())) {
+                        dates.push(formatLocalDateInner(current));
+                    }
                     current.setDate(current.getDate() + 1);
                 }
 
                 return [{
-                    startDate: formatLocalDate(startDate),
-                    endDate: formatLocalDate(endDate),
+                    startDate: formatLocalDateInner(startDate),
+                    endDate: formatLocalDateInner(endDate),
                     dates,
                     status: '승인됨'
                 }];
@@ -176,7 +199,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         }
 
         return [];
-    }, [studentData]);
+    }, [studentData, schedule]);
 
     // Load active holding and absences from Firebase
     useEffect(() => {
@@ -325,6 +348,12 @@ const HoldingManager = ({ user, studentData, onBack }) => {
 
     // 날짜 선택 핸들러
     const handleDateClick = (date) => {
+        // 홀딩 사용 여부 확인 (1회 제한)
+        if (hasUsedHolding && requestType === 'holding') {
+            alert('홀딩은 등록 기간 중 1회만 사용 가능합니다.\n이미 홀딩을 사용하셨습니다.');
+            return;
+        }
+
         if (!date || !isClassDay(date) || !canRequestHolding(date) || isHoldingDate(date)) {
             return;
         }
@@ -340,15 +369,15 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         // 새로운 날짜 추가
         const newDates = [...selectedDates, dateStr].sort();
 
-        // 영업일 기준 최대 5일 제한 (수업일만 카운트)
+        // 주 횟수만큼만 홀딩 가능 (주2회→2회, 주3회→3회)
         // 선택된 날짜 중 실제 수업일만 카운트
         const selectedClassDays = newDates.filter(d => {
-            const date = new Date(d + 'T00:00:00');
-            return isClassDay(date);
+            const dateObj = new Date(d + 'T00:00:00');
+            return isClassDay(dateObj);
         });
 
-        if (selectedClassDays.length > 5) {
-            alert('홀딩은 영업일 기준 최대 5일까지만 가능합니다.');
+        if (selectedClassDays.length > weeklyFrequency) {
+            alert(`홀딩은 주 ${weeklyFrequency}회 수업 기준 최대 ${weeklyFrequency}회까지만 가능합니다.`);
             return;
         }
 
@@ -356,9 +385,14 @@ const HoldingManager = ({ user, studentData, onBack }) => {
     };
 
     // 홀딩 신청 핸들러
-    // 홀딩 신청 핸들러
     const handleSubmit = async () => {
         if (selectedDates.length === 0 || !user) return;
+
+        // 홀딩 사용 여부 재확인
+        if (hasUsedHolding && requestType === 'holding') {
+            alert('홀딩은 등록 기간 중 1회만 사용 가능합니다.\n이미 홀딩을 사용하셨습니다.');
+            return;
+        }
 
         setIsSubmitting(true);
         try {
@@ -429,10 +463,24 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                             <li>홀딩 신청 시 해당 일수만큼 수강권 기간이 자동으로 연장됩니다.</li>
                             <li>홀딩한 자리는 다른 수강생이 임시로 사용할 수 있습니다.</li>
                             <li>홀딩은 최소 1시간 전에 신청 가능합니다.</li>
-                            <li>홀딩은 영업일 기준 최대 5일까지 가능합니다.</li>
+                            <li>홀딩은 주 {weeklyFrequency}회 수업 기준 최대 <strong>{weeklyFrequency}회</strong>까지 가능합니다.</li>
+                            <li>홀딩은 등록 기간 중 <strong>1회만</strong> 사용 가능합니다.</li>
                         </ul>
                     </div>
                 </div>
+
+                {/* 홀딩 사용 완료 알림 */}
+                {hasUsedHolding && (
+                    <div className="info-card" style={{ background: '#fee2e2', borderColor: '#ef4444' }}>
+                        <div className="info-icon">⚠️</div>
+                        <div className="info-content">
+                            <h3 style={{ color: '#dc2626' }}>홀딩 사용 완료</h3>
+                            <p style={{ margin: 0, color: '#7f1d1d' }}>
+                                이미 홀딩을 사용하셨습니다. 등록 기간 중 홀딩은 1회만 사용 가능합니다.
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {/* 현재 활성 홀딩/결석 목록 */}
                 {(activeHolding || absences.length > 0) && (
@@ -523,12 +571,13 @@ const HoldingManager = ({ user, studentData, onBack }) => {
 
                 {/* 신청 유형 선택 */}
                 <div className="request-type-selector">
-                    <label className={`type-option ${requestType === 'holding' ? 'selected' : ''}`}>
+                    <label className={`type-option ${requestType === 'holding' ? 'selected' : ''} ${hasUsedHolding ? 'disabled' : ''}`}>
                         <input
                             type="radio"
                             name="requestType"
                             value="holding"
                             checked={requestType === 'holding'}
+                            disabled={hasUsedHolding}
                             onChange={() => {
                                 setRequestType('holding');
                                 setSelectedDates([]);
@@ -536,7 +585,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                         />
                         <span className="type-icon">⏸️</span>
                         <span className="type-label">홀딩 신청</span>
-                        <span className="type-desc">연속 기간 홀딩</span>
+                        <span className="type-desc">{hasUsedHolding ? '사용 완료' : '연속 기간 홀딩'}</span>
                     </label>
                     <label className={`type-option ${requestType === 'absence' ? 'selected' : ''}`}>
                         <input
