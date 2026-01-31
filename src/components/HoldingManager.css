@@ -764,3 +764,21 @@
 .legend-dot.holiday {
     color: #dc2626;
 }
+
+/* 수강 기간 외 날짜 스타일 */
+.calendar-day.out-of-period {
+    background: #f3f4f6 !important;
+    border-color: #e5e7eb !important;
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.calendar-day.out-of-period .day-number {
+    color: #9ca3af;
+}
+
+.calendar-day.out-of-period:hover {
+    transform: none;
+    border-color: #e5e7eb !important;
+    background: #f3f4f6 !important;
+}

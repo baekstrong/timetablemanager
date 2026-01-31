@@ -196,7 +196,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         loadData();
     }, [user]);
 
-    // 달력 생성 (수강 기간 내로 제한, 월~금만 표시)
+    // 달력 생성 (월~금만 표시, 모든 날짜 표시)
     const calendar = useMemo(() => {
         const year = calendarYear;
         const month = calendarMonth;
@@ -232,29 +232,28 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                 continue;
             }
 
-            // 수강 기간 체크 (시간을 제거하고 날짜만 비교)
-            if (membershipPeriod.start && membershipPeriod.end) {
-                const dateOnly = new Date(year, month, day);
-                dateOnly.setHours(0, 0, 0, 0);
-
-                const startOnly = new Date(membershipPeriod.start);
-                startOnly.setHours(0, 0, 0, 0);
-
-                const endOnly = new Date(membershipPeriod.end);
-                endOnly.setHours(0, 0, 0, 0);
-
-                if (dateOnly >= startOnly && dateOnly <= endOnly) {
-                    dates.push(date);
-                } else {
-                    dates.push(null);
-                }
-            } else {
-                dates.push(date);
-            }
+            // 모든 평일 날짜 표시 (수강 기간 외의 날짜도 보여줌)
+            dates.push(date);
         }
 
         return { year, month, dates };
-    }, [membershipPeriod, calendarYear, calendarMonth]);
+    }, [calendarYear, calendarMonth]);
+
+    // 특정 날짜가 수강 기간 내인지 확인
+    const isWithinMembershipPeriod = (date) => {
+        if (!date || !membershipPeriod.start || !membershipPeriod.end) return true;
+
+        const dateOnly = new Date(date);
+        dateOnly.setHours(0, 0, 0, 0);
+
+        const startOnly = new Date(membershipPeriod.start);
+        startOnly.setHours(0, 0, 0, 0);
+
+        const endOnly = new Date(membershipPeriod.end);
+        endOnly.setHours(0, 0, 0, 0);
+
+        return dateOnly >= startOnly && dateOnly <= endOnly;
+    };
 
     // 이전 달로 이동
     const goToPreviousMonth = () => {
@@ -583,13 +582,15 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                     return <div key={index} className="calendar-day empty"></div>;
                                 }
 
-                                const isClass = isClassDay(date);
+                                const isInPeriod = isWithinMembershipPeriod(date);
+                                const isClass = isClassDay(date) && isInPeriod; // 수강 기간 내의 수업일만 표시
                                 const isHolding = isHoldingDate(date);
                                 const isAbsence = absences.some(a => a.date === formatLocalDate(date));
                                 const isSelected = selectedDates.includes(formatLocalDate(date));
                                 const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
                                 const holidayName = isHoliday(date);
-                                const canRequest = isClass && canRequestHolding(date) && !isHolding && !isAbsence && !holidayName;
+                                const isOutOfPeriod = !isInPeriod; // 수강 기간 외 날짜
+                                const canRequest = isClass && canRequestHolding(date) && !isHolding && !isAbsence && !holidayName && isInPeriod;
 
                                 return (
                                     <div
@@ -601,7 +602,8 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                             ${isSelected ? 'selected' : ''}
                                             ${holidayName ? 'holiday-day' : ''}
                                             ${!canRequest ? 'disabled' : ''}
-                                            ${isPast ? 'past' : ''}`}
+                                            ${isPast ? 'past' : ''}
+                                            ${isOutOfPeriod ? 'out-of-period' : ''}`}
                                         onClick={() => handleDateClick(date)}
                                     >
                                         <span className="day-number">{date.getDate()}</span>
