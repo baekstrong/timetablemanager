@@ -1,7 +1,8 @@
 {
   "name": "근력학교",
   "short_name": "근력학교",
-  "start_url": "./",
+  "version": "1.0.1",
+  "start_url": "./?v=1.0.1",
   "scope": "/timetablemanager/",
   "display": "standalone",
   "background_color": "#ffffff",
