@@ -213,7 +213,7 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
                         <div className="card-header">
                             <h3>현재 보강 신청</h3>
                             {/* 원본 수업 날짜가 지나지 않았을 때만 취소 버튼 표시 */}
-                            {new Date(activeMakeup.originalClass.date) >= new Date().setHours(0, 0, 0, 0) && (
+                            {activeMakeup.originalClass.date >= new Date().toISOString().split('T')[0] && (
                                 <button onClick={handleCancel} className="cancel-button">취소</button>
                             )}
                         </div>
@@ -256,16 +256,32 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
                             <div className="step-card">
                                 <h2 className="step-title">1단계: 옮길 수업 선택</h2>
                                 <div className="schedule-list">
-                                    {regularSchedule.map((schedule, index) => (
-                                        <div
-                                            key={index}
-                                            className={`schedule-item ${selectedOriginal?.day === schedule.day && selectedOriginal?.period === schedule.period ? 'selected' : ''}`}
-                                            onClick={() => handleOriginalSelect(schedule)}
-                                        >
-                                            <span className="day-badge">{schedule.day}</span>
-                                            <span className="period-name">{schedule.periodName}</span>
-                                        </div>
-                                    ))}
+                                    {regularSchedule.map((schedule, index) => {
+                                        // Calculate next occurrence of this day
+                                        const today = new Date();
+                                        today.setHours(0, 0, 0, 0);
+                                        const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
+                                        const targetDay = dayMap[schedule.day];
+                                        const currentDay = today.getDay();
+                                        let daysUntilTarget = targetDay - currentDay;
+                                        if (daysUntilTarget <= 0) daysUntilTarget += 7;
+
+                                        const nextDate = new Date(today);
+                                        nextDate.setDate(today.getDate() + daysUntilTarget);
+                                        const dateStr = `${nextDate.getMonth() + 1}/${nextDate.getDate()}`;
+
+                                        return (
+                                            <div
+                                                key={index}
+                                                className={`schedule-item ${selectedOriginal?.day === schedule.day && selectedOriginal?.period === schedule.period ? 'selected' : ''}`}
+                                                onClick={() => handleOriginalSelect(schedule)}
+                                            >
+                                                <span className="day-badge">{schedule.day}</span>
+                                                <span className="period-name">{schedule.periodName}</span>
+                                                <span style={{ fontSize: '0.85em', color: '#666', marginLeft: '8px' }}>({dateStr})</span>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
