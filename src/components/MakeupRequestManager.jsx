@@ -107,13 +107,15 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
 
         setIsSubmitting(true);
         try {
-            // 원본 수업 날짜 계산 (다음 주에서 해당 요일 찾기)
+            // 원본 수업 날짜 계산 (오늘 이후의 첫 번째 해당 요일 찾기)
             const today = new Date();
+            today.setHours(0, 0, 0, 0); // 시간 초기화
             const originalDate = new Date(today);
             const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
             const targetDay = dayMap[selectedOriginal.day];
             const currentDay = today.getDay();
 
+            // 오늘 이후의 첫 번째 해당 요일 찾기
             let daysUntilTarget = targetDay - currentDay;
             if (daysUntilTarget <= 0) daysUntilTarget += 7;
 
@@ -210,7 +212,10 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
                     <div className="active-makeup-card">
                         <div className="card-header">
                             <h3>현재 보강 신청</h3>
-                            <button onClick={handleCancel} className="cancel-button">취소</button>
+                            {/* 원본 수업 날짜가 지나지 않았을 때만 취소 버튼 표시 */}
+                            {new Date(activeMakeup.originalClass.date) >= new Date().setHours(0, 0, 0, 0) && (
+                                <button onClick={handleCancel} className="cancel-button">취소</button>
+                            )}
                         </div>
                         <div className="makeup-info">
                             <div className="makeup-row">

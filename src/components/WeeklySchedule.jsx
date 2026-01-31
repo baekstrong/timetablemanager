@@ -729,6 +729,29 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             // Check if there are registered students (even if on hold)
             const hasRegisteredStudents = data.studentNames.length > 0;
 
+            // Check if this cell is part of makeup request
+            let isMakeupFrom = false; // 보강으로 결석하는 수업
+            let isMakeupTo = false; // 보강으로 출석하는 수업
+
+            if (activeMakeupRequest) {
+                const cellDate = getDateForDayInWeek(day);
+                const cellDateStr = cellDate.toISOString().split('T')[0];
+
+                // Check if this is the original class (makeup FROM)
+                if (activeMakeupRequest.originalClass.date === cellDateStr &&
+                    activeMakeupRequest.originalClass.day === day &&
+                    activeMakeupRequest.originalClass.period === periodObj.id) {
+                    isMakeupFrom = true;
+                }
+
+                // Check if this is the makeup class (makeup TO)
+                if (activeMakeupRequest.makeupClass.date === cellDateStr &&
+                    activeMakeupRequest.makeupClass.day === day &&
+                    activeMakeupRequest.makeupClass.period === periodObj.id) {
+                    isMakeupTo = true;
+                }
+            }
+
             // If class is disabled by coach AND no registered students, show "수업 없음"
             if (classDisabled && !hasRegisteredStudents) {
                 return <div className="schedule-cell cell-empty"><span style={{ color: '#999' }}>수업 없음</span></div>;
@@ -738,12 +761,32 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             if (myClass) {
                 return (
                     <div
-                        className="schedule-cell cell-available my-class"
+                        className={`schedule-cell cell-available my-class ${isMakeupFrom ? 'makeup-absent' : ''}`}
                         onClick={() => handleCellClick(day, periodObj, data)}
                     >
                         <div className="cell-content">
                             <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
-                            <span className="my-class-badge">MY</span>
+                            {isMakeupFrom ? (
+                                <span className="my-class-badge" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>보강결석</span>
+                            ) : (
+                                <span className="my-class-badge">MY</span>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            // If this is makeup TO class, show with special badge
+            if (isMakeupTo) {
+                return (
+                    <div
+                        className="schedule-cell cell-available makeup-class"
+                        onClick={() => handleCellClick(day, periodObj, data)}
+                        style={{ borderColor: '#3b82f6', borderWidth: '2px' }}
+                    >
+                        <div className="cell-content">
+                            <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
+                            <span className="my-class-badge" style={{ backgroundColor: '#3b82f6', color: '#fff' }}>보강</span>
                         </div>
                     </div>
                 );
