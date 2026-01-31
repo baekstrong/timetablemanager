@@ -482,67 +482,48 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                     </div>
                 )}
 
-                {/* 현재 활성 홀딩/결석 목록 */}
-                {(activeHolding || absences.length > 0) && (
-                    <div className="info-card" style={{ marginBottom: '24px', background: '#fff3cd', borderColor: '#ffc107' }}>
+                {/* 현재 활성 홀딩/결석 목록 - Google Sheets와 동기화 */}
+                {((activeHolding && hasUsedHolding) || absences.length > 0) && (
+                    <div className="info-card" style={{ marginBottom: '24px', background: '#f0f4ff', borderColor: '#667eea' }}>
                         <div className="info-icon">📋</div>
                         <div className="info-content">
-                            <h3>현재 신청 내역</h3>
+                            <h3 style={{ color: '#4338ca' }}>현재 신청 내역</h3>
 
-                            {activeHolding && (
-                                <div style={{ marginTop: '12px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #f59e0b' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div>
-                                            <strong style={{ color: '#f59e0b' }}>🟠 홀딩</strong>
-                                            <div style={{ fontSize: '14px', marginTop: '4px' }}>
-                                                {activeHolding.startDate} ~ {activeHolding.endDate}
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={async () => {
-                                                if (confirm('홀딩을 취소하시겠습니까?')) {
-                                                    try {
-                                                        await cancelHolding(activeHolding.id);
-                                                        setActiveHolding(null);
-                                                        alert('홀딩이 취소되었습니다.');
-                                                    } catch (error) {
-                                                        alert('취소 실패: ' + error.message);
-                                                    }
-                                                }
-                                            }}
-                                            style={{
-                                                padding: '6px 12px',
-                                                background: '#dc2626',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '6px',
-                                                cursor: 'pointer',
-                                                fontSize: '13px'
-                                            }}
-                                        >
-                                            취소
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
+                            {activeHolding && hasUsedHolding && (() => {
+                                // 홀딩 시작일의 첫 수업 시간이 지났는지 확인
+                                const holdingStartDate = new Date(activeHolding.startDate + 'T00:00:00');
+                                const dayOfWeek = holdingStartDate.getDay();
+                                const dayMap = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금' };
+                                const dayName = dayMap[dayOfWeek];
+                                const classInfo = schedule.find(s => s.day === dayName);
 
-                            {absences.length > 0 && (
-                                <div style={{ marginTop: '12px' }}>
-                                    <strong style={{ color: '#ef4444' }}>🔴 결석</strong>
-                                    {absences.map(absence => (
-                                        <div key={absence.id} style={{ marginTop: '8px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #ef4444' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <div style={{ fontSize: '14px' }}>
-                                                    {absence.date}
+                                let canCancelHolding = true;
+                                if (classInfo) {
+                                    const period = PERIODS.find(p => p.id === classInfo.period);
+                                    if (period) {
+                                        const classDateTime = new Date(holdingStartDate);
+                                        classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
+                                        canCancelHolding = new Date() < classDateTime;
+                                    }
+                                }
+
+                                return (
+                                    <div style={{ marginTop: '12px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #667eea' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div>
+                                                <strong style={{ color: '#667eea' }}>⏸️ 홀딩</strong>
+                                                <div style={{ fontSize: '14px', marginTop: '4px', color: '#374151' }}>
+                                                    {activeHolding.startDate} ~ {activeHolding.endDate}
                                                 </div>
+                                            </div>
+                                            {canCancelHolding ? (
                                                 <button
                                                     onClick={async () => {
-                                                        if (confirm('결석을 취소하시겠습니까?')) {
+                                                        if (confirm('홀딩을 취소하시겠습니까?')) {
                                                             try {
-                                                                await cancelAbsence(absence.id);
-                                                                const updated = await getAbsencesByStudent(user.username);
-                                                                setAbsences(updated);
-                                                                alert('결석이 취소되었습니다.');
+                                                                await cancelHolding(activeHolding.id);
+                                                                setActiveHolding(null);
+                                                                alert('홀딩이 취소되었습니다.');
                                                             } catch (error) {
                                                                 alert('취소 실패: ' + error.message);
                                                             }
@@ -560,9 +541,90 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                                 >
                                                     취소
                                                 </button>
-                                            </div>
+                                            ) : (
+                                                <span style={{
+                                                    padding: '6px 12px',
+                                                    background: '#e5e7eb',
+                                                    color: '#6b7280',
+                                                    borderRadius: '6px',
+                                                    fontSize: '13px'
+                                                }}>
+                                                    수업 시작됨
+                                                </span>
+                                            )}
                                         </div>
-                                    ))}
+                                    </div>
+                                );
+                            })()}
+
+                            {absences.length > 0 && (
+                                <div style={{ marginTop: '12px' }}>
+                                    <strong style={{ color: '#764ba2' }}>❌ 결석</strong>
+                                    {absences.map(absence => {
+                                        // 결석 날짜의 수업 시간이 지났는지 확인
+                                        const absenceDate = new Date(absence.date + 'T00:00:00');
+                                        const dayOfWeek = absenceDate.getDay();
+                                        const dayMap = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금' };
+                                        const dayName = dayMap[dayOfWeek];
+                                        const classInfo = schedule.find(s => s.day === dayName);
+
+                                        let canCancelAbsence = true;
+                                        if (classInfo) {
+                                            const period = PERIODS.find(p => p.id === classInfo.period);
+                                            if (period) {
+                                                const classDateTime = new Date(absenceDate);
+                                                classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
+                                                canCancelAbsence = new Date() < classDateTime;
+                                            }
+                                        }
+
+                                        return (
+                                            <div key={absence.id} style={{ marginTop: '8px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #764ba2' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div style={{ fontSize: '14px', color: '#374151' }}>
+                                                        {absence.date}
+                                                    </div>
+                                                    {canCancelAbsence ? (
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (confirm('결석을 취소하시겠습니까?')) {
+                                                                    try {
+                                                                        await cancelAbsence(absence.id);
+                                                                        const updated = await getAbsencesByStudent(user.username);
+                                                                        setAbsences(updated);
+                                                                        alert('결석이 취소되었습니다.');
+                                                                    } catch (error) {
+                                                                        alert('취소 실패: ' + error.message);
+                                                                    }
+                                                                }
+                                                            }}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                background: '#dc2626',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: '6px',
+                                                                cursor: 'pointer',
+                                                                fontSize: '13px'
+                                                            }}
+                                                        >
+                                                            취소
+                                                        </button>
+                                                    ) : (
+                                                        <span style={{
+                                                            padding: '6px 12px',
+                                                            background: '#e5e7eb',
+                                                            color: '#6b7280',
+                                                            borderRadius: '6px',
+                                                            fontSize: '13px'
+                                                        }}>
+                                                            수업 시작됨
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
