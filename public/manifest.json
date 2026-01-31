@@ -1,18 +1,19 @@
 {
   "name": "근력학교",
   "short_name": "근력학교",
-  "start_url": "/",
+  "start_url": "/timetablemanager/",
+  "scope": "/timetablemanager/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4f46e5",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/timetablemanager/icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/timetablemanager/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
