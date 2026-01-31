@@ -1,7 +1,9 @@
 [build]
-  command = "npm run build"
-  publish = "dist"
+  # 프론트엔드 빌드 완전히 비활성화 (GitHub Pages 사용)
+  command = ""
+  publish = ""
   functions = "netlify/functions"
+  ignore = "git diff --quiet HEAD^ HEAD"
 
 # SPA routing을 위한 리다이렉트 설정
 # 모든 경로를 index.html로 리다이렉트 (실제 파일이 없을 때만)
