@@ -733,9 +733,8 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             let isMakeupFrom = false; // 보강으로 결석하는 수업
             let isMakeupTo = false; // 보강으로 출석하는 수업
 
-            if (activeMakeupRequest) {
-                const cellDate = getDateForDayInWeek(day);
-                const cellDateStr = cellDate.toISOString().split('T')[0];
+            if (activeMakeupRequest && weekDates) {
+                const cellDateStr = weekDates[day]; // Get date string for this day from weekDates
 
                 // Check if this is the original class (makeup FROM)
                 if (activeMakeupRequest.originalClass.date === cellDateStr &&
