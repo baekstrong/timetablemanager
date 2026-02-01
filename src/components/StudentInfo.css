@@ -338,6 +338,11 @@
     color: #991b1b;
 }
 
+.attendance-status.makeup-changed {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
 @media (max-width: 768px) {
     .student-info-header {
         flex-direction: column;

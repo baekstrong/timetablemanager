@@ -1,10 +1,26 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { isExpiringSoon, isExpired } from '../data/mockData';
+import { getActiveMakeupRequest } from '../services/firebaseService';
 import './StudentInfo.css';
 
 const StudentInfo = ({ user, studentData, onBack }) => {
     const { calculateMembershipStats, generateAttendanceHistory } = useGoogleSheets();
+    const [makeupRequest, setMakeupRequest] = useState(null);
+
+    // Firebase에서 보강 신청 데이터 로드
+    useEffect(() => {
+        const loadMakeupRequest = async () => {
+            if (!user) return;
+            try {
+                const makeup = await getActiveMakeupRequest(user.username);
+                setMakeupRequest(makeup);
+            } catch (error) {
+                console.error('보강 신청 조회 실패:', error);
+            }
+        };
+        loadMakeupRequest();
+    }, [user]);
 
     // 구글 시트 데이터로부터 수강권 정보 계산
     const membershipInfo = useMemo(() => {
@@ -27,7 +43,7 @@ const StudentInfo = ({ user, studentData, onBack }) => {
         return calculateMembershipStats(studentData);
     }, [studentData, user.username, calculateMembershipStats]);
 
-    // 출석 내역 생성
+    // 출석 내역 생성 (보강 데이터 반영)
     const attendanceHistory = useMemo(() => {
         if (!studentData) {
             // 폴백: 목 데이터
@@ -38,14 +54,64 @@ const StudentInfo = ({ user, studentData, onBack }) => {
         }
 
         // 구글 시트에서 출석 내역 생성
-        return generateAttendanceHistory(studentData);
-    }, [studentData, generateAttendanceHistory]);
+        let history = generateAttendanceHistory(studentData);
+
+        // 보강 신청이 있으면 출석 내역 수정
+        if (makeupRequest && makeupRequest.status === 'active') {
+            const originalDate = makeupRequest.originalClass.date;
+            const makeupDate = makeupRequest.makeupClass.date;
+            const makeupPeriod = `${makeupRequest.makeupClass.period}교시`;
+
+            // 원래 수업일 찾아서 상태 변경
+            history = history.map(record => {
+                if (record.date === originalDate) {
+                    return {
+                        ...record,
+                        status: '보강변경',
+                        type: '정규→보강'
+                    };
+                }
+                return record;
+            });
+
+            // 보강 날짜가 오늘 이전이면 출석 내역에 추가
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const makeupDateObj = new Date(makeupDate + 'T00:00:00');
+
+            if (makeupDateObj <= today) {
+                // 이미 같은 날짜의 보강 기록이 있는지 확인
+                const existingMakeup = history.find(r => r.date === makeupDate && r.type === '보강');
+                if (!existingMakeup) {
+                    history.push({
+                        date: makeupDate,
+                        period: makeupPeriod,
+                        type: '보강',
+                        status: '출석'
+                    });
+                }
+            }
+
+            // 다시 날짜순 정렬 (최신순)
+            history.sort((a, b) => {
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                return dateB - dateA;
+            });
+
+            // 상위 10개만 반환
+            history = history.slice(0, 10);
+        }
+
+        return history;
+    }, [studentData, generateAttendanceHistory, makeupRequest]);
 
     const getStatusColor = (status) => {
         switch (status) {
             case '출석': return 'attended';
             case '홀딩': return 'holding';
             case '결석': return 'absent';
+            case '보강변경': return 'makeup-changed';
             default: return '';
         }
     };

@@ -575,6 +575,109 @@ export const deleteAnnouncement = async (announcementId) => {
 };
 
 // ============================================
+// HOLIDAY FUNCTIONS (코치용 휴일 설정)
+// ============================================
+
+/**
+ * 휴일 추가
+ * @param {string} date - 휴일 날짜 (YYYY-MM-DD)
+ * @param {string} reason - 휴일 사유 (휴가, 개인 사정 등)
+ * @returns {Promise<Object>} - {success: boolean, id: string}
+ */
+export const createHoliday = async (date, reason = '') => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        console.log('🗓️ 휴일 추가:', { date, reason });
+
+        const docRef = await addDoc(collection(db, 'holidays'), {
+            date,
+            reason,
+            createdAt: serverTimestamp()
+        });
+
+        console.log('✅ 휴일 추가 완료:', docRef.id);
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('❌ 휴일 추가 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 모든 휴일 조회
+ * @returns {Promise<Array>} - 휴일 목록
+ */
+export const getHolidays = async () => {
+    if (!isFirebaseAvailable()) return [];
+
+    try {
+        const q = query(collection(db, 'holidays'));
+        const snapshot = await getDocs(q);
+        const holidays = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('📋 휴일 목록 조회:', holidays.length);
+        return holidays;
+    } catch (error) {
+        console.error('❌ 휴일 목록 조회 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 휴일 삭제
+ * @param {string} holidayId - 휴일 ID
+ * @returns {Promise<void>}
+ */
+export const deleteHoliday = async (holidayId) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        console.log('🗑️ 휴일 삭제:', holidayId);
+
+        const { deleteDoc } = await import('firebase/firestore');
+        await deleteDoc(doc(db, 'holidays', holidayId));
+
+        console.log('✅ 휴일 삭제 완료');
+    } catch (error) {
+        console.error('❌ 휴일 삭제 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 홀딩 취소 (Google Sheets도 함께 초기화)
+ * @param {string} holdingId - Firebase 홀딩 ID
+ * @param {string} studentName - 학생 이름 (Google Sheets 업데이트용)
+ * @returns {Promise<void>}
+ */
+export const cancelHoldingWithSheets = async (holdingId, studentName) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        console.log('🗑️ 홀딩 취소 (Firebase + Sheets):', holdingId, studentName);
+
+        // Firebase 홀딩 취소
+        if (holdingId) {
+            await updateDoc(doc(db, 'holdingRequests', holdingId), {
+                status: 'cancelled',
+                updatedAt: serverTimestamp()
+            });
+        }
+
+        console.log('✅ 홀딩 취소 완료');
+    } catch (error) {
+        console.error('❌ 홀딩 취소 실패:', error);
+        throw error;
+    }
+};
+
+// ============================================
 // DISABLED CLASSES FUNCTIONS
 // ============================================
 

@@ -10,6 +10,7 @@ import {
     cancelHolding,
     cancelAbsence
 } from '../services/firebaseService';
+import { cancelHoldingInSheets } from '../services/googleSheetsService';
 import './HoldingManager.css';
 
 // 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (timezone 문제 방지)
@@ -522,14 +523,20 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                                     </span>
                                                 </div>
                                             </div>
-                                            {canCancelHolding && activeHolding ? (
+                                            {canCancelHolding ? (
                                                 <button
                                                     onClick={async () => {
-                                                        if (confirm('홀딩을 취소하시겠습니까?')) {
+                                                        if (confirm('홀딩을 취소하시겠습니까?\n\n주의: Google Sheets의 홀딩 정보가 초기화됩니다.')) {
                                                             try {
-                                                                await cancelHolding(activeHolding.id);
-                                                                setActiveHolding(null);
-                                                                alert('홀딩이 취소되었습니다.');
+                                                                // Firebase에 activeHolding이 있으면 취소
+                                                                if (activeHolding) {
+                                                                    await cancelHolding(activeHolding.id);
+                                                                    setActiveHolding(null);
+                                                                }
+                                                                // Google Sheets의 홀딩 정보도 초기화
+                                                                await cancelHoldingInSheets(user.username);
+                                                                alert('홀딩이 취소되었습니다.\n페이지를 새로고침합니다.');
+                                                                window.location.reload();
                                                             } catch (error) {
                                                                 alert('취소 실패: ' + error.message);
                                                             }
@@ -555,7 +562,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                                     borderRadius: '6px',
                                                     fontSize: '13px'
                                                 }}>
-                                                    {canCancelHolding ? '승인됨' : '수업 시작됨'}
+                                                    수업 시작됨
                                                 </span>
                                             )}
                                         </div>

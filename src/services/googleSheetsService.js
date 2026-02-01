@@ -1143,6 +1143,189 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
 };
 
 /**
+ * 홀딩 취소 (Google Sheets에서 홀딩 정보 초기화 + 종료날짜 재계산)
+ * @param {string} studentName - 학생 이름
+ * @returns {Promise<Object>} - 성공 여부
+ */
+export const cancelHoldingInSheets = async (studentName) => {
+  try {
+    console.log(`🔄 홀딩 취소 시작 (Google Sheets): ${studentName}`);
+
+    // 여러 시트에서 학생 찾기
+    const result = await findStudentAcrossSheets(studentName);
+
+    if (!result) {
+      throw new Error(`학생 정보를 찾을 수 없습니다: ${studentName}`);
+    }
+
+    const { student, foundSheetName } = result;
+    const rowIndex = student._rowIndex;
+    const actualRow = rowIndex + 3; // Row 1: 병합 헤더, Row 2: 컬럼명, Row 3부터 데이터
+
+    // 시트의 헤더를 다시 읽어서 컬럼 위치 파악
+    const range = `${foundSheetName}!A:Z`;
+    const rows = await readSheetData(range);
+    const headers = rows[1];
+
+    const findColumnIndex = (fieldName) => {
+      let index = headers.indexOf(fieldName);
+      if (index !== -1) return index;
+
+      const fieldNameWithNewline = fieldName.replace(/ /g, '\n');
+      index = headers.indexOf(fieldNameWithNewline);
+      if (index !== -1) return index;
+
+      const fieldNameWithSpace = fieldName.replace(/\n/g, ' ');
+      index = headers.indexOf(fieldNameWithSpace);
+      if (index !== -1) return index;
+
+      return -1;
+    };
+
+    const holdingUsedCol = findColumnIndex('홀딩 사용여부');
+    const holdingStartCol = findColumnIndex('홀딩 시작일');
+    const holdingEndCol = findColumnIndex('홀딩 종료일');
+    const endDateCol = findColumnIndex('종료날짜');
+
+    if (holdingUsedCol === -1) {
+      throw new Error('홀딩 사용여부 필드를 찾을 수 없습니다.');
+    }
+
+    // 종료날짜 재계산을 위한 데이터 가져오기
+    const startDateStr = getStudentField(student, '시작날짜');
+    const scheduleStr = getStudentField(student, '요일 및 시간');
+    const weeklyFrequencyStr = getStudentField(student, '주횟수');
+
+    const parseDate = (dateStr) => {
+      if (!dateStr) return null;
+      const cleaned = dateStr.replace(/\D/g, '');
+      if (cleaned.length === 6) {
+        const year = parseInt('20' + cleaned.substring(0, 2));
+        const month = parseInt(cleaned.substring(2, 4)) - 1;
+        const day = parseInt(cleaned.substring(4, 6));
+        return new Date(year, month, day);
+      } else if (cleaned.length === 8) {
+        const year = parseInt(cleaned.substring(0, 4));
+        const month = parseInt(cleaned.substring(4, 6)) - 1;
+        const day = parseInt(cleaned.substring(6, 8));
+        return new Date(year, month, day);
+      }
+      return null;
+    };
+
+    const membershipStartDate = parseDate(startDateStr);
+    const weeklyFrequency = parseInt(weeklyFrequencyStr) || 2;
+    const totalSessions = weeklyFrequency * 4;
+
+    // 홀딩 없이 종료날짜 재계산
+    let newEndDateStr = '';
+    if (membershipStartDate && scheduleStr) {
+      // 홀딩 없이 종료날짜 계산 (calculateEndDate 함수의 로직을 인라인으로)
+      const schedule = [];
+      const dayMapParse = { '월': '월', '화': '화', '수': '수', '목': '목', '금': '금' };
+      const chars = scheduleStr.replace(/\s/g, '');
+      let i = 0;
+      while (i < chars.length) {
+        const char = chars[i];
+        if (dayMapParse[char]) {
+          const day = char;
+          i++;
+          let periodStr = '';
+          while (i < chars.length && /\d/.test(chars[i])) {
+            periodStr += chars[i];
+            i++;
+          }
+          if (periodStr) {
+            const period = parseInt(periodStr);
+            schedule.push({ day, period });
+          }
+        } else {
+          i++;
+        }
+      }
+
+      const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
+      const classDays = schedule.map(s => dayMap[s.day]).filter(d => d !== undefined);
+
+      if (classDays.length > 0) {
+        let sessionCount = 0;
+        const current = new Date(membershipStartDate);
+        current.setHours(0, 0, 0, 0);
+        let maxIterations = 365;
+
+        while (sessionCount < totalSessions && maxIterations > 0) {
+          maxIterations--;
+          const dayOfWeek = current.getDay();
+
+          if (classDays.includes(dayOfWeek)) {
+            // 공휴일 체크
+            const year = current.getFullYear();
+            const month = String(current.getMonth() + 1).padStart(2, '0');
+            const dayStr = String(current.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${dayStr}`;
+
+            const holidays = {
+              '2026-01-01': true, '2026-02-16': true, '2026-02-17': true, '2026-02-18': true,
+              '2026-03-01': true, '2026-05-05': true, '2026-05-25': true, '2026-06-06': true,
+              '2026-08-15': true, '2026-09-24': true, '2026-09-25': true, '2026-09-26': true,
+              '2026-10-03': true, '2026-10-09': true, '2026-12-25': true
+            };
+
+            if (!holidays[dateStr]) {
+              sessionCount++;
+              if (sessionCount === totalSessions) {
+                newEndDateStr = formatDateToYYMMDD(current);
+                break;
+              }
+            }
+          }
+          current.setDate(current.getDate() + 1);
+        }
+      }
+    }
+
+    // 홀딩 정보 초기화 + 종료날짜 업데이트
+    const updates = [
+      {
+        range: `${foundSheetName}!${getColumnLetter(holdingUsedCol)}${actualRow}`,
+        values: [['X']]
+      }
+    ];
+
+    if (holdingStartCol !== -1) {
+      updates.push({
+        range: `${foundSheetName}!${getColumnLetter(holdingStartCol)}${actualRow}`,
+        values: [['']]
+      });
+    }
+
+    if (holdingEndCol !== -1) {
+      updates.push({
+        range: `${foundSheetName}!${getColumnLetter(holdingEndCol)}${actualRow}`,
+        values: [['']]
+      });
+    }
+
+    // 종료날짜 업데이트 (재계산된 값으로)
+    if (endDateCol !== -1 && newEndDateStr) {
+      updates.push({
+        range: `${foundSheetName}!${getColumnLetter(endDateCol)}${actualRow}`,
+        values: [[newEndDateStr]]
+      });
+      console.log(`📅 종료날짜 재계산: ${newEndDateStr}`);
+    }
+
+    await batchUpdateSheet(updates);
+
+    console.log(`✅ 홀딩 취소 완료 (Google Sheets): ${studentName}`);
+    return { success: true, newEndDate: newEndDateStr };
+  } catch (error) {
+    console.error('❌ 홀딩 취소 실패 (Google Sheets):', error);
+    throw error;
+  }
+};
+
+/**
  * 날짜를 YYMMDD 형식으로 변환
  * @param {Date} date - 날짜 객체
  * @returns {string} - YYMMDD 형식 문자열

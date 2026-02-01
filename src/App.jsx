@@ -5,6 +5,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import WeeklySchedule from './components/WeeklySchedule';
 import HoldingManager from './components/HoldingManager';
+import HolidayManager from './components/HolidayManager';
 import StudentInfo from './components/StudentInfo';
 import StudentManager from './components/StudentManager';
 import GoogleSheetsTest from './components/GoogleSheetsTest';
@@ -13,7 +14,7 @@ import './App.css';
 function AppContent() {
   const [user, setUser] = useState(null);
   const [studentData, setStudentData] = useState(null);
-  const [currentPage, setCurrentPage] = useState('login'); // 'login', 'dashboard', 'schedule', 'holding', 'myinfo', 'students', 'training', 'test'
+  const [currentPage, setCurrentPage] = useState('login'); // 'login', 'dashboard', 'schedule', 'holding', 'myinfo', 'students', 'training', 'test', 'holidays'
   const { getStudentByName, findStudentAcrossSheets } = useGoogleSheets();
 
   const handleLogin = async (userData) => {
@@ -103,6 +104,9 @@ function AppContent() {
 
       case 'students':
         return <StudentManager user={user} onBack={handleBackToDashboard} />;
+
+      case 'holidays':
+        return <HolidayManager user={user} onBack={handleBackToDashboard} />;
 
       case 'training':
         return (

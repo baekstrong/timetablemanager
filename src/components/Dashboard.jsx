@@ -89,6 +89,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         ? [
             { id: 'schedule', title: '시간표 관리', icon: '📅', description: '수강생 출석 현황 및 시간표 확인' },
             { id: 'students', title: '수강생 관리', icon: '👥', description: '수강생 정보 및 수강권 현황' },
+            { id: 'holidays', title: '휴일 설정', icon: '🗓️', description: '휴가, 휴무일 설정 (종료일 반영)' },
             { id: 'training', title: '훈련일지', icon: '📝', description: '수강생별 훈련 기록 관리' }
         ]
         : [
