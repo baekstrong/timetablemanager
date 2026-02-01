@@ -273,6 +273,73 @@ export const getStudentField = (student, fieldName) => {
 };
 
 /**
+ * 홀딩 사용여부 필드 파싱 (여러달 수강권 지원)
+ * 형식:
+ *   - "X" → 1개월 등록, 홀딩 0회 사용, 총 1회
+ *   - "O" → 1개월 등록, 홀딩 1회 사용 (모두 소진)
+ *   - "X(0/2)" → 2개월 등록, 홀딩 0회 사용, 총 2회
+ *   - "X(1/3)" → 3개월 등록, 홀딩 1회 사용, 총 3회
+ *   - "O(2/3)" → 3개월 등록, 홀딩 2회 사용, 총 3회 (이번달은 이미 사용)
+ * @param {string} holdingStatusStr - 홀딩 사용여부 필드 값
+ * @returns {Object} - { months: 등록개월, used: 사용횟수, total: 총횟수, isCurrentlyUsed: 현재 홀딩중 여부 }
+ */
+export const parseHoldingStatus = (holdingStatusStr) => {
+  if (!holdingStatusStr || holdingStatusStr.trim() === '') {
+    return { months: 1, used: 0, total: 1, isCurrentlyUsed: false };
+  }
+
+  const str = holdingStatusStr.trim();
+
+  // X(n/m) 또는 O(n/m) 형식 파싱
+  const multiMonthMatch = str.match(/^([XOxo])\s*\((\d+)\/(\d+)\)$/);
+  if (multiMonthMatch) {
+    const status = multiMonthMatch[1].toUpperCase();
+    const used = parseInt(multiMonthMatch[2]);
+    const total = parseInt(multiMonthMatch[3]);
+    const months = total; // 총 홀딩 횟수 = 등록 개월수
+
+    return {
+      months,
+      used,
+      total,
+      isCurrentlyUsed: status === 'O'
+    };
+  }
+
+  // 단순 X 또는 O 형식 (1개월 등록)
+  const upperStr = str.toUpperCase();
+  if (upperStr === 'X') {
+    return { months: 1, used: 0, total: 1, isCurrentlyUsed: false };
+  }
+  if (upperStr === 'O' || upperStr === 'Y' || str === '사용') {
+    return { months: 1, used: 1, total: 1, isCurrentlyUsed: true };
+  }
+
+  // 알 수 없는 형식은 기본값 반환
+  console.warn('알 수 없는 홀딩 상태 형식:', holdingStatusStr);
+  return { months: 1, used: 0, total: 1, isCurrentlyUsed: false };
+};
+
+/**
+ * 홀딩 상태 문자열 생성 (여러달 수강권용)
+ * @param {boolean} isUsed - 현재 홀딩 사용 여부 (O/X)
+ * @param {number} usedCount - 사용한 홀딩 횟수
+ * @param {number} totalCount - 총 홀딩 횟수
+ * @returns {string} - 홀딩 상태 문자열
+ */
+export const formatHoldingStatus = (isUsed, usedCount, totalCount) => {
+  const status = isUsed ? 'O' : 'X';
+
+  // 1개월 등록 (총 1회)인 경우 간단히 표시
+  if (totalCount === 1) {
+    return status;
+  }
+
+  // 여러달 등록인 경우 (n/m) 형식으로 표시
+  return `${status}(${usedCount}/${totalCount})`;
+};
+
+/**
  * 구글 시트에서 이름으로 수강생 찾기
  * @param {string} studentName - 검색할 수강생 이름
  * @param {number} year - 연도 (기본값: 현재 연도)
@@ -525,6 +592,9 @@ export const calculateMembershipStats = (student) => {
     getStudentField(student, '홀딩 상태') ||
     getStudentField(student, '홀딩사용여부');
 
+  // 여러달 수강권 지원: 홀딩 상태 파싱
+  const holdingInfo = parseHoldingStatus(holdingStatusStr);
+
   const parseDate = (dateStr) => {
     if (!dateStr) return null;
     const cleaned = dateStr.replace(/\D/g, '');
@@ -548,17 +618,16 @@ export const calculateMembershipStats = (student) => {
   today.setHours(0, 0, 0, 0);
 
   const weeklyFrequency = parseInt(weeklyFrequencyStr) || 2;
-  const totalSessions = weeklyFrequency * 4;
+  // 여러달 등록: 총 세션 = 주횟수 × 4주 × 등록개월
+  const totalSessions = weeklyFrequency * 4 * holdingInfo.months;
   const completedSessions = calculateCompletedSessions(startDate, today, scheduleStr);
   const remainingSessions = Math.max(0, totalSessions - completedSessions);
 
-  const holdingUsed = holdingStatusStr && (
-    holdingStatusStr.toUpperCase().trim() === 'O' ||
-    holdingStatusStr.trim() === 'o' ||
-    holdingStatusStr === '사용' ||
-    holdingStatusStr.toUpperCase().trim() === 'Y'
-  );
-  const remainingHolding = holdingUsed ? 0 : 1;
+  // 여러달 등록: 남은 홀딩 횟수 = 총 홀딩 횟수 - 사용한 횟수
+  const holdingUsed = holdingInfo.isCurrentlyUsed;
+  const remainingHolding = holdingInfo.total - holdingInfo.used;
+  const totalHolding = holdingInfo.total;
+  const usedHolding = holdingInfo.used;
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -616,6 +685,9 @@ export const calculateMembershipStats = (student) => {
     completedSessions,
     remainingSessions,
     remainingHolding,
+    totalHolding,
+    usedHolding,
+    registrationMonths: holdingInfo.months, // 등록 개월 수
     schedule: scheduleStr,
     attendanceCount: Math.max(0, attendanceCount),
     totalClasses: totalSessions
@@ -1069,9 +1141,16 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
 
     const membershipStartDate = parseDate(startDateField);
     const weeklyFrequency = parseInt(weeklyFrequencyStr) || 2;
-    const totalSessions = weeklyFrequency * 4;
 
-    console.log(`📊 수강생 정보: 시작일=${startDateField}, 주횟수=${weeklyFrequency}, 총 횟수=${totalSessions}`);
+    // 여러달 수강권 지원: 홀딩 상태 파싱
+    const currentHoldingStatusStr = getStudentField(studentData, '홀딩 사용여부');
+    const holdingInfo = parseHoldingStatus(currentHoldingStatusStr);
+
+    // 총 세션 = 주횟수 × 4주 × 등록개월
+    const totalSessions = weeklyFrequency * 4 * holdingInfo.months;
+
+    console.log(`📊 수강생 정보: 시작일=${startDateField}, 주횟수=${weeklyFrequency}, 등록개월=${holdingInfo.months}, 총 횟수=${totalSessions}`);
+    console.log(`📊 홀딩 정보: 사용=${holdingInfo.used}/${holdingInfo.total}`);
 
     const holdingRange = {
       start: holdingStartDate,
@@ -1088,12 +1167,16 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
     const endDateStr = formatDateToYYMMDD(endDate);
     const newEndDateStr = formatDateToYYMMDD(newEndDate);
 
-    console.log(`📝 업데이트할 데이터: 사용여부=O, 시작일=${startDateStr}, 종료일=${endDateStr}, 새 종료날짜=${newEndDateStr}`);
+    // 여러달 수강권: 홀딩 상태 문자열 생성
+    const newUsedCount = holdingInfo.used + 1;
+    const newHoldingStatus = formatHoldingStatus(true, newUsedCount, holdingInfo.total);
+
+    console.log(`📝 업데이트할 데이터: 사용여부=${newHoldingStatus}, 시작일=${startDateStr}, 종료일=${endDateStr}, 새 종료날짜=${newEndDateStr}`);
 
     const updates = [
       {
         range: `${foundSheetName}!${getColumnLetter(holdingUsedCol)}${studentIndex + 1}`,
-        values: [['O']]
+        values: [[newHoldingStatus]]
       },
       {
         range: `${foundSheetName}!${getColumnLetter(holdingStartCol)}${studentIndex + 1}`,
@@ -1196,6 +1279,10 @@ export const cancelHoldingInSheets = async (studentName) => {
     const scheduleStr = getStudentField(student, '요일 및 시간');
     const weeklyFrequencyStr = getStudentField(student, '주횟수');
 
+    // 여러달 수강권 지원: 현재 홀딩 상태 파싱
+    const currentHoldingStatusStr = getStudentField(student, '홀딩 사용여부');
+    const holdingInfo = parseHoldingStatus(currentHoldingStatusStr);
+
     const parseDate = (dateStr) => {
       if (!dateStr) return null;
       const cleaned = dateStr.replace(/\D/g, '');
@@ -1215,7 +1302,10 @@ export const cancelHoldingInSheets = async (studentName) => {
 
     const membershipStartDate = parseDate(startDateStr);
     const weeklyFrequency = parseInt(weeklyFrequencyStr) || 2;
-    const totalSessions = weeklyFrequency * 4;
+    // 여러달 수강권: 총 세션 = 주횟수 × 4주 × 등록개월
+    const totalSessions = weeklyFrequency * 4 * holdingInfo.months;
+
+    console.log(`📊 홀딩 취소 - 수강생 정보: 등록개월=${holdingInfo.months}, 홀딩 사용=${holdingInfo.used}/${holdingInfo.total}`);
 
     // 홀딩 없이 종료날짜 재계산
     let newEndDateStr = '';
@@ -1284,11 +1374,17 @@ export const cancelHoldingInSheets = async (studentName) => {
       }
     }
 
+    // 여러달 수강권: 홀딩 상태 업데이트 (사용 횟수 감소)
+    const newUsedCount = Math.max(0, holdingInfo.used - 1);
+    const newHoldingStatus = formatHoldingStatus(false, newUsedCount, holdingInfo.total);
+
+    console.log(`📝 홀딩 취소 - 새 상태: ${newHoldingStatus}`);
+
     // 홀딩 정보 초기화 + 종료날짜 업데이트
     const updates = [
       {
         range: `${foundSheetName}!${getColumnLetter(holdingUsedCol)}${actualRow}`,
-        values: [['X']]
+        values: [[newHoldingStatus]]
       }
     ];
 

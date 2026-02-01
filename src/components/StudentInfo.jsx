@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { isExpiringSoon, isExpired } from '../data/mockData';
+// isExpiringSoon, isExpired 사용하지 않음 - 추후 필요시 복원
 import { getActiveMakeupRequest } from '../services/firebaseService';
 import './StudentInfo.css';
 
@@ -35,6 +35,9 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                 completedSessions: 0,
                 remainingSessions: 8,
                 remainingHolding: 1,
+                totalHolding: 1,
+                usedHolding: 0,
+                registrationMonths: 1,
                 attendanceCount: 0,
                 totalClasses: 8
             };
@@ -169,8 +172,15 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                             </span>
                         </div>
                         <div className="detail-row">
-                            <span className="detail-label">남은 홀딩 횟수</span>
-                            <span className="detail-value">{membershipInfo.remainingHolding}회</span>
+                            <span className="detail-label">홀딩 횟수</span>
+                            <span className="detail-value">
+                                {membershipInfo.remainingHolding}/{membershipInfo.totalHolding || 1}회
+                                {membershipInfo.registrationMonths > 1 && (
+                                    <span style={{ fontSize: '0.85em', color: '#6b7280', marginLeft: '8px' }}>
+                                        ({membershipInfo.registrationMonths}개월 등록)
+                                    </span>
+                                )}
+                            </span>
                         </div>
                     </div>
 
@@ -232,7 +242,7 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                         <div className="stat-item">
                             <div className="stat-icon">⏸️</div>
                             <div className="stat-info">
-                                <div className="stat-value">{membershipInfo.remainingHolding}</div>
+                                <div className="stat-value">{membershipInfo.remainingHolding}/{membershipInfo.totalHolding || 1}</div>
                                 <div className="stat-label">남은 홀딩</div>
                             </div>
                         </div>

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { PERIODS } from '../data/mockData';
-import { getStudentField } from '../services/googleSheetsService';
+import { getStudentField, parseHoldingStatus } from '../services/googleSheetsService';
 import {
     createHoldingRequest,
     createAbsenceRequest,
@@ -136,12 +136,18 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         return freq;
     }, [studentData]);
 
-    // 홀딩 사용 여부 확인 (1회 제한)
-    const hasUsedHolding = useMemo(() => {
-        if (!studentData) return false;
-        const holdingUsed = getStudentField(studentData, '홀딩 사용여부');
-        return holdingUsed === 'O' || holdingUsed === 'o';
+    // 홀딩 정보 파싱 (여러달 수강권 지원)
+    const holdingInfo = useMemo(() => {
+        if (!studentData) return { months: 1, used: 0, total: 1, isCurrentlyUsed: false };
+        const holdingStatusStr = getStudentField(studentData, '홀딩 사용여부');
+        return parseHoldingStatus(holdingStatusStr);
     }, [studentData]);
+
+    // 남은 홀딩 횟수
+    const remainingHoldings = holdingInfo.total - holdingInfo.used;
+
+    // 홀딩 사용 완료 여부 (남은 횟수가 0인 경우)
+    const hasUsedAllHoldings = remainingHoldings <= 0;
 
     // 홀딩 내역 조회 (수업일만 표시)
     const holdingHistory = useMemo(() => {
@@ -370,9 +376,9 @@ const HoldingManager = ({ user, studentData, onBack }) => {
 
     // 날짜 선택 핸들러
     const handleDateClick = (date) => {
-        // 홀딩 사용 여부 확인 (1회 제한)
-        if (hasUsedHolding && requestType === 'holding') {
-            alert('홀딩은 등록 기간 중 1회만 사용 가능합니다.\n이미 홀딩을 사용하셨습니다.');
+        // 홀딩 사용 여부 확인 (남은 횟수 체크)
+        if (hasUsedAllHoldings && requestType === 'holding') {
+            alert(`홀딩을 모두 사용하셨습니다.\n(${holdingInfo.used}/${holdingInfo.total}회 사용)`);
             return;
         }
 
@@ -410,9 +416,9 @@ const HoldingManager = ({ user, studentData, onBack }) => {
     const handleSubmit = async () => {
         if (selectedDates.length === 0 || !user) return;
 
-        // 홀딩 사용 여부 재확인
-        if (hasUsedHolding && requestType === 'holding') {
-            alert('홀딩은 등록 기간 중 1회만 사용 가능합니다.\n이미 홀딩을 사용하셨습니다.');
+        // 홀딩 사용 여부 재확인 (남은 횟수 체크)
+        if (hasUsedAllHoldings && requestType === 'holding') {
+            alert(`홀딩을 모두 사용하셨습니다.\n(${holdingInfo.used}/${holdingInfo.total}회 사용)`);
             return;
         }
 
@@ -486,19 +492,23 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                             <li>홀딩한 자리는 다른 수강생이 임시로 사용할 수 있습니다.</li>
                             <li>홀딩은 최소 1시간 전에 신청 가능합니다.</li>
                             <li>홀딩은 주 {weeklyFrequency}회 수업 기준 최대 <strong>{weeklyFrequency}회</strong>까지 가능합니다.</li>
-                            <li>홀딩은 등록 기간 중 <strong>1회만</strong> 사용 가능합니다.</li>
+                            <li>
+                                {holdingInfo.total === 1
+                                    ? '홀딩은 등록 기간 중 1회만 사용 가능합니다.'
+                                    : `${holdingInfo.months}개월 등록: 총 ${holdingInfo.total}회 홀딩 가능 (남은 횟수: ${remainingHoldings}회)`}
+                            </li>
                         </ul>
                     </div>
                 </div>
 
                 {/* 홀딩 사용 완료 알림 */}
-                {hasUsedHolding && (
+                {hasUsedAllHoldings && (
                     <div className="info-card" style={{ background: '#fee2e2', borderColor: '#ef4444' }}>
                         <div className="info-icon">⚠️</div>
                         <div className="info-content">
                             <h3 style={{ color: '#dc2626' }}>홀딩 사용 완료</h3>
                             <p style={{ margin: 0, color: '#7f1d1d' }}>
-                                이미 홀딩을 사용하셨습니다. 등록 기간 중 홀딩은 1회만 사용 가능합니다.
+                                홀딩을 모두 사용하셨습니다. ({holdingInfo.used}/{holdingInfo.total}회 사용)
                             </p>
                         </div>
                     </div>
@@ -667,13 +677,13 @@ const HoldingManager = ({ user, studentData, onBack }) => {
 
                 {/* 신청 유형 선택 */}
                 <div className="request-type-selector">
-                    <label className={`type-option ${requestType === 'holding' ? 'selected' : ''} ${hasUsedHolding ? 'disabled' : ''}`}>
+                    <label className={`type-option ${requestType === 'holding' ? 'selected' : ''} ${hasUsedAllHoldings ? 'disabled' : ''}`}>
                         <input
                             type="radio"
                             name="requestType"
                             value="holding"
                             checked={requestType === 'holding'}
-                            disabled={hasUsedHolding}
+                            disabled={hasUsedAllHoldings}
                             onChange={() => {
                                 setRequestType('holding');
                                 setSelectedDates([]);
@@ -681,7 +691,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                         />
                         <span className="type-icon">⏸️</span>
                         <span className="type-label">홀딩 신청</span>
-                        <span className="type-desc">{hasUsedHolding ? '사용 완료' : '연속 기간 홀딩'}</span>
+                        <span className="type-desc">{hasUsedAllHoldings ? '사용 완료' : `남은 횟수: ${remainingHoldings}회`}</span>
                     </label>
                     <label className={`type-option ${requestType === 'absence' ? 'selected' : ''}`}>
                         <input
