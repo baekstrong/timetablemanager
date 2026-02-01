@@ -1258,9 +1258,10 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
 /**
  * 홀딩 취소 (Google Sheets에서 홀딩 정보 초기화 + 종료날짜 재계산)
  * @param {string} studentName - 학생 이름
+ * @param {Array} remainingHoldings - 취소 후 남은 홀딩 목록 (Firebase에서 가져온 것)
  * @returns {Promise<Object>} - 성공 여부
  */
-export const cancelHoldingInSheets = async (studentName) => {
+export const cancelHoldingInSheets = async (studentName, remainingHoldings = []) => {
   try {
     console.log(`🔄 홀딩 취소 시작 (Google Sheets): ${studentName}`);
 
@@ -1337,70 +1338,25 @@ export const cancelHoldingInSheets = async (studentName) => {
 
     console.log(`📊 홀딩 취소 - 수강생 정보: 등록개월=${holdingInfo.months}, 홀딩 사용=${holdingInfo.used}/${holdingInfo.total}`);
 
-    // 홀딩 없이 종료날짜 재계산
+    // 남은 홀딩들을 고려하여 종료날짜 재계산
     let newEndDateStr = '';
     if (membershipStartDate && scheduleStr) {
-      // 홀딩 없이 종료날짜 계산 (calculateEndDate 함수의 로직을 인라인으로)
-      const schedule = [];
-      const dayMapParse = { '월': '월', '화': '화', '수': '수', '목': '목', '금': '금' };
-      const chars = scheduleStr.replace(/\s/g, '');
-      let i = 0;
-      while (i < chars.length) {
-        const char = chars[i];
-        if (dayMapParse[char]) {
-          const day = char;
-          i++;
-          let periodStr = '';
-          while (i < chars.length && /\d/.test(chars[i])) {
-            periodStr += chars[i];
-            i++;
-          }
-          if (periodStr) {
-            const period = parseInt(periodStr);
-            schedule.push({ day, period });
-          }
-        } else {
-          i++;
-        }
+      // 남은 홀딩 기간들을 Date 객체로 변환
+      const holdingRanges = [];
+      if (remainingHoldings && remainingHoldings.length > 0) {
+        remainingHoldings.forEach(h => {
+          const start = new Date(h.startDate + 'T00:00:00');
+          const end = new Date(h.endDate + 'T00:00:00');
+          holdingRanges.push({ start, end });
+        });
+        console.log(`📊 남은 홀딩 ${remainingHoldings.length}개 포함하여 종료일 계산`);
+      } else {
+        console.log(`📊 남은 홀딩 없음 - 원래 종료일로 계산`);
       }
 
-      const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
-      const classDays = schedule.map(s => dayMap[s.day]).filter(d => d !== undefined);
-
-      if (classDays.length > 0) {
-        let sessionCount = 0;
-        const current = new Date(membershipStartDate);
-        current.setHours(0, 0, 0, 0);
-        let maxIterations = 365;
-
-        while (sessionCount < totalSessions && maxIterations > 0) {
-          maxIterations--;
-          const dayOfWeek = current.getDay();
-
-          if (classDays.includes(dayOfWeek)) {
-            // 공휴일 체크
-            const year = current.getFullYear();
-            const month = String(current.getMonth() + 1).padStart(2, '0');
-            const dayStr = String(current.getDate()).padStart(2, '0');
-            const dateStr = `${year}-${month}-${dayStr}`;
-
-            const holidays = {
-              '2026-01-01': true, '2026-02-16': true, '2026-02-17': true, '2026-02-18': true,
-              '2026-03-01': true, '2026-05-05': true, '2026-05-25': true, '2026-06-06': true,
-              '2026-08-15': true, '2026-09-24': true, '2026-09-25': true, '2026-09-26': true,
-              '2026-10-03': true, '2026-10-09': true, '2026-12-25': true
-            };
-
-            if (!holidays[dateStr]) {
-              sessionCount++;
-              if (sessionCount === totalSessions) {
-                newEndDateStr = formatDateToYYMMDD(current);
-                break;
-              }
-            }
-          }
-          current.setDate(current.getDate() + 1);
-        }
+      const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, holdingRanges);
+      if (newEndDate) {
+        newEndDateStr = formatDateToYYMMDD(newEndDate);
       }
     }
 

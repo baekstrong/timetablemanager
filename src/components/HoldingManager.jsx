@@ -536,8 +536,10 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                                                     try {
                                                                         // Firebase 홀딩 취소
                                                                         await cancelHolding(holdingData.id);
-                                                                        // Google Sheets의 홀딩 정보도 초기화
-                                                                        await cancelHoldingInSheets(user.username);
+                                                                        // 남은 홀딩 목록 계산 (취소된 홀딩 제외)
+                                                                        const remainingHoldings = allHoldings.filter(h => h.id !== holdingData.id);
+                                                                        // Google Sheets의 홀딩 정보 업데이트 (남은 홀딩 고려하여 종료일 재계산)
+                                                                        await cancelHoldingInSheets(user.username, remainingHoldings);
                                                                         alert('홀딩이 취소되었습니다.\n페이지를 새로고침합니다.');
                                                                         window.location.reload();
                                                                     } catch (error) {
