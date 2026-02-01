@@ -5,7 +5,7 @@ import { getStudentField, parseHoldingStatus } from '../services/googleSheetsSer
 import {
     createHoldingRequest,
     createAbsenceRequest,
-    getActiveHolding,
+    getHoldingsByStudent,
     getAbsencesByStudent,
     cancelHolding,
     cancelAbsence,
@@ -52,7 +52,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
     const [requestType, setRequestType] = useState('holding'); // 'holding' | 'absence'
     const [selectedDates, setSelectedDates] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [activeHolding, setActiveHolding] = useState(null);
+    const [allHoldings, setAllHoldings] = useState([]); // Firebase의 모든 홀딩 내역
     const [absences, setAbsences] = useState([]);
     const [coachHolidays, setCoachHolidays] = useState({}); // 코치가 설정한 휴일
 
@@ -149,74 +149,50 @@ const HoldingManager = ({ user, studentData, onBack }) => {
     // 홀딩 사용 완료 여부 (남은 횟수가 0인 경우)
     const hasUsedAllHoldings = remainingHoldings <= 0;
 
-    // 홀딩 내역 조회 (수업일만 표시)
+    // 홀딩 내역 조회 (Firebase 데이터 기반 - 여러 홀딩 지원)
     const holdingHistory = useMemo(() => {
-        if (!studentData) return [];
+        if (allHoldings.length === 0) return [];
 
-        const holdingStart = getStudentField(studentData, '홀딩 시작일');
-        const holdingEnd = getStudentField(studentData, '홀딩 종료일');
+        // 수업 요일 목록
+        const classDays = schedule.map(s => {
+            const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
+            return dayMap[s.day];
+        });
 
-        if (holdingInfo.isCurrentlyUsed && holdingStart) {
-            const parseDate = (dateStr) => {
-                if (!dateStr) return null;
-                const cleaned = dateStr.replace(/\D/g, '');
-                if (cleaned.length === 6) {
-                    const year = parseInt('20' + cleaned.substring(0, 2));
-                    const month = parseInt(cleaned.substring(2, 4)) - 1;
-                    const day = parseInt(cleaned.substring(4, 6));
-                    return new Date(year, month, day);
+        // Firebase 홀딩 데이터를 내역 형식으로 변환
+        return allHoldings.map(holding => {
+            const startDate = new Date(holding.startDate + 'T00:00:00');
+            const endDate = new Date(holding.endDate + 'T00:00:00');
+
+            // 홀딩 기간 내 수업일 계산
+            const dates = [];
+            const current = new Date(startDate);
+            while (current <= endDate) {
+                if (classDays.includes(current.getDay())) {
+                    dates.push(formatLocalDate(current));
                 }
-                return null;
-            };
-
-            // 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (timezone 문제 방지)
-            const formatLocalDateInner = (date) => {
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            };
-
-            // 수업 요일 목록
-            const classDays = schedule.map(s => {
-                const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
-                return dayMap[s.day];
-            });
-
-            const startDate = parseDate(holdingStart);
-            const endDate = parseDate(holdingEnd) || startDate;
-
-            if (startDate) {
-                const dates = [];
-                const current = new Date(startDate);
-                while (current <= endDate) {
-                    // 수업일인 경우에만 dates에 추가
-                    if (classDays.includes(current.getDay())) {
-                        dates.push(formatLocalDateInner(current));
-                    }
-                    current.setDate(current.getDate() + 1);
-                }
-
-                return [{
-                    startDate: formatLocalDateInner(startDate),
-                    endDate: formatLocalDateInner(endDate),
-                    dates,
-                    status: '승인됨'
-                }];
+                current.setDate(current.getDate() + 1);
             }
-        }
 
-        return [];
-    }, [studentData, schedule, holdingInfo]);
+            return {
+                id: holding.id, // Firebase document ID (취소 시 필요)
+                startDate: holding.startDate,
+                endDate: holding.endDate,
+                dates,
+                status: '승인됨'
+            };
+        }).sort((a, b) => new Date(a.startDate) - new Date(b.startDate)); // 날짜순 정렬
+    }, [allHoldings, schedule]);
 
-    // Load active holding and absences from Firebase
+    // Load all holdings and absences from Firebase
     useEffect(() => {
         const loadData = async () => {
             if (!user) return;
 
             try {
-                const holding = await getActiveHolding(user.username);
-                setActiveHolding(holding);
+                // 모든 홀딩 내역 로드 (여러 개)
+                const holdings = await getHoldingsByStudent(user.username);
+                setAllHoldings(holdings);
 
                 const absenceList = await getAbsencesByStudent(user.username);
                 setAbsences(absenceList);
@@ -443,9 +419,9 @@ const HoldingManager = ({ user, studentData, onBack }) => {
 
                 alert(`홀딩 신청이 완료되었습니다.\n기간: ${startDate} ~ ${endDate}`);
 
-                // Reload data
-                const holding = await getActiveHolding(user.username);
-                setActiveHolding(holding);
+                // Reload data - 모든 홀딩 내역 다시 로드
+                const holdings = await getHoldingsByStudent(user.username);
+                setAllHoldings(holdings);
             } else {
                 // 결석 신청 - Firebase에 저장
                 for (const date of sortedDates) {
@@ -513,92 +489,90 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                     </div>
                 )}
 
-                {/* 현재 활성 홀딩/결석 목록 - Google Sheets 데이터 기준 */}
+                {/* 현재 활성 홀딩/결석 목록 - Firebase 데이터 기준 */}
                 {(holdingHistory.length > 0 || absences.length > 0) && (
                     <div className="info-card" style={{ marginBottom: '24px', background: '#f0f4ff', borderColor: '#667eea' }}>
                         <div className="info-icon">📋</div>
                         <div className="info-content">
                             <h3 style={{ color: '#4338ca' }}>현재 신청 내역</h3>
 
-                            {holdingHistory.length > 0 && (() => {
-                                // Google Sheets의 홀딩 데이터 사용
-                                const holdingData = holdingHistory[0];
+                            {holdingHistory.length > 0 && (
+                                <div style={{ marginTop: '12px' }}>
+                                    <strong style={{ color: '#667eea' }}>⏸️ 홀딩</strong>
+                                    {holdingHistory.map(holdingData => {
+                                        // 홀딩 시작일의 첫 수업 시간이 지났는지 확인
+                                        const holdingStartDate = new Date(holdingData.startDate + 'T00:00:00');
+                                        const dayOfWeek = holdingStartDate.getDay();
+                                        const dayMap = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금' };
+                                        const dayName = dayMap[dayOfWeek];
+                                        const classInfo = schedule.find(s => s.day === dayName);
 
-                                // 홀딩 시작일의 첫 수업 시간이 지났는지 확인
-                                const holdingStartDate = new Date(holdingData.startDate + 'T00:00:00');
-                                const dayOfWeek = holdingStartDate.getDay();
-                                const dayMap = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금' };
-                                const dayName = dayMap[dayOfWeek];
-                                const classInfo = schedule.find(s => s.day === dayName);
+                                        let canCancelHolding = true;
+                                        if (classInfo) {
+                                            const period = PERIODS.find(p => p.id === classInfo.period);
+                                            if (period) {
+                                                const classDateTime = new Date(holdingStartDate);
+                                                classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
+                                                canCancelHolding = new Date() < classDateTime;
+                                            }
+                                        }
 
-                                let canCancelHolding = true;
-                                if (classInfo) {
-                                    const period = PERIODS.find(p => p.id === classInfo.period);
-                                    if (period) {
-                                        const classDateTime = new Date(holdingStartDate);
-                                        classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
-                                        canCancelHolding = new Date() < classDateTime;
-                                    }
-                                }
-
-                                return (
-                                    <div style={{ marginTop: '12px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #667eea' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div>
-                                                <strong style={{ color: '#667eea' }}>⏸️ 홀딩</strong>
-                                                <div style={{ fontSize: '14px', marginTop: '4px', color: '#374151' }}>
-                                                    {holdingData.startDate} ~ {holdingData.endDate}
-                                                    <span style={{ marginLeft: '8px', color: '#6b7280', fontSize: '12px' }}>
-                                                        ({holdingData.dates.length}일)
-                                                    </span>
+                                        return (
+                                            <div key={holdingData.id} style={{ marginTop: '8px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #667eea' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div>
+                                                        <div style={{ fontSize: '14px', color: '#374151' }}>
+                                                            {holdingData.startDate} ~ {holdingData.endDate}
+                                                            <span style={{ marginLeft: '8px', color: '#6b7280', fontSize: '12px' }}>
+                                                                ({holdingData.dates.length}일)
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    {canCancelHolding ? (
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (confirm(`홀딩을 취소하시겠습니까?\n기간: ${holdingData.startDate} ~ ${holdingData.endDate}`)) {
+                                                                    try {
+                                                                        // Firebase 홀딩 취소
+                                                                        await cancelHolding(holdingData.id);
+                                                                        // Google Sheets의 홀딩 정보도 초기화
+                                                                        await cancelHoldingInSheets(user.username);
+                                                                        alert('홀딩이 취소되었습니다.\n페이지를 새로고침합니다.');
+                                                                        window.location.reload();
+                                                                    } catch (error) {
+                                                                        alert('취소 실패: ' + error.message);
+                                                                    }
+                                                                }
+                                                            }}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                background: '#dc2626',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: '6px',
+                                                                cursor: 'pointer',
+                                                                fontSize: '13px'
+                                                            }}
+                                                        >
+                                                            취소
+                                                        </button>
+                                                    ) : (
+                                                        <span style={{
+                                                            padding: '6px 12px',
+                                                            background: '#e5e7eb',
+                                                            color: '#6b7280',
+                                                            borderRadius: '6px',
+                                                            fontSize: '13px'
+                                                        }}>
+                                                            수업 시작됨
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
-                                            {canCancelHolding ? (
-                                                <button
-                                                    onClick={async () => {
-                                                        if (confirm('홀딩을 취소하시겠습니까?\n\n주의: Google Sheets의 홀딩 정보가 초기화됩니다.')) {
-                                                            try {
-                                                                // Firebase에 activeHolding이 있으면 취소
-                                                                if (activeHolding) {
-                                                                    await cancelHolding(activeHolding.id);
-                                                                    setActiveHolding(null);
-                                                                }
-                                                                // Google Sheets의 홀딩 정보도 초기화
-                                                                await cancelHoldingInSheets(user.username);
-                                                                alert('홀딩이 취소되었습니다.\n페이지를 새로고침합니다.');
-                                                                window.location.reload();
-                                                            } catch (error) {
-                                                                alert('취소 실패: ' + error.message);
-                                                            }
-                                                        }
-                                                    }}
-                                                    style={{
-                                                        padding: '6px 12px',
-                                                        background: '#dc2626',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '6px',
-                                                        cursor: 'pointer',
-                                                        fontSize: '13px'
-                                                    }}
-                                                >
-                                                    취소
-                                                </button>
-                                            ) : (
-                                                <span style={{
-                                                    padding: '6px 12px',
-                                                    background: '#e5e7eb',
-                                                    color: '#6b7280',
-                                                    borderRadius: '6px',
-                                                    fontSize: '13px'
-                                                }}>
-                                                    수업 시작됨
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })()}
+                                        );
+                                    })}
+                                </div>
+                            )}
 
                             {absences.length > 0 && (
                                 <div style={{ marginTop: '12px' }}>

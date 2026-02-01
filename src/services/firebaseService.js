@@ -273,7 +273,7 @@ export const createHoldingRequest = async (studentName, startDate, endDate) => {
 };
 
 /**
- * 학생의 활성 홀딩 조회
+ * 학생의 활성 홀딩 조회 (단일)
  * @param {string} studentName - 학생 이름
  * @returns {Promise<Object|null>} - 홀딩 정보 또는 null
  */
@@ -297,6 +297,32 @@ export const getActiveHolding = async (studentName) => {
         return { id: docData.id, ...docData.data() };
     } catch (error) {
         console.error('❌ 홀딩 조회 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 학생의 모든 활성 홀딩 조회 (여러 개)
+ * @param {string} studentName - 학생 이름
+ * @returns {Promise<Array>} - 홀딩 목록
+ */
+export const getHoldingsByStudent = async (studentName) => {
+    if (!isFirebaseAvailable()) return [];
+
+    try {
+        const q = query(
+            collection(db, 'holdingRequests'),
+            where('studentName', '==', studentName),
+            where('status', '==', 'active')
+        );
+
+        const snapshot = await getDocs(q);
+        const holdings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        console.log(`📋 ${studentName} 홀딩 목록 조회:`, holdings.length);
+        return holdings;
+    } catch (error) {
+        console.error('❌ 홀딩 목록 조회 실패:', error);
         throw error;
     }
 };
