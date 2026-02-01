@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getStudentField } from '../services/googleSheetsService';
+import { getStudentField, parseHoldingStatus } from '../services/googleSheetsService';
 import {
     getActiveMakeupRequest,
     createMakeupRequest,
@@ -85,8 +85,11 @@ const parseSheetDate = (dateStr) => {
 const isCurrentlyOnHold = (student) => {
     const holdingStatus = getStudentField(student, '홀딩 사용여부');
 
-    // If holding status is not 'O', not on hold
-    if (holdingStatus !== 'O' && holdingStatus?.toLowerCase() !== 'o') {
+    // Parse holding status (supports both 'O' and 'O(1/2)' formats)
+    const holdingInfo = parseHoldingStatus(holdingStatus);
+
+    // If holding is not currently used, not on hold
+    if (!holdingInfo.isCurrentlyUsed) {
         return false;
     }
 
@@ -375,7 +378,9 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             if (students && students.length > 0) {
                 students.forEach(student => {
                     const holdingStatus = getStudentField(student, '홀딩 사용여부');
-                    if (holdingStatus === 'O' || holdingStatus?.toLowerCase() === 'o') {
+                    // Parse holding status (supports both 'O' and 'O(1/2)' formats)
+                    const holdingInfo = parseHoldingStatus(holdingStatus);
+                    if (holdingInfo.isCurrentlyUsed) {
                         const startDateStr = getStudentField(student, '홀딩 시작일');
                         const endDateStr = getStudentField(student, '홀딩 종료일');
 
