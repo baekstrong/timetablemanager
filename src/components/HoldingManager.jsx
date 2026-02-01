@@ -8,7 +8,8 @@ import {
     getActiveHolding,
     getAbsencesByStudent,
     cancelHolding,
-    cancelAbsence
+    cancelAbsence,
+    getHolidays
 } from '../services/firebaseService';
 import { cancelHoldingInSheets } from '../services/googleSheetsService';
 import './HoldingManager.css';
@@ -53,6 +54,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [activeHolding, setActiveHolding] = useState(null);
     const [absences, setAbsences] = useState([]);
+    const [coachHolidays, setCoachHolidays] = useState({}); // 코치가 설정한 휴일
 
     // 달력 월 선택 (기본값: 현재 월)
     const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
@@ -219,6 +221,25 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         };
         loadData();
     }, [user]);
+
+    // Load coach holidays from Firebase
+    useEffect(() => {
+        const loadCoachHolidays = async () => {
+            try {
+                const holidays = await getHolidays();
+                // Firebase 휴일을 { 'YYYY-MM-DD': '사유' } 형태로 변환
+                const holidayMap = {};
+                holidays.forEach(h => {
+                    holidayMap[h.date] = h.reason || '휴일';
+                });
+                setCoachHolidays(holidayMap);
+                console.log('📅 코치 휴일 로드됨:', holidayMap);
+            } catch (error) {
+                console.error('Failed to load coach holidays:', error);
+            }
+        };
+        loadCoachHolidays();
+    }, []);
 
     // 달력 생성 (월~금만 표시, 모든 날짜 표시)
     const calendar = useMemo(() => {
@@ -712,7 +733,10 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                 const isAbsence = absences.some(a => a.date === formatLocalDate(date));
                                 const isSelected = selectedDates.includes(formatLocalDate(date));
                                 const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
-                                const holidayName = isHoliday(date);
+                                const koreanHolidayName = isHoliday(date);
+                                const dateStr = formatLocalDate(date);
+                                const coachHolidayName = coachHolidays[dateStr];
+                                const holidayName = koreanHolidayName || coachHolidayName; // 한국 공휴일 또는 코치 설정 휴일
                                 const isOutOfPeriod = !isInPeriod; // 수강 기간 외 날짜
                                 const canRequest = isClass && canRequestHolding(date) && !isHolding && !isAbsence && !holidayName && isInPeriod;
 

@@ -769,12 +769,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 }
             }
 
-            // If class is disabled by coach AND no registered students, show "수업 없음"
-            if (classDisabled && !hasRegisteredStudents) {
-                return <div className="schedule-cell cell-empty"><span style={{ color: '#999' }}>수업 없음</span></div>;
-            }
-
-            // If it is my class, highlight it!
+            // If it is my class, highlight it! (check first, even if disabled)
             if (myClass) {
                 return (
                     <div
@@ -807,6 +802,11 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                         </div>
                     </div>
                 );
+            }
+
+            // If class is disabled by coach, show "수업 없음" (for non-enrolled students)
+            if (classDisabled) {
+                return <div className="schedule-cell cell-empty"><span style={{ color: '#999' }}>수업 없음</span></div>;
             }
 
             // If class is NOT disabled and no registered students, show available seats (7 자리)
