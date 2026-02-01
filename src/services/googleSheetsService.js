@@ -493,14 +493,14 @@ const isSameOrBefore = (date1, date2) => {
 };
 
 /**
- * Calculate end date based on start date, total sessions, schedule, and optional holding period
+ * Calculate end date based on start date, total sessions, schedule, and optional holding periods
  * @param {Date} startDate - Start date of membership
  * @param {number} totalSessions - Total number of sessions (e.g., weeklyFrequency * 4)
  * @param {string} scheduleStr - Schedule string (e.g., "화1목1")
- * @param {Object} holdingRange - Optional holding period {start: Date, end: Date}
+ * @param {Array|Object} holdingRanges - Optional holding period(s). Can be single {start, end} or array of them
  * @returns {Date|null} - Calculated end date
  */
-const calculateEndDate = (startDate, totalSessions, scheduleStr, holdingRange = null) => {
+const calculateEndDate = (startDate, totalSessions, scheduleStr, holdingRanges = null) => {
   if (!startDate || !scheduleStr || !totalSessions) return null;
 
   const schedule = parseScheduleString(scheduleStr);
@@ -508,6 +508,16 @@ const calculateEndDate = (startDate, totalSessions, scheduleStr, holdingRange = 
   const classDays = schedule.map(s => dayMap[s.day]).filter(d => d !== undefined);
 
   if (classDays.length === 0) return null;
+
+  // 홀딩 기간을 배열로 정규화
+  let holdingRangesArray = [];
+  if (holdingRanges) {
+    if (Array.isArray(holdingRanges)) {
+      holdingRangesArray = holdingRanges;
+    } else {
+      holdingRangesArray = [holdingRanges];
+    }
+  }
 
   let sessionCount = 0;
   const current = new Date(startDate);
@@ -525,10 +535,10 @@ const calculateEndDate = (startDate, totalSessions, scheduleStr, holdingRange = 
       // 공휴일인지 확인
       const isHoliday = isHolidayDate(current);
 
-      // 홀딩 기간인지 확인 (날짜만 비교)
-      const isInHoldingPeriod = holdingRange &&
-        isSameOrAfter(current, holdingRange.start) &&
-        isSameOrBefore(current, holdingRange.end);
+      // 여러 홀딩 기간 중 하나라도 해당하는지 확인
+      const isInHoldingPeriod = holdingRangesArray.some(range =>
+        range && isSameOrAfter(current, range.start) && isSameOrBefore(current, range.end)
+      );
 
       // 공휴일이 아니고 홀딩 기간이 아닌 경우에만 세션 카운트
       if (!isHoliday && !isInHoldingPeriod) {
@@ -999,9 +1009,10 @@ export const updateStudentData = async (rowIndex, studentData, year = null, mont
  * @param {Date} holdingEndDate - 홀딩 종료 날짜 (선택사항, 없으면 시작일과 동일)
  * @param {number} year - 년도
  * @param {number} month - 월 (1-12)
+ * @param {Array} existingHoldings - 기존 홀딩 목록 (Firebase에서 가져온 것, [{startDate, endDate}, ...])
  * @returns {Promise<Object>} - 성공 여부
  */
-export const requestHolding = async (studentName, holdingStartDate, holdingEndDate = null, year = null, month = null) => {
+export const requestHolding = async (studentName, holdingStartDate, holdingEndDate = null, year = null, month = null, existingHoldings = []) => {
   try {
     const endDate = holdingEndDate || holdingStartDate;
 
@@ -1155,12 +1166,28 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
     console.log(`📊 수강생 정보: 시작일=${startDateField}, 주횟수=${weeklyFrequency}, 등록개월=${holdingInfo.months}, 총 횟수=${totalSessions}`);
     console.log(`📊 홀딩 정보: 사용=${holdingInfo.used}/${holdingInfo.total}`);
 
-    const holdingRange = {
+    // 모든 홀딩 기간 수집 (기존 홀딩 + 새 홀딩)
+    const allHoldingRanges = [];
+
+    // 기존 홀딩들 추가 (Firebase에서 가져온 것)
+    if (existingHoldings && existingHoldings.length > 0) {
+      existingHoldings.forEach(h => {
+        const start = new Date(h.startDate + 'T00:00:00');
+        const end = new Date(h.endDate + 'T00:00:00');
+        allHoldingRanges.push({ start, end });
+      });
+      console.log(`📊 기존 홀딩 ${existingHoldings.length}개 포함`);
+    }
+
+    // 새 홀딩 추가
+    allHoldingRanges.push({
       start: holdingStartDate,
       end: endDate
-    };
+    });
 
-    const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, holdingRange);
+    console.log(`📊 총 ${allHoldingRanges.length}개 홀딩 기간으로 종료일 계산`);
+
+    const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allHoldingRanges);
 
     if (!newEndDate) {
       throw new Error('종료일 계산에 실패했습니다.');

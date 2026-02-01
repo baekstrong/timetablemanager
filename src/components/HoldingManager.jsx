@@ -415,7 +415,8 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                 };
                 const startDateObj = parseLocalDate(startDate);
                 const endDateObj = parseLocalDate(endDate);
-                await requestHolding(user.username, startDateObj, endDateObj);
+                // 기존 홀딩 목록을 전달하여 종료일 계산에 포함
+                await requestHolding(user.username, startDateObj, endDateObj, allHoldings);
 
                 alert(`홀딩 신청이 완료되었습니다.\n기간: ${startDate} ~ ${endDate}`);
 
