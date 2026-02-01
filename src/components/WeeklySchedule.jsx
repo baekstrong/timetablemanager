@@ -231,7 +231,7 @@ const transformGoogleSheetsData = (students) => {
 
 const WeeklySchedule = ({ user, studentData, onBack }) => {
     const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student'); // 'student' | 'coach'
-    const { students, isAuthenticated, loading } = useGoogleSheets();
+    const { students, isAuthenticated, loading, refresh } = useGoogleSheets();
 
     // Makeup request state
     const [showMakeupModal, setShowMakeupModal] = useState(false);
@@ -445,14 +445,18 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         loadWeeklyData();
 
         // Auto-refresh every 30 seconds when component is mounted
-        const refreshInterval = setInterval(() => {
+        const refreshInterval = setInterval(async () => {
             console.log('🔄 Auto-refreshing weekly data...');
+            // Google Sheets 데이터도 새로고침 (홀딩 실시간 반영)
+            await refresh();
             loadWeeklyData();
         }, 30000); // 30 seconds
 
         // Refresh when window gains focus (user comes back to the page)
-        const handleFocus = () => {
+        const handleFocus = async () => {
             console.log('🔄 Window focused - refreshing data...');
+            // Google Sheets 데이터도 새로고침 (홀딩 실시간 반영)
+            await refresh();
             loadWeeklyData();
         };
         window.addEventListener('focus', handleFocus);
@@ -462,7 +466,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             clearInterval(refreshInterval);
             window.removeEventListener('focus', handleFocus);
         };
-    }, [mode, students]); // Depend on students to reload holdings when Google Sheets data changes
+    }, [mode, students, refresh]); // Depend on students to reload holdings when Google Sheets data changes
 
     // Handle available seat click
     const handleAvailableSeatClick = (day, periodId, date) => {
