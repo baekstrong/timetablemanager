@@ -48,7 +48,7 @@ const isHoliday = (date) => {
 };
 
 const HoldingManager = ({ user, studentData, onBack }) => {
-    const { requestHolding } = useGoogleSheets();
+    const { requestHolding, refresh } = useGoogleSheets();
     const [requestType, setRequestType] = useState('holding'); // 'holding' | 'absence'
     const [selectedDates, setSelectedDates] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -423,6 +423,9 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                 // Reload data - 모든 홀딩 내역 다시 로드
                 const holdings = await getHoldingsByStudent(user.username);
                 setAllHoldings(holdings);
+
+                // Google Sheets 데이터 새로고침 (시간표 실시간 반영)
+                await refresh();
             } else {
                 // 결석 신청 - Firebase에 저장
                 for (const date of sortedDates) {
@@ -537,11 +540,17 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                                                         // Firebase 홀딩 취소
                                                                         await cancelHolding(holdingData.id);
                                                                         // 남은 홀딩 목록 계산 (취소된 홀딩 제외)
-                                                                        const remainingHoldings = allHoldings.filter(h => h.id !== holdingData.id);
+                                                                        const remainingHoldingsList = allHoldings.filter(h => h.id !== holdingData.id);
                                                                         // Google Sheets의 홀딩 정보 업데이트 (남은 홀딩 고려하여 종료일 재계산)
-                                                                        await cancelHoldingInSheets(user.username, remainingHoldings);
-                                                                        alert('홀딩이 취소되었습니다.\n페이지를 새로고침합니다.');
-                                                                        window.location.reload();
+                                                                        await cancelHoldingInSheets(user.username, remainingHoldingsList);
+
+                                                                        // 상태 업데이트
+                                                                        setAllHoldings(remainingHoldingsList);
+
+                                                                        // Google Sheets 데이터 새로고침 (시간표 실시간 반영)
+                                                                        await refresh();
+
+                                                                        alert('홀딩이 취소되었습니다.');
                                                                     } catch (error) {
                                                                         alert('취소 실패: ' + error.message);
                                                                     }

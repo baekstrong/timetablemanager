@@ -87,16 +87,16 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
 
     const menuItems = user.role === 'coach'
         ? [
+            { id: 'training', title: '훈련일지', icon: '📝', description: '수강생별 훈련 기록 관리' },
             { id: 'schedule', title: '시간표 관리', icon: '📅', description: '수강생 출석 현황 및 시간표 확인' },
             { id: 'students', title: '수강생 관리', icon: '👥', description: '수강생 정보 및 수강권 현황' },
-            { id: 'holidays', title: '휴일 설정', icon: '🗓️', description: '휴가, 휴무일 설정 (종료일 반영)' },
-            { id: 'training', title: '훈련일지', icon: '📝', description: '수강생별 훈련 기록 관리' }
+            { id: 'holidays', title: '휴일 설정', icon: '🗓️', description: '휴가, 휴무일 설정 (종료일 반영)' }
         ]
         : [
+            { id: 'training', title: '훈련일지', icon: '📝', description: '나의 운동 기록 관리' },
             { id: 'schedule', title: '시간표 조회', icon: '📅', description: '내 시간표 및 보강 신청' },
             { id: 'myinfo', title: '내 정보', icon: '👤', description: '수강권 현황 및 출석 기록' },
-            { id: 'holding', title: '홀딩 및 결석 신청', icon: '⏸️', description: '수업 홀딩 및 결석 신청' },
-            { id: 'training', title: '훈련일지', icon: '📝', description: '나의 운동 기록 관리' }
+            { id: 'holding', title: '홀딩 및 결석 신청', icon: '⏸️', description: '수업 홀딩 및 결석 신청' }
         ];
 
     return (
