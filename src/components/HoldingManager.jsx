@@ -153,11 +153,10 @@ const HoldingManager = ({ user, studentData, onBack }) => {
     const holdingHistory = useMemo(() => {
         if (!studentData) return [];
 
-        const holdingUsed = getStudentField(studentData, '홀딩 사용여부');
         const holdingStart = getStudentField(studentData, '홀딩 시작일');
         const holdingEnd = getStudentField(studentData, '홀딩 종료일');
 
-        if (holdingUsed === 'O' && holdingStart) {
+        if (holdingInfo.isCurrentlyUsed && holdingStart) {
             const parseDate = (dateStr) => {
                 if (!dateStr) return null;
                 const cleaned = dateStr.replace(/\D/g, '');
@@ -208,7 +207,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         }
 
         return [];
-    }, [studentData, schedule]);
+    }, [studentData, schedule, holdingInfo]);
 
     // Load active holding and absences from Firebase
     useEffect(() => {

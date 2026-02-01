@@ -704,11 +704,14 @@ export const generateAttendanceHistory = (student) => {
 
   const startDateStr = getStudentField(student, '시작날짜');
   const scheduleStr = getStudentField(student, '요일 및 시간');
-  const holdingUsed = getStudentField(student, '홀딩 사용여부');
+  const holdingStatusStr = getStudentField(student, '홀딩 사용여부');
   const holdingStartStr = getStudentField(student, '홀딩 시작일');
   const holdingEndStr = getStudentField(student, '홀딩 종료일');
   const makeupScheduleStr = getStudentField(student, '보강 요일 및 시간');
   const makeupDateStr = getStudentField(student, '보강 날짜');
+
+  // 여러달 수강권 지원: 홀딩 상태 파싱
+  const holdingInfo = parseHoldingStatus(holdingStatusStr);
 
   const history = [];
   const today = new Date();
@@ -749,8 +752,8 @@ export const generateAttendanceHistory = (student) => {
       period: s.period
     })).filter(c => c.day !== undefined);
 
-    const holdingStart = (holdingUsed === 'O' || holdingUsed === 'o') ? parseDate(holdingStartStr) : null;
-    const holdingEnd = (holdingUsed === 'O' || holdingUsed === 'o') ? parseDate(holdingEndStr) : null;
+    const holdingStart = holdingInfo.isCurrentlyUsed ? parseDate(holdingStartStr) : null;
+    const holdingEnd = holdingInfo.isCurrentlyUsed ? parseDate(holdingEndStr) : null;
 
     const current = new Date(startDate);
     while (current <= today) {
