@@ -444,13 +444,13 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     useEffect(() => {
         loadWeeklyData();
 
-        // Auto-refresh every 30 seconds when component is mounted
+        // Auto-refresh every 30 minutes when component is mounted
         const refreshInterval = setInterval(async () => {
             console.log('🔄 Auto-refreshing weekly data...');
             // Google Sheets 데이터도 새로고침 (홀딩 실시간 반영)
             await refresh();
             loadWeeklyData();
-        }, 30000); // 30 seconds
+        }, 1800000); // 30 minutes
 
         // Refresh when window gains focus (user comes back to the page)
         const handleFocus = async () => {
