@@ -384,26 +384,16 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     // Load all makeup requests (only for actual students, not coaches in student mode)
                     const makeups = await getActiveMakeupRequests(user.username);
 
-                    // 보강 수업 시작 1시간 전인 것들은 자동으로 완료 처리
-                    const { completeMakeupRequest } = await import('../services/firebaseService');
-                    const remainingMakeups = [];
-
+                    // 모든 보강을 유지 (시간표의 보강 출석 표시를 위해)
+                    // 팝업 배너에서만 isMakeupClassSoon으로 필터링하여 숨김 (1314번째 줄)
                     for (const makeup of makeups) {
                         if (isMakeupClassSoon(makeup)) {
-                            console.log('⏰ 보강 수업 시작 1시간 전 - 자동 완료 처리:', makeup.id);
-                            try {
-                                await completeMakeupRequest(makeup.id);
-                            } catch (error) {
-                                console.error('보강 자동 완료 실패:', error);
-                                remainingMakeups.push(makeup);
-                            }
-                        } else {
-                            remainingMakeups.push(makeup);
+                            console.log('⏰ 보강 수업 시작 1시간 전 - 팝업만 숨김 (시간표 표시는 유지):', makeup.id);
                         }
                     }
 
-                    setActiveMakeupRequests(remainingMakeups);
-                    console.log(`📊 Student makeup data loaded: ${remainingMakeups.length}개 활성 보강`);
+                    setActiveMakeupRequests(makeups);
+                    console.log(`📊 Student makeup data loaded: ${makeups.length}개 활성 보강`);
                 } catch (error) {
                     console.error('Failed to load student makeup data:', error);
                 }
