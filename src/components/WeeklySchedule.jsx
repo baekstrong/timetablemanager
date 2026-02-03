@@ -317,6 +317,56 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         return parsed;
     }, [studentData]);
 
+    // Helper function to check if a makeup class is within 1 hour of starting
+    const isMakeupClassSoon = (makeupRequest) => {
+        if (!makeupRequest || !makeupRequest.makeupClass) return false;
+
+        const { date, period } = makeupRequest.makeupClass;
+        const periodInfo = PERIODS.find(p => p.id === period);
+        if (!periodInfo) return false;
+
+        const now = new Date();
+        const classDate = new Date(date + 'T00:00:00');
+        classDate.setHours(periodInfo.startHour, periodInfo.startMinute, 0, 0);
+
+        // 수업 시작 1시간 전
+        const oneHourBefore = new Date(classDate.getTime() - 60 * 60 * 1000);
+
+        // 현재 시간이 수업 시작 1시간 전 이후인지 확인
+        return now >= oneHourBefore;
+    };
+
+    // Helper function to check if a class has started or is within 30 minutes of starting
+    // Used for preventing makeup requests to classes that are about to start
+    const isClassStartingSoon = (date, periodId) => {
+        const periodInfo = PERIODS.find(p => p.id === periodId);
+        if (!periodInfo) return false;
+
+        const now = new Date();
+        const classDate = new Date(date + 'T00:00:00');
+        classDate.setHours(periodInfo.startHour, periodInfo.startMinute, 0, 0);
+
+        // 수업 시작 30분 전
+        const thirtyMinutesBefore = new Date(classDate.getTime() - 30 * 60 * 1000);
+
+        // 현재 시간이 수업 시작 30분 전 이후인지 확인
+        return now >= thirtyMinutesBefore;
+    };
+
+    // Helper function to check if a class has already started
+    // Used for disabling original class selection in makeup modal
+    const hasClassStarted = (date, periodId) => {
+        const periodInfo = PERIODS.find(p => p.id === periodId);
+        if (!periodInfo) return false;
+
+        const now = new Date();
+        const classDate = new Date(date + 'T00:00:00');
+        classDate.setHours(periodInfo.startHour, periodInfo.startMinute, 0, 0);
+
+        // 현재 시간이 수업 시작 시간 이후인지 확인
+        return now >= classDate;
+    };
+
     // Load active makeup request for student mode (holdings are loaded by loadWeeklyData from Google Sheets)
     useEffect(() => {
         const loadStudentMakeupData = async () => {
@@ -324,7 +374,21 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 try {
                     // Load makeup request (only for actual students, not coaches in student mode)
                     const makeup = await getActiveMakeupRequest(user.username);
-                    setActiveMakeupRequest(makeup);
+
+                    // 보강 수업 시작 1시간 전이면 자동으로 완료 처리
+                    if (makeup && isMakeupClassSoon(makeup)) {
+                        console.log('⏰ 보강 수업 시작 1시간 전 - 자동 완료 처리');
+                        try {
+                            const { completeMakeupRequest } = await import('../services/firebaseService');
+                            await completeMakeupRequest(makeup.id);
+                            setActiveMakeupRequest(null);
+                        } catch (error) {
+                            console.error('보강 자동 완료 실패:', error);
+                            setActiveMakeupRequest(makeup);
+                        }
+                    } else {
+                        setActiveMakeupRequest(makeup);
+                    }
 
                     console.log(`📊 Student makeup data loaded: makeup=${!!makeup}`);
                 } catch (error) {
@@ -333,6 +397,15 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             }
         };
         loadStudentMakeupData();
+
+        // 1분마다 체크하여 보강 시간이 다가오면 자동 완료 처리
+        const checkInterval = setInterval(() => {
+            if (activeMakeupRequest && isMakeupClassSoon(activeMakeupRequest)) {
+                loadStudentMakeupData();
+            }
+        }, 60000); // 1분마다 체크
+
+        return () => clearInterval(checkInterval);
     }, [mode, user]);
 
     // Helper function to load weekly data
@@ -487,6 +560,13 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             return;
         }
 
+        // 수업 시작 30분 전까지만 보강 신청 가능
+        if (isClassStartingSoon(date, periodId)) {
+            const period = PERIODS.find(p => p.id === periodId);
+            alert(`${period?.name} 수업이 곧 시작됩니다.\n수업 시작 30분 전까지만 보강 신청이 가능합니다.`);
+            return;
+        }
+
         const period = PERIODS.find(p => p.id === periodId);
         // day는 이미 한글 요일 (월, 화, 수, 목, 금)
         const makeupSlot = { day, period: periodId, periodName: period.name, date };
@@ -595,7 +675,8 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
         // 4. Firebase data processing (Both student and coach modes)
         let makeupStudents = [];
-        let makeupAbsentStudents = [];
+        let makeupAbsentStudents = []; // 보강으로 인해 결석 (다른 시간에 수업)
+        let absenceStudents = []; // 일반 결석 신청
         let holdingStudents = [];
 
         // Get date for this slot
@@ -623,7 +704,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 })
                 .map(m => m.studentName);
 
-            // Find students absent FROM this slot due to makeup
+            // Find students absent FROM this slot due to makeup (보강결석)
             makeupAbsentStudents = weekMakeupRequests
                 .filter(m => {
                     const match = m.originalClass.day === day &&
@@ -648,19 +729,22 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 .map(h => h.studentName)
                 .filter(name => studentNames.includes(name));
 
-            // Find students with absence requests for this date
-            const absenceStudents = weekAbsences
-                .filter(a => a.date === slotDate)
-                .map(a => a.studentName);
-
-            // Combine makeup absent and absence request students
-            makeupAbsentStudents = [...new Set([...makeupAbsentStudents, ...absenceStudents])];
+            // Find students with absence requests for this date (일반 결석)
+            // 해당 슬롯에 등록된 학생만 결석으로 표시
+            absenceStudents = weekAbsences
+                .filter(a => a.date === slotDate && studentNames.includes(a.studentName))
+                .map(a => a.studentName)
+                // 보강결석이 아닌 학생만 일반 결석으로 표시
+                .filter(name => !makeupAbsentStudents.includes(name));
 
             if (makeupStudents.length > 0) {
                 console.log(`   → Makeup students: ${makeupStudents.join(', ')}`);
             }
             if (makeupAbsentStudents.length > 0) {
-                console.log(`   → Makeup/Absence absent: ${makeupAbsentStudents.join(', ')}`);
+                console.log(`   → Makeup absent (보강결석): ${makeupAbsentStudents.join(', ')}`);
+            }
+            if (absenceStudents.length > 0) {
+                console.log(`   → Absence (결석): ${absenceStudents.join(', ')}`);
             }
             if (holdingStudents.length > 0) {
                 console.log(`   → Holding students: ${holdingStudents.join(', ')}`);
@@ -668,13 +752,14 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         }
 
         // 5. Calculate counts
-        // Active Students = (Regular - Holds - MakeupAbsent - Holding) + Substitutes + MakeupStudents
+        // Active Students = (Regular - MakeupAbsent - Absence - Holding) + Substitutes + MakeupStudents
+        const allAbsentStudents = [...new Set([...makeupAbsentStudents, ...absenceStudents])];
         const activeStudents = studentNames.filter(name =>
-            !makeupAbsentStudents.includes(name) &&
+            !allAbsentStudents.includes(name) &&
             !holdingStudents.includes(name)
         );
 
-        // Regular students who are on the roster (not holding, but may be makeup-absent)
+        // Regular students who are on the roster (not holding, but may be absent)
         const regularStudentsPresent = studentNames.filter(name =>
             !holdingStudents.includes(name)
         );
@@ -693,6 +778,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             activeStudents,
             makeupStudents,
             makeupAbsentStudents,
+            absenceStudents, // 새로 추가: 일반 결석 학생
             holdingStudents,
             regularStudentsPresent
         };
@@ -917,13 +1003,21 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     </div>
 
                     <div className="student-list">
-                        {/* 1. Regular Students Present (not on hold, not holding) - show with makeup-absent styling if applicable */}
+                        {/* 1. Regular Students Present (not on hold, not holding) - show with makeup-absent or absence styling if applicable */}
                         {data.regularStudentsPresent.map(name => {
                             const isMakeupAbsent = data.makeupAbsentStudents.includes(name);
+                            const isAbsent = data.absenceStudents && data.absenceStudents.includes(name);
                             if (isMakeupAbsent) {
                                 return (
                                     <span key={name} className="student-tag" style={{ backgroundColor: '#fef3c7', color: '#92400e', textDecoration: 'line-through' }}>
                                         {name}(보강결석)
+                                    </span>
+                                );
+                            }
+                            if (isAbsent) {
+                                return (
+                                    <span key={name} className="student-tag" style={{ backgroundColor: '#fecaca', color: '#991b1b', textDecoration: 'line-through' }}>
+                                        {name}(결석)
                                     </span>
                                 );
                             }
@@ -1107,6 +1201,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                     const dateStr = weekDates[schedule.day];
                                     let originalDateStr = '';
                                     let isPastDate = false;
+                                    let isStarted = false;
                                     if (dateStr) {
                                         const [month, dayNum] = dateStr.split('/');
                                         const year = new Date().getFullYear();
@@ -1117,16 +1212,27 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                         today.setHours(0, 0, 0, 0);
                                         const classDate = new Date(originalDateStr + 'T00:00:00');
                                         isPastDate = classDate < today;
+
+                                        // 수업이 이미 시작했는지 확인 (오늘 날짜인 경우)
+                                        if (!isPastDate) {
+                                            isStarted = hasClassStarted(originalDateStr, schedule.period);
+                                        }
                                     }
+
+                                    const isDisabled = isPastDate || isStarted;
 
                                     return (
                                         <div
                                             key={index}
-                                            className={`original-class-item ${selectedOriginalClass?.day === schedule.day && selectedOriginalClass?.period === schedule.period ? 'selected' : ''} ${isPastDate ? 'disabled' : ''}`}
-                                            style={isPastDate ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: '#f3f4f6' } : {}}
+                                            className={`original-class-item ${selectedOriginalClass?.day === schedule.day && selectedOriginalClass?.period === schedule.period ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
+                                            style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: '#f3f4f6' } : {}}
                                             onClick={() => {
                                                 if (isPastDate) {
                                                     alert('이미 지난 수업은 보강 신청을 할 수 없습니다.');
+                                                    return;
+                                                }
+                                                if (isStarted) {
+                                                    alert('이미 시작한 수업은 보강 신청을 할 수 없습니다.');
                                                     return;
                                                 }
 
@@ -1139,8 +1245,8 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                             }}
                                         >
                                             <span className="period-name">{schedule.day}요일 {periodInfo?.name}</span>
-                                            <span style={{ fontSize: '0.8em', color: isPastDate ? '#999' : '#666', marginLeft: '8px' }}>
-                                                ({dateStr}){isPastDate && ' - 지남'}
+                                            <span style={{ fontSize: '0.8em', color: isDisabled ? '#999' : '#666', marginLeft: '8px' }}>
+                                                ({dateStr}){isPastDate && ' - 지남'}{isStarted && ' - 수업 중'}
                                             </span>
                                         </div>
                                     );
@@ -1171,8 +1277,8 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 </div>
             )}
 
-            {/* Active Makeup Banner */}
-            {activeMakeupRequest && mode === 'student' && (
+            {/* Active Makeup Banner - 보강 수업 시작 1시간 전에는 숨김 */}
+            {activeMakeupRequest && mode === 'student' && !isMakeupClassSoon(activeMakeupRequest) && (
                 <div className="active-makeup-banner">
                     <div className="banner-content">
                         <span className="banner-icon">🔄</span>

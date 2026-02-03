@@ -194,17 +194,17 @@ export const batchUpdateSheet = async (updates) => {
 /**
  * Highlight cells with yellow background (노란색 하이라이트)
  * @param {Array<string>} ranges - Array of cell ranges (e.g., ["A5", "B5", "C5"])
- * @param {string} foundSheetName - Sheet name
+ * @param {string} sheetName - Sheet name (백엔드 파라미터명과 일치)
  * @returns {Promise}
  */
-export const highlightCells = async (ranges, foundSheetName) => {
+export const highlightCells = async (ranges, sheetName) => {
   try {
     const response = await fetch(`${FUNCTIONS_BASE_URL}/formatCells`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ranges, foundSheetName }),
+      body: JSON.stringify({ ranges, sheetName }),
     });
 
     const data = await response.json();
