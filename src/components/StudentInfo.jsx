@@ -139,11 +139,11 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                 {/* 수강권 정보 카드 */}
                 <div className="membership-card">
                     <div className="card-header">
-                        <h2>무제한 수강권</h2>
+                        <h2>수강 정보</h2>
                         {membershipInfo.remainingSessions <= 2 && membershipInfo.remainingSessions > 0 && (
                             <span className="warning-badge">⚠️ 만료 임박</span>
                         )}
-                        {membershipInfo.remainingSessions === 0 && (
+                        {membershipInfo.remainingSessions === 0 && membershipInfo.endDate && new Date(membershipInfo.endDate) < new Date() && (
                             <span className="expired-badge">❌ 만료됨</span>
                         )}
                     </div>

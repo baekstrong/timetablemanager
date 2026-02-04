@@ -555,13 +555,14 @@ const calculateEndDate = (startDate, totalSessions, scheduleStr, holdingRanges =
 };
 
 /**
- * 시작일부터 오늘까지 완료된 수업 횟수 계산
+ * 시작일부터 오늘까지 완료된 수업 횟수 계산 (홀딩 기간 제외)
  * @param {Date} startDate - 시작일
  * @param {Date} today - 오늘 날짜
  * @param {string} scheduleStr - 요일 및 시간 (예: "화1목1")
+ * @param {Object} holdingRange - 홀딩 기간 { start: Date, end: Date } (optional)
  * @returns {number} - 완료된 수업 횟수
  */
-const calculateCompletedSessions = (startDate, today, scheduleStr) => {
+const calculateCompletedSessions = (startDate, today, scheduleStr, holdingRange = null) => {
   if (!startDate || !scheduleStr) return 0;
 
   if (startDate > today) return 0;
@@ -578,7 +579,14 @@ const calculateCompletedSessions = (startDate, today, scheduleStr) => {
   while (current <= today) {
     const dayOfWeek = current.getDay();
     if (classDays.includes(dayOfWeek)) {
-      count++;
+      // 홀딩 기간 중에는 수업 완료로 카운트하지 않음
+      const isInHoldingPeriod = holdingRange &&
+        current >= holdingRange.start &&
+        current <= holdingRange.end;
+
+      if (!isInHoldingPeriod) {
+        count++;
+      }
     }
     current.setDate(current.getDate() + 1);
   }
@@ -630,14 +638,26 @@ export const calculateMembershipStats = (student) => {
   const weeklyFrequency = parseInt(weeklyFrequencyStr) || 2;
   // 여러달 등록: 총 세션 = 주횟수 × 4주 × 등록개월
   const totalSessions = weeklyFrequency * 4 * holdingInfo.months;
-  const completedSessions = calculateCompletedSessions(startDate, today, scheduleStr);
-  const remainingSessions = Math.max(0, totalSessions - completedSessions);
 
   // 여러달 등록: 남은 홀딩 횟수 = 총 홀딩 횟수 - 사용한 횟수
   const holdingUsed = holdingInfo.isCurrentlyUsed;
   const remainingHolding = holdingInfo.total - holdingInfo.used;
   const totalHolding = holdingInfo.total;
   const usedHolding = holdingInfo.used;
+
+  // 홀딩 기간 정보 가져오기 (completedSessions 계산에 사용)
+  let holdingRange = null;
+  if (holdingUsed) {
+    const holdingStartDate = parseDate(getStudentField(student, '홀딩 시작일'));
+    const holdingEndDate = parseDate(getStudentField(student, '홀딩 종료일'));
+    if (holdingStartDate && holdingEndDate) {
+      holdingRange = { start: holdingStartDate, end: holdingEndDate };
+    }
+  }
+
+  // 홀딩 기간을 제외한 완료된 세션 수 계산
+  const completedSessions = calculateCompletedSessions(startDate, today, scheduleStr, holdingRange);
+  const remainingSessions = Math.max(0, totalSessions - completedSessions);
 
   const formatDate = (date) => {
     if (!date) return '';
@@ -649,42 +669,11 @@ export const calculateMembershipStats = (student) => {
 
   let endDate = null;
   if (startDate && scheduleStr) {
-    let holdingRange = null;
-    if (holdingUsed) {
-      const holdingStartDate = parseDate(getStudentField(student, '홀딩 시작일'));
-      const holdingEndDate = parseDate(getStudentField(student, '홀딩 종료일'));
-      if (holdingStartDate && holdingEndDate) {
-        holdingRange = { start: holdingStartDate, end: holdingEndDate };
-      }
-    }
-
     endDate = calculateEndDate(startDate, totalSessions, scheduleStr, holdingRange);
   }
 
-  let attendanceCount = completedSessions;
-
-  if (holdingUsed && startDate && scheduleStr) {
-    const holdingStartDate = parseDate(getStudentField(student, '홀딩 시작일'));
-    const holdingEndDate = parseDate(getStudentField(student, '홀딩 종료일'));
-
-    if (holdingStartDate && holdingEndDate) {
-      const schedule = parseScheduleString(scheduleStr);
-      const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
-      const classDays = schedule.map(s => dayMap[s.day]).filter(d => d !== undefined);
-
-      let holdingSessionCount = 0;
-      const current = new Date(holdingStartDate);
-      while (current <= holdingEndDate) {
-        const dayOfWeek = current.getDay();
-        if (classDays.includes(dayOfWeek)) {
-          holdingSessionCount++;
-        }
-        current.setDate(current.getDate() + 1);
-      }
-
-      attendanceCount -= holdingSessionCount;
-    }
-  }
+  // completedSessions는 이미 홀딩 기간을 제외하고 계산됨
+  const attendanceCount = completedSessions;
 
   return {
     studentName: getStudentField(student, '이름'),
