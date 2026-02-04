@@ -257,7 +257,7 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                             <div key={index} className="attendance-item">
                                 <div className="attendance-date">{record.date}</div>
                                 <div className="attendance-period">{record.period}</div>
-                                <div className="attendance-type">{record.type}</div>
+                                <div className={`attendance-type ${record.type === '보강' ? 'makeup' : ''}`}>{record.type}</div>
                                 <div className={`attendance-status ${getStatusColor(record.status)}`}>
                                     {record.status}
                                 </div>

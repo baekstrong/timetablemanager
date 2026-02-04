@@ -314,6 +314,11 @@
     text-align: center;
 }
 
+.attendance-type.makeup {
+    background: #fef3c7;
+    color: #92400e;
+}
+
 .attendance-status {
     padding: 6px 16px;
     border-radius: 20px;
