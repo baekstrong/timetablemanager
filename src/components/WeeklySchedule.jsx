@@ -1122,6 +1122,23 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 <h1 className="schedule-page-title">
                     {mode === 'coach' ? '코치 시간표' : '수강생 시간표'}
                 </h1>
+                {user?.role === 'coach' && (
+                    <button
+                        onClick={handleManualRefresh}
+                        disabled={isRefreshing}
+                        style={{
+                            marginLeft: '12px',
+                            padding: '4px 12px',
+                            fontSize: '0.9rem',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            backgroundColor: isRefreshing ? '#f3f4f6' : '#fff',
+                            cursor: isRefreshing ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        {isRefreshing ? '새로고침 중...' : '🔄 새로고침'}
+                    </button>
+                )}
             </div>
 
             {user?.role === 'coach' && (
@@ -1137,14 +1154,6 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                         onClick={() => setMode('coach')}
                     >
                         코치 모드
-                    </button>
-                    <button
-                        className="mode-toggle"
-                        onClick={handleManualRefresh}
-                        disabled={isRefreshing}
-                        style={{ marginLeft: '8px' }}
-                    >
-                        {isRefreshing ? '새로고침 중...' : '🔄 새로고침'}
                     </button>
                 </div>
             )}
