@@ -258,7 +258,7 @@ window.closeNoticePopup = function () {
 // Window Loading & Initialization
 // ============================================
 
-function initApp() {
+async function initApp() {
     // Expose all imported module functions to window
     Object.assign(window, Auth);
     Object.assign(window, Sets);
@@ -272,13 +272,13 @@ function initApp() {
     // Init logic
     state.currentSets = [];
 
-    // Render Initial Screen
-    window.render();
-
-    // Auto Login (No delay needed if Firebase is initialized)
+    // Auto Login 먼저 시도 (render 전에 실행하여 로그인 화면 깜빡임 방지)
     if (!state.currentUser) {
-        Auth.autoLogin();
+        await Auth.autoLogin();
     }
+
+    // 자동 로그인 결과에 따라 적절한 화면 렌더링
+    window.render();
 
     console.log('✅ Web App Initialized (Fast Mode)');
 }
