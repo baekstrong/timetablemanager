@@ -972,7 +972,11 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     <div
                         className="schedule-cell cell-disabled"
                         style={{ backgroundColor: '#f3f4f6', cursor: 'pointer' }}
-                        onClick={() => toggleClassDisabledHandler(day, periodObj.id)}
+                        onClick={() => {
+                            if (confirm(`${day}요일 ${periodObj.name} 수업을 활성화하시겠습니까?`)) {
+                                toggleClassDisabledHandler(day, periodObj.id);
+                            }
+                        }}
                     >
                         <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>수업 없음</div>
                         <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '4px' }}>클릭하여 활성화</div>
