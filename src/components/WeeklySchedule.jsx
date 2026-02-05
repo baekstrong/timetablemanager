@@ -520,30 +520,24 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     // Load weekly Firebase data for coach mode and student mode
     useEffect(() => {
         loadWeeklyData();
+    }, [mode, students]); // Depend on students to reload holdings when Google Sheets data changes
 
-        // Auto-refresh every 30 minutes when component is mounted
-        const refreshInterval = setInterval(async () => {
-            console.log('🔄 Auto-refreshing weekly data...');
-            // Google Sheets 데이터도 새로고침 (홀딩 실시간 반영)
-            await refresh();
-            loadWeeklyData();
-        }, 1800000); // 30 minutes
+    // 수동 새로고침 상태
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
-        // Refresh when window gains focus (user comes back to the page)
-        const handleFocus = async () => {
-            console.log('🔄 Window focused - refreshing data...');
-            // Google Sheets 데이터도 새로고침 (홀딩 실시간 반영)
-            await refresh();
-            loadWeeklyData();
-        };
-        window.addEventListener('focus', handleFocus);
-
-        // Cleanup
-        return () => {
-            clearInterval(refreshInterval);
-            window.removeEventListener('focus', handleFocus);
-        };
-    }, [mode, students, refresh]); // Depend on students to reload holdings when Google Sheets data changes
+    // 수동 새로고침 핸들러
+    const handleManualRefresh = async () => {
+        setIsRefreshing(true);
+        try {
+            console.log('🔄 Manual refresh triggered...');
+            await refresh(); // Google Sheets 새로고침
+            await loadWeeklyData(); // Firebase 데이터 새로고침
+        } catch (error) {
+            console.error('Refresh failed:', error);
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
 
     // Handle available seat click
     const handleAvailableSeatClick = (day, periodId, date) => {
@@ -1143,6 +1137,14 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                         onClick={() => setMode('coach')}
                     >
                         코치 모드
+                    </button>
+                    <button
+                        className="mode-toggle"
+                        onClick={handleManualRefresh}
+                        disabled={isRefreshing}
+                        style={{ marginLeft: '8px' }}
+                    >
+                        {isRefreshing ? '새로고침 중...' : '🔄 새로고침'}
                     </button>
                 </div>
             )}
