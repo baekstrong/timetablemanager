@@ -581,8 +581,8 @@
         width: 100%;
         overflow-x: hidden;
 
-        /* Compact columns */
-        grid-template-columns: 35px repeat(5, 1fr);
+        /* Compact columns - 시간 열 너비 확대 */
+        grid-template-columns: 55px repeat(5, 1fr);
 
         border-radius: 8px;
         font-size: 0.75rem;
@@ -610,13 +610,16 @@
 
     .mode-student .period-name {
         font-size: 0.85em;
-        margin-bottom: 0;
+        margin-bottom: 2px;
         text-align: center;
         line-height: 1.2;
     }
 
     .mode-student .period-time {
-        display: none;
+        font-size: 0.65em;
+        color: #888;
+        text-align: center;
+        line-height: 1.1;
     }
 
     .mode-student .seat-count {
