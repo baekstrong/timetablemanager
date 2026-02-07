@@ -234,14 +234,18 @@ export function renderCoachScreen() {
                         <input type="checkbox" id="pinnedMemoFilterCheck" ${state.pinnedMemoFilter ? 'checked' : ''} onchange="togglePinnedMemoFilter()" class="w-5 h-5">
                         <label for="pinnedMemoFilterCheck" class="text-sm font-semibold text-purple-700">📝 운동 메모만 보기</label>
                     </div>
+                    <div class="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
+                        <input type="checkbox" id="recordsFilterCheck" ${state.recordsFilter ? 'checked' : ''} onchange="toggleRecordsFilter()" class="w-5 h-5">
+                        <label for="recordsFilterCheck" class="text-sm font-semibold text-blue-700">📋 운동 기록 보기</label>
+                    </div>
                 </div>
             </div>
 
             <!-- 코치 고정 메모 현황 (선택한 수강생만) -->
             <div id="coachPinnedMemosSection" class="mb-4"></div>
 
-            <!-- 전체 기록 카드 -->
-            <div id="allRecordsList" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"></div>
+            <!-- 전체 기록 카드 (기본 숨김, 운동 기록 보기 체크 시 표시) -->
+            <div id="allRecordsList" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3" style="display: ${state.recordsFilter ? 'grid' : 'none'}"></div>
             
             <!-- 고정 메모 관리 (레거시/고급) -->
             <div class="mt-6">

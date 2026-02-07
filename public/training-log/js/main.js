@@ -271,12 +271,8 @@ async function initApp() {
     // Init logic
     state.currentSets = [];
 
-    // Auto Login 먼저 시도 (render 전에 실행하여 로그인 화면 깜빡임 방지)
-    if (!state.currentUser) {
-        await Auth.autoLogin();
-    }
-
-    // 코치 모드 필터 상태를 render 전에 복원 (UI 렌더링 시 체크박스 반영)
+    // 코치 모드 필터 상태를 autoLogin/render 전에 미리 복원
+    // (autoLogin 내부에서 render()를 호출하므로 그 전에 설정해야 함)
     const savedMemoFilter = localStorage.getItem('coachPinnedMemoFilter');
     if (savedMemoFilter === null || savedMemoFilter === 'true') {
         state.pinnedMemoFilter = true;
@@ -285,8 +281,15 @@ async function initApp() {
         state.painFilter = true;
     }
 
-    // 자동 로그인 결과에 따라 적절한 화면 렌더링
-    window.render();
+    // Auto Login 먼저 시도 (render 전에 실행하여 로그인 화면 깜빡임 방지)
+    if (!state.currentUser) {
+        await Auth.autoLogin();
+    }
+
+    // autoLogin이 render()를 호출하지 않은 경우 (비로그인 상태) 렌더링
+    if (!state.currentUser) {
+        window.render();
+    }
 
     console.log('✅ Web App Initialized (Fast Mode)');
 }

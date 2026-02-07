@@ -19,6 +19,7 @@ export const state = {
     painFilter: false,
     memoFilter: false,
     pinnedMemoFilter: false,
+    recordsFilter: false,
 
     // UI state
     addSetCount: 1,

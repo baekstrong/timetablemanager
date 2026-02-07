@@ -131,17 +131,12 @@ export async function loadStudentList() {
 
         // Initial render: 선택된 학생이 있을 때만 데이터 로드
         if (state.selectedStudents.length > 0) {
+            // 메모 표시 (pinnedMemoFilter가 true일 때)
             if (state.pinnedMemoFilter) {
-                // 운동 메모만 보기 모드: 메모만 렌더링 (records 로드 안 함)
                 renderPinnedMemosForCoach();
-                // allRecordsList 숨기기, pinnedMemosSection 보이기
-                const allRecordsList = document.getElementById('allRecordsList');
-                const pinnedSection = document.getElementById('coachPinnedMemosSection');
-                if (allRecordsList) allRecordsList.style.display = 'none';
-                if (pinnedSection) pinnedSection.style.display = 'block';
-            } else {
-                // 전체 기록 보기 모드
-                renderPinnedMemosForCoach();
+            }
+            // 운동 기록 표시 (recordsFilter가 true일 때만)
+            if (state.recordsFilter) {
                 debouncedLoadAllRecords();
             }
         }
@@ -186,10 +181,10 @@ export function toggleStudent(studentName) {
     // Update UI without reloading entire list (which would restore from localStorage)
     updateStudentBadges();
     updateStudentSelectionSummary();
-    debouncedLoadAllRecords();
 
-    // Feature 3, 4, 5: Update pinned memos view for selected students
-    renderPinnedMemosForCoach();
+    // 메모/기록 업데이트
+    if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
+    if (state.recordsFilter) debouncedLoadAllRecords();
 }
 
 // Helper function to update student badges without full reload
@@ -508,7 +503,7 @@ export async function saveCoachCommentToStudentMemo(studentName, memoIndex) {
                 });
 
                 alert('✅ 코멘트가 저장되었습니다!');
-                debouncedLoadAllRecords();
+                if (state.recordsFilter) debouncedLoadAllRecords();
             } else {
                 alert('메모를 찾을 수 없습니다.');
             }
@@ -534,8 +529,8 @@ export function toggleSelectAll() {
 
     updateStudentBadges();
     updateStudentSelectionSummary();
-    debouncedLoadAllRecords();
-    renderPinnedMemosForCoach();
+    if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
+    if (state.recordsFilter) debouncedLoadAllRecords();
 }
 
 export function clearStudentSelection() {
@@ -546,8 +541,8 @@ export function clearStudentSelection() {
 
     updateStudentBadges();
     updateStudentSelectionSummary();
-    debouncedLoadAllRecords();
-    renderPinnedMemosForCoach();
+    if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
+    if (state.recordsFilter) debouncedLoadAllRecords();
 }
 
 export function toggleStudentList() {
@@ -566,20 +561,20 @@ export function toggleStudentList() {
 // 필터 관련
 export function changeCoachDate(newDate) {
     state.selectedDate = newDate;
-    debouncedLoadAllRecords();
+    if (state.recordsFilter) debouncedLoadAllRecords();
 }
 
 export function showAllDates() {
     state.selectedDate = null;
     document.getElementById('coachDateFilter').value = '';
-    debouncedLoadAllRecords();
+    if (state.recordsFilter) debouncedLoadAllRecords();
 }
 
 export function togglePainFilter() {
     const checkbox = document.getElementById('painFilterCheck');
     state.painFilter = checkbox ? checkbox.checked : false;
     localStorage.setItem('coachPainFilter', state.painFilter);
-    debouncedLoadAllRecords();
+    if (state.recordsFilter) debouncedLoadAllRecords();
 }
 
 export function toggleMemoFilter() {
@@ -591,7 +586,36 @@ export function togglePinnedMemoFilter() {
     const checkbox = document.getElementById('pinnedMemoFilterCheck');
     state.pinnedMemoFilter = checkbox ? checkbox.checked : false;
     localStorage.setItem('coachPinnedMemoFilter', state.pinnedMemoFilter);
-    debouncedLoadAllRecords();
+
+    const pinnedSection = document.getElementById('coachPinnedMemosSection');
+    if (state.pinnedMemoFilter) {
+        if (pinnedSection) pinnedSection.style.display = 'block';
+        renderPinnedMemosForCoach();
+    } else {
+        if (pinnedSection) pinnedSection.style.display = 'none';
+    }
+}
+
+export function toggleRecordsFilter() {
+    const checkbox = document.getElementById('recordsFilterCheck');
+    state.recordsFilter = checkbox ? checkbox.checked : false;
+
+    const allRecordsList = document.getElementById('allRecordsList');
+    if (state.recordsFilter) {
+        // 운동 기록 보기 체크 → 기록 로드 및 표시
+        if (allRecordsList) allRecordsList.style.display = 'grid';
+        loadAllRecords();
+    } else {
+        // 체크 해제 → 기록 숨기기, 리스너 해제
+        if (allRecordsList) {
+            allRecordsList.style.display = 'none';
+            allRecordsList.innerHTML = '';
+        }
+        if (state.unsubscribe) {
+            state.unsubscribe();
+            state.unsubscribe = null;
+        }
+    }
 }
 
 export function promptPersonalMessage(studentName) {
@@ -612,31 +636,14 @@ export function changeCoachExerciseFilter(exerciseName) {
     state.exerciseFilter = exerciseName;
 
     // 운동 필터가 켜져도 날짜 필터를 유지하도록 수정 (state.selectedDate = null 제거)
-    debouncedLoadAllRecords();
+    if (state.recordsFilter) debouncedLoadAllRecords();
 }
 
-// 전체 기록 불러오기
+// 전체 기록 불러오기 (운동 기록 보기 체크 시에만 호출됨)
 export async function loadAllRecords() {
     const allRecordsList = document.getElementById('allRecordsList');
-    const pinnedSection = document.getElementById('coachPinnedMemosSection');
 
     if (!allRecordsList) return;
-
-    // Feature: "Workout Memo Only" View Logic
-    // If filter is checked -> Show Only Memos (Photo 2 style), Hide Records
-    // If filter is unchecked -> Show Records, Hide Memos (or keep logic consistent)
-    if (state.pinnedMemoFilter) {
-        if (allRecordsList) allRecordsList.style.display = 'none';
-        if (pinnedSection) {
-            pinnedSection.style.display = 'block';
-            if (typeof renderPinnedMemosForCoach === 'function') renderPinnedMemosForCoach();
-        }
-        return; // Stop fetching records
-    } else {
-        if (allRecordsList) allRecordsList.style.display = 'grid';
-        // Optional: Hide pinned memos when not in "Memo View" (to avoid clutter)
-        if (pinnedSection) pinnedSection.style.display = 'none';
-    }
 
     if (state.unsubscribe) state.unsubscribe();
 
