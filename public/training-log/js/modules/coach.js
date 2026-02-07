@@ -51,7 +51,9 @@ export async function loadStudentList() {
             const chk = document.getElementById('painFilterCheck');
             if (chk) chk.checked = true;
         }
-        if (localStorage.getItem('coachPinnedMemoFilter') === 'true') {
+        // 운동 메모만 보기: 저장된 값이 없으면 기본 true (체크)
+        const savedMemoFilter = localStorage.getItem('coachPinnedMemoFilter');
+        if (savedMemoFilter === null || savedMemoFilter === 'true') {
             state.pinnedMemoFilter = true;
             const chk = document.getElementById('pinnedMemoFilterCheck');
             if (chk) chk.checked = true;

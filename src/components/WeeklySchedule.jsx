@@ -819,13 +819,18 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 }
             }
         } else {
-            // Coach Mode
-            const attendingList = [
+            // Coach Mode: 출석 학생을 선택하여 훈련일지로 이동
+            const attendingStudents = [
                 ...cellData.activeStudents,
+                ...cellData.makeupStudents,
                 ...cellData.subs.map(s => s.name)
-            ].join(', ');
-            alert(`[${day}요일 ${periodObj.name} 출석 명단]\n${attendingList}`);
-            // Navigate to training log logic would go here
+            ];
+
+            // 훈련일지에서 읽을 수 있도록 localStorage에 선택된 학생 저장
+            localStorage.setItem('coachSelectedStudents', JSON.stringify(attendingStudents));
+
+            // 훈련일지로 이동
+            window.location.href = './training-log/index.html';
         }
     };
 
