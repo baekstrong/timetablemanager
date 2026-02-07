@@ -1,5 +1,5 @@
 import * as Admin from './modules/admin.js';
-import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminModalHTML, renderNoticeModalHTML, renderNoticePopupHTML } from './ui.js';
+import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminModalHTML } from './ui.js';
 
 import { state, db, firebaseInitialized } from './state.js';
 // Import all functions to expose to window
@@ -164,7 +164,7 @@ window.render = function () {
     if (!state.currentUser) {
         app.innerHTML = renderLoginScreen();
     } else if (state.isCoach) {
-        app.innerHTML = renderCoachScreen() + renderAdminModalHTML() + renderNoticeModalHTML(); // Admin & Notice Modal Added
+        app.innerHTML = renderCoachScreen() + renderAdminModalHTML();
 
         // * Default Date: Set to Today
         const today = new Date();
@@ -191,67 +191,8 @@ window.render = function () {
         Records.updatePinnedDisplay();
         setTimeout(loadAutoSavedData, 100);
         Admin.loadExercisesList(); // Load exercises for Datalist
-        checkAndShowNotice(); // Check for announcements
     }
 }
-
-// ============================================
-// Notice Logic (Student Side)
-// ============================================
-
-async function checkAndShowNotice() {
-    if (!state.currentUser || state.isCoach || !db) return;
-
-    try {
-        const doc = await db.collection('notices').doc('shared').get();
-        if (!doc.exists) return;
-
-        const notice = doc.data();
-        if (!notice.isVisible) return;
-
-        const today = new Date().toISOString().split('T')[0];
-        if (today < notice.startDate || today > notice.endDate) return;
-
-        // "오늘 하루 보지 않기" 체크 확인
-        const lastSeenDate = localStorage.getItem(`notice_hidden_${state.currentUser}`);
-        if (lastSeenDate === today) return;
-
-        // 팝업 렌더링
-        const popupHTML = renderNoticePopupHTML(notice);
-        if (popupHTML) {
-            const app = document.getElementById('app');
-            // 기존 팝업이 있다면 제거 (중복 방지)
-            const existingPopup = document.getElementById('studentNoticePopup');
-            if (existingPopup) existingPopup.remove();
-
-            app.insertAdjacentHTML('beforeend', popupHTML);
-        }
-
-    } catch (error) {
-        console.error('Error checking notice:', error);
-    }
-}
-
-window.closeNoticePopup = function () {
-    const checkbox = document.getElementById('dontShowToday');
-    if (checkbox && checkbox.checked) {
-        const today = new Date().toISOString().split('T')[0];
-        localStorage.setItem(`notice_hidden_${state.currentUser}`, today);
-    }
-
-    const popup = document.getElementById('studentNoticePopup');
-    if (popup) {
-        popup.remove();
-    }
-}
-
-
-
-// ... (existing autoSave and utilities)
-
-// ============================================
-// Window Loading & Initialization
-// ============================================
 
 // ============================================
 // Window Loading & Initialization

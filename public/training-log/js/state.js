@@ -23,15 +23,7 @@ export const state = {
 
     // UI state
     addSetCount: 1,
-    addEditSetCount: 1,
-
-    // Notice state
-    notice: {
-        content: '',
-        startDate: '',
-        endDate: '',
-        isVisible: false
-    }
+    addEditSetCount: 1
 };
 
 export let db = null;

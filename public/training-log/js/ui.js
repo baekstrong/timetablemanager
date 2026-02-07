@@ -171,9 +171,6 @@ export function renderCoachScreen() {
 
             <!-- 어드민 메뉴 (운동 관리) -->
             <div class="mb-4 text-right flex justify-end gap-2">
-                <button onclick="openNoticeModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition flex items-center inline-flex gap-2">
-                    📢 공지사항 관리
-                </button>
                 <button onclick="openAdminModal()" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-900 transition flex items-center inline-flex gap-2">
                     ⚙️ 운동 종목 관리
                 </button>
@@ -444,72 +441,3 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos) {
     return html;
 }
 
-export function renderNoticeModalHTML() {
-    return `
-        <div id="noticeModal" class="modal">
-            <div class="modal-content max-w-lg w-full">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-bold text-gray-800">📢 공지사항 설정</h2>
-                    <button onclick="closeNoticeModal()" class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
-                </div>
-                
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">공지 기간 설정</label>
-                        <div class="flex gap-2 items-center">
-                            <input type="date" id="noticeStartDate" class="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
-                            <span>~</span>
-                            <input type="date" id="noticeEndDate" class="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">공지 내용</label>
-                        <textarea id="noticeContent" rows="5" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" placeholder="공지할 내용을 입력하세요"></textarea>
-                    </div>
-
-                    <div class="flex items-center space-x-2">
-                        <input type="checkbox" id="noticeIsVisible" class="w-5 h-5">
-                        <label for="noticeIsVisible" class="text-sm font-semibold text-gray-700">공지사항 활성화</label>
-                    </div>
-
-                    <button onclick="saveNoticeSettings()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition">
-                        저장하기
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-export function renderNoticePopupHTML(notice) {
-    if (!notice) return '';
-
-    // 단순 줄바꿈 처리
-    const content = notice.content.replace(/\n/g, '<br>');
-
-    return `
-        <div id="studentNoticePopup" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-50 px-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
-                <div class="bg-indigo-600 p-4 flex justify-between items-center">
-                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                        📢 공지사항
-                    </h3>
-                    <button onclick="closeNoticePopup()" class="text-white hover:text-gray-200 text-2xl font-bold">&times;</button>
-                </div>
-                <div class="p-6">
-                    <div class="text-gray-700 text-base leading-relaxed whitespace-pre-wrap">${content}</div>
-                </div>
-                <div class="bg-gray-50 p-4 text-center border-t">
-                    <button onclick="closeNoticePopup()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition w-full">
-                        확인했습니다
-                    </button>
-                    <div class="mt-2 flex items-center justify-center gap-2">
-                         <input type="checkbox" id="dontShowToday" class="w-4 h-4">
-                         <label for="dontShowToday" class="text-xs text-gray-500 cursor-pointer">오늘 하루 보지 않기</label>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
