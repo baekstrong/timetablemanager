@@ -12,7 +12,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
 
     const { students, isConnected, error: sheetsError, loading: sheetsLoading } = useGoogleSheets();
 
-    // 오늘 마지막 날인 수강생 (코치 모드)
+    // 오늘 마지막 날인 수강생 (코치 모드) - 이름(요일 및 시간,결제금액) 형식
     const lastDayStudents = (() => {
         if (user.role !== 'coach' || !students || students.length === 0) return [];
         const today = new Date();
@@ -24,7 +24,13 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             if (!endDate) return false;
             endDate.setHours(0, 0, 0, 0);
             return endDate.getTime() === today.getTime();
-        }).map(s => s['이름']).filter(Boolean);
+        }).map(s => {
+            const name = s['이름'];
+            if (!name) return null;
+            const schedule = s['요일 및 시간'] || '';
+            const payment = s['결제금액'] || s['결제\n금액'] || '';
+            return { name, schedule, payment };
+        }).filter(Boolean);
     })();
 
     // 수강생 모드: 본인의 종료날짜 확인
@@ -346,10 +352,10 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                             오늘 마지막 수업
                         </div>
                         <div style={{ color: '#78350f', fontSize: '0.95rem' }}>
-                            {lastDayStudents.map((name, idx) => (
-                                <span key={name}>
+                            {lastDayStudents.map((s, idx) => (
+                                <span key={s.name}>
                                     {idx > 0 && ', '}
-                                    {name}
+                                    {s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})
                                 </span>
                             ))}
                         </div>
