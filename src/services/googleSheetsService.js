@@ -1421,3 +1421,89 @@ const getColumnLetter = (index) => {
   }
   return letter;
 };
+
+/**
+ * Parse date string from Google Sheets (YYMMDD format)
+ * Example: "260111" → Date(2026, 0, 11)
+ * @param {string} dateStr - YYMMDD format date string
+ * @returns {Date|null}
+ */
+export const parseSheetDate = (dateStr) => {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+
+  const cleaned = dateStr.replace(/\D/g, '');
+
+  if (cleaned.length === 6) {
+    const year = parseInt('20' + cleaned.substring(0, 2));
+    const month = parseInt(cleaned.substring(2, 4)) - 1;
+    const day = parseInt(cleaned.substring(4, 6));
+    return new Date(year, month, day);
+  } else if (cleaned.length === 8) {
+    const year = parseInt(cleaned.substring(0, 4));
+    const month = parseInt(cleaned.substring(4, 6)) - 1;
+    const day = parseInt(cleaned.substring(6, 8));
+    return new Date(year, month, day);
+  }
+
+  return null;
+};
+
+/**
+ * 모든 시트에서 해당 학생의 '요일 및 시간' 컬럼을 비움 (종료 처리)
+ * @param {string} studentName - 학생 이름
+ * @returns {Promise<number>} - 업데이트된 시트 수
+ */
+export const clearStudentScheduleAllSheets = async (studentName) => {
+  try {
+    console.log(`🔄 모든 시트에서 ${studentName}의 스케줄 삭제 시작...`);
+
+    const allSheets = await getAllSheetNames();
+    const studentSheets = allSheets.filter(name => name.startsWith('등록생 목록('));
+
+    let updatedCount = 0;
+
+    for (const sheetName of studentSheets) {
+      try {
+        const range = `${sheetName}!A:Z`;
+        const rows = await readSheetData(range);
+
+        if (!rows || rows.length < 2) continue;
+
+        const headers = rows[1];
+        const nameColIndex = headers.indexOf('이름');
+
+        if (nameColIndex === -1) continue;
+
+        // '요일 및 시간' 컬럼 찾기
+        let scheduleColIndex = headers.indexOf('요일 및 시간');
+        if (scheduleColIndex === -1) {
+          scheduleColIndex = headers.indexOf('요일 및\n시간');
+        }
+        if (scheduleColIndex === -1) {
+          scheduleColIndex = headers.indexOf('요일및시간');
+        }
+        if (scheduleColIndex === -1) continue;
+
+        // 데이터 행(인덱스 2부터) 순회
+        for (let rowIdx = 2; rowIdx < rows.length; rowIdx++) {
+          const row = rows[rowIdx];
+          if (row[nameColIndex] === studentName && row[scheduleColIndex]) {
+            const col = getColumnLetter(scheduleColIndex);
+            const cellRange = `${sheetName}!${col}${rowIdx + 1}`;
+            await writeSheetData(cellRange, [['']]);
+            console.log(`✅ ${sheetName}에서 ${studentName}의 스케줄 삭제 완료 (${cellRange})`);
+            updatedCount++;
+          }
+        }
+      } catch (sheetError) {
+        console.warn(`⚠️ ${sheetName} 처리 중 오류:`, sheetError.message);
+      }
+    }
+
+    console.log(`✨ 총 ${updatedCount}개 시트에서 스케줄 삭제 완료`);
+    return updatedCount;
+  } catch (error) {
+    console.error('❌ 모든 시트 스케줄 삭제 실패:', error);
+    throw error;
+  }
+};

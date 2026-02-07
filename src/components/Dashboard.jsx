@@ -1,12 +1,58 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from '../services/firebaseService';
+import { parseSheetDate, findStudentAcrossSheets } from '../services/googleSheetsService';
 import GoogleSheetsSync from './GoogleSheetsSync';
 import './Dashboard.css';
 
 const Dashboard = ({ user, onNavigate, onLogout }) => {
     const [notices, setNotices] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [sheetsExpanded, setSheetsExpanded] = useState(false);
+
+    const { students, isConnected, error: sheetsError, loading: sheetsLoading } = useGoogleSheets();
+
+    // 오늘 마지막 날인 수강생 (코치 모드)
+    const lastDayStudents = (() => {
+        if (user.role !== 'coach' || !students || students.length === 0) return [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return students.filter(student => {
+            const endDateStr = student['종료날짜'];
+            if (!endDateStr) return false;
+            const endDate = parseSheetDate(endDateStr);
+            if (!endDate) return false;
+            endDate.setHours(0, 0, 0, 0);
+            return endDate.getTime() === today.getTime();
+        }).map(s => s['이름']).filter(Boolean);
+    })();
+
+    // 수강생 모드: 본인의 종료날짜 확인
+    const [isMyLastDay, setIsMyLastDay] = useState(false);
+
+    useEffect(() => {
+        const checkMyLastDay = async () => {
+            if (user.role === 'coach') return;
+            try {
+                const result = await findStudentAcrossSheets(user.username);
+                if (result && result.student) {
+                    const endDateStr = result.student['종료날짜'];
+                    if (endDateStr) {
+                        const endDate = parseSheetDate(endDateStr);
+                        if (endDate) {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            endDate.setHours(0, 0, 0, 0);
+                            setIsMyLastDay(endDate.getTime() === today.getTime());
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to check last day:', err);
+            }
+        };
+        checkMyLastDay();
+    }, [user]);
 
     // Modal states
     const [showModal, setShowModal] = useState(false);
@@ -122,31 +168,82 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                     </button>
                 </header>
 
-                {/* Google Sheets 연동 */}
+                {/* 수강생 모드: 오늘이 종료일이면 메시지 표시 */}
+                {user.role !== 'coach' && isMyLastDay && (
+                    <div style={{
+                        background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+                        border: '1px solid #f59e0b',
+                        borderRadius: '8px',
+                        padding: '0.75rem 1rem',
+                        marginBottom: '1rem',
+                        textAlign: 'center',
+                        fontWeight: '600',
+                        color: '#92400e',
+                        fontSize: '0.95rem'
+                    }}>
+                        오늘은 마지막 수업일입니다
+                    </div>
+                )}
+
+                {/* Google Sheets 연동 (접기/펴기) */}
                 {user.role === 'coach' && (
-                    <>
-                        <GoogleSheetsSync />
-                        <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-                            <button
-                                onClick={() => onNavigate('test')}
-                                style={{
-                                    padding: '0.75rem 1.5rem',
-                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    fontSize: '1rem',
-                                    fontWeight: '600',
-                                    cursor: 'pointer',
-                                    transition: 'transform 0.2s'
-                                }}
-                                onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
-                                onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
-                            >
-                                🧪 Google Sheets 연동 테스트
-                            </button>
+                    <section style={{ marginBottom: '1rem' }}>
+                        <div
+                            onClick={() => setSheetsExpanded(!sheetsExpanded)}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.75rem 1rem',
+                                background: 'rgba(255,255,255,0.8)',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                                border: '1px solid #e5e7eb'
+                            }}
+                        >
+                            <span style={{ fontSize: '0.9rem' }}>{sheetsExpanded ? '▼' : '▶'}</span>
+                            <span style={{ fontWeight: '600', fontSize: '1rem' }}>Google Sheets 연동</span>
+                            {sheetsLoading ? (
+                                <span style={{ fontSize: '0.85rem', color: '#666', marginLeft: '0.5rem' }}>동기화 중...</span>
+                            ) : sheetsError ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#dc2626', marginLeft: '0.5rem' }}>
+                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#dc2626', display: 'inline-block' }}></span>
+                                    연동 실패
+                                </span>
+                            ) : isConnected ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#16a34a', marginLeft: '0.5rem' }}>
+                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#16a34a', display: 'inline-block' }}></span>
+                                    연동 중
+                                </span>
+                            ) : null}
                         </div>
-                    </>
+                        {sheetsExpanded && (
+                            <div style={{ marginTop: '0.5rem' }}>
+                                <GoogleSheetsSync />
+                                <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                                    <button
+                                        onClick={() => onNavigate('test')}
+                                        style={{
+                                            padding: '0.75rem 1.5rem',
+                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            fontSize: '1rem',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            transition: 'transform 0.2s'
+                                        }}
+                                        onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
+                                        onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
+                                    >
+                                        🧪 Google Sheets 연동 테스트
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </section>
                 )}
 
                 {/* 공지사항 섹션 */}
@@ -235,6 +332,29 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         </div>
                     )}
                 </section>
+
+                {/* 오늘 마지막 날인 수강생 (코치 모드) */}
+                {user.role === 'coach' && lastDayStudents.length > 0 && (
+                    <section style={{
+                        background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+                        border: '1px solid #f59e0b',
+                        borderRadius: '12px',
+                        padding: '1rem 1.25rem',
+                        marginBottom: '1.5rem'
+                    }}>
+                        <div style={{ fontWeight: '700', fontSize: '1rem', color: '#92400e', marginBottom: '0.5rem' }}>
+                            오늘 마지막 수업
+                        </div>
+                        <div style={{ color: '#78350f', fontSize: '0.95rem' }}>
+                            {lastDayStudents.map((name, idx) => (
+                                <span key={name}>
+                                    {idx > 0 && ', '}
+                                    {name}
+                                </span>
+                            ))}
+                        </div>
+                    </section>
+                )}
 
                 {/* 메뉴 섹션 */}
                 <section className="menu-section">

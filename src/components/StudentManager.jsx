@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getStudentField } from '../services/googleSheetsService';
+import { getStudentField, clearStudentScheduleAllSheets, parseSheetDate } from '../services/googleSheetsService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import './StudentManager.css';
 
@@ -44,17 +44,16 @@ const StudentManager = ({ onBack }) => {
         }
     };
 
-    // End class (Clear schedule)
+    // End class (Clear schedule in ALL sheets)
     const handleEndClass = async (student, index) => {
-        if (!confirm(`${student['이름']} 수강생의 수강을 종료하시겠습니까?\n\n- 시간표에서 제거됩니다.\n- 이름, 결제 내역 등은 시트에 보존됩니다.\n- 시트의 '요일 및 시간' 칸만 지워집니다.`)) {
+        if (!confirm(`${student['이름']} 수강생의 수강을 종료하시겠습니까?\n\n- 시간표에서 제거됩니다.\n- 이름, 결제 내역 등은 시트에 보존됩니다.\n- 모든 시트의 '요일 및 시간' 칸이 지워집니다.`)) {
             return;
         }
 
         try {
-            const updatedStudent = { ...student, '요일 및 시간': '' };
-            // Use original row index
-            await updateStudent(student._rowIndex, updatedStudent);
-            alert('수강 종료 처리되었습니다.');
+            // 모든 시트에서 해당 학생의 스케줄 삭제
+            await clearStudentScheduleAllSheets(student['이름']);
+            alert('수강 종료 처리되었습니다. (모든 시트에서 스케줄 삭제)');
         } catch (err) {
             console.error('Failed to end class:', err);
             alert('수강 종료 처리에 실패했습니다.');
@@ -68,6 +67,17 @@ const StudentManager = ({ onBack }) => {
             [field]: value
         }));
     };
+
+    // 종료날짜가 지난 수강생 필터링 (활성 수강생만 표시)
+    const activeStudents = students.filter(student => {
+        const endDateStr = student['종료날짜'];
+        if (!endDateStr) return true; // 종료날짜 없으면 표시
+        const endDate = parseSheetDate(endDateStr);
+        if (!endDate) return true; // 파싱 실패 시 표시
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return endDate >= today; // 오늘이 종료일이면 아직 표시
+    });
 
     // 시트 임베드 모드인 경우
     if (viewMode === 'sheet') {
@@ -107,12 +117,12 @@ const StudentManager = ({ onBack }) => {
                 <h1 className="student-title">수강생 관리</h1>
                 <div className="header-actions">
                     <div className="info-message" style={{ fontSize: '0.9rem', color: '#666', marginRight: '1rem' }}>
-                        📋 전체 시트 조회 중 (날짜 기반 자동 필터링)
+                        📋 활성 수강생만 조회 중 (종료일 기준 필터링)
                     </div>
                     <button onClick={() => setViewMode('sheet')} className="view-switch-btn">
                         📊 구글 시트로 보기
                     </button>
-                    <div className="student-count">총 {students.length}명</div>
+                    <div className="student-count">총 {activeStudents.length}명</div>
                 </div>
             </div>
 
@@ -145,14 +155,14 @@ const StudentManager = ({ onBack }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {students.length === 0 ? (
+                                {activeStudents.length === 0 ? (
                                     <tr>
                                         <td colSpan="9" className="empty-message">
                                             등록된 수강생이 없습니다.
                                         </td>
                                     </tr>
                                 ) : (
-                                    students.map((student, index) => (
+                                    activeStudents.map((student, index) => (
                                         <tr key={index} className={editingStudent === index ? 'editing' : ''}>
                                             <td className="student-name">{student['이름'] || '-'}</td>
 
