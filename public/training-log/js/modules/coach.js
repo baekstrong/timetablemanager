@@ -13,12 +13,15 @@ export async function loadStudentList() {
     if (!studentListDiv) return;
 
     try {
-        const snapshot = await db.collection('records').get();
+        // users 컬렉션에서 수강생 목록 조회 (records 전체 조회 대비 훨씬 빠름)
+        const usersSnapshot = await db.collection('users').get();
 
         const studentSet = new Set();
-        snapshot.forEach(doc => {
-            const userName = doc.data().userName;
-            if (userName && userName !== state.currentUser) {
+        usersSnapshot.forEach(doc => {
+            const userData = doc.data();
+            const userName = doc.id;
+            // 코치가 아닌 사용자만 수강생으로 표시
+            if (userName && userName !== state.currentUser && !userData.isCoach) {
                 studentSet.add(userName);
             }
         });
