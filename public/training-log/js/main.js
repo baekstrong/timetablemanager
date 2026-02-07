@@ -178,10 +178,9 @@ window.render = function () {
             dateInput.value = state.selectedDate;
         }
 
-        Coach.loadStudentList();
-        Coach.setupRealtimePinnedMemosListener(); // Real-time listener initiation
-        Coach.loadAllRecords(); // Will load today's records by default now
-        Admin.loadExercisesList(); // Load exercises for Admin UI
+        Coach.loadStudentList(); // 완료 후 내부에서 필요 시 기록/메모 로드
+        Coach.setupRealtimePinnedMemosListener();
+        Admin.loadExercisesList();
     } else {
         app.innerHTML = renderStudentScreen(); // Datalist already added in ui.js
         Records.loadMyRecords();
@@ -275,6 +274,15 @@ async function initApp() {
     // Auto Login 먼저 시도 (render 전에 실행하여 로그인 화면 깜빡임 방지)
     if (!state.currentUser) {
         await Auth.autoLogin();
+    }
+
+    // 코치 모드 필터 상태를 render 전에 복원 (UI 렌더링 시 체크박스 반영)
+    const savedMemoFilter = localStorage.getItem('coachPinnedMemoFilter');
+    if (savedMemoFilter === null || savedMemoFilter === 'true') {
+        state.pinnedMemoFilter = true;
+    }
+    if (localStorage.getItem('coachPainFilter') === 'true') {
+        state.painFilter = true;
     }
 
     // 자동 로그인 결과에 따라 적절한 화면 렌더링

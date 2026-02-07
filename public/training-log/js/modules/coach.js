@@ -129,10 +129,21 @@ export async function loadStudentList() {
         studentListDiv.innerHTML = html;
         updateStudentSelectionSummary();
 
-        // Initial render of pinned memos if selection exists
+        // Initial render: 선택된 학생이 있을 때만 데이터 로드
         if (state.selectedStudents.length > 0) {
-            renderPinnedMemosForCoach();
-            debouncedLoadAllRecords();
+            if (state.pinnedMemoFilter) {
+                // 운동 메모만 보기 모드: 메모만 렌더링 (records 로드 안 함)
+                renderPinnedMemosForCoach();
+                // allRecordsList 숨기기, pinnedMemosSection 보이기
+                const allRecordsList = document.getElementById('allRecordsList');
+                const pinnedSection = document.getElementById('coachPinnedMemosSection');
+                if (allRecordsList) allRecordsList.style.display = 'none';
+                if (pinnedSection) pinnedSection.style.display = 'block';
+            } else {
+                // 전체 기록 보기 모드
+                renderPinnedMemosForCoach();
+                debouncedLoadAllRecords();
+            }
         }
 
     } catch (error) {
