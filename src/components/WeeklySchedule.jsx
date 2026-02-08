@@ -1190,13 +1190,13 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                         className={`mode-toggle ${mode === 'student' ? 'active' : ''}`}
                         onClick={() => setMode('student')}
                     >
-                        수강생 모드
+                        신규 전용
                     </button>
                     <button
                         className={`mode-toggle ${mode === 'coach' ? 'active' : ''}`}
                         onClick={() => setMode('coach')}
                     >
-                        코치 모드
+                        코치 전용
                     </button>
                 </div>
             )}
