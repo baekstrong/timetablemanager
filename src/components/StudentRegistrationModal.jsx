@@ -133,8 +133,8 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
             const startDateYYMMDD = convertToYYMMDD(form.시작날짜);
             const 결제일YYMMDD = form.결제일 ? convertToYYMMDD(form.결제일) : '';
 
+            // B~R열 데이터 (A열은 번호 열이므로 제외 - 수동 관리)
             const rowData = [
-                '',                                                          // A: 빈칸/번호
                 form.이름,                                                   // B: 이름
                 form.주횟수,                                                 // C: 주횟수
                 form['요일 및 시간'],                                        // D: 요일 및 시간
@@ -154,7 +154,7 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
                 form.직업                                                    // R: 직업
             ];
 
-            await appendSheetData(`${targetSheet}!A:R`, [rowData]);
+            await appendSheetData(`${targetSheet}!B:R`, [rowData]);
             alert('수강생이 등록되었습니다.');
             onSuccess();
         } catch (err) {
