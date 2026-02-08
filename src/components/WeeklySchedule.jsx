@@ -683,6 +683,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         let makeupAbsentStudents = []; // 보강으로 인해 결석 (다른 시간에 수업)
         let absenceStudents = []; // 일반 결석 신청
         let holdingStudents = [];
+        let delayedStartStudents = [];
 
         // Get date for this slot
         const dateStr = weekDates[day];
@@ -734,6 +735,21 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 .map(h => h.studentName)
                 .filter(name => studentNames.includes(name));
 
+            // Find students whose start date is after this slot date (시작지연)
+            delayedStartStudents = students
+                .filter(s => {
+                    const name = s['이름'];
+                    if (!name || !studentNames.includes(name)) return false;
+                    if (holdingStudents.includes(name)) return false;
+                    const startDateStr = s['시작날짜'];
+                    if (!startDateStr) return false;
+                    const startDate = parseSheetDate(startDateStr);
+                    if (!startDate) return false;
+                    const slotDateObj = new Date(slotDate + 'T00:00:00');
+                    return startDate > slotDateObj;
+                })
+                .map(s => s['이름']);
+
             // Find students with absence requests for this date (일반 결석)
             // 해당 슬롯에 등록된 학생만 결석으로 표시
             absenceStudents = weekAbsences
@@ -754,6 +770,9 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             if (holdingStudents.length > 0) {
                 console.log(`   → Holding students: ${holdingStudents.join(', ')}`);
             }
+            if (delayedStartStudents.length > 0) {
+                console.log(`   → Delayed start students: ${delayedStartStudents.join(', ')}`);
+            }
         }
 
         // 5. Calculate counts
@@ -761,12 +780,14 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         const allAbsentStudents = [...new Set([...makeupAbsentStudents, ...absenceStudents])];
         const activeStudents = studentNames.filter(name =>
             !allAbsentStudents.includes(name) &&
-            !holdingStudents.includes(name)
+            !holdingStudents.includes(name) &&
+            !delayedStartStudents.includes(name)
         );
 
-        // Regular students who are on the roster (not holding, but may be absent)
+        // Regular students who are on the roster (not holding, not delayed start, but may be absent)
         const regularStudentsPresent = studentNames.filter(name =>
-            !holdingStudents.includes(name)
+            !holdingStudents.includes(name) &&
+            !delayedStartStudents.includes(name)
         );
 
         let currentCount, availableSeats, isFull;
@@ -796,6 +817,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             makeupAbsentStudents,
             absenceStudents, // 새로 추가: 일반 결석 학생
             holdingStudents,
+            delayedStartStudents,
             regularStudentsPresent
         };
     };
@@ -1057,6 +1079,11 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                         {/* 3. Holding Students */}
                         {data.holdingStudents.map(name => (
                             <span key={`holding-${name}`} className="student-tag" style={{ backgroundColor: '#fee2e2', color: '#991b1b', textDecoration: 'line-through' }}>{name}(홀딩)</span>
+                        ))}
+
+                        {/* 3.5. Delayed Start Students (시작지연) */}
+                        {data.delayedStartStudents.map(name => (
+                            <span key={`delayed-${name}`} className="student-tag" style={{ backgroundColor: '#dcfce7', color: '#166534', textDecoration: 'line-through' }}>{name}(시작지연)</span>
                         ))}
 
                         {/* 4. Substitutes (legacy) */}
