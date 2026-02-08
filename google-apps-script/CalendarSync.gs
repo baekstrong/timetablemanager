@@ -108,8 +108,8 @@ function onSheetEdit(e) {
       if (!schedule) return; // 수업 일정 없으면 무시
     }
 
-    updateCalendarEvent(studentName, endDate);
-    Logger.log('캘린더 업데이트: ' + studentName + ' → ' + formatDate(endDate));
+    syncStudentEvents(studentName);
+    Logger.log('캘린더 업데이트: ' + studentName);
 
   } catch (error) {
     Logger.log('onSheetEdit 오류: ' + error.message);
@@ -117,20 +117,72 @@ function onSheetEdit(e) {
 }
 
 /**
- * 캘린더 이벤트 생성/업데이트
+ * 특정 수강생의 캘린더 이벤트를 전부 삭제 후, 모든 시트의 현재 종료일로 다시 생성
  */
-function updateCalendarEvent(studentName, endDate) {
+function syncStudentEvents(studentName) {
   var calendar = getOrCreateCalendar();
   var eventTitle = '[' + studentName + '] 수강 종료';
 
-  // 기존 이벤트 검색 후 삭제 (중복 방지)
-  var searchStart = new Date(2024, 0, 1);
-  var searchEnd = new Date(2030, 11, 31);
-  var events = calendar.getEvents(searchStart, searchEnd, { search: studentName });
-
+  // 1. 이 수강생의 기존 이벤트 모두 삭제
+  var events = calendar.getEvents(new Date(2024, 0, 1), new Date(2030, 11, 31), { search: studentName });
   for (var i = 0; i < events.length; i++) {
     if (events[i].getTitle() === eventTitle) {
       events[i].deleteEvent();
+    }
+  }
+
+  // 2. 모든 시트에서 이 수강생의 현재 종료일을 찾아 이벤트 재생성
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheets = ss.getSheets();
+
+  for (var s = 0; s < sheets.length; s++) {
+    var sheet = sheets[s];
+    if (sheet.getName().indexOf(SHEET_PREFIX) !== 0) continue;
+
+    var nameCol = findColumnByHeader(sheet, '이름');
+    var endDateCol = findColumnByHeader(sheet, '종료날짜');
+    var scheduleCol = findColumnByHeader(sheet, '요일 및 시간');
+    if (nameCol === -1 || endDateCol === -1) continue;
+
+    var lastRow = sheet.getLastRow();
+    for (var row = 3; row <= lastRow; row++) {
+      var name = String(sheet.getRange(row, nameCol).getValue()).trim();
+      if (name !== studentName) continue;
+
+      var endDateValue = String(sheet.getRange(row, endDateCol).getValue()).trim();
+      if (!endDateValue) continue;
+
+      if (scheduleCol !== -1) {
+        var schedule = String(sheet.getRange(row, scheduleCol).getValue()).trim();
+        if (!schedule) continue;
+      }
+
+      var endDate = parseDateStr(endDateValue);
+      if (!endDate) continue;
+
+      ensureCalendarEvent(studentName, endDate);
+    }
+  }
+}
+
+/**
+ * 해당 이름+날짜 조합의 이벤트가 없으면 생성
+ * (같은 날짜에 이미 있으면 중복 생성하지 않음)
+ */
+function ensureCalendarEvent(studentName, endDate) {
+  var calendar = getOrCreateCalendar();
+  var eventTitle = '[' + studentName + '] 수강 종료';
+
+  // 해당 날짜에 같은 제목의 이벤트가 이미 있는지 확인
+  var dayStart = new Date(endDate);
+  dayStart.setHours(0, 0, 0, 0);
+  var dayEnd = new Date(endDate);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  var events = calendar.getEvents(dayStart, dayEnd, { search: studentName });
+  for (var i = 0; i < events.length; i++) {
+    if (events[i].getTitle() === eventTitle) {
+      return events[i]; // 이미 존재하므로 스킵
     }
   }
 
@@ -151,8 +203,9 @@ function updateCalendarEvent(studentName, endDate) {
 
 /**
  * 모든 시트의 종료날짜를 스캔하여 캘린더와 동기화
- * - 매 시간 자동 실행 (API 변경 감지)
- * - 수동 실행 가능
+ * - 이름+날짜 조합 기준으로 이벤트 관리
+ * - 같은 사람이 여러 시트에 있으면 종료일별로 각각 이벤트 생성
+ * - 시트에서 삭제된 이벤트는 자동 정리
  */
 function syncAllEndDates() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -160,16 +213,8 @@ function syncAllEndDates() {
   var syncCount = 0;
   var calendar = getOrCreateCalendar();
 
-  // 현재 캘린더의 모든 이벤트를 가져와서 비교
-  var existingEvents = {};
-  var allEvents = calendar.getEvents(new Date(2024, 0, 1), new Date(2030, 11, 31));
-  for (var i = 0; i < allEvents.length; i++) {
-    var title = allEvents[i].getTitle();
-    var eventDate = allEvents[i].getAllDayStartDate();
-    if (eventDate) {
-      existingEvents[title] = formatDate(eventDate);
-    }
-  }
+  // 1. 모든 시트에서 필요한 (이름, 종료날짜) 쌍 수집
+  var desiredEvents = {}; // 키: "이름|YYYY-MM-DD"
 
   for (var s = 0; s < sheets.length; s++) {
     var sheet = sheets[s];
@@ -201,19 +246,55 @@ function syncAllEndDates() {
       var endDate = parseDateStr(endDateValue);
       if (!endDate) continue;
 
-      var eventTitle = '[' + name + '] 수강 종료';
-      var endDateStr = formatDate(endDate);
+      var key = name + '|' + formatDate(endDate);
+      desiredEvents[key] = { name: name, endDate: endDate };
+    }
+  }
 
-      // 이미 동일한 날짜로 등록되어 있으면 스킵
-      if (existingEvents[eventTitle] === endDateStr) continue;
+  // 2. 현재 캘린더 이벤트를 (이름, 날짜) 기준으로 맵핑
+  var allEvents = calendar.getEvents(new Date(2024, 0, 1), new Date(2030, 11, 31));
+  var existingKeys = {}; // 키: "이름|YYYY-MM-DD" → [이벤트 객체들]
 
-      updateCalendarEvent(name, endDate);
+  for (var i = 0; i < allEvents.length; i++) {
+    var title = allEvents[i].getTitle();
+    // "[이름] 수강 종료" 패턴만 처리
+    var match = title.match(/^\[(.+)\] 수강 종료$/);
+    if (!match) continue;
+
+    var eventName = match[1];
+    var eventDate = allEvents[i].getAllDayStartDate();
+    if (!eventDate) continue;
+
+    var eventKey = eventName + '|' + formatDate(eventDate);
+    if (!existingKeys[eventKey]) {
+      existingKeys[eventKey] = [];
+    }
+    existingKeys[eventKey].push(allEvents[i]);
+  }
+
+  // 3. 필요한데 없는 이벤트 생성
+  for (var key in desiredEvents) {
+    if (!existingKeys[key]) {
+      var d = desiredEvents[key];
+      ensureCalendarEvent(d.name, d.endDate);
       syncCount++;
     }
   }
 
-  if (syncCount > 0) {
-    Logger.log('동기화 완료: ' + syncCount + '건 업데이트');
+  // 4. 시트에 없는 고아 이벤트 삭제
+  var deleteCount = 0;
+  for (var key in existingKeys) {
+    if (!desiredEvents[key]) {
+      var orphans = existingKeys[key];
+      for (var j = 0; j < orphans.length; j++) {
+        orphans[j].deleteEvent();
+        deleteCount++;
+      }
+    }
+  }
+
+  if (syncCount > 0 || deleteCount > 0) {
+    Logger.log('동기화 완료: ' + syncCount + '건 생성, ' + deleteCount + '건 삭제');
   }
 }
 
@@ -268,6 +349,29 @@ function parseDateStr(dateStr) {
   }
 
   return null;
+}
+
+/**
+ * 기존 캘린더 이벤트 전체 삭제 후 재동기화
+ * 최초 1회 수동 실행 권장
+ */
+function resetAndSync() {
+  var calendar = getOrCreateCalendar();
+  var allEvents = calendar.getEvents(new Date(2024, 0, 1), new Date(2030, 11, 31));
+  var deleteCount = 0;
+
+  for (var i = 0; i < allEvents.length; i++) {
+    var title = allEvents[i].getTitle();
+    if (title.indexOf('] 수강 종료') !== -1) {
+      allEvents[i].deleteEvent();
+      deleteCount++;
+    }
+  }
+
+  Logger.log('기존 이벤트 ' + deleteCount + '건 삭제 완료');
+  Logger.log('재동기화 시작...');
+  syncAllEndDates();
+  Logger.log('완료!');
 }
 
 /**
