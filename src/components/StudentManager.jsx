@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, clearStudentScheduleAllSheets, parseSheetDate } from '../services/googleSheetsService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
+import StudentRegistrationModal from './StudentRegistrationModal';
 import './StudentManager.css';
 
 const StudentManager = ({ onBack }) => {
@@ -10,11 +11,13 @@ const StudentManager = ({ onBack }) => {
         isConnected,
         updateStudent,
         loading,
-        error
+        error,
+        refresh
     } = useGoogleSheets();
     const [editingStudent, setEditingStudent] = useState(null);
     const [editForm, setEditForm] = useState({});
     const [viewMode, setViewMode] = useState('table'); // 'table' or 'sheet'
+    const [showRegistrationModal, setShowRegistrationModal] = useState(false);
 
     // Start editing a student
     const handleEdit = (student, index) => {
@@ -68,6 +71,12 @@ const StudentManager = ({ onBack }) => {
         }));
     };
 
+    // 등록 성공 시 모달 닫기 + 새로고침
+    const handleRegistrationSuccess = () => {
+        setShowRegistrationModal(false);
+        if (refresh) refresh();
+    };
+
     // 종료날짜가 지난 수강생 필터링 (활성 수강생만 표시)
     const activeStudents = students.filter(student => {
         const endDateStr = student['종료날짜'];
@@ -119,6 +128,9 @@ const StudentManager = ({ onBack }) => {
                     <div className="info-message" style={{ fontSize: '0.9rem', color: '#666', marginRight: '1rem' }}>
                         📋 활성 수강생만 조회 중 (종료일 기준 필터링)
                     </div>
+                    <button onClick={() => setShowRegistrationModal(true)} className="register-btn">
+                        + 수강생 등록
+                    </button>
                     <button onClick={() => setViewMode('sheet')} className="view-switch-btn">
                         📊 구글 시트로 보기
                     </button>
@@ -276,6 +288,13 @@ const StudentManager = ({ onBack }) => {
                         </table>
                     </div>
                 </div>
+            )}
+
+            {showRegistrationModal && (
+                <StudentRegistrationModal
+                    onClose={() => setShowRegistrationModal(false)}
+                    onSuccess={handleRegistrationSuccess}
+                />
             )}
         </div>
     );

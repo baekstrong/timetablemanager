@@ -471,12 +471,21 @@ const KOREAN_HOLIDAYS_2026 = {
 };
 
 // 특정 날짜가 공휴일인지 확인
-const isHolidayDate = (date) => {
+const isHolidayDate = (date, firebaseHolidays = []) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   const dateStr = `${year}-${month}-${day}`;
-  return !!KOREAN_HOLIDAYS_2026[dateStr];
+
+  // 하드코딩 공휴일 체크
+  if (KOREAN_HOLIDAYS_2026[dateStr]) return true;
+
+  // Firebase 커스텀 공휴일 체크
+  if (firebaseHolidays.length > 0) {
+    return firebaseHolidays.some(h => h.date === dateStr);
+  }
+
+  return false;
 };
 
 // 날짜만 비교 (시간 무시)
@@ -500,7 +509,7 @@ const isSameOrBefore = (date1, date2) => {
  * @param {Array|Object} holdingRanges - Optional holding period(s). Can be single {start, end} or array of them
  * @returns {Date|null} - Calculated end date
  */
-const calculateEndDate = (startDate, totalSessions, scheduleStr, holdingRanges = null) => {
+const calculateEndDate = (startDate, totalSessions, scheduleStr, holdingRanges = null, firebaseHolidays = []) => {
   if (!startDate || !scheduleStr || !totalSessions) return null;
 
   const schedule = parseScheduleString(scheduleStr);
@@ -533,7 +542,7 @@ const calculateEndDate = (startDate, totalSessions, scheduleStr, holdingRanges =
     // 해당 요일이 수업일인지 확인
     if (classDays.includes(dayOfWeek)) {
       // 공휴일인지 확인
-      const isHoliday = isHolidayDate(current);
+      const isHoliday = isHolidayDate(current, firebaseHolidays);
 
       // 여러 홀딩 기간 중 하나라도 해당하는지 확인
       const isInHoldingPeriod = holdingRangesArray.some(range =>
@@ -552,6 +561,18 @@ const calculateEndDate = (startDate, totalSessions, scheduleStr, holdingRanges =
   }
 
   return null;
+};
+
+/**
+ * Calculate end date with Firebase custom holidays support
+ * @param {Date} startDate - Start date
+ * @param {number} totalSessions - Total number of sessions
+ * @param {string} scheduleStr - Schedule string (e.g., "화1목1")
+ * @param {Array} firebaseHolidays - Firebase custom holidays [{date: "2026-02-14", reason: "휴무"}, ...]
+ * @returns {Date|null} - Calculated end date
+ */
+export const calculateEndDateWithHolidays = (startDate, totalSessions, scheduleStr, firebaseHolidays = []) => {
+  return calculateEndDate(startDate, totalSessions, scheduleStr, null, firebaseHolidays);
 };
 
 /**
