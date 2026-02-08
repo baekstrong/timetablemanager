@@ -792,14 +792,14 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
         let currentCount, availableSeats, isFull;
 
-        if (mode === 'student') {
-            // 수강생 모드: 순수 등록 인원 기준 (보강/홀딩/결석 미반영)
+        if (mode === 'student' && user?.role === 'coach') {
+            // 코치가 보는 수강생 모드: 순수 등록 인원 기준 (보강/홀딩/결석 미반영)
             // 신규 수강생 상담 시 정확한 정원 파악용
             currentCount = studentNames.length;
             availableSeats = Math.max(0, MAX_CAPACITY - currentCount);
             isFull = availableSeats === 0;
         } else {
-            // 코치 모드: 실시간 반영 (보강/홀딩/결석 반영된 실제 출석 인원)
+            // 코치 모드 & 수강생 대시보드: 실시간 반영 (보강/홀딩/결석 반영된 실제 출석 인원)
             currentCount = activeStudents.length + subs.length + makeupStudents.length;
             availableSeats = Math.max(0, MAX_CAPACITY - currentCount);
             isFull = availableSeats === 0;
