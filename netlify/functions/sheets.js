@@ -157,6 +157,7 @@ exports.handler = async (event, context) => {
         spreadsheetId: SPREADSHEET_ID,
         range: range,
         valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
         resource: { values: values },
       });
 

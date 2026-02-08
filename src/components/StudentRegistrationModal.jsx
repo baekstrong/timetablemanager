@@ -309,8 +309,9 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
                         <select value={form.결제방식} onChange={(e) => handleChange('결제방식', e.target.value)}>
                             <option value="">선택</option>
                             <option value="카드">카드</option>
-                            <option value="현금">현금</option>
-                            <option value="계좌이체">계좌이체</option>
+                            <option value="계좌">계좌</option>
+                            <option value="제로페이">제로페이</option>
+                            <option value="네이버">네이버</option>
                         </select>
                     </div>
                 </div>

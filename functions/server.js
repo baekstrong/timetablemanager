@@ -124,6 +124,7 @@ app.post('/appendSheet', async (req, res) => {
       spreadsheetId: SPREADSHEET_ID,
       range: range,
       valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
       resource: {
         values: values,
       },
