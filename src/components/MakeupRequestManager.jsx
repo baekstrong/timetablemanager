@@ -119,19 +119,16 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
             if (daysUntilTarget === 0) {
                 const currentMinutes = now.getHours() * 60 + now.getMinutes();
                 const classStartMinutes = periodInfo.startHour * 60 + periodInfo.startMinute;
-                const classEndMinutes = classStartMinutes + 90;
 
                 if (currentMinutes >= classStartMinutes - 10) {
-                    if (currentMinutes >= classEndMinutes) {
-                        daysUntilTarget = 7;
-                    } else {
-                        alert('수업 시작 10분 전부터는 보강 신청이 불가합니다.');
-                        setIsSubmitting(false);
-                        return;
-                    }
+                    alert('수업 시작 10분 전부터는 보강 신청이 불가합니다.');
+                    setIsSubmitting(false);
+                    return;
                 }
             } else if (daysUntilTarget < 0) {
-                daysUntilTarget += 7;
+                alert('이번 주 수업이 이미 지났습니다. 다음 주 일요일부터 신청 가능합니다.');
+                setIsSubmitting(false);
+                return;
             }
 
             const today = new Date();
@@ -291,20 +288,14 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
                                             // 오늘이 수업 요일 - 시간 체크
                                             const currentMinutes = now.getHours() * 60 + now.getMinutes();
                                             const classStartMinutes = periodInfo.startHour * 60 + periodInfo.startMinute;
-                                            const classEndMinutes = classStartMinutes + 90;
 
                                             if (currentMinutes >= classStartMinutes - 10) {
-                                                if (currentMinutes >= classEndMinutes) {
-                                                    // 수업 종료 후 → 다음 주로
-                                                    daysUntilTarget = 7;
-                                                } else {
-                                                    // 수업 10분 전 ~ 수업 중 → 비활성화
-                                                    isDisabled = true;
-                                                }
+                                                // 수업 10분 전 이후 → 이번 주 끝까지 비활성화
+                                                isDisabled = true;
                                             }
-                                            // else: 10분 이상 전이면 오늘 수업, 활성화
                                         } else if (daysUntilTarget < 0) {
-                                            daysUntilTarget += 7;
+                                            // 이번 주 수업일이 이미 지남 → 비활성화
+                                            isDisabled = true;
                                         }
 
                                         const today = new Date();
