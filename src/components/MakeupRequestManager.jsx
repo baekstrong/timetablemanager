@@ -108,17 +108,35 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
         setIsSubmitting(true);
         try {
             // 원본 수업 날짜 계산 (오늘 이후의 첫 번째 해당 요일 찾기)
-            const today = new Date();
-            today.setHours(0, 0, 0, 0); // 시간 초기화
-            const originalDate = new Date(today);
+            const now = new Date();
             const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
             const targetDay = dayMap[selectedOriginal.day];
-            const currentDay = today.getDay();
+            const currentDay = now.getDay();
 
-            // 오늘 이후의 첫 번째 해당 요일 찾기
             let daysUntilTarget = targetDay - currentDay;
-            if (daysUntilTarget <= 0) daysUntilTarget += 7;
+            const periodInfo = PERIODS.find(p => p.id === selectedOriginal.period);
 
+            if (daysUntilTarget === 0) {
+                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                const classStartMinutes = periodInfo.startHour * 60 + periodInfo.startMinute;
+                const classEndMinutes = classStartMinutes + 90;
+
+                if (currentMinutes >= classStartMinutes - 10) {
+                    if (currentMinutes >= classEndMinutes) {
+                        daysUntilTarget = 7;
+                    } else {
+                        alert('수업 시작 10분 전부터는 보강 신청이 불가합니다.');
+                        setIsSubmitting(false);
+                        return;
+                    }
+                }
+            } else if (daysUntilTarget < 0) {
+                daysUntilTarget += 7;
+            }
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const originalDate = new Date(today);
             originalDate.setDate(today.getDate() + daysUntilTarget);
             const originalDateStr = originalDate.toISOString().split('T')[0];
 
@@ -260,31 +278,53 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
                                 </p>
                                 <div className="schedule-list">
                                     {regularSchedule.map((schedule, index) => {
-                                        // Calculate next occurrence of this day
-                                        const today = new Date();
-                                        today.setHours(0, 0, 0, 0);
+                                        const now = new Date();
                                         const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
                                         const targetDay = dayMap[schedule.day];
-                                        const currentDay = today.getDay();
+                                        const currentDay = now.getDay();
                                         let daysUntilTarget = targetDay - currentDay;
-                                        if (daysUntilTarget <= 0) daysUntilTarget += 7;
 
+                                        const periodInfo = PERIODS.find(p => p.id === schedule.period);
+                                        let isDisabled = false;
+
+                                        if (daysUntilTarget === 0) {
+                                            // 오늘이 수업 요일 - 시간 체크
+                                            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                                            const classStartMinutes = periodInfo.startHour * 60 + periodInfo.startMinute;
+                                            const classEndMinutes = classStartMinutes + 90;
+
+                                            if (currentMinutes >= classStartMinutes - 10) {
+                                                if (currentMinutes >= classEndMinutes) {
+                                                    // 수업 종료 후 → 다음 주로
+                                                    daysUntilTarget = 7;
+                                                } else {
+                                                    // 수업 10분 전 ~ 수업 중 → 비활성화
+                                                    isDisabled = true;
+                                                }
+                                            }
+                                            // else: 10분 이상 전이면 오늘 수업, 활성화
+                                        } else if (daysUntilTarget < 0) {
+                                            daysUntilTarget += 7;
+                                        }
+
+                                        const today = new Date();
+                                        today.setHours(0, 0, 0, 0);
                                         const nextDate = new Date(today);
                                         nextDate.setDate(today.getDate() + daysUntilTarget);
                                         const dateStr = `${nextDate.getMonth() + 1}/${nextDate.getDate()}`;
 
-                                        // 항상 오늘 이후의 날짜만 보여주므로 과거 날짜 체크 불필요
-                                        // (daysUntilTarget <= 0일 때 +7을 했기 때문에 항상 미래)
-
                                         return (
                                             <div
                                                 key={index}
-                                                className={`schedule-item ${selectedOriginal?.day === schedule.day && selectedOriginal?.period === schedule.period ? 'selected' : ''}`}
-                                                onClick={() => handleOriginalSelect(schedule)}
+                                                className={`schedule-item ${selectedOriginal?.day === schedule.day && selectedOriginal?.period === schedule.period ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
+                                                onClick={() => !isDisabled && handleOriginalSelect(schedule)}
                                             >
                                                 <span className="day-badge">{schedule.day}</span>
                                                 <span className="period-name">{schedule.periodName}</span>
                                                 <span style={{ fontSize: '0.85em', color: '#666', marginLeft: '8px' }}>({dateStr})</span>
+                                                {isDisabled && (
+                                                    <span className="disabled-label">신청마감</span>
+                                                )}
                                             </div>
                                         );
                                     })}

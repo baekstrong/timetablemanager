@@ -191,10 +191,24 @@
     gap: 12px;
 }
 
-.schedule-item:hover {
+.schedule-item:not(.disabled):hover {
     border-color: #667eea;
     background: #f0f4ff;
     transform: translateY(-2px);
+}
+
+.schedule-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
+
+.disabled-label {
+    font-size: 0.75em;
+    font-weight: 700;
+    color: #ef4444;
+    margin-left: auto;
 }
 
 .schedule-item.selected {
