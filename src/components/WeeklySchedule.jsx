@@ -6,6 +6,7 @@ import {
     getActiveMakeupRequests,
     createMakeupRequest,
     cancelMakeupRequest,
+    completeMakeupRequest,
     getMakeupRequestsByWeek,
     getHoldingsByWeek,
     getAbsencesByDate,
@@ -345,6 +346,21 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         return now >= oneHourBefore;
     };
 
+    // Helper function to check if a makeup class time has already passed
+    const isMakeupClassPassed = (makeupRequest) => {
+        if (!makeupRequest || !makeupRequest.makeupClass) return false;
+
+        const { date, period } = makeupRequest.makeupClass;
+        const periodInfo = PERIODS.find(p => p.id === period);
+        if (!periodInfo) return false;
+
+        const now = new Date();
+        const classDate = new Date(date + 'T00:00:00');
+        classDate.setHours(periodInfo.startHour, periodInfo.startMinute, 0, 0);
+
+        return now >= classDate;
+    };
+
     // Helper function to check if a class has started or is within 30 minutes of starting
     // Used for preventing makeup requests to classes that are about to start
     const isClassStartingSoon = (date, periodId) => {
@@ -384,15 +400,28 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     // Load all makeup requests (only for actual students, not coaches in student mode)
                     const makeups = await getActiveMakeupRequests(user.username);
 
-                    // 모든 보강을 유지 (시간표의 보강 출석 표시를 위해)
-                    // 팝업 배너에서만 isMakeupClassSoon으로 필터링하여 숨김 (1314번째 줄)
-                    for (const makeup of makeups) {
+                    // 수업 시간이 지난 보강은 자동으로 completed 처리
+                    const passedMakeups = makeups.filter(m => isMakeupClassPassed(m));
+                    for (const makeup of passedMakeups) {
+                        try {
+                            await completeMakeupRequest(makeup.id);
+                            console.log('✅ 보강 자동 완료 처리:', makeup.id);
+                        } catch (err) {
+                            console.error('❌ 보강 자동 완료 실패:', makeup.id, err);
+                        }
+                    }
+
+                    // 완료 처리된 보강 제외
+                    const remainingMakeups = makeups.filter(m => !isMakeupClassPassed(m));
+
+                    // 팝업 배너에서만 isMakeupClassSoon으로 필터링하여 숨김
+                    for (const makeup of remainingMakeups) {
                         if (isMakeupClassSoon(makeup)) {
                             console.log('⏰ 보강 수업 시작 1시간 전 - 팝업만 숨김 (시간표 표시는 유지):', makeup.id);
                         }
                     }
 
-                    setActiveMakeupRequests(makeups);
+                    setActiveMakeupRequests(remainingMakeups);
                     console.log(`📊 Student makeup data loaded: ${makeups.length}개 활성 보강`);
                 } catch (error) {
                     console.error('Failed to load student makeup data:', error);
