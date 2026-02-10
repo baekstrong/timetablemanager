@@ -721,6 +721,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         let absenceStudents = []; // 일반 결석 신청
         let holdingStudents = [];
         let delayedStartStudents = [];
+        let newStudents = []; // 신규이면서 시작일 전인 학생
 
         // Get date for this slot
         const dateStr = weekDates[day];
@@ -772,11 +773,11 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 .map(h => h.studentName)
                 .filter(name => studentNames.includes(name));
 
-            // Find students whose start date is after this slot date (시작지연)
+            // Find students whose start date is after this slot date (시작지연/신규)
             // 단, 같은 이름으로 현재 진행 중인 수강(종료날짜 >= 오늘)이 있으면 미리 등록한 것이므로 제외
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            delayedStartStudents = students
+            const delayedStudentsRaw = students
                 .filter(s => {
                     const name = s['이름'];
                     if (!name || !studentNames.includes(name)) return false;
@@ -797,7 +798,14 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                         return endDate && endDate >= today;
                     });
                     return !hasActiveEnrollment;
-                })
+                });
+
+            // 신규이면서 시작일 전 → newStudents, 나머지 → delayedStartStudents
+            newStudents = delayedStudentsRaw
+                .filter(s => getStudentField(s, '신규/재등록') === '신규')
+                .map(s => s['이름']);
+            delayedStartStudents = delayedStudentsRaw
+                .filter(s => getStudentField(s, '신규/재등록') !== '신규')
                 .map(s => s['이름']);
 
             // Find students with absence requests for this date (일반 결석)
@@ -820,6 +828,9 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             if (holdingStudents.length > 0) {
                 console.log(`   → Holding students: ${holdingStudents.join(', ')}`);
             }
+            if (newStudents.length > 0) {
+                console.log(`   → New students (신규): ${newStudents.join(', ')}`);
+            }
             if (delayedStartStudents.length > 0) {
                 console.log(`   → Delayed start students: ${delayedStartStudents.join(', ')}`);
             }
@@ -831,13 +842,15 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         const activeStudents = studentNames.filter(name =>
             !allAbsentStudents.includes(name) &&
             !holdingStudents.includes(name) &&
-            !delayedStartStudents.includes(name)
+            !delayedStartStudents.includes(name) &&
+            !newStudents.includes(name)
         );
 
-        // Regular students who are on the roster (not holding, not delayed start, but may be absent)
+        // Regular students who are on the roster (not holding, not delayed start, not new, but may be absent)
         const regularStudentsPresent = studentNames.filter(name =>
             !holdingStudents.includes(name) &&
-            !delayedStartStudents.includes(name)
+            !delayedStartStudents.includes(name) &&
+            !newStudents.includes(name)
         );
 
         let currentCount, availableSeats, isFull;
@@ -868,6 +881,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             absenceStudents, // 새로 추가: 일반 결석 학생
             holdingStudents,
             delayedStartStudents,
+            newStudents,
             regularStudentsPresent
         };
     };
@@ -1070,7 +1084,9 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             if (data.currentCount === 0 &&
                 data.holdNames.length === 0 &&
                 data.holdingStudents.length === 0 &&
-                data.makeupAbsentStudents.length === 0) {
+                data.makeupAbsentStudents.length === 0 &&
+                data.delayedStartStudents.length === 0 &&
+                data.newStudents.length === 0) {
                 return (
                     <div
                         className="schedule-cell"
@@ -1131,7 +1147,12 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                             <span key={`holding-${name}`} className="student-tag" style={{ backgroundColor: '#fee2e2', color: '#991b1b', textDecoration: 'line-through' }}>{name}(홀딩)</span>
                         ))}
 
-                        {/* 3.5. Delayed Start Students (시작지연) */}
+                        {/* 3.5. New Students before start date (신규) */}
+                        {data.newStudents.map(name => (
+                            <span key={`new-${name}`} className="student-tag" style={{ backgroundColor: '#dbeafe', color: '#1e40af' }}>{name}(신규)</span>
+                        ))}
+
+                        {/* 3.6. Delayed Start Students (시작지연) - 재등록 등 */}
                         {data.delayedStartStudents.map(name => (
                             <span key={`delayed-${name}`} className="student-tag" style={{ backgroundColor: '#dcfce7', color: '#166534', textDecoration: 'line-through' }}>{name}(시작지연)</span>
                         ))}
