@@ -137,20 +137,6 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         }
     };
 
-    const menuItems = user.role === 'coach'
-        ? [
-            { id: 'training', title: '훈련일지', icon: '📝', description: '수강생별 훈련 기록 관리' },
-            { id: 'schedule', title: '시간표 관리', icon: '📅', description: '수강생 출석 현황 및 시간표 확인' },
-            { id: 'students', title: '수강생 관리', icon: '👥', description: '수강생 정보 및 수강권 현황' },
-            { id: 'holidays', title: '휴일 설정', icon: '🗓️', description: '휴가, 휴무일 설정 (종료일 반영)' }
-        ]
-        : [
-            { id: 'training', title: '훈련일지', icon: '📝', description: '나의 운동 기록 관리' },
-            { id: 'schedule', title: '시간표 조회', icon: '📅', description: '내 시간표 및 보강 신청' },
-            { id: 'myinfo', title: '내 정보', icon: '👤', description: '수강권 현황 및 출석 기록' },
-            { id: 'holding', title: '홀딩 및 결석 신청', icon: '⏸️', description: '수업 홀딩 및 결석 신청' }
-        ];
-
     return (
         <div className="dashboard-container">
             <div className="dashboard-background">
@@ -362,40 +348,6 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                     </section>
                 )}
 
-                {/* 메뉴 섹션 */}
-                <section className="menu-section">
-                    <h2 className="section-title">
-                        <span className="title-icon">🎯</span>
-                        주요 기능
-                    </h2>
-                    <div className="menu-grid">
-                        {menuItems.map(item => (
-                            <div
-                                key={item.id}
-                                className="menu-card"
-                                onClick={() => {
-                                    if (item.id === 'training') {
-                                        // Navigate to internal training log (integrated in public folder)
-                                        // Same domain allows sharing localStorage automatically
-                                        // Use relative path to work with GitHub Pages base URL
-                                        window.location.href = './training-log/index.html';
-                                    } else {
-                                        onNavigate(item.id);
-                                    }
-                                }}
-                            >
-                                <div className="menu-icon">{item.icon}</div>
-                                <h3 className="menu-title">{item.title}</h3>
-                                <p className="menu-description">{item.description}</p>
-                                <div className="menu-arrow">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                                    </svg>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
             </div>
 
             {/* 공지사항 작성/수정 모달 */}

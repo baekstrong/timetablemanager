@@ -53,6 +53,75 @@
         </div>
     </div>
 
+    <!-- Bottom Navigation Bar -->
+    <nav id="bottomNav" class="bottom-nav" style="display:none;">
+        <button class="bottom-nav-tab" data-page="dashboard" onclick="window.bottomNavNavigate('dashboard')">
+            <div class="tab-indicator"></div>
+            <div class="tab-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                </svg>
+            </div>
+            <span class="tab-label">공지사항</span>
+        </button>
+        <button class="bottom-nav-tab active" data-page="training-log" onclick="window.bottomNavNavigate('training-log')">
+            <div class="tab-indicator"></div>
+            <div class="tab-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <span class="tab-label">훈련일지</span>
+        </button>
+        <button class="bottom-nav-tab" data-page="schedule" onclick="window.bottomNavNavigate('schedule')">
+            <div class="tab-indicator"></div>
+            <div class="tab-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            </div>
+            <span class="tab-label">시간표</span>
+        </button>
+        <!-- Coach-only tabs -->
+        <button class="bottom-nav-tab coach-tab" data-page="students" onclick="window.bottomNavNavigate('students')" style="display:none;">
+            <div class="tab-indicator"></div>
+            <div class="tab-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+            </div>
+            <span class="tab-label">수강생</span>
+        </button>
+        <button class="bottom-nav-tab coach-tab" data-page="holidays" onclick="window.bottomNavNavigate('holidays')" style="display:none;">
+            <div class="tab-indicator"></div>
+            <div class="tab-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                </svg>
+            </div>
+            <span class="tab-label">휴일설정</span>
+        </button>
+        <!-- Student-only tabs -->
+        <button class="bottom-nav-tab student-tab" data-page="myinfo" onclick="window.bottomNavNavigate('myinfo')" style="display:none;">
+            <div class="tab-indicator"></div>
+            <div class="tab-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+            </div>
+            <span class="tab-label">내 정보</span>
+        </button>
+        <button class="bottom-nav-tab student-tab" data-page="holding" onclick="window.bottomNavNavigate('holding')" style="display:none;">
+            <div class="tab-indicator"></div>
+            <div class="tab-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <span class="tab-label">홀딩/결석</span>
+        </button>
+    </nav>
+
     <script type="module" src="js/main.js"></script>
 
 </body>

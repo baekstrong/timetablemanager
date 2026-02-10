@@ -1,6 +1,6 @@
 .student-manager-container {
     min-height: 100vh;
-    padding: 2rem;
+    padding: 2rem 2rem 100px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 

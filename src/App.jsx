@@ -9,6 +9,7 @@ import HolidayManager from './components/HolidayManager';
 import StudentInfo from './components/StudentInfo';
 import StudentManager from './components/StudentManager';
 import GoogleSheetsTest from './components/GoogleSheetsTest';
+import BottomNav from './components/BottomNav';
 import './App.css';
 
 function AppContent() {
@@ -20,8 +21,14 @@ function AppContent() {
   const handleLogin = async (userData) => {
     setUser(userData);
 
-    // Navigate to dashboard immediately for faster UX
-    setCurrentPage('dashboard');
+    // Check if there's a target page from bottom nav (e.g. navigating from training log)
+    const targetPage = sessionStorage.getItem('targetPage');
+    if (targetPage) {
+      sessionStorage.removeItem('targetPage');
+      setCurrentPage(targetPage);
+    } else {
+      setCurrentPage('dashboard');
+    }
 
     // If student role, fetch their data from Google Sheets in background
     if (userData.role === 'student') {
@@ -128,6 +135,9 @@ function AppContent() {
   return (
     <div className="app">
       {renderPage()}
+      {currentPage !== 'login' && user && (
+        <BottomNav currentPage={currentPage} user={user} onNavigate={handleNavigate} />
+      )}
     </div>
   );
 }

@@ -95,6 +95,58 @@ window.navigateToTimetable = function () {
 }
 
 // ============================================
+// Bottom Navigation
+// ============================================
+
+window.bottomNavNavigate = function (page) {
+    if (page === 'training-log') return; // Already on this page
+
+    // Prepare credentials for auto-login back in React app
+    sessionStorage.setItem('quickReturn', 'true');
+    const savedUser = localStorage.getItem('savedUser');
+    if (savedUser) {
+        try {
+            const user = JSON.parse(savedUser);
+            const credentials = {
+                username: user.name,
+                password: user.password,
+                autoLogin: true
+            };
+            localStorage.setItem('login_credentials', JSON.stringify(credentials));
+        } catch (err) {
+            console.error('Failed to prepare credentials:', err);
+        }
+    }
+
+    // Store target page so React app navigates there after auto-login
+    sessionStorage.setItem('targetPage', page);
+    window.location.href = '/timetablemanager/';
+}
+
+function updateBottomNav() {
+    const nav = document.getElementById('bottomNav');
+    if (!nav) return;
+
+    if (!state.currentUser) {
+        nav.style.display = 'none';
+        return;
+    }
+
+    nav.style.display = 'flex';
+
+    // Show/hide role-specific tabs
+    const coachTabs = nav.querySelectorAll('.coach-tab');
+    const studentTabs = nav.querySelectorAll('.student-tab');
+
+    coachTabs.forEach(tab => {
+        tab.style.display = state.isCoach ? 'flex' : 'none';
+    });
+    studentTabs.forEach(tab => {
+        tab.style.display = state.isCoach ? 'none' : 'flex';
+    });
+}
+
+// ============================================
 // Utility / Helper UI Updates
 // ============================================
 
@@ -160,6 +212,8 @@ function setupStudentPinnedMemosListener() {
 window.render = function () {
     const app = document.getElementById('app');
     if (!app) return;
+
+    updateBottomNav();
 
     if (!state.currentUser) {
         app.innerHTML = renderLoginScreen();
