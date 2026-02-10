@@ -414,10 +414,21 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     const makeups = await getActiveMakeupRequests(user.username);
                     const { start, end } = getThisWeekRange();
 
-                    // 이번 주 범위의 보강만 필터 (active는 전부, completed는 이번 주만)
+                    // 시간 지난 active 보강 자동완료 처리 (지난주 보강 포함)
+                    for (const m of makeups) {
+                        if (m.status === 'active' && isMakeupClassPassed(m)) {
+                            try {
+                                await completeMakeupRequest(m.id);
+                                m.status = 'completed';
+                                console.log('✅ 수강생 보강 자동 완료:', m.id, m.studentName);
+                            } catch (err) {
+                                console.error('❌ 수강생 보강 자동 완료 실패:', m.id, err);
+                            }
+                        }
+                    }
+
+                    // active, completed 모두 이번 주 보강 날짜 범위로 필터
                     const thisWeekMakeups = makeups.filter(m => {
-                        if (m.status === 'active') return true;
-                        // completed: 보강 수업 날짜가 이번 주 범위인 것만
                         const makeupDate = m.makeupClass?.date;
                         return makeupDate >= start && makeupDate <= end;
                     });
