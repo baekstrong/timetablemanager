@@ -238,6 +238,29 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                     </section>
                 )}
 
+                {/* 오늘 마지막 날인 수강생 (코치 모드) */}
+                {user.role === 'coach' && lastDayStudents.length > 0 && (
+                    <section style={{
+                        background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+                        border: '1px solid #f59e0b',
+                        borderRadius: '12px',
+                        padding: '1rem 1.25rem',
+                        marginBottom: '1.5rem'
+                    }}>
+                        <div style={{ fontWeight: '700', fontSize: '1rem', color: '#92400e', marginBottom: '0.5rem' }}>
+                            오늘 마지막 수업
+                        </div>
+                        <div style={{ color: '#78350f', fontSize: '0.95rem' }}>
+                            {lastDayStudents.map((s, idx) => (
+                                <span key={s.name}>
+                                    {idx > 0 && ', '}
+                                    {s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})
+                                </span>
+                            ))}
+                        </div>
+                    </section>
+                )}
+
                 {/* 공지사항 섹션 */}
                 <section className="notices-section">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -324,29 +347,6 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         </div>
                     )}
                 </section>
-
-                {/* 오늘 마지막 날인 수강생 (코치 모드) */}
-                {user.role === 'coach' && lastDayStudents.length > 0 && (
-                    <section style={{
-                        background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
-                        border: '1px solid #f59e0b',
-                        borderRadius: '12px',
-                        padding: '1rem 1.25rem',
-                        marginBottom: '1.5rem'
-                    }}>
-                        <div style={{ fontWeight: '700', fontSize: '1rem', color: '#92400e', marginBottom: '0.5rem' }}>
-                            오늘 마지막 수업
-                        </div>
-                        <div style={{ color: '#78350f', fontSize: '0.95rem' }}>
-                            {lastDayStudents.map((s, idx) => (
-                                <span key={s.name}>
-                                    {idx > 0 && ', '}
-                                    {s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})
-                                </span>
-                            ))}
-                        </div>
-                    </section>
-                )}
 
             </div>
 
