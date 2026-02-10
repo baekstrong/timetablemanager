@@ -773,6 +773,9 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 .filter(name => studentNames.includes(name));
 
             // Find students whose start date is after this slot date (시작지연)
+            // 단, 같은 이름으로 현재 진행 중인 수강(종료날짜 >= 오늘)이 있으면 미리 등록한 것이므로 제외
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
             delayedStartStudents = students
                 .filter(s => {
                     const name = s['이름'];
@@ -783,7 +786,17 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     const startDate = parseSheetDate(startDateStr);
                     if (!startDate) return false;
                     const slotDateObj = new Date(slotDate + 'T00:00:00');
-                    return startDate > slotDateObj;
+                    if (startDate <= slotDateObj) return false;
+                    // 같은 이름의 다른 행에서 종료날짜가 오늘 이후인 게 있으면 미리 등록 → 제외
+                    const hasActiveEnrollment = students.some(other => {
+                        if (other === s) return false;
+                        if (other['이름'] !== name) return false;
+                        const endDateStr = other['종료날짜'];
+                        if (!endDateStr) return false;
+                        const endDate = parseSheetDate(endDateStr);
+                        return endDate && endDate >= today;
+                    });
+                    return !hasActiveEnrollment;
                 })
                 .map(s => s['이름']);
 
