@@ -392,53 +392,44 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         return now >= classDate;
     };
 
-    // Load active makeup requests for student mode (복수 보강 지원)
+    // 이번 주 월~금 날짜 범위 계산
+    const getThisWeekRange = () => {
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const monday = new Date(today);
+        const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        monday.setDate(today.getDate() + diff);
+        monday.setHours(0, 0, 0, 0);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        const fmt = (d) => d.toISOString().split('T')[0];
+        return { start: fmt(monday), end: fmt(sunday) };
+    };
+
+    // Load makeup requests for student mode (active + 이번 주 completed)
     useEffect(() => {
         const loadStudentMakeupData = async () => {
             if (mode === 'student' && user && user.role !== 'coach') {
                 try {
-                    // Load all makeup requests (only for actual students, not coaches in student mode)
                     const makeups = await getActiveMakeupRequests(user.username);
+                    const { start, end } = getThisWeekRange();
 
-                    // 수업 시간이 지난 보강은 자동으로 completed 처리
-                    const passedMakeups = makeups.filter(m => isMakeupClassPassed(m));
-                    for (const makeup of passedMakeups) {
-                        try {
-                            await completeMakeupRequest(makeup.id);
-                            console.log('✅ 보강 자동 완료 처리:', makeup.id);
-                        } catch (err) {
-                            console.error('❌ 보강 자동 완료 실패:', makeup.id, err);
-                        }
-                    }
+                    // 이번 주 범위의 보강만 필터 (active는 전부, completed는 이번 주만)
+                    const thisWeekMakeups = makeups.filter(m => {
+                        if (m.status === 'active') return true;
+                        // completed: 보강 수업 날짜가 이번 주 범위인 것만
+                        const makeupDate = m.makeupClass?.date;
+                        return makeupDate >= start && makeupDate <= end;
+                    });
 
-                    // 완료 처리된 보강 제외
-                    const remainingMakeups = makeups.filter(m => !isMakeupClassPassed(m));
-
-                    // 팝업 배너에서만 isMakeupClassSoon으로 필터링하여 숨김
-                    for (const makeup of remainingMakeups) {
-                        if (isMakeupClassSoon(makeup)) {
-                            console.log('⏰ 보강 수업 시작 1시간 전 - 팝업만 숨김 (시간표 표시는 유지):', makeup.id);
-                        }
-                    }
-
-                    setActiveMakeupRequests(remainingMakeups);
-                    console.log(`📊 Student makeup data loaded: ${makeups.length}개 활성 보강`);
+                    setActiveMakeupRequests(thisWeekMakeups);
+                    console.log(`📊 Student makeup data loaded: ${thisWeekMakeups.length}개 (active: ${thisWeekMakeups.filter(m => m.status === 'active').length}, completed: ${thisWeekMakeups.filter(m => m.status === 'completed').length})`);
                 } catch (error) {
                     console.error('Failed to load student makeup data:', error);
                 }
             }
         };
         loadStudentMakeupData();
-
-        // 1분마다 체크하여 보강 시간이 다가오면 자동 완료 처리
-        const checkInterval = setInterval(() => {
-            const hasSoonMakeup = activeMakeupRequests.some(m => isMakeupClassSoon(m));
-            if (hasSoonMakeup) {
-                loadStudentMakeupData();
-            }
-        }, 60000); // 1분마다 체크
-
-        return () => clearInterval(checkInterval);
     }, [mode, user]);
 
     // Helper function to load weekly data
@@ -532,23 +523,24 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             const absenceArrays = await Promise.all(absencePromises);
             const allAbsences = absenceArrays.flat();
 
-            // 수업 시간이 지난 보강은 자동으로 completed 처리 (코치/수강생 모두)
-            const passedWeekMakeups = (makeups || []).filter(m => isMakeupClassPassed(m));
-            for (const makeup of passedWeekMakeups) {
+            // 수업 시간이 지난 active 보강은 자동으로 completed 처리 (코치/수강생 모두)
+            const passedActiveMakeups = (makeups || []).filter(m => m.status === 'active' && isMakeupClassPassed(m));
+            for (const makeup of passedActiveMakeups) {
                 try {
                     await completeMakeupRequest(makeup.id);
+                    makeup.status = 'completed'; // 로컬 상태도 업데이트
                     console.log('✅ 보강 자동 완료 처리:', makeup.id, makeup.studentName);
                 } catch (err) {
                     console.error('❌ 보강 자동 완료 실패:', makeup.id, err);
                 }
             }
-            const remainingWeekMakeups = (makeups || []).filter(m => !isMakeupClassPassed(m));
 
-            setWeekMakeupRequests(remainingWeekMakeups);
+            // active + completed 모두 시간표에 표시 (주간 내역 유지)
+            setWeekMakeupRequests(makeups || []);
             setWeekHoldings(holdings || []);
             setWeekAbsences(allAbsences || []);
 
-            console.log(`✅ Loaded ${makeups?.length || 0} makeup requests (${passedWeekMakeups.length}개 자동완료), ${holdings?.length || 0} holdings (from Google Sheets), ${allAbsences?.length || 0} absences`);
+            console.log(`✅ Loaded ${makeups?.length || 0} makeup requests (${passedActiveMakeups.length}개 자동완료), ${holdings?.length || 0} holdings (from Google Sheets), ${allAbsences?.length || 0} absences`);
         } catch (error) {
             console.error('Failed to load weekly data:', error);
             // Don't crash, just set empty arrays
@@ -616,6 +608,18 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         setShowMakeupModal(true);
     };
 
+    // 수강생 보강 목록 새로고침 헬퍼
+    const reloadStudentMakeups = async () => {
+        const makeups = await getActiveMakeupRequests(user.username);
+        const { start, end } = getThisWeekRange();
+        const thisWeekMakeups = makeups.filter(m => {
+            if (m.status === 'active') return true;
+            const makeupDate = m.makeupClass?.date;
+            return makeupDate >= start && makeupDate <= end;
+        });
+        setActiveMakeupRequests(thisWeekMakeups);
+    };
+
     // Handle makeup submission
     const handleMakeupSubmit = async () => {
         if (!selectedOriginalClass || !selectedMakeupSlot) return;
@@ -625,11 +629,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             await createMakeupRequest(user.username, selectedOriginalClass, selectedMakeupSlot);
             alert(`보강 신청 완료!\n${selectedOriginalClass.day}요일 ${selectedOriginalClass.periodName} → ${selectedMakeupSlot.day}요일 ${selectedMakeupSlot.periodName}`);
 
-            // Reload all makeup requests
-            const makeups = await getActiveMakeupRequests(user.username);
-            setActiveMakeupRequests(makeups);
-
-            // Reload weekly data to update seat availability immediately
+            await reloadStudentMakeups();
             await loadWeeklyData();
 
             setShowMakeupModal(false);
@@ -650,11 +650,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             await cancelMakeupRequest(makeupId);
             alert('보강 신청이 취소되었습니다.');
 
-            // Reload all makeup requests
-            const makeups = await getActiveMakeupRequests(user.username);
-            setActiveMakeupRequests(makeups);
-
-            // Reload weekly data
+            await reloadStudentMakeups();
             await loadWeeklyData();
         } catch (error) {
             alert(`보강 신청 취소 실패: ${error.message}`);
@@ -1393,18 +1389,21 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 </div>
             )}
 
-            {/* Active Makeup Banners - 복수 보강 지원, 수업 시작 1시간 전에는 숨김 */}
-            {mode === 'student' && activeMakeupRequests.filter(m => !isMakeupClassSoon(m)).length > 0 && (
+            {/* Makeup Banners - 이번 주 보강 내역 (active + completed) */}
+            {mode === 'student' && activeMakeupRequests.length > 0 && (
                 <div className="active-makeup-banner">
                     <div className="banner-header" style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#666' }}>
-                        🔄 활성 보강 ({activeMakeupRequests.filter(m => !isMakeupClassSoon(m)).length}/{weeklyFrequency}개)
+                        🔄 이번 주 보강 ({activeMakeupRequests.length}/{weeklyFrequency}개)
                     </div>
-                    {activeMakeupRequests.filter(m => !isMakeupClassSoon(m)).map((makeup, index) => (
+                    {activeMakeupRequests.map((makeup, index) => (
                         <div key={makeup.id} className="banner-content" style={{ marginBottom: index < activeMakeupRequests.length - 1 ? '8px' : '0' }}>
                             <div className="banner-text">
                                 {makeup.originalClass.day}요일 {makeup.originalClass.periodName} → {makeup.makeupClass.day}요일 {makeup.makeupClass.periodName}
+                                {makeup.status === 'completed' && <span style={{ marginLeft: '6px', color: '#16a34a', fontWeight: 700 }}>완료</span>}
                             </div>
-                            <button className="banner-cancel-btn" onClick={() => handleMakeupCancel(makeup.id)}>취소</button>
+                            {makeup.status === 'active' && !isMakeupClassSoon(makeup) && (
+                                <button className="banner-cancel-btn" onClick={() => handleMakeupCancel(makeup.id)}>취소</button>
+                            )}
                         </div>
                     ))}
                 </div>

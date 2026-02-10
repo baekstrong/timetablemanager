@@ -107,13 +107,13 @@ export const getActiveMakeupRequests = async (studentName) => {
         const q = query(
             collection(db, 'makeupRequests'),
             where('studentName', '==', studentName),
-            where('status', '==', 'active')
+            where('status', 'in', ['active', 'completed'])
         );
 
         const snapshot = await getDocs(q);
         const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-        console.log(`📬 활성 보강 신청 ${requests.length}개 조회:`, studentName);
+        console.log(`📬 보강 신청 ${requests.length}개 조회 (active+completed):`, studentName);
         return requests;
     } catch (error) {
         console.error('❌ 보강 신청 목록 조회 실패:', error);
@@ -157,7 +157,7 @@ export const getMakeupRequestsByWeek = async (startDate, endDate) => {
     try {
         const q = query(
             collection(db, 'makeupRequests'),
-            where('status', '==', 'active')
+            where('status', 'in', ['active', 'completed'])
         );
 
         const snapshot = await getDocs(q);
