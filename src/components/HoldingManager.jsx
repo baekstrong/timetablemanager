@@ -342,6 +342,25 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         return now < oneHourBefore;
     };
 
+    // 결석 신청 가능 여부 확인 (수업 시작 30분 전까지)
+    const canRequestAbsence = (date) => {
+        if (!date) return false;
+
+        const periodId = getClassPeriod(date);
+        if (!periodId) return false;
+
+        const period = PERIODS.find(p => p.id === periodId);
+        if (!period) return false;
+
+        const classDateTime = new Date(date);
+        classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
+
+        const thirtyMinBefore = new Date(classDateTime.getTime() - 30 * 60 * 1000);
+
+        const now = new Date();
+        return now < thirtyMinBefore;
+    };
+
     // 이미 홀딩 신청한 날짜인지 확인
     const isHoldingDate = (date) => {
         if (!date) return false;
@@ -357,7 +376,8 @@ const HoldingManager = ({ user, studentData, onBack }) => {
             return;
         }
 
-        if (!date || !isClassDay(date) || !canRequestHolding(date) || isHoldingDate(date)) {
+        const canRequest = requestType === 'absence' ? canRequestAbsence(date) : canRequestHolding(date);
+        if (!date || !isClassDay(date) || !canRequest || isHoldingDate(date)) {
             return;
         }
 
@@ -733,7 +753,8 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                 const coachHolidayName = coachHolidays[dateStr];
                                 const holidayName = koreanHolidayName || coachHolidayName; // 한국 공휴일 또는 코치 설정 휴일
                                 const isOutOfPeriod = !isInPeriod; // 수강 기간 외 날짜
-                                const canRequest = isClass && canRequestHolding(date) && !isHolding && !isAbsence && !holidayName && isInPeriod;
+                                const timeCheck = requestType === 'absence' ? canRequestAbsence(date) : canRequestHolding(date);
+                                const canRequest = isClass && timeCheck && !isHolding && !isAbsence && !holidayName && isInPeriod;
 
                                 return (
                                     <div
