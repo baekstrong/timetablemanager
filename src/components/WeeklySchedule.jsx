@@ -532,11 +532,23 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             const absenceArrays = await Promise.all(absencePromises);
             const allAbsences = absenceArrays.flat();
 
-            setWeekMakeupRequests(makeups || []);
+            // 수업 시간이 지난 보강은 자동으로 completed 처리 (코치/수강생 모두)
+            const passedWeekMakeups = (makeups || []).filter(m => isMakeupClassPassed(m));
+            for (const makeup of passedWeekMakeups) {
+                try {
+                    await completeMakeupRequest(makeup.id);
+                    console.log('✅ 보강 자동 완료 처리:', makeup.id, makeup.studentName);
+                } catch (err) {
+                    console.error('❌ 보강 자동 완료 실패:', makeup.id, err);
+                }
+            }
+            const remainingWeekMakeups = (makeups || []).filter(m => !isMakeupClassPassed(m));
+
+            setWeekMakeupRequests(remainingWeekMakeups);
             setWeekHoldings(holdings || []);
             setWeekAbsences(allAbsences || []);
 
-            console.log(`✅ Loaded ${makeups?.length || 0} makeup requests, ${holdings?.length || 0} holdings (from Google Sheets), ${allAbsences?.length || 0} absences`);
+            console.log(`✅ Loaded ${makeups?.length || 0} makeup requests (${passedWeekMakeups.length}개 자동완료), ${holdings?.length || 0} holdings (from Google Sheets), ${allAbsences?.length || 0} absences`);
         } catch (error) {
             console.error('Failed to load weekly data:', error);
             // Don't crash, just set empty arrays
