@@ -1343,24 +1343,11 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                     // 해당 요일의 날짜 계산
                                     const dateStr = weekDates[schedule.day];
                                     let originalDateStr = '';
-                                    let isPastDate = false;
-                                    let isStarted = false;
                                     let isAlreadyRequested = false;
                                     if (dateStr) {
                                         const [month, dayNum] = dateStr.split('/');
                                         const year = new Date().getFullYear();
                                         originalDateStr = `${year}-${month.padStart(2, '0')}-${dayNum.padStart(2, '0')}`;
-
-                                        // 과거 날짜인지 확인
-                                        const today = new Date();
-                                        today.setHours(0, 0, 0, 0);
-                                        const classDate = new Date(originalDateStr + 'T00:00:00');
-                                        isPastDate = classDate < today;
-
-                                        // 수업이 이미 시작했는지 확인 (오늘 날짜인 경우)
-                                        if (!isPastDate) {
-                                            isStarted = hasClassStarted(originalDateStr, schedule.period);
-                                        }
 
                                         // 이미 보강 신청한 수업인지 확인
                                         isAlreadyRequested = activeMakeupRequests.some(m =>
@@ -1370,22 +1357,14 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                         );
                                     }
 
-                                    const isDisabled = isPastDate || isStarted || isAlreadyRequested;
+                                    const isDisabled = isAlreadyRequested;
 
                                     return (
                                         <div
                                             key={index}
                                             className={`original-class-item ${selectedOriginalClass?.day === schedule.day && selectedOriginalClass?.period === schedule.period ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
-                                            style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: isAlreadyRequested ? '#e0f2fe' : '#f3f4f6' } : {}}
+                                            style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: '#e0f2fe' } : {}}
                                             onClick={() => {
-                                                if (isPastDate) {
-                                                    alert('이미 지난 수업은 보강 신청을 할 수 없습니다.');
-                                                    return;
-                                                }
-                                                if (isStarted) {
-                                                    alert('이미 시작한 수업은 보강 신청을 할 수 없습니다.');
-                                                    return;
-                                                }
                                                 if (isAlreadyRequested) {
                                                     alert('이미 보강 신청한 수업입니다.');
                                                     return;
@@ -1401,7 +1380,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                         >
                                             <span className="period-name">{schedule.day}요일 {periodInfo?.name}</span>
                                             <span style={{ fontSize: '0.8em', color: isDisabled ? '#999' : '#666', marginLeft: '8px' }}>
-                                                ({dateStr}){isPastDate && ' - 지남'}{isStarted && ' - 수업 중'}{isAlreadyRequested && ' - 신청됨'}
+                                                ({dateStr}){isAlreadyRequested && ' - 신청됨'}
                                             </span>
                                         </div>
                                     );
