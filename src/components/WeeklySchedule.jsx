@@ -235,6 +235,27 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student'); // 'student' | 'coach'
     const { students, isAuthenticated, loading, refresh } = useGoogleSheets();
 
+    // 오늘 마지막 날인 수강생 (코치 모드) - 이름(요일 및 시간,결제금액) 형식
+    const lastDayStudents = (() => {
+        if (user?.role !== 'coach' || !students || students.length === 0) return [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return students.filter(student => {
+            const endDateStr = student['종료날짜'];
+            if (!endDateStr) return false;
+            const endDate = parseSheetDate(endDateStr);
+            if (!endDate) return false;
+            endDate.setHours(0, 0, 0, 0);
+            return endDate.getTime() === today.getTime();
+        }).map(s => {
+            const name = s['이름'];
+            if (!name) return null;
+            const schedule = s['요일 및 시간'] || '';
+            const payment = s['결제금액'] || s['결제\n금액'] || '';
+            return { name, schedule, payment };
+        }).filter(Boolean);
+    })();
+
     // Makeup request state (복수 보강 신청 지원)
     const [showMakeupModal, setShowMakeupModal] = useState(false);
     const [selectedMakeupSlot, setSelectedMakeupSlot] = useState(null);
@@ -1279,6 +1300,28 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                         코치 전용
                     </button>
                 </div>
+            )}
+
+            {mode === 'coach' && lastDayStudents.length > 0 && (
+                <section style={{
+                    background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+                    border: '1px solid #f59e0b',
+                    borderRadius: '12px',
+                    padding: '1rem 1.25rem',
+                    marginBottom: '1rem'
+                }}>
+                    <div style={{ fontWeight: '700', fontSize: '1rem', color: '#92400e', marginBottom: '0.5rem' }}>
+                        오늘 마지막 수업
+                    </div>
+                    <div style={{ color: '#78350f', fontSize: '0.95rem' }}>
+                        {lastDayStudents.map((s, idx) => (
+                            <span key={s.name}>
+                                {idx > 0 && ', '}
+                                {s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})
+                            </span>
+                        ))}
+                    </div>
+                </section>
             )}
 
             <div className="schedule-grid">
