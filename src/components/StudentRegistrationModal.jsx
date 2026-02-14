@@ -39,6 +39,9 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
     const [submitting, setSubmitting] = useState(false);
     const [searchLoading, setSearchLoading] = useState(false);
 
+    const [absenceDates, setAbsenceDates] = useState([]);
+    const [absenceDateInput, setAbsenceDateInput] = useState('');
+
     const [form, setForm] = useState({
         이름: '',
         주횟수: '',
@@ -67,7 +70,7 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
         getHolidays().then(setHolidays).catch(err => console.error('공휴일 로드 실패:', err));
     }, []);
 
-    // 종료날짜 자동 계산
+    // 종료날짜 자동 계산 (결석일 반영)
     useEffect(() => {
         if (!form.시작날짜 || !form.주횟수 || !form['요일 및 시간']) {
             setForm(prev => ({ ...prev, 종료날짜: '' }));
@@ -79,12 +82,12 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
 
         const totalSessions = weeklyFreq * 4;
         const endDate = calculateEndDateWithHolidays(
-            startDate, totalSessions, form['요일 및 시간'], holidays
+            startDate, totalSessions, form['요일 및 시간'], holidays, absenceDates
         );
         if (endDate) {
             setForm(prev => ({ ...prev, 종료날짜: formatYYMMDD(endDate) }));
         }
-    }, [form.시작날짜, form.주횟수, form['요일 및 시간'], holidays]);
+    }, [form.시작날짜, form.주횟수, form['요일 및 시간'], holidays, absenceDates]);
 
     const handleChange = (field, value) => {
         setForm(prev => ({ ...prev, [field]: value }));
@@ -145,12 +148,26 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
             }
             const nextSheetRow = lastDataRowIndex + 1 + 1; // array→sheet 변환(+1) + 다음 행(+1)
 
+            // 결석 날짜가 있으면 특이사항에 추가
+            let finalNotes = form.특이사항;
+            if (absenceDates.length > 0) {
+                const absenceTexts = absenceDates.map(dateStr => {
+                    const d = new Date(dateStr + 'T00:00:00');
+                    const yy = String(d.getFullYear()).slice(2);
+                    const m = d.getMonth() + 1;
+                    const day = d.getDate();
+                    return `${yy}.${m}.${day}`;
+                });
+                const absenceNote = `${absenceTexts.join(', ')} 결석`;
+                finalNotes = finalNotes ? `${finalNotes}, ${absenceNote}` : absenceNote;
+            }
+
             const rowData = [
                 '',                                                          // A: 빈칸 (번호는 수동 관리)
                 form.이름,                                                   // B: 이름
                 form.주횟수,                                                 // C: 주횟수
                 form['요일 및 시간'],                                        // D: 요일 및 시간
-                form.특이사항,                                               // E: 특이사항
+                finalNotes,                                                  // E: 특이사항 (결석 포함)
                 registrationType === 'new' ? '신규' : '재등록',              // F: 신규/재등록
                 startDateYYMMDD,                                             // G: 시작날짜
                 form.종료날짜,                                               // H: 종료날짜
@@ -275,6 +292,53 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
                         onChange={(e) => handleChange('특이사항', e.target.value)}
                         placeholder="특이사항 입력 (선택)"
                     />
+                </div>
+
+                {/* 결석 날짜 입력 */}
+                <div className="reg-field-group">
+                    <label>결석 날짜 (선택)</label>
+                    <div className="reg-absence-input-row">
+                        <input
+                            type="date"
+                            value={absenceDateInput}
+                            onChange={(e) => setAbsenceDateInput(e.target.value)}
+                        />
+                        <button
+                            type="button"
+                            className="reg-absence-add-btn"
+                            onClick={() => {
+                                if (!absenceDateInput) return;
+                                if (absenceDates.includes(absenceDateInput)) {
+                                    alert('이미 추가된 날짜입니다.');
+                                    return;
+                                }
+                                setAbsenceDates(prev => [...prev, absenceDateInput].sort());
+                                setAbsenceDateInput('');
+                            }}
+                        >
+                            추가
+                        </button>
+                    </div>
+                    {absenceDates.length > 0 && (
+                        <div className="reg-absence-list">
+                            {absenceDates.map(date => {
+                                const d = new Date(date + 'T00:00:00');
+                                const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+                                return (
+                                    <span key={date} className="reg-absence-tag">
+                                        {date} ({dayNames[d.getDay()]})
+                                        <button
+                                            type="button"
+                                            onClick={() => setAbsenceDates(prev => prev.filter(x => x !== date))}
+                                        >
+                                            X
+                                        </button>
+                                    </span>
+                                );
+                            })}
+                        </div>
+                    )}
+                    <div className="field-hint">수업일에 해당하는 결석만큼 종료날짜가 자동 연장됩니다.</div>
                 </div>
 
                 {/* 시작날짜 / 종료날짜 */}

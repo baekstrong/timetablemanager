@@ -280,6 +280,8 @@ export async function openEditModal(docId) {
         renderEditSets();
 
         modal.classList.add('active');
+        document.body.classList.add('modal-open');
+        document.body.dataset.scrollY = window.scrollY;
     } catch (error) {
         console.error('Error opening edit modal:', error);
         alert('수정 모달 열기 실패: ' + error.message);
@@ -289,6 +291,9 @@ export async function openEditModal(docId) {
 export function closeEditModal() {
     const modal = document.getElementById('editModal');
     if (modal) modal.classList.remove('active');
+    document.body.classList.remove('modal-open');
+    const scrollY = document.body.dataset.scrollY;
+    if (scrollY) window.scrollTo(0, parseInt(scrollY));
     state.editingSets = [];
 }
 
@@ -1025,12 +1030,17 @@ export function editStudentMemo(exerciseName, currentMemo) {
         title.textContent = `'${exerciseName}' 메모 수정`;
         input.value = currentMemo;
         modal.classList.add('active');
+        document.body.classList.add('modal-open');
+        document.body.dataset.scrollY = window.scrollY;
     }
 }
 
 export function closeMemoEditModal() {
     const modal = document.getElementById('memoEditModal');
     if (modal) modal.classList.remove('active');
+    document.body.classList.remove('modal-open');
+    const scrollY = document.body.dataset.scrollY;
+    if (scrollY) window.scrollTo(0, parseInt(scrollY));
     editingMemoExerciseName = null;
 }
 

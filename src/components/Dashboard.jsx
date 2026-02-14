@@ -321,7 +321,6 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         alignItems: 'center',
                         zIndex: 1000
                     }}
-                    onClick={() => setShowModal(false)}
                 >
                     <div
                         style={{

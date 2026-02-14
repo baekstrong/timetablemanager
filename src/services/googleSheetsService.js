@@ -571,8 +571,16 @@ const calculateEndDate = (startDate, totalSessions, scheduleStr, holdingRanges =
  * @param {Array} firebaseHolidays - Firebase custom holidays [{date: "2026-02-14", reason: "휴무"}, ...]
  * @returns {Date|null} - Calculated end date
  */
-export const calculateEndDateWithHolidays = (startDate, totalSessions, scheduleStr, firebaseHolidays = []) => {
-  return calculateEndDate(startDate, totalSessions, scheduleStr, null, firebaseHolidays);
+export const calculateEndDateWithHolidays = (startDate, totalSessions, scheduleStr, firebaseHolidays = [], absenceDates = []) => {
+  // 결석일을 각각 1일짜리 홀딩 범위로 변환
+  let holdingRanges = null;
+  if (absenceDates && absenceDates.length > 0) {
+    holdingRanges = absenceDates.map(dateStr => {
+      const d = new Date(dateStr + 'T00:00:00');
+      return { start: d, end: d };
+    });
+  }
+  return calculateEndDate(startDate, totalSessions, scheduleStr, holdingRanges, firebaseHolidays);
 };
 
 /**
@@ -1525,6 +1533,221 @@ export const clearStudentScheduleAllSheets = async (studentName) => {
     return updatedCount;
   } catch (error) {
     console.error('❌ 모든 시트 스케줄 삭제 실패:', error);
+    throw error;
+  }
+};
+
+/**
+ * 수강생 결석 처리
+ * - 구글 시트의 특이사항에 "26.M.D, 26.M.D 결석" 형식으로 기록
+ * - 종료날짜를 결석 횟수만큼 뒤로 연장
+ * @param {string} studentName - 학생 이름
+ * @param {Array<string>} absenceDates - 결석 날짜 배열 (YYYY-MM-DD 형식)
+ * @param {Array} firebaseHolidays - Firebase 커스텀 공휴일 배열
+ * @returns {Promise<Object>} - { success, newEndDate, notesText }
+ */
+export const processStudentAbsence = async (studentName, absenceDates, firebaseHolidays = []) => {
+  try {
+    console.log(`🔄 결석 처리 시작: ${studentName}, 날짜: ${absenceDates.join(', ')}`);
+
+    // 여러 시트에서 학생 찾기
+    let foundSheetName = null;
+    let rows = null;
+    let headers = null;
+    let nameColIndex = -1;
+    let studentIndex = -1;
+
+    // 현재 월 시트에서 먼저 찾기
+    const primarySheetName = getCurrentSheetName();
+    try {
+      rows = await readSheetData(`${primarySheetName}!A:Z`);
+      if (rows && rows.length >= 2) {
+        headers = rows[1];
+        nameColIndex = headers.indexOf('이름');
+        if (nameColIndex !== -1) {
+          studentIndex = rows.findIndex((row, idx) =>
+            idx >= 2 && row[nameColIndex] === studentName
+          );
+          if (studentIndex !== -1) {
+            foundSheetName = primarySheetName;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`⚠️ ${primarySheetName} 시트 읽기 실패:`, e.message);
+    }
+
+    // 못 찾았으면 모든 시트에서 검색
+    if (!foundSheetName) {
+      const allSheets = await getAllSheetNames();
+      const studentSheets = allSheets.filter(name => name.startsWith('등록생 목록'));
+
+      for (const sheetToCheck of studentSheets) {
+        if (sheetToCheck === primarySheetName) continue;
+        try {
+          rows = await readSheetData(`${sheetToCheck}!A:Z`);
+          if (rows && rows.length >= 2) {
+            headers = rows[1];
+            nameColIndex = headers.indexOf('이름');
+            if (nameColIndex !== -1) {
+              studentIndex = rows.findIndex((row, idx) =>
+                idx >= 2 && row[nameColIndex] === studentName
+              );
+              if (studentIndex !== -1) {
+                foundSheetName = sheetToCheck;
+                break;
+              }
+            }
+          }
+        } catch (sheetError) {
+          continue;
+        }
+      }
+    }
+
+    if (!foundSheetName || studentIndex === -1) {
+      throw new Error(`학생 정보를 찾을 수 없습니다: ${studentName}`);
+    }
+
+    const findColumnIndex = (fieldName) => {
+      let index = headers.indexOf(fieldName);
+      if (index !== -1) return index;
+      index = headers.indexOf(fieldName.replace(/ /g, '\n'));
+      if (index !== -1) return index;
+      index = headers.indexOf(fieldName.replace(/\n/g, ' '));
+      if (index !== -1) return index;
+      return -1;
+    };
+
+    const notesCol = findColumnIndex('특이사항');
+    const endDateCol = findColumnIndex('종료날짜');
+    const startDateCol = findColumnIndex('시작날짜');
+    const scheduleCol = findColumnIndex('요일 및 시간');
+    const weeklyFreqCol = findColumnIndex('주횟수');
+    const holdingUsedCol = findColumnIndex('홀딩 사용여부');
+
+    if (endDateCol === -1 || scheduleCol === -1) {
+      throw new Error('필요한 필드를 찾을 수 없습니다.');
+    }
+
+    const studentRow = rows[studentIndex];
+
+    // 기존 특이사항 가져오기
+    const currentNotes = (notesCol !== -1 && studentRow[notesCol]) ? studentRow[notesCol] : '';
+
+    // 결석 날짜를 "26.M.D" 형식으로 변환
+    const absenceTexts = absenceDates.map(dateStr => {
+      const d = new Date(dateStr + 'T00:00:00');
+      const yy = String(d.getFullYear()).slice(2);
+      const m = d.getMonth() + 1;
+      const day = d.getDate();
+      return `${yy}.${m}.${day}`;
+    });
+    const absenceNote = `${absenceTexts.join(', ')} 결석`;
+
+    // 기존 특이사항에 결석 내용 추가
+    const newNotes = currentNotes
+      ? `${currentNotes}, ${absenceNote}`
+      : absenceNote;
+
+    // 스케줄 정보 가져오기
+    const scheduleStr = scheduleCol !== -1 ? (studentRow[scheduleCol] || '') : '';
+    const startDateStr = startDateCol !== -1 ? (studentRow[startDateCol] || '') : '';
+    const weeklyFreqStr = weeklyFreqCol !== -1 ? (studentRow[weeklyFreqCol] || '') : '';
+    const holdingStatusStr = holdingUsedCol !== -1 ? (studentRow[holdingUsedCol] || '') : '';
+
+    // 스케줄에서 수업 요일 파싱
+    const schedule = parseScheduleString(scheduleStr);
+    const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5, '토': 6, '일': 0 };
+    const classDays = schedule.map(s => dayMap[s.day]).filter(d => d !== undefined);
+
+    // 결석 날짜 중 실제 수업일에 해당하는 것만 카운트
+    const validAbsenceDates = absenceDates.filter(dateStr => {
+      const d = new Date(dateStr + 'T00:00:00');
+      return classDays.includes(d.getDay());
+    });
+
+    console.log(`📊 결석 날짜 ${absenceDates.length}개 중 수업일: ${validAbsenceDates.length}개`);
+
+    // 종료날짜 재계산: 결석일을 홀딩 범위처럼 처리
+    const parseDate = (dateStr) => {
+      if (!dateStr) return null;
+      const cleaned = dateStr.replace(/\D/g, '');
+      if (cleaned.length === 6) {
+        return new Date(parseInt('20' + cleaned.substring(0, 2)), parseInt(cleaned.substring(2, 4)) - 1, parseInt(cleaned.substring(4, 6)));
+      } else if (cleaned.length === 8) {
+        return new Date(parseInt(cleaned.substring(0, 4)), parseInt(cleaned.substring(4, 6)) - 1, parseInt(cleaned.substring(6, 8)));
+      }
+      return null;
+    };
+
+    const membershipStartDate = parseDate(startDateStr);
+    const weeklyFrequency = parseInt(weeklyFreqStr) || 2;
+    const holdingInfo = parseHoldingStatus(holdingStatusStr);
+    const totalSessions = weeklyFrequency * 4 * holdingInfo.months;
+
+    // 결석일을 각각 1일짜리 홀딩 범위로 변환
+    const absenceRanges = validAbsenceDates.map(dateStr => {
+      const d = new Date(dateStr + 'T00:00:00');
+      return { start: d, end: d };
+    });
+
+    // 기존 홀딩 기간도 포함 (있을 경우)
+    const holdingStartStr = holdingUsedCol !== -1 ? getStudentField(
+      Object.fromEntries(headers.map((h, i) => [h, studentRow[i] || ''])),
+      '홀딩 시작일'
+    ) : '';
+    const holdingEndStr = holdingUsedCol !== -1 ? getStudentField(
+      Object.fromEntries(headers.map((h, i) => [h, studentRow[i] || ''])),
+      '홀딩 종료일'
+    ) : '';
+
+    const allRanges = [...absenceRanges];
+    if (holdingInfo.isCurrentlyUsed && holdingStartStr && holdingEndStr) {
+      const hs = parseDate(holdingStartStr);
+      const he = parseDate(holdingEndStr);
+      if (hs && he) {
+        allRanges.push({ start: hs, end: he });
+      }
+    }
+
+    const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allRanges, firebaseHolidays);
+
+    if (!newEndDate) {
+      throw new Error('종료일 계산에 실패했습니다.');
+    }
+
+    const newEndDateStr = formatDateToYYMMDD(newEndDate);
+
+    // 시트 업데이트
+    const updates = [];
+
+    if (notesCol !== -1) {
+      updates.push({
+        range: `${foundSheetName}!${getColumnLetter(notesCol)}${studentIndex + 1}`,
+        values: [[newNotes]]
+      });
+    }
+
+    updates.push({
+      range: `${foundSheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`,
+      values: [[newEndDateStr]]
+    });
+
+    await batchUpdateSheet(updates);
+
+    // 하이라이트 적용
+    const cellsToHighlight = updates.map(u => u.range.split('!')[1]);
+    try {
+      await highlightCells(cellsToHighlight, foundSheetName);
+    } catch (highlightError) {
+      console.warn('⚠️ 셀 하이라이트 실패:', highlightError);
+    }
+
+    console.log(`✅ 결석 처리 완료: ${studentName}, 특이사항="${newNotes}", 새 종료일=${newEndDateStr}`);
+    return { success: true, newEndDate: newEndDateStr, notesText: newNotes, validAbsenceCount: validAbsenceDates.length };
+  } catch (error) {
+    console.error('❌ 결석 처리 실패:', error);
     throw error;
   }
 };

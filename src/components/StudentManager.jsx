@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getStudentField, clearStudentScheduleAllSheets, parseSheetDate } from '../services/googleSheetsService';
+import { getStudentField, clearStudentScheduleAllSheets, parseSheetDate, processStudentAbsence } from '../services/googleSheetsService';
+import { getHolidays } from '../services/firebaseService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import './StudentManager.css';
@@ -18,6 +19,16 @@ const StudentManager = ({ onBack }) => {
     const [editForm, setEditForm] = useState({});
     const [viewMode, setViewMode] = useState('table'); // 'table' or 'sheet'
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+    const [absenceTarget, setAbsenceTarget] = useState(null); // 결석 대상 수강생
+    const [absenceDates, setAbsenceDates] = useState([]); // 결석 날짜 목록
+    const [absenceDateInput, setAbsenceDateInput] = useState(''); // 날짜 입력
+    const [absenceProcessing, setAbsenceProcessing] = useState(false);
+    const [holidays, setHolidays] = useState([]);
+
+    // 공휴일 로드
+    useEffect(() => {
+        getHolidays().then(setHolidays).catch(err => console.error('공휴일 로드 실패:', err));
+    }, []);
 
     // Start editing a student
     const handleEdit = (student, index) => {
@@ -61,6 +72,63 @@ const StudentManager = ({ onBack }) => {
             console.error('Failed to end class:', err);
             alert('수강 종료 처리에 실패했습니다.');
         }
+    };
+
+    // 결석 모달 열기
+    const handleOpenAbsence = (student) => {
+        setAbsenceTarget(student);
+        setAbsenceDates([]);
+        setAbsenceDateInput('');
+    };
+
+    // 결석 날짜 추가
+    const handleAddAbsenceDate = () => {
+        if (!absenceDateInput) return;
+        if (absenceDates.includes(absenceDateInput)) {
+            alert('이미 추가된 날짜입니다.');
+            return;
+        }
+        setAbsenceDates(prev => [...prev, absenceDateInput].sort());
+        setAbsenceDateInput('');
+    };
+
+    // 결석 날짜 삭제
+    const handleRemoveAbsenceDate = (dateToRemove) => {
+        setAbsenceDates(prev => prev.filter(d => d !== dateToRemove));
+    };
+
+    // 결석 처리 실행
+    const handleSubmitAbsence = async () => {
+        if (!absenceTarget || absenceDates.length === 0) {
+            alert('결석 날짜를 최소 1개 이상 선택해주세요.');
+            return;
+        }
+
+        const dateTexts = absenceDates.map(d => {
+            const date = new Date(d + 'T00:00:00');
+            return `${date.getMonth() + 1}/${date.getDate()}`;
+        }).join(', ');
+
+        if (!confirm(`${absenceTarget['이름']} 수강생의 결석 처리를 진행하시겠습니까?\n\n결석일: ${dateTexts}\n\n- 특이사항에 결석 내용이 기록됩니다.\n- 종료날짜가 결석 횟수만큼 연장됩니다.`)) {
+            return;
+        }
+
+        setAbsenceProcessing(true);
+        try {
+            const result = await processStudentAbsence(
+                absenceTarget['이름'],
+                absenceDates,
+                holidays
+            );
+            alert(`✅ 결석 처리 완료!\n\n수업일 결석: ${result.validAbsenceCount}일\n새 종료날짜: ${result.newEndDate}\n특이사항: ${result.notesText}`);
+            setAbsenceTarget(null);
+            setAbsenceDates([]);
+            if (refresh) refresh();
+        } catch (err) {
+            console.error('결석 처리 실패:', err);
+            alert('결석 처리에 실패했습니다: ' + err.message);
+        }
+        setAbsenceProcessing(false);
     };
 
     // Handle form field changes
@@ -275,6 +343,9 @@ const StudentManager = ({ onBack }) => {
                                                         <button onClick={() => handleEdit(student, index)} className="edit-btn">
                                                             수정
                                                         </button>
+                                                        <button onClick={() => handleOpenAbsence(student)} className="absence-btn" title="결석 처리">
+                                                            결석
+                                                        </button>
                                                         <button onClick={() => handleEndClass(student, index)} className="end-class-btn" title="수강 종료 (시간표에서 제거)">
                                                             종료
                                                         </button>
@@ -295,6 +366,65 @@ const StudentManager = ({ onBack }) => {
                     onClose={() => setShowRegistrationModal(false)}
                     onSuccess={handleRegistrationSuccess}
                 />
+            )}
+
+            {/* 결석 처리 모달 */}
+            {absenceTarget && (
+                <div className="absence-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setAbsenceTarget(null); }}>
+                    <div className="absence-modal-content">
+                        <h2 className="absence-modal-title">결석 처리</h2>
+                        <p className="absence-modal-student">{absenceTarget['이름']} ({absenceTarget['요일 및 시간'] || '-'})</p>
+
+                        <div className="absence-date-input-row">
+                            <input
+                                type="date"
+                                value={absenceDateInput}
+                                onChange={(e) => setAbsenceDateInput(e.target.value)}
+                                className="absence-date-input"
+                            />
+                            <button onClick={handleAddAbsenceDate} className="absence-add-btn">
+                                추가
+                            </button>
+                        </div>
+
+                        {absenceDates.length > 0 && (
+                            <div className="absence-date-list">
+                                {absenceDates.map(date => {
+                                    const d = new Date(date + 'T00:00:00');
+                                    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+                                    return (
+                                        <div key={date} className="absence-date-item">
+                                            <span>{date} ({dayNames[d.getDay()]})</span>
+                                            <button onClick={() => handleRemoveAbsenceDate(date)} className="absence-remove-btn">X</button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        <div className="absence-info-box">
+                            <p>- 특이사항에 결석 날짜가 기록됩니다.</p>
+                            <p>- 수업일에 해당하는 결석만큼 종료날짜가 연장됩니다.</p>
+                        </div>
+
+                        <div className="absence-modal-actions">
+                            <button
+                                className="absence-cancel-btn"
+                                onClick={() => setAbsenceTarget(null)}
+                                disabled={absenceProcessing}
+                            >
+                                취소
+                            </button>
+                            <button
+                                className="absence-submit-btn"
+                                onClick={handleSubmitAbsence}
+                                disabled={absenceProcessing || absenceDates.length === 0}
+                            >
+                                {absenceProcessing ? '처리 중...' : `결석 처리 (${absenceDates.length}일)`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

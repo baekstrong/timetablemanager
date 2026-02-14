@@ -67,14 +67,6 @@ export function renderStudentScreen() {
                     <h2 class="text-xl font-bold text-gray-800">${state.currentUser}님의 훈련일지</h2>
                     <p class="text-sm text-gray-600">오늘도 화이팅! 💪</p>
                 </div>
-                <div class="flex gap-2">
-                    <button onclick="navigateToTimetable()" class="text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1">
-                        ← 시간표
-                    </button>
-                    <button onclick="logout()" class="text-red-600 hover:text-red-800 font-semibold">
-                        로그아웃
-                    </button>
-                </div>
             </div>
 
             <!-- 고정된 메모 목록 (캘린더 바로 위) -->
@@ -159,12 +151,6 @@ export function renderCoachScreen() {
                         <p class="text-purple-100 mt-1">전체 수강생 훈련 현황</p>
                     </div>
                     <div class="flex gap-2">
-                        <button onclick="navigateToTimetable()" class="bg-white text-blue-600 px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-blue-50 transition flex items-center gap-1">
-                            ← 시간표
-                        </button>
-                        <button onclick="logout()" class="bg-white text-purple-600 px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-purple-50 transition">
-                            로그아웃
-                        </button>
                     </div>
                 </div>
             </div>

@@ -164,6 +164,13 @@ select {
     display: flex;
     align-items: center;
     justify-content: center;
+    overscroll-behavior: contain;
+}
+body.modal-open {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
 }
 .modal-content {
     background: white;
@@ -171,6 +178,9 @@ select {
     padding: 24px;
     max-width: 500px;
     width: 90%;
-    max-height: 90vh;
+    max-height: calc(100vh - 160px);
+    max-height: calc(100dvh - 160px);
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
 }
