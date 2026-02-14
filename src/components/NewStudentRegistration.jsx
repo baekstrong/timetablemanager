@@ -244,7 +244,7 @@ const NewStudentRegistration = () => {
                     <div className="reg-success">
                         <div className="reg-success-icon">✓</div>
                         <h2>등록이 완료되었습니다!</h2>
-                        <p>코치의 승인 후 로그인이 가능합니다.</p>
+                        <p>코치의 승인 후 안내 문자가 발송될 예정입니다.</p>
                         <p className="reg-success-info">
                             아이디: <strong>{name}</strong>
                         </p>

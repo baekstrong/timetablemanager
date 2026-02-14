@@ -297,6 +297,23 @@ const CoachNewStudents = ({ user, onBack }) => {
         }
     };
 
+    const handleDeleteFromEntrance = async (reg, ec) => {
+        if (!confirm(`"${reg.name}" 수강생의 등록을 삭제하시겠습니까?`)) return;
+
+        try {
+            await deleteNewStudentRegistration(reg.id);
+            // 승인된 등록이었으면 입학반 인원 차감
+            if (reg.status === 'approved' && ec && (ec.currentCount || 0) > 0) {
+                await updateEntranceClass(ec.id, {
+                    currentCount: (ec.currentCount || 0) - 1
+                });
+            }
+            await loadEntranceClasses();
+        } catch (err) {
+            alert('삭제 실패: ' + err.message);
+        }
+    };
+
     // ─── 입학반 CRUD ─────────────────────
     const handleEntranceSubmit = async () => {
         if (!entranceForm.date || !entranceForm.time) {
@@ -591,6 +608,11 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                             <span key={r.id} className={`cns-entrance-student-tag ${r.status}`}>
                                                                 {r.name}
                                                                 {r.status === 'pending' && <small>(대기)</small>}
+                                                                <button
+                                                                    className="cns-entrance-student-remove"
+                                                                    onClick={() => handleDeleteFromEntrance(r, ec)}
+                                                                    title="삭제"
+                                                                >×</button>
                                                             </span>
                                                         ))}
                                                     </div>
