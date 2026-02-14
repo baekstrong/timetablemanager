@@ -13,7 +13,8 @@ import {
     getActiveHolding,
     getAbsencesByStudent,
     getDisabledClasses,
-    toggleDisabledClass
+    toggleDisabledClass,
+    getHolidays
 } from '../services/firebaseService';
 import { PERIODS, DAYS, MOCK_DATA, MAX_CAPACITY } from '../data/mockData';
 import './WeeklySchedule.css';
@@ -79,6 +80,38 @@ const parseSheetDate = (dateStr) => {
     const day = parseInt(cleaned.substring(4, 6)); // 11 → 11
 
     return new Date(year, month, day);
+};
+
+/**
+ * Parse 특이사항 field to extract agreed absence dates
+ * Format: "26.2.10, 26.2.12 결석" → ["2026-02-10", "2026-02-12"]
+ */
+const parseAgreedAbsenceDates = (notesStr) => {
+    if (!notesStr || typeof notesStr !== 'string') return [];
+
+    // Match: one or more "YY.M.D" dates (comma-separated), followed by "결석"
+    const absencePattern = /((?:\d{2}\.\d{1,2}\.\d{1,2}(?:\s*,\s*)?)+)\s*결석/g;
+    const dates = [];
+
+    let match;
+    while ((match = absencePattern.exec(notesStr)) !== null) {
+        const datesPart = match[1];
+        const dateStrings = datesPart.split(',').map(s => s.trim()).filter(Boolean);
+
+        for (const dateStr of dateStrings) {
+            const parts = dateStr.split('.');
+            if (parts.length === 3) {
+                const year = 2000 + parseInt(parts[0]);
+                const month = parseInt(parts[1]);
+                const day = parseInt(parts[2]);
+                if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                    dates.push(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
+                }
+            }
+        }
+    }
+
+    return dates;
 };
 
 /**
@@ -275,6 +308,9 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     const [weekMakeupRequests, setWeekMakeupRequests] = useState([]);
     const [weekHoldings, setWeekHoldings] = useState([]);
     const [weekAbsences, setWeekAbsences] = useState([]);
+
+    // Holiday state (from Firebase)
+    const [weekHolidays, setWeekHolidays] = useState([]);
 
     // Class disabled state (stored in Firebase)
     const [disabledClasses, setDisabledClasses] = useState([]);
@@ -567,12 +603,19 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 }
             }
 
+            // Load holidays from Firebase
+            const holidays = await getHolidays().catch(err => {
+                console.warn('Failed to load holidays:', err);
+                return [];
+            });
+
             // active + completed 모두 시간표에 표시 (주간 내역 유지)
             setWeekMakeupRequests(makeups || []);
             setWeekHoldings(holdings || []);
             setWeekAbsences(allAbsences || []);
+            setWeekHolidays(holidays || []);
 
-            console.log(`✅ Loaded ${makeups?.length || 0} makeup requests (${passedActiveMakeups.length}개 자동완료), ${holdings?.length || 0} holdings (from Google Sheets), ${allAbsences?.length || 0} absences`);
+            console.log(`✅ Loaded ${makeups?.length || 0} makeup requests (${passedActiveMakeups.length}개 자동완료), ${holdings?.length || 0} holdings (from Google Sheets), ${allAbsences?.length || 0} absences, ${holidays?.length || 0} holidays`);
         } catch (error) {
             console.error('Failed to load weekly data:', error);
             // Don't crash, just set empty arrays
@@ -751,6 +794,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         let makeupStudents = [];
         let makeupAbsentStudents = []; // 보강으로 인해 결석 (다른 시간에 수업)
         let absenceStudents = []; // 일반 결석 신청
+        let agreedAbsenceStudents = []; // 합의결석 (코치가 설정한 결석)
         let holdingStudents = [];
         let delayedStartStudents = [];
         let newStudents = []; // 신규이면서 시작일 전인 학생
@@ -846,6 +890,19 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 // 보강결석이 아닌 학생만 일반 결석으로 표시
                 .filter(name => !makeupAbsentStudents.includes(name));
 
+            // Find students with agreed absence (합의결석) from 특이사항 field
+            agreedAbsenceStudents = students
+                .filter(s => {
+                    const name = s['이름'];
+                    if (!name || !studentNames.includes(name)) return false;
+                    // 이미 다른 결석 유형으로 표시된 학생은 제외
+                    if (makeupAbsentStudents.includes(name) || absenceStudents.includes(name)) return false;
+                    const notes = s['특이사항'] || getStudentField(s, '특이사항') || '';
+                    const absenceDates = parseAgreedAbsenceDates(notes);
+                    return absenceDates.includes(slotDate);
+                })
+                .map(s => s['이름']);
+
             if (makeupStudents.length > 0) {
                 console.log(`   → Makeup students: ${makeupStudents.join(', ')}`);
             }
@@ -864,11 +921,14 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             if (delayedStartStudents.length > 0) {
                 console.log(`   → Delayed start students: ${delayedStartStudents.join(', ')}`);
             }
+            if (agreedAbsenceStudents.length > 0) {
+                console.log(`   → Agreed absence (합의결석): ${agreedAbsenceStudents.join(', ')}`);
+            }
         }
 
         // 5. Calculate counts
-        // Active Students = (Regular - MakeupAbsent - Absence - Holding) + Substitutes + MakeupStudents
-        const allAbsentStudents = [...new Set([...makeupAbsentStudents, ...absenceStudents])];
+        // Active Students = (Regular - MakeupAbsent - Absence - AgreedAbsence - Holding) + Substitutes + MakeupStudents
+        const allAbsentStudents = [...new Set([...makeupAbsentStudents, ...absenceStudents, ...agreedAbsenceStudents])];
         const activeStudents = studentNames.filter(name =>
             !allAbsentStudents.includes(name) &&
             !holdingStudents.includes(name) &&
@@ -908,7 +968,8 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             activeStudents,
             makeupStudents,
             makeupAbsentStudents,
-            absenceStudents, // 새로 추가: 일반 결석 학생
+            absenceStudents,
+            agreedAbsenceStudents, // 합의결석 학생
             holdingStudents,
             delayedStartStudents,
             newStudents,
@@ -962,8 +1023,32 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         // Check if class is disabled by coach
         const classDisabled = isClassDisabled(day, periodObj.id);
 
+        // --- Check if this date is a holiday ---
+        let isHoliday = false;
+        let holidayReason = '';
+        if (weekDates[day]) {
+            const [hMonth, hDay] = weekDates[day].split('/');
+            const hYear = new Date().getFullYear();
+            const slotDateStr = `${hYear}-${hMonth.padStart(2, '0')}-${hDay.padStart(2, '0')}`;
+            const holidayMatch = weekHolidays.find(h => h.date === slotDateStr);
+            if (holidayMatch) {
+                isHoliday = true;
+                holidayReason = holidayMatch.reason || '';
+            }
+        }
+
         // --- STUDENT MODE RENDER ---
         if (mode === 'student') {
+            // If holiday, show "휴일" regardless of other data
+            if (isHoliday) {
+                return (
+                    <div className="schedule-cell" style={{ backgroundColor: '#f3f4f6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '0.9rem' }}>휴일</span>
+                        {holidayReason && <span style={{ color: '#6b7280', fontSize: '0.7rem', marginTop: '2px' }}>{holidayReason}</span>}
+                    </div>
+                );
+            }
+
             // Check if this is my class
             const myClass = isMyClass(day, periodObj.id);
 
@@ -1115,6 +1200,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 data.holdNames.length === 0 &&
                 data.holdingStudents.length === 0 &&
                 data.makeupAbsentStudents.length === 0 &&
+                data.agreedAbsenceStudents.length === 0 &&
                 data.delayedStartStudents.length === 0 &&
                 data.newStudents.length === 0) {
                 return (
@@ -1146,14 +1232,22 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     </div>
 
                     <div className="student-list">
-                        {/* 1. Regular Students Present (not on hold, not holding) - show with makeup-absent or absence styling if applicable */}
+                        {/* 1. Regular Students Present (not on hold, not holding) - show with makeup-absent, absence, or agreed-absence styling if applicable */}
                         {data.regularStudentsPresent.map(name => {
                             const isMakeupAbsent = data.makeupAbsentStudents.includes(name);
                             const isAbsent = data.absenceStudents && data.absenceStudents.includes(name);
+                            const isAgreedAbsent = data.agreedAbsenceStudents && data.agreedAbsenceStudents.includes(name);
                             if (isMakeupAbsent) {
                                 return (
                                     <span key={name} className="student-tag" style={{ backgroundColor: '#fef3c7', color: '#92400e', textDecoration: 'line-through' }}>
                                         {name}(보강결석)
+                                    </span>
+                                );
+                            }
+                            if (isAgreedAbsent) {
+                                return (
+                                    <span key={name} className="student-tag" style={{ backgroundColor: '#e0e7ff', color: '#3730a3', textDecoration: 'line-through' }}>
+                                        {name}(합의결석)
                                     </span>
                                 );
                             }
