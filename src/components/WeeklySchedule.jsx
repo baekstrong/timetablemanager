@@ -14,7 +14,8 @@ import {
     getAbsencesByStudent,
     getDisabledClasses,
     toggleDisabledClass,
-    getHolidays
+    getHolidays,
+    getNewStudentRegistrations
 } from '../services/firebaseService';
 import { PERIODS, DAYS, MOCK_DATA, MAX_CAPACITY } from '../data/mockData';
 import './WeeklySchedule.css';
@@ -312,6 +313,9 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     // Holiday state (from Firebase)
     const [weekHolidays, setWeekHolidays] = useState([]);
 
+    // Pending new student registrations (for "신규 전용" mode)
+    const [pendingRegistrations, setPendingRegistrations] = useState([]);
+
     // Class disabled state (stored in Firebase)
     const [disabledClasses, setDisabledClasses] = useState([]);
     const [disabledClassesLoading, setDisabledClassesLoading] = useState(true);
@@ -336,6 +340,15 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         };
         loadDisabledClasses();
     }, []);
+
+    // Load pending registrations for "신규 전용" mode
+    useEffect(() => {
+        if (user?.role === 'coach') {
+            getNewStudentRegistrations('pending')
+                .then(setPendingRegistrations)
+                .catch(() => {});
+        }
+    }, [user]);
 
     // Toggle class disabled status (save to Firebase)
     const toggleClassDisabledHandler = async (day, periodId) => {
@@ -945,10 +958,17 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
         let currentCount, availableSeats, isFull;
 
+        // pending 등록자 이름 (신규 전용 모드에서 사용)
+        let pendingNames = [];
+
         if (mode === 'student' && user?.role === 'coach') {
-            // 코치가 보는 수강생 모드: 순수 등록 인원 기준 (보강/홀딩/결석 미반영)
+            // 코치가 보는 수강생 모드: 순수 등록 인원 + pending 등록 인원 기준
             // 신규 수강생 상담 시 정확한 정원 파악용
-            currentCount = studentNames.length;
+            const pendingForSlot = pendingRegistrations.filter(reg =>
+                reg.requestedSlots?.some(s => s.day === day && s.period === periodObj.id)
+            );
+            pendingNames = pendingForSlot.map(reg => reg.name);
+            currentCount = studentNames.length + pendingForSlot.length;
             availableSeats = Math.max(0, MAX_CAPACITY - currentCount);
             isFull = availableSeats === 0;
         } else {
@@ -973,6 +993,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             holdingStudents,
             delayedStartStudents,
             newStudents,
+            pendingNames,
             regularStudentsPresent
         };
     };
@@ -1133,9 +1154,19 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     <div
                         className="schedule-cell cell-available"
                         onClick={() => handleCellClick(day, periodObj, data)}
+                        style={user?.role === 'coach' && data.pendingNames.length > 0 ? { flexDirection: 'column', alignItems: 'center' } : {}}
                     >
-                        <span className="seat-count">{MAX_CAPACITY}</span>
+                        <span className="seat-count">{data.availableSeats}</span>
                         <span style={{ fontSize: '0.8em', color: '#666' }}>자리</span>
+                        {user?.role === 'coach' && data.pendingNames.length > 0 && (
+                            <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '2px', justifyContent: 'center' }}>
+                                {data.pendingNames.map(name => (
+                                    <span key={name} className="student-tag" style={{ backgroundColor: '#fef3c7', color: '#92400e', fontSize: '0.7rem', padding: '1px 4px' }}>
+                                        {name}(대기)
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 );
             }
@@ -1147,9 +1178,19 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     <div
                         className="schedule-cell cell-available"
                         onClick={() => handleCellClick(day, periodObj, data)}
+                        style={user?.role === 'coach' && data.pendingNames.length > 0 ? { flexDirection: 'column', alignItems: 'center' } : {}}
                     >
                         <span className="seat-count">{data.availableSeats}</span>
                         <span style={{ fontSize: '0.8em', color: '#666' }}>자리</span>
+                        {user?.role === 'coach' && data.pendingNames.length > 0 && (
+                            <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '2px', justifyContent: 'center' }}>
+                                {data.pendingNames.map(name => (
+                                    <span key={name} className="student-tag" style={{ backgroundColor: '#fef3c7', color: '#92400e', fontSize: '0.7rem', padding: '1px 4px' }}>
+                                        {name}(대기)
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 );
             }
@@ -1158,9 +1199,19 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     <div
                         className="schedule-cell cell-full"
                         onClick={() => handleCellClick(day, periodObj, data)}
+                        style={user?.role === 'coach' && data.pendingNames.length > 0 ? { flexDirection: 'column', alignItems: 'center' } : {}}
                     >
                         <span className="cell-full-text">Full</span>
                         <span style={{ fontSize: '0.8em' }}>(만석)</span>
+                        {user?.role === 'coach' && data.pendingNames.length > 0 && (
+                            <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '2px', justifyContent: 'center' }}>
+                                {data.pendingNames.map(name => (
+                                    <span key={name} className="student-tag" style={{ backgroundColor: '#fef3c7', color: '#92400e', fontSize: '0.7rem', padding: '1px 4px' }}>
+                                        {name}(대기)
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 );
             }
@@ -1168,9 +1219,19 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 <div
                     className="schedule-cell cell-available"
                     onClick={() => handleCellClick(day, periodObj, data)}
+                    style={user?.role === 'coach' && data.pendingNames.length > 0 ? { flexDirection: 'column', alignItems: 'center' } : {}}
                 >
                     <span className="seat-count">{data.availableSeats}</span>
                     <span style={{ fontSize: '0.8em', color: '#666' }}>자리</span>
+                    {user?.role === 'coach' && data.pendingNames.length > 0 && (
+                        <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '2px', justifyContent: 'center' }}>
+                            {data.pendingNames.map(name => (
+                                <span key={name} className="student-tag" style={{ backgroundColor: '#fef3c7', color: '#92400e', fontSize: '0.7rem', padding: '1px 4px' }}>
+                                    {name}(대기)
+                                </span>
+                            ))}
+                        </div>
+                    )}
                 </div>
             );
         }

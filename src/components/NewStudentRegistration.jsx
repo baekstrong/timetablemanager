@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getDisabledClasses, createNewStudentRegistration, getEntranceClasses, getFAQs } from '../services/firebaseService';
+import { getDisabledClasses, createNewStudentRegistration, getEntranceClasses, getFAQs, getNewStudentRegistrations } from '../services/firebaseService';
 import { PERIODS, DAYS, MAX_CAPACITY, PRICING, ENTRANCE_FEE } from '../data/mockData';
 import './NewStudentRegistration.css';
 
@@ -58,6 +58,7 @@ const NewStudentRegistration = () => {
     // Step 3: 시간표
     const [selectedSlots, setSelectedSlots] = useState([]);
     const [disabledClasses, setDisabledClasses] = useState([]);
+    const [pendingRegistrations, setPendingRegistrations] = useState([]);
     const { students } = useGoogleSheets();
 
     // Step 4: 입학반
@@ -80,6 +81,13 @@ const NewStudentRegistration = () => {
         getDisabledClasses().then(setDisabledClasses).catch(() => {});
     }, []);
 
+    // Load pending registrations to reflect their slots in occupancy
+    useEffect(() => {
+        getNewStudentRegistrations('pending')
+            .then(setPendingRegistrations)
+            .catch(() => {});
+    }, []);
+
     // Load entrance classes when reaching step 4
     useEffect(() => {
         if (step >= 3) {
@@ -94,11 +102,12 @@ const NewStudentRegistration = () => {
         }
     }, [step]);
 
-    // Compute slot occupancy from Google Sheets data
+    // Compute slot occupancy from Google Sheets data + pending registrations
     const slotOccupancy = useMemo(() => {
         const occupancy = {};
         if (!students || students.length === 0) return occupancy;
 
+        // 1. Google Sheets 학생 카운트
         students.forEach((student) => {
             const studentName = student['이름'];
             const scheduleStr = student['요일 및 시간'];
@@ -112,8 +121,18 @@ const NewStudentRegistration = () => {
             });
         });
 
+        // 2. pending 등록의 requestedSlots 카운트 추가
+        pendingRegistrations.forEach(reg => {
+            if (!reg.requestedSlots) return;
+            reg.requestedSlots.forEach(({ day, period }) => {
+                const key = `${day}-${period}`;
+                if (!occupancy[key]) occupancy[key] = 0;
+                occupancy[key]++;
+            });
+        });
+
         return occupancy;
-    }, [students]);
+    }, [students, pendingRegistrations]);
 
     const handleSlotToggle = (day, period) => {
         const key = `${day}-${period}`;
