@@ -429,7 +429,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                 className="cns-add-btn"
                                 onClick={() => {
                                     setEditingEntrance(null);
-                                    setEntranceForm({ date: '', time: '', description: '', maxCapacity: 10 });
+                                    setEntranceForm({ date: '', time: '', endTime: '', description: '', maxCapacity: 10 });
                                     setShowEntranceForm(true);
                                 }}
                             >
@@ -447,7 +447,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                     <div key={ec.id} className={`cns-entrance-card ${!ec.isActive ? 'inactive' : ''}`}>
                                         <div className="cns-entrance-info">
                                             <div className="cns-entrance-date">{ec.date}</div>
-                                            <div className="cns-entrance-time">{ec.time}</div>
+                                            <div className="cns-entrance-time">{ec.time}{ec.endTime ? ` ~ ${ec.endTime}` : ''}</div>
                                             {ec.description && <div className="cns-entrance-desc">{ec.description}</div>}
                                             <div className="cns-entrance-capacity">
                                                 {ec.currentCount || 0}/{ec.maxCapacity}명
@@ -462,6 +462,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                     setEntranceForm({
                                                         date: ec.date,
                                                         time: ec.time,
+                                                        endTime: ec.endTime || '',
                                                         description: ec.description || '',
                                                         maxCapacity: ec.maxCapacity || 10
                                                     });
@@ -497,12 +498,22 @@ const CoachNewStudents = ({ user, onBack }) => {
                                         />
                                     </div>
                                     <div className="cns-form-field">
-                                        <label>시간</label>
+                                        <label>시작 시간</label>
                                         <input
                                             type="text"
                                             value={entranceForm.time}
                                             onChange={(e) => setEntranceForm({ ...entranceForm, time: e.target.value })}
                                             placeholder="예: 14:00"
+                                            className="cns-form-input"
+                                        />
+                                    </div>
+                                    <div className="cns-form-field">
+                                        <label>종료 시간</label>
+                                        <input
+                                            type="text"
+                                            value={entranceForm.endTime || ''}
+                                            onChange={(e) => setEntranceForm({ ...entranceForm, endTime: e.target.value })}
+                                            placeholder="예: 15:00"
                                             className="cns-form-input"
                                         />
                                     </div>

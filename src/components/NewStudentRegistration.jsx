@@ -197,7 +197,7 @@ const NewStudentRegistration = () => {
                 requestedSlots: selectedSlots,
                 scheduleString: getScheduleString(),
                 entranceClassId: selectedEntrance,
-                entranceClassDate: entranceClass ? `${entranceClass.date} ${entranceClass.time}` : '',
+                entranceClassDate: entranceClass ? `${entranceClass.date} ${entranceClass.time}${entranceClass.endTime ? ' ~ ' + entranceClass.endTime : ''}` : '',
                 entranceCost,
                 totalCost,
                 paymentMethod,
@@ -260,6 +260,9 @@ const NewStudentRegistration = () => {
                     {/* Step 1: 가입 */}
                     {step === 0 && (
                         <div className="reg-step-content">
+                            <p className="reg-description" style={{ backgroundColor: '#eff6ff', color: '#1e40af', padding: '10px 12px', borderRadius: '8px', fontSize: '0.85rem', lineHeight: '1.5' }}>
+                                이곳에 입력한 이름과 비밀번호는 정규 수업 시 로그인 아이디와 비밀번호로 사용됩니다
+                            </p>
                             <div className="reg-field">
                                 <label>이름 <span className="required">*</span></label>
                                 <input
@@ -429,7 +432,7 @@ const NewStudentRegistration = () => {
                                             }}
                                         >
                                             <div className="reg-entrance-date">{ec.date}</div>
-                                            <div className="reg-entrance-time">{ec.time}</div>
+                                            <div className="reg-entrance-time">{ec.time}{ec.endTime ? ` ~ ${ec.endTime}` : ''}</div>
                                             {ec.description && <div className="reg-entrance-desc">{ec.description}</div>}
                                             <div className="reg-entrance-capacity">
                                                 {ec.currentCount >= ec.maxCapacity
@@ -525,7 +528,7 @@ const NewStudentRegistration = () => {
                                 </div>
                                 <div className="reg-summary-row">
                                     <span>입학반</span>
-                                    <span>{entranceClasses.find(c => c.id === selectedEntrance)?.date} {entranceClasses.find(c => c.id === selectedEntrance)?.time}</span>
+                                    <span>{(() => { const ec = entranceClasses.find(c => c.id === selectedEntrance); return ec ? `${ec.date} ${ec.time}${ec.endTime ? ' ~ ' + ec.endTime : ''}` : ''; })()}</span>
                                 </div>
                                 <div className="reg-summary-row">
                                     <span>결제 방식</span>
