@@ -80,3 +80,18 @@
     color: #667eea;
     font-weight: 700;
 }
+
+.tab-icon {
+    position: relative;
+}
+
+.notification-dot {
+    position: absolute;
+    top: -2px;
+    right: -4px;
+    width: 8px;
+    height: 8px;
+    background: #dc2626;
+    border-radius: 50%;
+    border: 1.5px solid #fff;
+}

@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { GoogleSheetsProvider, useGoogleSheets } from './contexts/GoogleSheetsContext';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
@@ -9,14 +9,44 @@ import HolidayManager from './components/HolidayManager';
 import StudentInfo from './components/StudentInfo';
 import StudentManager from './components/StudentManager';
 import GoogleSheetsTest from './components/GoogleSheetsTest';
+import NewStudentRegistration from './components/NewStudentRegistration';
+import CoachNewStudents from './components/CoachNewStudents';
 import BottomNav from './components/BottomNav';
+import { getPendingRegistrationCount } from './services/firebaseService';
 import './App.css';
 
 function AppContent() {
+  // Check for ?register=true URL parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  const isRegistrationMode = urlParams.get('register') === 'true';
+
+  if (isRegistrationMode) {
+    return <NewStudentRegistration />;
+  }
+
   const [user, setUser] = useState(null);
   const [studentData, setStudentData] = useState(null);
-  const [currentPage, setCurrentPage] = useState('login'); // 'login', 'dashboard', 'schedule', 'holding', 'myinfo', 'students', 'training', 'test', 'holidays'
+  const [currentPage, setCurrentPage] = useState('login');
+  const [hasNewStudentNotification, setHasNewStudentNotification] = useState(false);
   const { getStudentByName, findStudentAcrossSheets } = useGoogleSheets();
+
+  // Poll for pending registrations (coach only)
+  useEffect(() => {
+    if (!user || user.role !== 'coach') return;
+
+    const checkPending = async () => {
+      try {
+        const count = await getPendingRegistrationCount();
+        setHasNewStudentNotification(count > 0);
+      } catch (err) {
+        // ignore polling errors
+      }
+    };
+
+    checkPending();
+    const interval = setInterval(checkPending, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const handleLogin = async (userData) => {
     setUser(userData);
@@ -115,6 +145,9 @@ function AppContent() {
       case 'holidays':
         return <HolidayManager user={user} onBack={handleBackToDashboard} />;
 
+      case 'newstudents':
+        return <CoachNewStudents user={user} onBack={handleBackToDashboard} />;
+
       case 'training':
         return (
           <div className="coming-soon">
@@ -136,7 +169,12 @@ function AppContent() {
     <div className="app">
       {renderPage()}
       {currentPage !== 'login' && user && (
-        <BottomNav currentPage={currentPage} user={user} onNavigate={handleNavigate} />
+        <BottomNav
+          currentPage={currentPage}
+          user={user}
+          onNavigate={handleNavigate}
+          hasNewStudentNotification={hasNewStudentNotification}
+        />
       )}
     </div>
   );

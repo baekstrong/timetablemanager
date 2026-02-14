@@ -1,6 +1,6 @@
 import './BottomNav.css';
 
-const BottomNav = ({ currentPage, user, onNavigate }) => {
+const BottomNav = ({ currentPage, user, onNavigate, hasNewStudentNotification }) => {
     const coachTabs = [
         {
             id: 'dashboard',
@@ -39,11 +39,11 @@ const BottomNav = ({ currentPage, user, onNavigate }) => {
             )
         },
         {
-            id: 'holidays',
-            label: '휴일설정',
+            id: 'newstudents',
+            label: '신규',
             icon: (
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
                 </svg>
             )
         }
@@ -118,7 +118,12 @@ const BottomNav = ({ currentPage, user, onNavigate }) => {
                         onClick={() => handleTabClick(tab.id)}
                     >
                         <div className="tab-indicator" />
-                        <div className="tab-icon">{tab.icon}</div>
+                        <div className="tab-icon">
+                            {tab.icon}
+                            {tab.id === 'newstudents' && hasNewStudentNotification && (
+                                <span className="notification-dot" />
+                            )}
+                        </div>
                         <span className="tab-label">{tab.label}</span>
                     </button>
                 );

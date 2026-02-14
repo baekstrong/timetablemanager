@@ -217,6 +217,35 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                     </section>
                 )}
 
+                {/* 코치 전용: 휴일설정 버튼 */}
+                {user.role === 'coach' && (
+                    <div style={{ marginBottom: '1rem' }}>
+                        <button
+                            onClick={() => onNavigate('holidays')}
+                            style={{
+                                width: '100%',
+                                padding: '0.75rem 1rem',
+                                background: 'rgba(255,255,255,0.8)',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '8px',
+                                fontSize: '0.95rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                color: '#374151'
+                            }}
+                        >
+                            <span>🗓️</span>
+                            <span>휴일설정</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px', marginLeft: 'auto', color: '#9ca3af' }}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                )}
+
                 {/* 공지사항 섹션 */}
                 <section className="notices-section">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>

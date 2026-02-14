@@ -107,6 +107,14 @@ export const MOCK_DATA = {
     ]
 };
 
+// Pricing constants for new student registration
+export const PRICING = [
+    { frequency: 4, baseCost: 450000, totalWithEntrance: 530000, label: '주4회' },
+    { frequency: 3, baseCost: 390000, totalWithEntrance: 470000, label: '주3회' },
+    { frequency: 2, baseCost: 310000, totalWithEntrance: 390000, label: '주2회' },
+];
+export const ENTRANCE_FEE = 80000;
+
 // Helper function to calculate days remaining
 export const calculateDaysRemaining = (endDate) => {
     const today = new Date('2026-01-09'); // Current date for simulation

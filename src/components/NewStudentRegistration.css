@@ -1,0 +1,656 @@
+.reg-wizard {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 1rem;
+}
+
+.reg-wizard-inner {
+    width: 100%;
+    max-width: 480px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 2rem);
+    min-height: calc(100dvh - 2rem);
+}
+
+/* Header */
+.reg-header {
+    text-align: center;
+    padding: 1.5rem 1rem 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+}
+
+.reg-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 0 0 1rem;
+}
+
+.reg-steps {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 0.5rem;
+}
+
+.reg-step-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.6);
+    transition: all 0.3s;
+}
+
+.reg-step-dot.active {
+    background: #fff;
+    color: #667eea;
+    transform: scale(1.15);
+}
+
+.reg-step-dot.done {
+    background: rgba(255, 255, 255, 0.9);
+    color: #16a34a;
+}
+
+.reg-step-label {
+    font-size: 0.85rem;
+    margin: 0;
+    opacity: 0.9;
+}
+
+/* Body */
+.reg-body {
+    flex: 1;
+    padding: 1.25rem;
+    overflow-y: auto;
+}
+
+.reg-step-content {
+    animation: regFadeIn 0.3s ease;
+}
+
+@keyframes regFadeIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.reg-description {
+    font-size: 0.95rem;
+    color: #374151;
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+.reg-slot-count {
+    margin-left: 0.5rem;
+    color: #667eea;
+    font-weight: 700;
+}
+
+/* Form Fields */
+.reg-field {
+    margin-bottom: 1rem;
+}
+
+.reg-field label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.3rem;
+}
+
+.required {
+    color: #dc2626;
+}
+
+.reg-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+    background: #fafafa;
+}
+
+.reg-input:focus {
+    outline: none;
+    border-color: #667eea;
+    background: #fff;
+}
+
+.reg-textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* Frequency Cards */
+.reg-freq-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.reg-freq-card {
+    padding: 1.25rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.reg-freq-card:active {
+    transform: scale(0.98);
+}
+
+.reg-freq-card.selected {
+    border-color: #667eea;
+    background: linear-gradient(135deg, #eef2ff, #e8e0ff);
+    box-shadow: 0 2px 12px rgba(102, 126, 234, 0.2);
+}
+
+.reg-freq-label {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.reg-freq-cost {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #667eea;
+    margin: 0.25rem 0;
+}
+
+.reg-freq-total {
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+
+/* Schedule Grid */
+.reg-schedule-grid {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.reg-grid-header {
+    display: grid;
+    grid-template-columns: 80px repeat(5, 1fr);
+    gap: 2px;
+}
+
+.reg-grid-corner {
+    background: transparent;
+}
+
+.reg-grid-day {
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 0.5rem 0;
+    color: #374151;
+}
+
+.reg-grid-row {
+    display: grid;
+    grid-template-columns: 80px repeat(5, 1fr);
+    gap: 2px;
+    margin-bottom: 2px;
+}
+
+.reg-grid-period {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0.25rem 0.3rem;
+}
+
+.reg-period-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.reg-period-time {
+    font-size: 0.6rem;
+    color: #9ca3af;
+}
+
+.reg-grid-cell {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: #f3f4f6;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+
+.reg-grid-cell:active {
+    transform: scale(0.95);
+}
+
+.reg-grid-cell.disabled {
+    background: #e5e7eb;
+    cursor: not-allowed;
+}
+
+.reg-grid-cell.full {
+    background: #fee2e2;
+    cursor: not-allowed;
+}
+
+.reg-grid-cell.selected {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-color: #667eea;
+}
+
+.reg-grid-cell.selected .reg-cell-text {
+    color: #fff;
+    font-weight: 700;
+}
+
+.reg-grid-cell.locked {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.reg-cell-text {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.reg-cell-text.full-text {
+    color: #dc2626;
+    font-size: 0.7rem;
+}
+
+/* Entrance Classes */
+.reg-entrance-info {
+    background: #f9fafb;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.reg-cost-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+    font-size: 0.9rem;
+    color: #4b5563;
+}
+
+.reg-cost-row.total {
+    border-top: 1.5px solid #e5e7eb;
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: #1f2937;
+}
+
+.reg-entrance-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.reg-entrance-card {
+    padding: 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.reg-entrance-card.selected {
+    border-color: #667eea;
+    background: #eef2ff;
+}
+
+.reg-entrance-card.full {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.reg-entrance-date {
+    font-weight: 700;
+    font-size: 1rem;
+    color: #1f2937;
+}
+
+.reg-entrance-time {
+    font-size: 0.9rem;
+    color: #667eea;
+    font-weight: 600;
+}
+
+.reg-entrance-desc {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+}
+
+.reg-entrance-capacity {
+    font-size: 0.8rem;
+    color: #16a34a;
+    font-weight: 600;
+    margin-top: 0.25rem;
+}
+
+.reg-entrance-card.full .reg-entrance-capacity {
+    color: #dc2626;
+}
+
+.reg-empty {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: #9ca3af;
+    font-size: 0.9rem;
+}
+
+/* Payment */
+.reg-payment-cards {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.reg-payment-card {
+    flex: 1;
+    padding: 1.25rem 0.75rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.reg-payment-card.selected {
+    border-color: #667eea;
+    background: #eef2ff;
+}
+
+.reg-payment-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin: 0 auto 0.5rem;
+    background: #f3f4f6;
+    color: #667eea;
+}
+
+.reg-payment-card.selected .reg-payment-icon {
+    background: #667eea;
+    color: #fff;
+}
+
+.reg-payment-label {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #1f2937;
+}
+
+.reg-payment-desc {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    margin-top: 0.25rem;
+}
+
+.reg-payment-total {
+    text-align: center;
+    margin-top: 1.5rem;
+    font-size: 1rem;
+    color: #374151;
+}
+
+/* Consultation */
+.reg-consult-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.reg-consult-card {
+    padding: 1.25rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.reg-consult-card.selected {
+    border-color: #667eea;
+    background: #eef2ff;
+}
+
+.reg-consult-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.reg-consult-label {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #1f2937;
+}
+
+.reg-consult-desc {
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-top: 0.15rem;
+}
+
+/* Summary */
+.reg-summary-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0 0 0.75rem;
+    color: #1f2937;
+}
+
+.reg-summary {
+    background: #f9fafb;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+}
+
+.reg-summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 0.9rem;
+}
+
+.reg-summary-row:last-child {
+    border-bottom: none;
+}
+
+.reg-summary-row span:first-child {
+    color: #6b7280;
+}
+
+.reg-summary-row span:last-child {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.reg-summary-row.total {
+    border-top: 1.5px solid #e5e7eb;
+    margin-top: 0.25rem;
+    padding-top: 0.75rem;
+    font-size: 1rem;
+}
+
+.reg-summary-row.total span:last-child {
+    color: #667eea;
+    font-weight: 800;
+}
+
+/* FAQ */
+.reg-faq-section {
+    margin-top: 1.25rem;
+}
+
+.reg-faq-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+    color: #1f2937;
+}
+
+.reg-faq-item {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+}
+
+.reg-faq-question {
+    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+    background: #fafafa;
+}
+
+.reg-faq-arrow {
+    font-size: 0.7rem;
+    transition: transform 0.2s;
+    color: #9ca3af;
+}
+
+.reg-faq-arrow.open {
+    transform: rotate(180deg);
+}
+
+.reg-faq-answer {
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    color: #6b7280;
+    line-height: 1.5;
+    border-top: 1px solid #e5e7eb;
+    background: #fff;
+}
+
+/* Footer */
+.reg-footer {
+    padding: 1rem 1.25rem;
+    display: flex;
+    gap: 0.75rem;
+    border-top: 1px solid #f3f4f6;
+    background: #fff;
+}
+
+.reg-btn {
+    flex: 1;
+    padding: 0.85rem;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.reg-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.reg-btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.reg-btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+}
+
+.reg-btn-submit {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    color: #fff;
+}
+
+.reg-btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+/* Success */
+.reg-success {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.reg-success-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    color: #fff;
+    font-size: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+}
+
+.reg-success h2 {
+    font-size: 1.3rem;
+    margin: 0 0 0.5rem;
+    color: #1f2937;
+}
+
+.reg-success p {
+    color: #6b7280;
+    font-size: 0.9rem;
+    margin: 0.25rem 0;
+}
+
+.reg-success-info {
+    margin-top: 1rem !important;
+    padding: 0.75rem 1.5rem;
+    background: #f3f4f6;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
