@@ -4,6 +4,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import {
     getNewStudentRegistrations,
     updateNewStudentRegistration,
+    deleteNewStudentRegistration,
     createEntranceClass,
     getEntranceClasses,
     updateEntranceClass,
@@ -19,6 +20,7 @@ import {
     writeSheetData,
     highlightCells
 } from '../services/googleSheetsService';
+import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { PRICING } from '../data/mockData';
 import './CoachNewStudents.css';
 
@@ -102,6 +104,7 @@ const calculateStartEndDates = (entranceDateStr, requestedSlots) => {
 };
 
 const CoachNewStudents = ({ user, onBack }) => {
+    const { refresh: refreshSheets } = useGoogleSheets();
     const [activeTab, setActiveTab] = useState('registrations');
     const [loading, setLoading] = useState(false);
 
@@ -212,7 +215,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                 paymentAmount,                           // I: 결제금액 (만원 단위)
                 '',                                      // J: 결제일
                 reg.paymentMethod === 'naver' ? 'O' : 'X', // K: 결제유무
-                reg.paymentMethod === 'naver' ? '네이버' : reg.paymentMethod === 'card' ? '현장카드' : '계좌이체', // L: 결제방식
+                reg.paymentMethod === 'naver' ? '네이버' : reg.paymentMethod === 'card' ? '카드' : '계좌', // L: 결제방식
                 'X',                                     // M: 홀딩
                 '',                                      // N: 홀딩 시작일
                 '',                                      // O: 홀딩 종료일
@@ -258,6 +261,7 @@ const CoachNewStudents = ({ user, onBack }) => {
             }
 
             alert(`"${reg.name}" 수강생이 승인되었습니다.\n로그인 가능 상태입니다.`);
+            await refreshSheets();
             await loadRegistrations();
         } catch (err) {
             console.error('승인 실패:', err);
@@ -274,6 +278,17 @@ const CoachNewStudents = ({ user, onBack }) => {
             await loadRegistrations();
         } catch (err) {
             alert('거절 실패: ' + err.message);
+        }
+    };
+
+    const handleDelete = async (reg) => {
+        if (!confirm(`"${reg.name}" 수강생의 등록을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) return;
+
+        try {
+            await deleteNewStudentRegistration(reg.id);
+            await loadRegistrations();
+        } catch (err) {
+            alert('삭제 실패: ' + err.message);
         }
     };
 
@@ -494,24 +509,32 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                     </div>
                                                 </div>
 
-                                                {regFilter === 'pending' && (
-                                                    <div className="cns-action-row">
-                                                        <button
-                                                            className="cns-action-btn approve"
-                                                            onClick={() => handleApprove(reg)}
-                                                            disabled={approving === reg.id}
-                                                        >
-                                                            {approving === reg.id ? '처리 중...' : '승인'}
-                                                        </button>
-                                                        <button
-                                                            className="cns-action-btn reject"
-                                                            onClick={() => handleReject(reg)}
-                                                            disabled={approving === reg.id}
-                                                        >
-                                                            거절
-                                                        </button>
-                                                    </div>
-                                                )}
+                                                <div className="cns-action-row">
+                                                    {regFilter === 'pending' && (
+                                                        <>
+                                                            <button
+                                                                className="cns-action-btn approve"
+                                                                onClick={() => handleApprove(reg)}
+                                                                disabled={approving === reg.id}
+                                                            >
+                                                                {approving === reg.id ? '처리 중...' : '승인'}
+                                                            </button>
+                                                            <button
+                                                                className="cns-action-btn reject"
+                                                                onClick={() => handleReject(reg)}
+                                                                disabled={approving === reg.id}
+                                                            >
+                                                                거절
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    <button
+                                                        className="cns-action-btn delete"
+                                                        onClick={() => handleDelete(reg)}
+                                                    >
+                                                        삭제
+                                                    </button>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -530,7 +553,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                 className="cns-add-btn"
                                 onClick={() => {
                                     setEditingEntrance(null);
-                                    setEntranceForm({ date: '', time: '', endTime: '', description: '', maxCapacity: 10 });
+                                    setEntranceForm({ date: '', time: '', endTime: '', description: '', maxCapacity: 10, currentCount: 0 });
                                     setShowEntranceForm(true);
                                 }}
                             >
@@ -565,7 +588,8 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                         time: ec.time,
                                                         endTime: ec.endTime || '',
                                                         description: ec.description || '',
-                                                        maxCapacity: ec.maxCapacity || 10
+                                                        maxCapacity: ec.maxCapacity || 10,
+                                                        currentCount: ec.currentCount || 0
                                                     });
                                                     setShowEntranceForm(true);
                                                 }}
@@ -638,6 +662,18 @@ const CoachNewStudents = ({ user, onBack }) => {
                                             className="cns-form-input"
                                         />
                                     </div>
+                                    {editingEntrance && (
+                                        <div className="cns-form-field">
+                                            <label>현재 인원</label>
+                                            <input
+                                                type="number"
+                                                value={entranceForm.currentCount}
+                                                onChange={(e) => setEntranceForm({ ...entranceForm, currentCount: parseInt(e.target.value) || 0 })}
+                                                min={0}
+                                                className="cns-form-input"
+                                            />
+                                        </div>
+                                    )}
                                     <div className="cns-modal-actions">
                                         <button className="cns-modal-btn cancel" onClick={() => setShowEntranceForm(false)}>취소</button>
                                         <button className="cns-modal-btn save" onClick={handleEntranceSubmit}>저장</button>

@@ -147,8 +147,22 @@ select {
 .set-row {
     background: #f9fafb;
     border-radius: 8px;
-    padding: 8px;
-    margin-bottom: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+.set-delete-btn {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #fef2f2;
+    border: none;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 .modal {
     display: none;

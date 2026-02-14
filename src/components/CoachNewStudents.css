@@ -309,6 +309,12 @@
     color: #dc2626;
 }
 
+.cns-action-btn.delete {
+    background: #f3f4f6;
+    color: #6b7280;
+    font-size: 0.8rem;
+}
+
 /* Entrance Cards */
 .cns-entrance-list {
     display: flex;

@@ -904,6 +904,24 @@ export const updateNewStudentRegistration = async (id, data) => {
     }
 };
 
+/**
+ * 신규 수강생 등록 삭제
+ * @param {string} id - 등록 ID
+ * @returns {Promise<void>}
+ */
+export const deleteNewStudentRegistration = async (id) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        await firestoreDeleteDoc(doc(db, 'newStudentRegistrations', id));
+    } catch (error) {
+        console.error('❌ 등록 삭제 실패:', error);
+        throw error;
+    }
+};
+
 // ============================================
 // ENTRANCE CLASS FUNCTIONS
 // ============================================

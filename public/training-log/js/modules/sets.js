@@ -30,7 +30,7 @@ export function renderSets() {
             <div class="set-row">
                 <div class="flex items-center gap-2 mb-2">
                     <span class="text-sm font-semibold text-gray-700 min-w-[60px]">${index + 1}세트</span>
-                    ${state.currentSets.length > 1 ? `<button onclick="removeSet(${index})" type="button" class="text-red-600 text-xs">삭제</button>` : ''}
+                    ${state.currentSets.length > 1 ? `<button onclick="removeSet(${index})" type="button" class="set-delete-btn text-red-600 text-sm font-semibold">삭제</button>` : ''}
                 </div>
                 
                 <!-- 강도 입력 -->
