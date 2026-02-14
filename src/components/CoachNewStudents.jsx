@@ -21,10 +21,79 @@ import {
 import { PRICING } from '../data/mockData';
 import './CoachNewStudents.css';
 
+// YYYY-MM-DD → "2026년 2월 21일(토)"
+const formatEntranceDate = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr + 'T00:00:00');
+    if (isNaN(date.getTime())) return dateStr;
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const dayOfWeek = dayNames[date.getDay()];
+    return `${year}년 ${month}월 ${day}일(${dayOfWeek})`;
+};
+
 // YYYY-MM-DD → YYMMDD
 const convertToYYMMDD = (dateStr) => {
     if (!dateStr) return '';
     return dateStr.slice(2).replace(/-/g, '');
+};
+
+// 요일 이름 → JS getDay() 값 매핑 (월=1, 화=2, ..., 금=5)
+const dayNameToIndex = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
+
+/**
+ * 입학반 다음주 기준 시작일/종료일 계산
+ * @param {string} entranceDateStr - 입학반 날짜 (YYYY-MM-DD)
+ * @param {Array} requestedSlots - [{day: '화', period: 2}, {day: '목', period: 2}]
+ * @returns {{ startDate: string, endDate: string }} YYYY-MM-DD 형식
+ */
+const calculateStartEndDates = (entranceDateStr, requestedSlots) => {
+    if (!entranceDateStr || !requestedSlots || requestedSlots.length === 0) {
+        // fallback: 오늘 기준 +30일
+        const today = new Date();
+        const end = new Date(today);
+        end.setDate(end.getDate() + 30);
+        const fmt = (d) => d.toISOString().split('T')[0];
+        return { startDate: fmt(today), endDate: fmt(end) };
+    }
+
+    const entranceDate = new Date(entranceDateStr + 'T00:00:00');
+
+    // 입학반 다음주 월요일 찾기
+    const dayOfWeek = entranceDate.getDay(); // 0=일, 1=월, ..., 6=토
+    const daysUntilNextMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
+    const nextMonday = new Date(entranceDate);
+    nextMonday.setDate(entranceDate.getDate() + daysUntilNextMonday);
+
+    // 수강 요일 인덱스 정렬
+    const classDayIndices = requestedSlots
+        .map(s => dayNameToIndex[s.day])
+        .filter(Boolean)
+        .sort((a, b) => a - b);
+
+    if (classDayIndices.length === 0) {
+        const fmt = (d) => d.toISOString().split('T')[0];
+        const end = new Date(nextMonday);
+        end.setDate(end.getDate() + 27);
+        return { startDate: fmt(nextMonday), endDate: fmt(end) };
+    }
+
+    // 시작일: 다음주 첫 수업 요일
+    const firstClassDayOffset = classDayIndices[0] - 1; // 월=0 offset
+    const startDate = new Date(nextMonday);
+    startDate.setDate(nextMonday.getDate() + firstClassDayOffset);
+
+    // 종료일: 4주차 마지막 수업 요일
+    const lastClassDayOffset = classDayIndices[classDayIndices.length - 1] - 1;
+    const week4Monday = new Date(nextMonday);
+    week4Monday.setDate(nextMonday.getDate() + 21); // 3주 후 = 4주차 월요일
+    const endDate = new Date(week4Monday);
+    endDate.setDate(week4Monday.getDate() + lastClassDayOffset);
+
+    const fmt = (d) => d.toISOString().split('T')[0];
+    return { startDate: fmt(startDate), endDate: fmt(endDate) };
 };
 
 const CoachNewStudents = ({ user, onBack }) => {
@@ -115,14 +184,16 @@ const CoachNewStudents = ({ user, onBack }) => {
             }
             const nextSheetRow = lastDataRowIndex + 1 + 1;
 
-            const today = new Date();
-            const startDateYYMMDD = convertToYYMMDD(today.toISOString().split('T')[0]);
-            // 종료날짜: 시작일 + 30일 (기본값)
-            const endDate = new Date(today);
-            endDate.setDate(endDate.getDate() + 30);
-            const endDateYYMMDD = convertToYYMMDD(endDate.toISOString().split('T')[0]);
+            // 입학반 다음주 기준 시작일/종료일 계산
+            const { startDate: calcStartDate, endDate: calcEndDate } = calculateStartEndDates(
+                reg.entranceDate,
+                reg.requestedSlots
+            );
+            const startDateYYMMDD = convertToYYMMDD(calcStartDate);
+            const endDateYYMMDD = convertToYYMMDD(calcEndDate);
 
-            const pricing = PRICING.find(p => p.frequency === reg.weeklyFrequency);
+            // 결제금액: 만원 단위 (390000 → 39)
+            const paymentAmount = reg.totalCost ? String(Math.round(reg.totalCost / 10000)) : '';
 
             const rowData = [
                 '',                                     // A: 번호
@@ -133,7 +204,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                 '신규',                                  // F: 신규/재등록
                 startDateYYMMDD,                         // G: 시작날짜
                 endDateYYMMDD,                           // H: 종료날짜
-                String(reg.totalCost),                   // I: 결제금액
+                paymentAmount,                           // I: 결제금액 (만원 단위)
                 '',                                      // J: 결제일
                 reg.paymentMethod === 'onsite' ? 'X' : 'O', // K: 결제유무
                 reg.paymentMethod === 'naver' ? '네이버' : '현장', // L: 결제방식
@@ -141,8 +212,8 @@ const CoachNewStudents = ({ user, onBack }) => {
                 '',                                      // N: 홀딩 시작일
                 '',                                      // O: 홀딩 종료일
                 reg.phone,                               // P: 핸드폰
-                '',                                      // Q: 성별
-                ''                                       // R: 직업
+                reg.gender || '',                        // Q: 성별
+                reg.occupation || ''                     // R: 직업
             ];
 
             await writeSheetData(`${targetSheet}!A${nextSheetRow}:R${nextSheetRow}`, [rowData]);
@@ -369,6 +440,18 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                         <span className="cns-detail-label">입학반</span>
                                                         <span className="cns-detail-value">{reg.entranceClassDate || '-'}</span>
                                                     </div>
+                                                    {reg.gender && (
+                                                        <div className="cns-detail-item">
+                                                            <span className="cns-detail-label">성별</span>
+                                                            <span className="cns-detail-value">{reg.gender}</span>
+                                                        </div>
+                                                    )}
+                                                    {reg.occupation && (
+                                                        <div className="cns-detail-item">
+                                                            <span className="cns-detail-label">직업</span>
+                                                            <span className="cns-detail-value">{reg.occupation}</span>
+                                                        </div>
+                                                    )}
                                                     {reg.healthIssues && (
                                                         <div className="cns-detail-item full">
                                                             <span className="cns-detail-label">불편한 곳</span>
@@ -446,7 +529,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                 {entranceClasses.map(ec => (
                                     <div key={ec.id} className={`cns-entrance-card ${!ec.isActive ? 'inactive' : ''}`}>
                                         <div className="cns-entrance-info">
-                                            <div className="cns-entrance-date">{ec.date}</div>
+                                            <div className="cns-entrance-date">{formatEntranceDate(ec.date)}</div>
                                             <div className="cns-entrance-time">{ec.time}{ec.endTime ? ` ~ ${ec.endTime}` : ''}</div>
                                             {ec.description && <div className="cns-entrance-desc">{ec.description}</div>}
                                             <div className="cns-entrance-capacity">

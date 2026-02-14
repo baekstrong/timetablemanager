@@ -37,6 +37,21 @@ const parseScheduleString = (scheduleStr) => {
     return result;
 };
 
+/**
+ * Format date string: "2026-02-21" → "2026년 2월 21일(토)"
+ */
+const formatEntranceDate = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr + 'T00:00:00');
+    if (isNaN(date.getTime())) return dateStr;
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const dayOfWeek = dayNames[date.getDay()];
+    return `${year}년 ${month}월 ${day}일(${dayOfWeek})`;
+};
+
 const STEP_NAMES = ['가입', '주 횟수', '시간표', '입학반', '결제', '상담', '확인'];
 
 const NewStudentRegistration = () => {
@@ -47,7 +62,11 @@ const NewStudentRegistration = () => {
     // Step 1: 개인정보
     const [name, setName] = useState('');
     const [password, setPassword] = useState('');
-    const [phone, setPhone] = useState('');
+    const [phone1, setPhone1] = useState('010');
+    const [phone2, setPhone2] = useState('');
+    const [phone3, setPhone3] = useState('');
+    const [gender, setGender] = useState('');
+    const [occupation, setOccupation] = useState('');
     const [healthIssues, setHealthIssues] = useState('');
     const [exerciseGoal, setExerciseGoal] = useState('');
 
@@ -169,7 +188,7 @@ const NewStudentRegistration = () => {
 
     const canProceed = () => {
         switch (step) {
-            case 0: return name.trim() && password.trim() && phone.trim();
+            case 0: return name.trim() && password.trim() && phone1.trim() && phone2.trim() && phone3.trim();
             case 1: return weeklyFrequency !== null;
             case 2: return selectedSlots.length === weeklyFrequency;
             case 3: return selectedEntrance !== null;
@@ -186,10 +205,13 @@ const NewStudentRegistration = () => {
 
         try {
             const entranceClass = entranceClasses.find(c => c.id === selectedEntrance);
+            const phoneStr = `${phone1.trim()}-${phone2.trim()}-${phone3.trim()}`;
             const data = {
                 name: name.trim(),
                 password: password.trim(),
-                phone: phone.trim(),
+                phone: phoneStr,
+                gender: gender,
+                occupation: occupation.trim(),
                 healthIssues: healthIssues.trim(),
                 exerciseGoal: exerciseGoal.trim(),
                 weeklyFrequency,
@@ -197,7 +219,8 @@ const NewStudentRegistration = () => {
                 requestedSlots: selectedSlots,
                 scheduleString: getScheduleString(),
                 entranceClassId: selectedEntrance,
-                entranceClassDate: entranceClass ? `${entranceClass.date} ${entranceClass.time}${entranceClass.endTime ? ' ~ ' + entranceClass.endTime : ''}` : '',
+                entranceDate: entranceClass ? entranceClass.date : '',
+                entranceClassDate: entranceClass ? `${formatEntranceDate(entranceClass.date)} ${entranceClass.time}${entranceClass.endTime ? ' ~ ' + entranceClass.endTime : ''}` : '',
                 entranceCost,
                 totalCost,
                 paymentMethod,
@@ -285,11 +308,70 @@ const NewStudentRegistration = () => {
                             </div>
                             <div className="reg-field">
                                 <label>연락처 <span className="required">*</span></label>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <input
+                                        type="tel"
+                                        value={phone1}
+                                        onChange={(e) => setPhone1(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                                        className="reg-input"
+                                        style={{ width: '70px', textAlign: 'center' }}
+                                        maxLength={3}
+                                    />
+                                    <span>-</span>
+                                    <input
+                                        type="tel"
+                                        value={phone2}
+                                        onChange={(e) => setPhone2(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                        placeholder="0000"
+                                        className="reg-input"
+                                        style={{ flex: 1, textAlign: 'center' }}
+                                        maxLength={4}
+                                    />
+                                    <span>-</span>
+                                    <input
+                                        type="tel"
+                                        value={phone3}
+                                        onChange={(e) => setPhone3(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                        placeholder="0000"
+                                        className="reg-input"
+                                        style={{ flex: 1, textAlign: 'center' }}
+                                        maxLength={4}
+                                    />
+                                </div>
+                            </div>
+                            <div className="reg-field">
+                                <label>성별 (선택)</label>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    {['남', '여'].map(g => (
+                                        <button
+                                            key={g}
+                                            type="button"
+                                            className={`reg-input ${gender === g ? 'selected' : ''}`}
+                                            style={{
+                                                flex: 1,
+                                                textAlign: 'center',
+                                                cursor: 'pointer',
+                                                backgroundColor: gender === g ? '#4f46e5' : '#fff',
+                                                color: gender === g ? '#fff' : '#333',
+                                                border: gender === g ? '2px solid #4f46e5' : '1px solid #ddd',
+                                                borderRadius: '8px',
+                                                padding: '10px',
+                                                fontSize: '1rem'
+                                            }}
+                                            onClick={() => setGender(gender === g ? '' : g)}
+                                        >
+                                            {g}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="reg-field">
+                                <label>직업 (선택)</label>
                                 <input
-                                    type="tel"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                    placeholder="010-0000-0000"
+                                    type="text"
+                                    value={occupation}
+                                    onChange={(e) => setOccupation(e.target.value)}
+                                    placeholder="직업을 입력하세요"
                                     className="reg-input"
                                 />
                             </div>
@@ -431,7 +513,7 @@ const NewStudentRegistration = () => {
                                                 setSelectedEntrance(ec.id);
                                             }}
                                         >
-                                            <div className="reg-entrance-date">{ec.date}</div>
+                                            <div className="reg-entrance-date">{formatEntranceDate(ec.date)}</div>
                                             <div className="reg-entrance-time">{ec.time}{ec.endTime ? ` ~ ${ec.endTime}` : ''}</div>
                                             {ec.description && <div className="reg-entrance-desc">{ec.description}</div>}
                                             <div className="reg-entrance-capacity">
@@ -508,8 +590,18 @@ const NewStudentRegistration = () => {
                                     <span>이름</span><span>{name}</span>
                                 </div>
                                 <div className="reg-summary-row">
-                                    <span>연락처</span><span>{phone}</span>
+                                    <span>연락처</span><span>{phone1}-{phone2}-{phone3}</span>
                                 </div>
+                                {gender && (
+                                    <div className="reg-summary-row">
+                                        <span>성별</span><span>{gender}</span>
+                                    </div>
+                                )}
+                                {occupation && (
+                                    <div className="reg-summary-row">
+                                        <span>직업</span><span>{occupation}</span>
+                                    </div>
+                                )}
                                 {healthIssues && (
                                     <div className="reg-summary-row">
                                         <span>불편한 곳</span><span>{healthIssues}</span>
@@ -528,7 +620,7 @@ const NewStudentRegistration = () => {
                                 </div>
                                 <div className="reg-summary-row">
                                     <span>입학반</span>
-                                    <span>{(() => { const ec = entranceClasses.find(c => c.id === selectedEntrance); return ec ? `${ec.date} ${ec.time}${ec.endTime ? ' ~ ' + ec.endTime : ''}` : ''; })()}</span>
+                                    <span>{(() => { const ec = entranceClasses.find(c => c.id === selectedEntrance); return ec ? `${formatEntranceDate(ec.date)} ${ec.time}${ec.endTime ? ' ~ ' + ec.endTime : ''}` : ''; })()}</span>
                                 </div>
                                 <div className="reg-summary-row">
                                     <span>결제 방식</span>
