@@ -116,6 +116,7 @@ const CoachNewStudents = ({ user, onBack }) => {
 
     // === 입학반 관리 ===
     const [entranceClasses, setEntranceClassesList] = useState([]);
+    const [entranceRegs, setEntranceRegs] = useState([]);
     const [showEntranceForm, setShowEntranceForm] = useState(false);
     const [editingEntrance, setEditingEntrance] = useState(null);
     const [entranceForm, setEntranceForm] = useState({ date: '', time: '', description: '', maxCapacity: 10 });
@@ -147,8 +148,12 @@ const CoachNewStudents = ({ user, onBack }) => {
     const loadEntranceClasses = async () => {
         setLoading(true);
         try {
-            const data = await getEntranceClasses(false);
+            const [data, regs] = await Promise.all([
+                getEntranceClasses(false),
+                getNewStudentRegistrations(null)
+            ]);
             setEntranceClassesList(data);
+            setEntranceRegs(regs.filter(r => r.entranceClassId && r.status !== 'rejected'));
         } catch (err) {
             console.error('입학반 조회 실패:', err);
         }
@@ -577,6 +582,20 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                 {ec.currentCount || 0}/{ec.maxCapacity}명
                                                 {!ec.isActive && <span className="cns-inactive-badge">비활성</span>}
                                             </div>
+                                            {(() => {
+                                                const ecRegs = entranceRegs.filter(r => r.entranceClassId === ec.id);
+                                                if (ecRegs.length === 0) return null;
+                                                return (
+                                                    <div className="cns-entrance-students">
+                                                        {ecRegs.map(r => (
+                                                            <span key={r.id} className={`cns-entrance-student-tag ${r.status}`}>
+                                                                {r.name}
+                                                                {r.status === 'pending' && <small>(대기)</small>}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                         <div className="cns-entrance-actions">
                                             <button

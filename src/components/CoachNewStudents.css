@@ -376,6 +376,38 @@
     border-radius: 4px;
 }
 
+.cns-entrance-students {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.4rem;
+}
+
+.cns-entrance-student-tag {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.cns-entrance-student-tag.approved {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.cns-entrance-student-tag.pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.cns-entrance-student-tag small {
+    font-weight: 400;
+    font-size: 0.65rem;
+}
+
 .cns-entrance-actions {
     display: flex;
     gap: 0.25rem;
