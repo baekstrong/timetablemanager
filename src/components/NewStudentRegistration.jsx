@@ -103,32 +103,40 @@ const NewStudentRegistration = () => {
     }, [step]);
 
     // Compute slot occupancy from Google Sheets data + pending registrations
+    // 코치 시간표(transformGoogleSheetsData)와 동일하게 학생 이름 기준 중복 제거
     const slotOccupancy = useMemo(() => {
         const occupancy = {};
-        if (!students || students.length === 0) return occupancy;
+        const namesPerSlot = {}; // 슬롯별 학생 이름 Set (중복 방지)
 
-        // 1. Google Sheets 학생 카운트
-        students.forEach((student) => {
-            const studentName = student['이름'];
-            const scheduleStr = student['요일 및 시간'];
-            if (!studentName || !scheduleStr) return;
+        // 1. Google Sheets 학생 카운트 (이름 기준 중복 제거)
+        if (students && students.length > 0) {
+            students.forEach((student) => {
+                const studentName = student['이름'];
+                const scheduleStr = student['요일 및 시간'];
+                if (!studentName || !scheduleStr) return;
 
-            const schedules = parseScheduleString(scheduleStr);
-            schedules.forEach(({ day, period }) => {
-                const key = `${day}-${period}`;
-                if (!occupancy[key]) occupancy[key] = 0;
-                occupancy[key]++;
+                const schedules = parseScheduleString(scheduleStr);
+                schedules.forEach(({ day, period }) => {
+                    const key = `${day}-${period}`;
+                    if (!namesPerSlot[key]) namesPerSlot[key] = new Set();
+                    namesPerSlot[key].add(studentName);
+                });
             });
-        });
+        }
 
         // 2. pending 등록의 requestedSlots 카운트 추가
         pendingRegistrations.forEach(reg => {
-            if (!reg.requestedSlots) return;
+            if (!reg.requestedSlots || !reg.name) return;
             reg.requestedSlots.forEach(({ day, period }) => {
                 const key = `${day}-${period}`;
-                if (!occupancy[key]) occupancy[key] = 0;
-                occupancy[key]++;
+                if (!namesPerSlot[key]) namesPerSlot[key] = new Set();
+                namesPerSlot[key].add(`__pending__${reg.name}`);
             });
+        });
+
+        // Set size → occupancy count
+        Object.keys(namesPerSlot).forEach(key => {
+            occupancy[key] = namesPerSlot[key].size;
         });
 
         return occupancy;
