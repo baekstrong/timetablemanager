@@ -248,14 +248,6 @@ const NewStudentRegistration = () => {
                         <p className="reg-success-info">
                             아이디: <strong>{name}</strong>
                         </p>
-                        <button
-                            className="reg-btn reg-btn-primary"
-                            onClick={() => {
-                                window.location.href = window.location.pathname;
-                            }}
-                        >
-                            로그인 페이지로 이동
-                        </button>
                     </div>
                 </div>
             </div>
@@ -416,7 +408,7 @@ const NewStudentRegistration = () => {
                                         <div className="reg-freq-label">{p.label}</div>
                                         <div className="reg-freq-cost">{p.baseCost.toLocaleString()}원</div>
                                         <div className="reg-freq-total">
-                                            입학비 포함 {p.totalWithEntrance.toLocaleString()}원
+                                            입학반 비용 포함 {p.totalWithEntrance.toLocaleString()}원
                                         </div>
                                     </div>
                                 ))}
@@ -492,7 +484,7 @@ const NewStudentRegistration = () => {
                                     <span>{baseCost.toLocaleString()}원</span>
                                 </div>
                                 <div className="reg-cost-row">
-                                    <span>입학비</span>
+                                    <span>입학반 비용</span>
                                     <span>{entranceCost.toLocaleString()}원</span>
                                 </div>
                                 <div className="reg-cost-row total">
@@ -538,16 +530,24 @@ const NewStudentRegistration = () => {
                                     onClick={() => setPaymentMethod('naver')}
                                 >
                                     <div className="reg-payment-icon">N</div>
-                                    <div className="reg-payment-label">네이버 결제</div>
+                                    <div className="reg-payment-label">네이버</div>
                                     <div className="reg-payment-desc">네이버페이로 결제합니다</div>
                                 </div>
                                 <div
-                                    className={`reg-payment-card ${paymentMethod === 'onsite' ? 'selected' : ''}`}
-                                    onClick={() => setPaymentMethod('onsite')}
+                                    className={`reg-payment-card ${paymentMethod === 'card' ? 'selected' : ''}`}
+                                    onClick={() => setPaymentMethod('card')}
                                 >
-                                    <div className="reg-payment-icon">₩</div>
-                                    <div className="reg-payment-label">현장 결제</div>
-                                    <div className="reg-payment-desc">방문하여 현장에서 결제합니다</div>
+                                    <div className="reg-payment-icon">💳</div>
+                                    <div className="reg-payment-label">현장 카드 결제</div>
+                                    <div className="reg-payment-desc">방문하여 카드로 결제합니다</div>
+                                </div>
+                                <div
+                                    className={`reg-payment-card ${paymentMethod === 'transfer' ? 'selected' : ''}`}
+                                    onClick={() => setPaymentMethod('transfer')}
+                                >
+                                    <div className="reg-payment-icon">🏦</div>
+                                    <div className="reg-payment-label">현장 계좌 이체</div>
+                                    <div className="reg-payment-desc">방문하여 계좌 이체로 결제합니다</div>
                                 </div>
                             </div>
                             <div className="reg-payment-total">
@@ -624,7 +624,7 @@ const NewStudentRegistration = () => {
                                 </div>
                                 <div className="reg-summary-row">
                                     <span>결제 방식</span>
-                                    <span>{paymentMethod === 'naver' ? '네이버 결제' : '현장 결제'}</span>
+                                    <span>{paymentMethod === 'naver' ? '네이버' : paymentMethod === 'card' ? '현장 카드 결제' : '현장 계좌 이체'}</span>
                                 </div>
                                 <div className="reg-summary-row total">
                                     <span>총 비용</span><span>{totalCost.toLocaleString()}원</span>

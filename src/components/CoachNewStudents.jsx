@@ -211,8 +211,8 @@ const CoachNewStudents = ({ user, onBack }) => {
                 endDateYYMMDD,                           // H: 종료날짜
                 paymentAmount,                           // I: 결제금액 (만원 단위)
                 '',                                      // J: 결제일
-                reg.paymentMethod === 'onsite' ? 'X' : 'O', // K: 결제유무
-                reg.paymentMethod === 'naver' ? '네이버' : '현장', // L: 결제방식
+                reg.paymentMethod === 'naver' ? 'O' : 'X', // K: 결제유무
+                reg.paymentMethod === 'naver' ? '네이버' : reg.paymentMethod === 'card' ? '현장카드' : '계좌이체', // L: 결제방식
                 'X',                                     // M: 홀딩
                 '',                                      // N: 홀딩 시작일
                 '',                                      // O: 홀딩 종료일
@@ -447,7 +447,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                     <div className="cns-detail-item">
                                                         <span className="cns-detail-label">결제방식</span>
                                                         <span className="cns-detail-value">
-                                                            {reg.paymentMethod === 'naver' ? '네이버 결제' : '현장 결제'}
+                                                            {reg.paymentMethod === 'naver' ? '네이버' : reg.paymentMethod === 'card' ? '현장 카드 결제' : '현장 계좌 이체'}
                                                         </span>
                                                     </div>
                                                     <div className="cns-detail-item">
