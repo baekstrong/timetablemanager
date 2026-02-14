@@ -192,19 +192,23 @@ export const batchUpdateSheet = async (updates) => {
 };
 
 /**
- * Highlight cells with yellow background (노란색 하이라이트)
+ * Highlight cells with background color
  * @param {Array<string>} ranges - Array of cell ranges (e.g., ["A5", "B5", "C5"])
  * @param {string} sheetName - Sheet name (백엔드 파라미터명과 일치)
+ * @param {Object} [color] - Optional RGB color {red, green, blue} (0.0~1.0). Defaults to yellow.
  * @returns {Promise}
  */
-export const highlightCells = async (ranges, sheetName) => {
+export const highlightCells = async (ranges, sheetName, color = null) => {
   try {
+    const body = { ranges, sheetName };
+    if (color) body.color = color;
+
     const response = await fetch(`${FUNCTIONS_BASE_URL}/formatCells`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ranges, sheetName }),
+      body: JSON.stringify(body),
     });
 
     const data = await response.json();
@@ -213,7 +217,7 @@ export const highlightCells = async (ranges, sheetName) => {
       throw new Error(data.error || 'Failed to highlight cells');
     }
 
-    console.log(`✅ Highlighted ${ranges.length} cells with yellow background`);
+    console.log(`✅ Highlighted ${ranges.length} cells`);
     return data;
   } catch (error) {
     console.error('Error highlighting cells:', error);

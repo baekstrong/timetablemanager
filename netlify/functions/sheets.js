@@ -217,9 +217,9 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // POST /sheets/formatCells - Highlight cells with yellow background
+    // POST /sheets/formatCells - Highlight cells with background color
     if (event.httpMethod === 'POST' && path === 'formatCells') {
-      const { ranges, sheetName } = JSON.parse(event.body);
+      const { ranges, sheetName, color } = JSON.parse(event.body);
       if (!ranges || !Array.isArray(ranges) || !sheetName) {
         return {
           statusCode: 400,
@@ -273,11 +273,9 @@ exports.handler = async (event, context) => {
             },
             cell: {
               userEnteredFormat: {
-                backgroundColor: {
-                  red: 1.0,
-                  green: 1.0,
-                  blue: 0.6, // Light yellow
-                },
+                backgroundColor: color
+                  ? { red: color.red ?? 1.0, green: color.green ?? 1.0, blue: color.blue ?? 1.0 }
+                  : { red: 1.0, green: 1.0, blue: 0.6 },
               },
             },
             fields: 'userEnteredFormat.backgroundColor',

@@ -16,7 +16,8 @@ import {
 import {
     getCurrentSheetName,
     readSheetData,
-    writeSheetData
+    writeSheetData,
+    highlightCells
 } from '../services/googleSheetsService';
 import { PRICING } from '../data/mockData';
 import './CoachNewStudents.css';
@@ -50,13 +51,19 @@ const dayNameToIndex = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
  * @returns {{ startDate: string, endDate: string }} YYYY-MM-DD 형식
  */
 const calculateStartEndDates = (entranceDateStr, requestedSlots) => {
+    // 로컬 시간 기준 YYYY-MM-DD 포맷 (UTC 변환 방지)
+    const fmtLocal = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+    };
+
     if (!entranceDateStr || !requestedSlots || requestedSlots.length === 0) {
-        // fallback: 오늘 기준 +30일
         const today = new Date();
         const end = new Date(today);
         end.setDate(end.getDate() + 30);
-        const fmt = (d) => d.toISOString().split('T')[0];
-        return { startDate: fmt(today), endDate: fmt(end) };
+        return { startDate: fmtLocal(today), endDate: fmtLocal(end) };
     }
 
     const entranceDate = new Date(entranceDateStr + 'T00:00:00');
@@ -74,10 +81,9 @@ const calculateStartEndDates = (entranceDateStr, requestedSlots) => {
         .sort((a, b) => a - b);
 
     if (classDayIndices.length === 0) {
-        const fmt = (d) => d.toISOString().split('T')[0];
         const end = new Date(nextMonday);
         end.setDate(end.getDate() + 27);
-        return { startDate: fmt(nextMonday), endDate: fmt(end) };
+        return { startDate: fmtLocal(nextMonday), endDate: fmtLocal(end) };
     }
 
     // 시작일: 다음주 첫 수업 요일
@@ -92,8 +98,7 @@ const calculateStartEndDates = (entranceDateStr, requestedSlots) => {
     const endDate = new Date(week4Monday);
     endDate.setDate(week4Monday.getDate() + lastClassDayOffset);
 
-    const fmt = (d) => d.toISOString().split('T')[0];
-    return { startDate: fmt(startDate), endDate: fmt(endDate) };
+    return { startDate: fmtLocal(startDate), endDate: fmtLocal(endDate) };
 };
 
 const CoachNewStudents = ({ user, onBack }) => {
@@ -217,6 +222,19 @@ const CoachNewStudents = ({ user, onBack }) => {
             ];
 
             await writeSheetData(`${targetSheet}!A${nextSheetRow}:R${nextSheetRow}`, [rowData]);
+
+            // 2-1. 주황색 음영 적용 (신규 수강생 표시)
+            try {
+                const columns = 'ABCDEFGHIJKLMNOPQR'.split('');
+                const cellRanges = columns.map(col => `${col}${nextSheetRow}`);
+                await highlightCells(cellRanges, targetSheet, {
+                    red: 1.0,
+                    green: 0.87,
+                    blue: 0.68
+                });
+            } catch (err) {
+                console.warn('주황색 음영 적용 실패:', err);
+            }
 
             // 3. 등록 상태 업데이트
             await updateNewStudentRegistration(reg.id, {
