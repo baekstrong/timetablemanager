@@ -115,6 +115,25 @@ export const PRICING = [
 ];
 export const ENTRANCE_FEE = 80000;
 
+// 한국 공휴일 데이터 (2026년)
+export const KOREAN_HOLIDAYS = {
+    '2026-01-01': '신정',
+    '2026-02-16': '설날',
+    '2026-02-17': '설날',
+    '2026-02-18': '설날',
+    '2026-03-01': '3·1절',
+    '2026-05-05': '어린이날',
+    '2026-05-25': '부처님 오신 날',
+    '2026-06-06': '현충일',
+    '2026-08-15': '광복절',
+    '2026-09-24': '추석',
+    '2026-09-25': '추석',
+    '2026-09-26': '추석',
+    '2026-10-03': '개천절',
+    '2026-10-09': '한글날',
+    '2026-12-25': '크리스마스'
+};
+
 // Helper function to calculate days remaining
 export const calculateDaysRemaining = (endDate) => {
     const today = new Date('2026-01-09'); // Current date for simulation

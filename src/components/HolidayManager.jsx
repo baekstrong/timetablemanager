@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { createHoliday, getHolidays, deleteHoliday } from '../services/firebaseService';
+import { KOREAN_HOLIDAYS } from '../data/mockData';
 import './HoldingManager.css';
 
 // 로컬 날짜를 YYYY-MM-DD 형식으로 변환
@@ -8,25 +9,6 @@ const formatLocalDate = (date) => {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
-};
-
-// 한국 공휴일 데이터 (2026년 기준)
-const KOREAN_HOLIDAYS_2026 = {
-    '2026-01-01': '신정',
-    '2026-02-16': '설날',
-    '2026-02-17': '설날',
-    '2026-02-18': '설날',
-    '2026-03-01': '3·1절',
-    '2026-05-05': '어린이날',
-    '2026-05-25': '부처님 오신 날',
-    '2026-06-06': '현충일',
-    '2026-08-15': '광복절',
-    '2026-09-24': '추석',
-    '2026-09-25': '추석',
-    '2026-09-26': '추석',
-    '2026-10-03': '개천절',
-    '2026-10-09': '한글날',
-    '2026-12-25': '크리스마스'
 };
 
 const HolidayManager = ({ user, onBack }) => {
@@ -96,7 +78,7 @@ const HolidayManager = ({ user, onBack }) => {
     // 특정 날짜가 공휴일인지 확인
     const isKoreanHoliday = (date) => {
         const dateStr = formatLocalDate(date);
-        return KOREAN_HOLIDAYS_2026[dateStr];
+        return KOREAN_HOLIDAYS[dateStr];
     };
 
     // 특정 날짜가 설정된 휴일인지 확인

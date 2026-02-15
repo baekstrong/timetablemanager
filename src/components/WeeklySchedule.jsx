@@ -17,7 +17,7 @@ import {
     getHolidays,
     getNewStudentRegistrations
 } from '../services/firebaseService';
-import { PERIODS, DAYS, MOCK_DATA, MAX_CAPACITY } from '../data/mockData';
+import { PERIODS, DAYS, MOCK_DATA, MAX_CAPACITY, KOREAN_HOLIDAYS } from '../data/mockData';
 import './WeeklySchedule.css';
 
 /**
@@ -1044,17 +1044,23 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         // Check if class is disabled by coach
         const classDisabled = isClassDisabled(day, periodObj.id);
 
-        // --- Check if this date is a holiday ---
+        // --- Check if this date is a holiday (Firebase + Korean public holidays) ---
         let isHoliday = false;
         let holidayReason = '';
         if (weekDates[day]) {
             const [hMonth, hDay] = weekDates[day].split('/');
             const hYear = new Date().getFullYear();
             const slotDateStr = `${hYear}-${hMonth.padStart(2, '0')}-${hDay.padStart(2, '0')}`;
+            // 1) Firebase에 등록된 휴일 확인
             const holidayMatch = weekHolidays.find(h => h.date === slotDateStr);
             if (holidayMatch) {
                 isHoliday = true;
                 holidayReason = holidayMatch.reason || '';
+            }
+            // 2) 한국 공휴일 확인
+            if (!isHoliday && KOREAN_HOLIDAYS[slotDateStr]) {
+                isHoliday = true;
+                holidayReason = KOREAN_HOLIDAYS[slotDateStr];
             }
         }
 
@@ -1238,6 +1244,16 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
         // --- COACH MODE RENDER ---
         else {
+            // If holiday, show "휴일" for coach too
+            if (isHoliday) {
+                return (
+                    <div className="schedule-cell" style={{ backgroundColor: '#fef2f2', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '0.9rem' }}>휴일</span>
+                        {holidayReason && <span style={{ color: '#6b7280', fontSize: '0.7rem', marginTop: '2px' }}>{holidayReason}</span>}
+                    </div>
+                );
+            }
+
             // If class is disabled, show disabled state with toggle
             if (classDisabled) {
                 return (
@@ -1307,7 +1323,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                             }
                             if (isAgreedAbsent) {
                                 return (
-                                    <span key={name} className="student-tag" style={{ backgroundColor: '#e0e7ff', color: '#3730a3', textDecoration: 'line-through' }}>
+                                    <span key={name} className="student-tag" style={{ backgroundColor: '#fce7f3', color: '#be185d', textDecoration: 'line-through' }}>
                                         {name}(합의결석)
                                     </span>
                                 );
