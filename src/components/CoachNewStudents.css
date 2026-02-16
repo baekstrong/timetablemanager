@@ -553,6 +553,17 @@
     transition: border-color 0.2s;
 }
 
+.cns-form-input[type="date"] {
+    font-size: 0.85rem;
+    color: #1f2937;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.cns-form-input[type="number"] {
+    -moz-appearance: textfield;
+}
+
 .cns-form-input:focus {
     outline: none;
     border-color: #667eea;
