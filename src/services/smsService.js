@@ -1,5 +1,5 @@
 /**
- * CoolSMS 문자 발송 서비스
+ * Solapi 문자 발송 서비스
  * 신규 수강 접수/승인/입학반 알림 문자 발송
  */
 
@@ -92,7 +92,7 @@ const sendBatchSMS = async (messages) => {
 };
 
 /**
- * KST 날짜 포맷 (CoolSMS 예약 발송용)
+ * KST 날짜 포맷 (Solapi 예약 발송용)
  * @param {Date} date
  * @returns {string} "YYYY-MM-DD HH:mm:ss"
  */
@@ -211,7 +211,7 @@ export const sendStudentApprovalSMS = async (studentPhone, studentName, details)
  * 수강생에게 입학반 3일 전 리마인더 발송
  * "입학반 수강 3일 전입니다." + 준비물 안내
  *
- * 승인 시점에 CoolSMS 예약 발송 기능으로 스케줄링합니다.
+ * 승인 시점에 Solapi 예약 발송 기능으로 스케줄링합니다.
  * - 입학반이 3일 이상 남은 경우: 3일 전 오전 9시에 예약 발송
  * - 입학반이 1~3일 남은 경우: 즉시 발송
  * - 입학반이 이미 지난 경우: 발송하지 않음

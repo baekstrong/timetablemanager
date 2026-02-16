@@ -1,16 +1,16 @@
 const crypto = require('crypto');
 
-const COOLSMS_API_URL = 'https://api.coolsms.co.kr';
+const SOLAPI_API_URL = 'https://api.solapi.com';
 
 /**
- * CoolSMS HMAC-SHA256 인증 헤더 생성
+ * Solapi HMAC-SHA256 인증 헤더 생성
  */
 function generateAuthHeaders() {
-  const apiKey = process.env.COOLSMS_API_KEY;
-  const apiSecret = process.env.COOLSMS_API_SECRET;
+  const apiKey = process.env.SOLAPI_API_KEY;
+  const apiSecret = process.env.SOLAPI_API_SECRET;
 
   if (!apiKey || !apiSecret) {
-    throw new Error('CoolSMS API 인증 정보가 설정되지 않았습니다.');
+    throw new Error('Solapi API 인증 정보가 설정되지 않았습니다.');
   }
 
   const date = new Date().toISOString();
@@ -26,15 +26,15 @@ function generateAuthHeaders() {
 }
 
 /**
- * CoolSMS API를 통해 SMS 발송
+ * Solapi API를 통해 SMS 발송
  * @param {string} to - 수신 번호 (하이픈 포함 가능)
  * @param {string} text - 메시지 내용
  * @param {string|null} scheduledDate - 예약 발송 시간 (YYYY-MM-DD HH:mm:ss, KST)
  */
 async function sendSMS(to, text, scheduledDate = null) {
-  const from = process.env.COOLSMS_SENDER_PHONE;
+  const from = process.env.SOLAPI_SENDER_PHONE;
   if (!from) {
-    throw new Error('COOLSMS_SENDER_PHONE이 설정되지 않았습니다.');
+    throw new Error('SOLAPI_SENDER_PHONE이 설정되지 않았습니다.');
   }
 
   const toClean = to.replace(/-/g, '');
@@ -56,7 +56,7 @@ async function sendSMS(to, text, scheduledDate = null) {
 
   console.log(`SMS 발송 요청: to=${toClean}, textLength=${text.length}, scheduled=${scheduledDate || '즉시'}`);
 
-  const response = await fetch(`${COOLSMS_API_URL}/messages/v4/send`, {
+  const response = await fetch(`${SOLAPI_API_URL}/messages/v4/send`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body)
@@ -65,7 +65,7 @@ async function sendSMS(to, text, scheduledDate = null) {
   const result = await response.json();
 
   if (!response.ok) {
-    console.error('CoolSMS 오류:', result);
+    console.error('Solapi 오류:', result);
     throw new Error(result.errorMessage || `SMS 발송 실패 (${response.status})`);
   }
 
@@ -158,7 +158,7 @@ exports.handler = async (event, context) => {
               4: process.env.NAVER_STORE_LINK_4 || ''
             },
             preparationMessage: process.env.PREPARATION_MESSAGE || '',
-            isConfigured: !!(process.env.COOLSMS_API_KEY && process.env.COOLSMS_API_SECRET && process.env.COOLSMS_SENDER_PHONE)
+            isConfigured: !!(process.env.SOLAPI_API_KEY && process.env.SOLAPI_API_SECRET && process.env.SOLAPI_SENDER_PHONE)
           }
         })
       };
