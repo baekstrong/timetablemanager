@@ -112,7 +112,7 @@ const CoachNewStudents = ({ user, onBack }) => {
     // === 등록 목록 ===
     const [registrations, setRegistrations] = useState([]);
     const [regFilter, setRegFilter] = useState('pending');
-    const [expandedReg, setExpandedReg] = useState(null);
+    const [collapsedRegs, setCollapsedRegs] = useState(new Set());
     const [approving, setApproving] = useState(null);
 
     // === 입학반 관리 ===
@@ -477,7 +477,12 @@ const CoachNewStudents = ({ user, onBack }) => {
                                     <div key={reg.id} className="cns-reg-card">
                                         <div
                                             className="cns-reg-card-header"
-                                            onClick={() => setExpandedReg(expandedReg === reg.id ? null : reg.id)}
+                                            onClick={() => setCollapsedRegs(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(reg.id)) next.delete(reg.id);
+                                                else next.add(reg.id);
+                                                return next;
+                                            })}
                                         >
                                             <div className="cns-reg-main">
                                                 <span className="cns-reg-name">{reg.name}</span>
@@ -489,11 +494,11 @@ const CoachNewStudents = ({ user, onBack }) => {
                                             <div className="cns-reg-badges">
                                                 {reg.wantsConsultation && <span className="cns-badge consult">상담</span>}
                                                 {reg.question && <span className="cns-badge question">질문</span>}
-                                                <span className="cns-expand-arrow">{expandedReg === reg.id ? '▲' : '▼'}</span>
+                                                <span className="cns-expand-arrow">{collapsedRegs.has(reg.id) ? '▼' : '▲'}</span>
                                             </div>
                                         </div>
 
-                                        {expandedReg === reg.id && (
+                                        {!collapsedRegs.has(reg.id) && (
                                             <div className="cns-reg-detail">
                                                 <div className="cns-detail-grid">
                                                     <div className="cns-detail-item">

@@ -5,12 +5,18 @@
 
 // SMS Netlify Function URL
 const getSmsBaseUrl = () => {
+  const functionsUrl = import.meta.env.VITE_FUNCTIONS_URL;
+  if (functionsUrl) {
+    // VITE_FUNCTIONS_URL이 sheets 함수 경로를 포함하면 sms로 교체
+    // 예: https://xxx.netlify.app/.netlify/functions/sheets → .../functions/sms
+    // 예: http://localhost:5001 → http://localhost:5001/sms
+    const base = functionsUrl.replace(/\/sheets\/?$/, '');
+    return `${base}/sms`;
+  }
   if (import.meta.env.PROD) {
     return '/.netlify/functions/sms';
   }
-  // 로컬 개발: Express 서버의 /sms 경로 사용
-  const baseUrl = import.meta.env.VITE_FUNCTIONS_URL || 'http://localhost:5001';
-  return `${baseUrl}/sms`;
+  return 'http://localhost:5001/sms';
 };
 
 // SMS 설정 캐시
