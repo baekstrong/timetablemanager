@@ -92,13 +92,26 @@ exports.handler = async (event, context) => {
   try {
     // POST /sms/send - 단일 SMS 발송
     if (event.httpMethod === 'POST' && path === 'send') {
+      // 환경변수 설정 확인
+      if (!process.env.SOLAPI_API_KEY || !process.env.SOLAPI_API_SECRET) {
+        console.error('Solapi 환경변수 미설정: SOLAPI_API_KEY, SOLAPI_API_SECRET를 Netlify 대시보드에서 설정해주세요.');
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({
+            success: false,
+            error: 'SMS 서비스가 설정되지 않았습니다. Netlify 환경변수(SOLAPI_API_KEY, SOLAPI_API_SECRET, SOLAPI_SENDER_PHONE)를 확인해주세요.'
+          })
+        };
+      }
+
       const { to, text, scheduledDate } = JSON.parse(event.body);
 
       if (!to || !text) {
         return {
           statusCode: 400,
           headers,
-          body: JSON.stringify({ error: 'to와 text는 필수입니다.' })
+          body: JSON.stringify({ success: false, error: 'to와 text는 필수입니다.' })
         };
       }
 
@@ -113,13 +126,24 @@ exports.handler = async (event, context) => {
 
     // POST /sms/send-batch - 다중 SMS 발송
     if (event.httpMethod === 'POST' && path === 'send-batch') {
+      if (!process.env.SOLAPI_API_KEY || !process.env.SOLAPI_API_SECRET) {
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({
+            success: false,
+            error: 'SMS 서비스가 설정되지 않았습니다. Netlify 환경변수를 확인해주세요.'
+          })
+        };
+      }
+
       const { messages } = JSON.parse(event.body);
 
       if (!messages || !Array.isArray(messages) || messages.length === 0) {
         return {
           statusCode: 400,
           headers,
-          body: JSON.stringify({ error: 'messages 배열이 필요합니다.' })
+          body: JSON.stringify({ success: false, error: 'messages 배열이 필요합니다.' })
         };
       }
 
@@ -145,6 +169,15 @@ exports.handler = async (event, context) => {
 
     // POST /sms/settings - SMS 설정 정보 조회 (환경 변수 기반)
     if (event.httpMethod === 'POST' && path === 'settings') {
+      const isConfigured = !!(process.env.SOLAPI_API_KEY && process.env.SOLAPI_API_SECRET && process.env.SOLAPI_SENDER_PHONE);
+      if (!isConfigured) {
+        console.warn('SMS 설정 미완료 - 누락된 환경변수:', {
+          SOLAPI_API_KEY: !!process.env.SOLAPI_API_KEY,
+          SOLAPI_API_SECRET: !!process.env.SOLAPI_API_SECRET,
+          SOLAPI_SENDER_PHONE: !!process.env.SOLAPI_SENDER_PHONE,
+          COACH_PHONE: !!process.env.COACH_PHONE
+        });
+      }
       return {
         statusCode: 200,
         headers,
@@ -158,7 +191,7 @@ exports.handler = async (event, context) => {
               4: process.env.NAVER_STORE_LINK_4 || ''
             },
             preparationMessage: process.env.PREPARATION_MESSAGE || '',
-            isConfigured: !!(process.env.SOLAPI_API_KEY && process.env.SOLAPI_API_SECRET && process.env.SOLAPI_SENDER_PHONE)
+            isConfigured
           }
         })
       };

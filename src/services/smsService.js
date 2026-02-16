@@ -49,7 +49,7 @@ export const getSmsSettings = async () => {
     }
     return null;
   } catch (error) {
-    console.warn('SMS 설정 조회 실패:', error.message);
+    console.error('SMS 설정 조회 실패:', error.message);
     return null;
   }
 };
@@ -58,13 +58,24 @@ export const getSmsSettings = async () => {
  * SMS 단일 발송 (내부 API 호출)
  */
 const sendSMS = async (to, text, scheduledDate = null) => {
+  const baseUrl = getSmsBaseUrl();
+  const url = `${baseUrl}/send`;
+
   try {
-    const baseUrl = getSmsBaseUrl();
-    const response = await fetch(`${baseUrl}/send`, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to, text, scheduledDate })
     });
+
+    if (!response.ok) {
+      let errorMsg = `SMS API 응답 오류 (HTTP ${response.status})`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.error || errorMsg;
+      } catch {}
+      throw new Error(errorMsg);
+    }
 
     const data = await response.json();
     if (!data.success) {
@@ -72,7 +83,11 @@ const sendSMS = async (to, text, scheduledDate = null) => {
     }
     return data;
   } catch (error) {
-    console.warn('SMS 발송 실패:', error.message);
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      console.error(`SMS 서버 연결 실패 (${url}):`, error.message);
+      throw new Error(`SMS 서버에 연결할 수 없습니다. Functions URL을 확인해주세요: ${url}`);
+    }
+    console.error('SMS 발송 실패:', error.message);
     throw error;
   }
 };
@@ -127,7 +142,7 @@ export const sendStudentRegistrationSMS = async (studentPhone, studentName) => {
     console.log('수강생 안내문자 1 발송 완료:', studentName);
     return true;
   } catch (error) {
-    console.warn('수강생 안내문자 1 발송 실패:', error.message);
+    console.error('수강생 안내문자 1 발송 실패:', studentName, '-', error.message);
     return false;
   }
 };
@@ -141,8 +156,16 @@ export const sendStudentRegistrationSMS = async (studentPhone, studentName) => {
  */
 export const sendCoachNewRegistrationSMS = async (studentName, details) => {
   const settings = await getSmsSettings();
-  if (!settings || !settings.coachPhone) {
-    console.warn('코치 전화번호가 설정되지 않아 문자를 발송할 수 없습니다.');
+  if (!settings) {
+    console.error('SMS 설정을 가져올 수 없습니다. 서버 연결 상태를 확인해주세요.');
+    return false;
+  }
+  if (!settings.isConfigured) {
+    console.error('SMS 서비스가 설정되지 않았습니다. Netlify 환경변수(SOLAPI_API_KEY, SOLAPI_API_SECRET, SOLAPI_SENDER_PHONE)를 확인해주세요.');
+    return false;
+  }
+  if (!settings.coachPhone) {
+    console.error('코치 전화번호(COACH_PHONE)가 설정되지 않아 문자를 발송할 수 없습니다.');
     return false;
   }
 
@@ -169,7 +192,7 @@ export const sendCoachNewRegistrationSMS = async (studentName, details) => {
     console.log('코치 안내문자 1 발송 완료');
     return true;
   } catch (error) {
-    console.warn('코치 안내문자 1 발송 실패:', error.message);
+    console.error('코치 안내문자 1 발송 실패:', error.message);
     return false;
   }
 };
@@ -205,7 +228,7 @@ export const sendStudentApprovalSMS = async (studentPhone, studentName, details)
     console.log('수강생 안내문자 2 발송 완료:', studentName);
     return true;
   } catch (error) {
-    console.warn('수강생 안내문자 2 발송 실패:', error.message);
+    console.error('수강생 안내문자 2 발송 실패:', error.message);
     return false;
   }
 };
@@ -238,7 +261,7 @@ export const scheduleEntranceReminderSMS = async (studentPhone, studentName, det
   const entranceDate = new Date(details.entranceDate + 'T00:00:00');
 
   if (isNaN(entranceDate.getTime())) {
-    console.warn('입학반 날짜 파싱 실패:', details.entranceDate);
+    console.error('입학반 날짜 파싱 실패:', details.entranceDate);
     return false;
   }
 
@@ -255,7 +278,7 @@ export const scheduleEntranceReminderSMS = async (studentPhone, studentName, det
       console.log('수강생 안내문자 3 예약 완료:', studentName, scheduledDate);
       return true;
     } catch (error) {
-      console.warn('수강생 안내문자 3 예약 실패:', error.message);
+      console.error('수강생 안내문자 3 예약 실패:', error.message);
       return false;
     }
   } else if (entranceDate > now) {
@@ -265,7 +288,7 @@ export const scheduleEntranceReminderSMS = async (studentPhone, studentName, det
       console.log('수강생 안내문자 3 즉시 발송:', studentName);
       return true;
     } catch (error) {
-      console.warn('수강생 안내문자 3 발송 실패:', error.message);
+      console.error('수강생 안내문자 3 발송 실패:', error.message);
       return false;
     }
   } else {
@@ -288,17 +311,20 @@ export const sendRegistrationNotifications = async (studentPhone, studentName, d
     coachSMS: false
   };
 
-  try {
-    // 병렬로 수강생/코치 문자 발송
-    const [studentResult, coachResult] = await Promise.allSettled([
-      sendStudentRegistrationSMS(studentPhone, studentName),
-      sendCoachNewRegistrationSMS(studentName, details)
-    ]);
+  // 병렬로 수강생/코치 문자 발송
+  const [studentResult, coachResult] = await Promise.allSettled([
+    sendStudentRegistrationSMS(studentPhone, studentName),
+    sendCoachNewRegistrationSMS(studentName, details)
+  ]);
 
-    results.studentSMS = studentResult.status === 'fulfilled' && studentResult.value;
-    results.coachSMS = coachResult.status === 'fulfilled' && coachResult.value;
-  } catch (error) {
-    console.warn('문자 발송 중 오류:', error.message);
+  results.studentSMS = studentResult.status === 'fulfilled' && studentResult.value;
+  results.coachSMS = coachResult.status === 'fulfilled' && coachResult.value;
+
+  if (studentResult.status === 'rejected') {
+    console.error('수강생 문자 발송 실패:', studentResult.reason?.message || studentResult.reason);
+  }
+  if (coachResult.status === 'rejected') {
+    console.error('코치 문자 발송 실패:', coachResult.reason?.message || coachResult.reason);
   }
 
   return results;
@@ -317,16 +343,20 @@ export const sendApprovalNotifications = async (studentPhone, studentName, detai
     reminderSMS: false
   };
 
+  // 승인 문자 즉시 발송
   try {
-    // 승인 문자 즉시 발송
     results.approvalSMS = await sendStudentApprovalSMS(studentPhone, studentName, details);
-
-    // 입학반 리마인더 예약 (입학반 날짜가 있는 경우)
-    if (details.entranceDate && details.entranceClassDate) {
-      results.reminderSMS = await scheduleEntranceReminderSMS(studentPhone, studentName, details);
-    }
   } catch (error) {
-    console.warn('승인 문자 발송 중 오류:', error.message);
+    console.error('승인 문자 발송 실패:', error.message);
+  }
+
+  // 입학반 리마인더 예약 (입학반 날짜가 있는 경우)
+  if (details.entranceDate && details.entranceClassDate) {
+    try {
+      results.reminderSMS = await scheduleEntranceReminderSMS(studentPhone, studentName, details);
+    } catch (error) {
+      console.error('입학반 리마인더 예약 실패:', error.message);
+    }
   }
 
   return results;

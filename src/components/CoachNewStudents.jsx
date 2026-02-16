@@ -268,23 +268,34 @@ const CoachNewStudents = ({ user, onBack }) => {
 
             // 승인 문자 발송 (수강생 SMS 2 + 입학반 리마인더 SMS 3 예약)
             // 실패해도 승인에 영향을 주지 않음
+            let smsWarning = '';
             if (reg.phone) {
-                sendApprovalNotifications(reg.phone, reg.name, {
-                    paymentMethod: reg.paymentMethod,
-                    weeklyFrequency: reg.weeklyFrequency,
-                    entranceDate: reg.entranceDate,
-                    entranceClassDate: reg.entranceClassDate
-                }).then(results => {
-                    const msgs = [];
-                    if (results.approvalSMS) msgs.push('승인 문자');
-                    if (results.reminderSMS) msgs.push('입학반 리마인더');
-                    if (msgs.length > 0) {
-                        console.log(`문자 발송 완료: ${msgs.join(', ')}`);
+                try {
+                    const smsResults = await sendApprovalNotifications(reg.phone, reg.name, {
+                        paymentMethod: reg.paymentMethod,
+                        weeklyFrequency: reg.weeklyFrequency,
+                        entranceDate: reg.entranceDate,
+                        entranceClassDate: reg.entranceClassDate
+                    });
+                    const sent = [];
+                    const failed = [];
+                    if (smsResults.approvalSMS) sent.push('승인 문자');
+                    else failed.push('승인 문자');
+                    if (smsResults.reminderSMS) sent.push('입학반 리마인더');
+                    if (sent.length > 0) {
+                        console.log(`문자 발송 완료: ${sent.join(', ')}`);
                     }
-                }).catch(() => {});
+                    if (failed.length > 0) {
+                        smsWarning = `\n\n⚠ ${failed.join(', ')} 발송에 실패했습니다. SMS 설정을 확인해주세요.`;
+                        console.warn('문자 발송 실패:', failed.join(', '));
+                    }
+                } catch (smsError) {
+                    smsWarning = '\n\n⚠ 안내 문자 발송에 실패했습니다. SMS 설정을 확인해주세요.';
+                    console.error('승인 문자 발송 오류:', smsError);
+                }
             }
 
-            alert(`"${reg.name}" 수강생이 승인되었습니다.\n로그인 가능 상태입니다.`);
+            alert(`"${reg.name}" 수강생이 승인되었습니다.\n로그인 가능 상태입니다.${smsWarning}`);
             await refreshSheets();
             await loadRegistrations();
         } catch (err) {
