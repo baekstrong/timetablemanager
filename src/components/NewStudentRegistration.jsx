@@ -233,13 +233,23 @@ const NewStudentRegistration = () => {
 
             // 안내 문자 발송 (수강생 SMS 1 + 코치 SMS 1)
             // 실패해도 등록에 영향을 주지 않음
-            sendRegistrationNotifications(phoneStr, name.trim(), {
-                weeklyFrequency,
-                scheduleString: getScheduleString(),
-                paymentMethod,
-                entranceClassDate: data.entranceClassDate,
-                wantsConsultation
-            }).catch(() => {});
+            try {
+                const smsResults = await sendRegistrationNotifications(phoneStr, name.trim(), {
+                    weeklyFrequency,
+                    scheduleString: getScheduleString(),
+                    paymentMethod,
+                    entranceClassDate: data.entranceClassDate,
+                    wantsConsultation
+                });
+                if (!smsResults.studentSMS || !smsResults.coachSMS) {
+                    const failed = [];
+                    if (!smsResults.studentSMS) failed.push('수강생');
+                    if (!smsResults.coachSMS) failed.push('코치');
+                    console.warn(`안내 문자 발송 실패: ${failed.join(', ')}`);
+                }
+            } catch (smsError) {
+                console.error('안내 문자 발송 중 오류:', smsError);
+            }
 
             setSubmitted(true);
         } catch (error) {
