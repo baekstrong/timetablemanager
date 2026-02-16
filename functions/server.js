@@ -3,11 +3,13 @@
  * Firebase Emulator 없이도 Functions를 테스트할 수 있습니다.
  */
 
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const { google } = require('googleapis');
-const path = require('path');
 
 const app = express();
 const PORT = 5001;
