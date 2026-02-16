@@ -20,6 +20,7 @@ import {
     writeSheetData,
     highlightCells
 } from '../services/googleSheetsService';
+import { sendApprovalNotifications } from '../services/smsService';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { PRICING } from '../data/mockData';
 import './CoachNewStudents.css';
@@ -263,6 +264,24 @@ const CoachNewStudents = ({ user, onBack }) => {
                 } catch (err) {
                     console.warn('입학반 인원 업데이트 실패:', err);
                 }
+            }
+
+            // 승인 문자 발송 (수강생 SMS 2 + 입학반 리마인더 SMS 3 예약)
+            // 실패해도 승인에 영향을 주지 않음
+            if (reg.phone) {
+                sendApprovalNotifications(reg.phone, reg.name, {
+                    paymentMethod: reg.paymentMethod,
+                    weeklyFrequency: reg.weeklyFrequency,
+                    entranceDate: reg.entranceDate,
+                    entranceClassDate: reg.entranceClassDate
+                }).then(results => {
+                    const msgs = [];
+                    if (results.approvalSMS) msgs.push('승인 문자');
+                    if (results.reminderSMS) msgs.push('입학반 리마인더');
+                    if (msgs.length > 0) {
+                        console.log(`문자 발송 완료: ${msgs.join(', ')}`);
+                    }
+                }).catch(() => {});
             }
 
             alert(`"${reg.name}" 수강생이 승인되었습니다.\n로그인 가능 상태입니다.`);
