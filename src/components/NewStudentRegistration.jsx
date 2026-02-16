@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getDisabledClasses, createNewStudentRegistration, getEntranceClasses, getFAQs, getNewStudentRegistrations } from '../services/firebaseService';
+import { sendRegistrationNotifications } from '../services/smsService';
 import { PERIODS, DAYS, MAX_CAPACITY, PRICING, ENTRANCE_FEE } from '../data/mockData';
 import './NewStudentRegistration.css';
 
@@ -229,6 +230,17 @@ const NewStudentRegistration = () => {
             };
 
             await createNewStudentRegistration(data);
+
+            // 안내 문자 발송 (수강생 SMS 1 + 코치 SMS 1)
+            // 실패해도 등록에 영향을 주지 않음
+            sendRegistrationNotifications(phoneStr, name.trim(), {
+                weeklyFrequency,
+                scheduleString: getScheduleString(),
+                paymentMethod,
+                entranceClassDate: data.entranceClassDate,
+                wantsConsultation
+            }).catch(() => {});
+
             setSubmitted(true);
         } catch (error) {
             alert('등록에 실패했습니다: ' + error.message);
