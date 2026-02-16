@@ -120,7 +120,7 @@ const CoachNewStudents = ({ user, onBack }) => {
     const [entranceRegs, setEntranceRegs] = useState([]);
     const [showEntranceForm, setShowEntranceForm] = useState(false);
     const [editingEntrance, setEditingEntrance] = useState(null);
-    const [entranceForm, setEntranceForm] = useState({ date: '', time: '', description: '', maxCapacity: 10 });
+    const [entranceForm, setEntranceForm] = useState({ date: '', time: '', description: '', maxCapacity: 6 });
 
     // === FAQ 관리 ===
     const [faqList, setFaqList] = useState([]);
@@ -348,7 +348,7 @@ const CoachNewStudents = ({ user, onBack }) => {
             }
             setShowEntranceForm(false);
             setEditingEntrance(null);
-            setEntranceForm({ date: '', time: '', description: '', maxCapacity: 10 });
+            setEntranceForm({ date: '', time: '', description: '', maxCapacity: 6 });
             await loadEntranceClasses();
         } catch (err) {
             alert('저장 실패: ' + err.message);
@@ -594,7 +594,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                 className="cns-add-btn"
                                 onClick={() => {
                                     setEditingEntrance(null);
-                                    setEntranceForm({ date: '', time: '', endTime: '', description: '', maxCapacity: 10, currentCount: 0 });
+                                    setEntranceForm({ date: new Date().toISOString().split('T')[0], time: '', endTime: '', description: '', maxCapacity: 6, currentCount: 0 });
                                     setShowEntranceForm(true);
                                 }}
                             >
@@ -717,8 +717,24 @@ const CoachNewStudents = ({ user, onBack }) => {
                                         <input
                                             type="number"
                                             value={entranceForm.maxCapacity}
-                                            onChange={(e) => setEntranceForm({ ...entranceForm, maxCapacity: parseInt(e.target.value) || 1 })}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (val === '') {
+                                                    setEntranceForm({ ...entranceForm, maxCapacity: '' });
+                                                } else {
+                                                    const num = parseInt(val);
+                                                    if (!isNaN(num) && num >= 1) {
+                                                        setEntranceForm({ ...entranceForm, maxCapacity: num });
+                                                    }
+                                                }
+                                            }}
+                                            onBlur={() => {
+                                                if (entranceForm.maxCapacity === '' || entranceForm.maxCapacity < 1) {
+                                                    setEntranceForm({ ...entranceForm, maxCapacity: 1 });
+                                                }
+                                            }}
                                             min={1}
+                                            step={1}
                                             className="cns-form-input"
                                         />
                                     </div>
@@ -728,8 +744,24 @@ const CoachNewStudents = ({ user, onBack }) => {
                                             <input
                                                 type="number"
                                                 value={entranceForm.currentCount}
-                                                onChange={(e) => setEntranceForm({ ...entranceForm, currentCount: parseInt(e.target.value) || 0 })}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    if (val === '') {
+                                                        setEntranceForm({ ...entranceForm, currentCount: '' });
+                                                    } else {
+                                                        const num = parseInt(val);
+                                                        if (!isNaN(num) && num >= 0) {
+                                                            setEntranceForm({ ...entranceForm, currentCount: num });
+                                                        }
+                                                    }
+                                                }}
+                                                onBlur={() => {
+                                                    if (entranceForm.currentCount === '' || entranceForm.currentCount < 0) {
+                                                        setEntranceForm({ ...entranceForm, currentCount: 0 });
+                                                    }
+                                                }}
                                                 min={0}
+                                                step={1}
                                                 className="cns-form-input"
                                             />
                                         </div>
