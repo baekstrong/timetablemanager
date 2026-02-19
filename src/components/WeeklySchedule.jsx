@@ -1066,8 +1066,8 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
         // --- STUDENT MODE RENDER ---
         if (mode === 'student') {
-            // If holiday, show "휴일" regardless of other data
-            if (isHoliday) {
+            // If holiday, show "휴일" regardless of other data (단, 코치의 신규 전용 모드에서는 여석 확인이 목적이므로 휴일 표시 안 함)
+            if (isHoliday && user?.role !== 'coach') {
                 return (
                     <div className="schedule-cell" style={{ backgroundColor: '#f3f4f6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                         <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '0.9rem' }}>휴일</span>
