@@ -194,7 +194,7 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
     };
 
     return (
-        <div className="reg-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <div className="reg-modal-overlay">
             <div className="reg-modal-content">
                 <h2 className="reg-modal-title">수강생 등록</h2>
 
