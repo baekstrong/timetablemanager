@@ -158,6 +158,15 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
             }
             const nextSheetRow = lastDataRowIndex + 1 + 1; // array→sheet 변환(+1) + 다음 행(+1)
 
+            // 기존 수강생 수 세기 (B열에 이름이 있는 행)
+            let studentCount = 0;
+            for (let i = 2; i < rows.length; i++) {
+                if (rows[i] && rows[i][1]) {
+                    studentCount++;
+                }
+            }
+            const newNumber = studentCount + 1;
+
             // 결석 날짜가 있으면 특이사항에 추가
             let finalNotes = form.특이사항;
             if (absenceDates.length > 0) {
@@ -173,7 +182,7 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
             }
 
             const rowData = [
-                '',                                                          // A: 빈칸 (번호는 수동 관리)
+                newNumber,                                                       // A: 번호 (자동 부여)
                 form.이름,                                                   // B: 이름
                 form.주횟수,                                                 // C: 주횟수
                 form['요일 및 시간'],                                        // D: 요일 및 시간
