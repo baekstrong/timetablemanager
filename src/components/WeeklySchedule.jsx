@@ -302,32 +302,43 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     })();
 
     // 재등록 지연 수강생 (종료일 다음날인데 재등록 안한 경우)
+    // 같은 이름의 학생이 여러 시트에 존재할 수 있으므로, 가장 최신 종료날짜 행만 사용
     const delayedReregistrationStudents = (() => {
         if (user?.role !== 'coach' || !students || students.length === 0) return [];
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        return students.filter(student => {
+
+        // 학생별로 가장 최신 종료날짜 행만 남기기
+        const latestByName = {};
+        students.forEach(student => {
+            const name = student['이름'];
+            if (!name) return;
             const endDateStr = student['종료날짜'];
-            if (!endDateStr) return false;
+            if (!endDateStr) return;
             const endDate = parseSheetDate(endDateStr);
-            if (!endDate) return false;
-            endDate.setHours(0, 0, 0, 0);
+            if (!endDate) return;
+
+            if (!latestByName[name] || endDate > latestByName[name].endDate) {
+                latestByName[name] = { student, endDate };
+            }
+        });
+
+        return Object.values(latestByName).filter(({ student, endDate }) => {
+            const ed = new Date(endDate);
+            ed.setHours(0, 0, 0, 0);
             // 종료일이 오늘 이전 (= 종료일 다음날 이후 = 재등록 필요)
-            if (endDate >= today) return false;
+            if (ed >= today) return false;
             // 요일 및 시간이 있어야 (아직 종료 처리 안됨)
             const schedule = student['요일 및 시간'];
             if (!schedule || !schedule.trim()) return false;
             return true;
-        }).map(s => {
-            const name = s['이름'];
-            if (!name) return null;
-            const schedule = s['요일 및 시간'] || '';
-            const payment = s['결제금액'] || s['결제\n금액'] || '';
-            const endDateStr = s['종료날짜'];
-            const endDate = parseSheetDate(endDateStr);
-            const endDateFormatted = endDate ? `${endDate.getMonth() + 1}/${endDate.getDate()}` : '';
+        }).map(({ student, endDate }) => {
+            const name = student['이름'];
+            const schedule = student['요일 및 시간'] || '';
+            const payment = student['결제금액'] || student['결제\n금액'] || '';
+            const endDateFormatted = `${endDate.getMonth() + 1}/${endDate.getDate()}`;
             return { name, schedule, payment, endDate: endDateFormatted };
-        }).filter(Boolean).sort((a, b) => getScheduleSortKey(a.schedule) - getScheduleSortKey(b.schedule));
+        }).sort((a, b) => getScheduleSortKey(a.schedule) - getScheduleSortKey(b.schedule));
     })();
 
     // Makeup request state (복수 보강 신청 지원)
