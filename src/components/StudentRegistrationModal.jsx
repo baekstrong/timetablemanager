@@ -158,14 +158,17 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
             }
             const nextSheetRow = lastDataRowIndex + 1 + 1; // array→sheet 변환(+1) + 다음 행(+1)
 
-            // 기존 수강생 수 세기 (B열에 이름이 있는 행)
-            let studentCount = 0;
+            // A열에서 가장 큰 번호 찾기
+            let maxNumber = 0;
             for (let i = 2; i < rows.length; i++) {
-                if (rows[i] && rows[i][1]) {
-                    studentCount++;
+                if (rows[i] && rows[i][0]) {
+                    const num = parseInt(rows[i][0]);
+                    if (!isNaN(num) && num > maxNumber) {
+                        maxNumber = num;
+                    }
                 }
             }
-            const newNumber = studentCount + 1;
+            const newNumber = maxNumber + 1;
 
             // 결석 날짜가 있으면 특이사항에 추가
             let finalNotes = form.특이사항;
