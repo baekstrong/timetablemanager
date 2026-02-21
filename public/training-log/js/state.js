@@ -15,6 +15,7 @@ export const state = {
     currentSets: [],
     editingSets: [],
     pinnedExercises: [],
+    archivedMemos: [],
     coachPinnedMemos: [],
     painFilter: false,
     memoFilter: false,

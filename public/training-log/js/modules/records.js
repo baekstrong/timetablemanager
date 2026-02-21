@@ -1017,6 +1017,159 @@ export function toggleAdminPanel() {
     }
 }
 
+// ============================================
+// 메모 보관함 (Archived Memos)
+// ============================================
+
+export async function loadArchivedMemosFromStorage() {
+    if (!state.currentUser) return [];
+
+    const saved = localStorage.getItem(`archivedMemos_${state.currentUser}`);
+    if (saved) {
+        try {
+            return JSON.parse(saved);
+        } catch (e) {
+            console.error('Failed to load archived memos from localStorage:', e);
+        }
+    }
+
+    if (firebaseInitialized && db) {
+        try {
+            const doc = await db.collection('archivedMemos').doc(state.currentUser).get();
+            if (doc.exists) {
+                const data = doc.data();
+                localStorage.setItem(`archivedMemos_${state.currentUser}`, JSON.stringify(data.memos));
+                return data.memos || [];
+            }
+        } catch (error) {
+            console.error('❌ Firestore 보관 메모 불러오기 실패:', error);
+        }
+    }
+    return [];
+}
+
+export function saveArchivedMemosToStorage() {
+    if (!state.currentUser) return;
+    localStorage.setItem(`archivedMemos_${state.currentUser}`, JSON.stringify(state.archivedMemos));
+
+    if (firebaseInitialized && db) {
+        if (state.archivedMemos.length === 0) {
+            db.collection('archivedMemos').doc(state.currentUser).delete();
+        } else {
+            db.collection('archivedMemos').doc(state.currentUser).set({
+                userName: state.currentUser,
+                memos: state.archivedMemos,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+    }
+}
+
+export function archiveWorkoutMemo(index) {
+    if (index < 0 || index >= state.pinnedExercises.length) return;
+
+    const memo = { ...state.pinnedExercises[index], archivedAt: new Date().toISOString() };
+    state.archivedMemos.push(memo);
+    state.pinnedExercises.splice(index, 1);
+
+    savePinnedExercisesToStorage();
+    saveArchivedMemosToStorage();
+    updatePinnedDisplay();
+    if (window.updatePinButton) window.updatePinButton();
+    alert('📦 메모가 보관함으로 이동되었습니다!');
+}
+window.archiveWorkoutMemo = archiveWorkoutMemo;
+
+export function restoreArchivedMemo(index) {
+    if (index < 0 || index >= state.archivedMemos.length) return;
+
+    const memo = { ...state.archivedMemos[index] };
+    delete memo.archivedAt;
+    state.pinnedExercises.push(memo);
+    state.archivedMemos.splice(index, 1);
+
+    savePinnedExercisesToStorage();
+    saveArchivedMemosToStorage();
+    updatePinnedDisplay();
+    openMemoArchiveModal(); // refresh modal
+    alert('📌 메모가 복원되었습니다!');
+}
+window.restoreArchivedMemo = restoreArchivedMemo;
+
+export function deleteArchivedMemo(index) {
+    if (!confirm('이 보관 메모를 영구 삭제하시겠습니까?')) return;
+    if (index < 0 || index >= state.archivedMemos.length) return;
+
+    state.archivedMemos.splice(index, 1);
+    saveArchivedMemosToStorage();
+    openMemoArchiveModal(); // refresh modal
+}
+window.deleteArchivedMemo = deleteArchivedMemo;
+
+export function openMemoArchiveModal() {
+    let modal = document.getElementById('memoArchiveModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'memoArchiveModal';
+        modal.className = 'modal';
+        modal.innerHTML = '<div class="modal-content max-w-lg w-full" id="memoArchiveContent"></div>';
+        document.body.appendChild(modal);
+    }
+
+    const content = document.getElementById('memoArchiveContent');
+    let html = `
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold text-gray-800">📦 메모 보관함</h2>
+            <button onclick="closeMemoArchiveModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+        </div>
+    `;
+
+    if (state.archivedMemos.length === 0) {
+        html += '<p class="text-gray-500 text-center py-8">보관된 메모가 없습니다.</p>';
+    } else {
+        html += '<div class="space-y-3 max-h-96 overflow-y-auto">';
+        state.archivedMemos.forEach((memo, idx) => {
+            const archivedDate = memo.archivedAt ? new Date(memo.archivedAt).toLocaleDateString() : '';
+            html += `
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <span class="text-base font-bold text-gray-800">${memo.exercise}</span>
+                            ${memo.pain ? '<span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded ml-2">⚠️ 통증</span>' : ''}
+                        </div>
+                        <span class="text-xs text-gray-400">${archivedDate}</span>
+                    </div>
+                    ${memo.memo ? `<div class="text-sm text-gray-700 whitespace-pre-wrap mb-3">${memo.memo}</div>` : '<div class="text-sm text-gray-400 italic mb-3">메모 없음</div>'}
+                    <div class="flex gap-2">
+                        <button onclick="restoreArchivedMemo(${idx})" class="text-xs px-3 py-1.5 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition">
+                            복원
+                        </button>
+                        <button onclick="deleteArchivedMemo(${idx})" class="text-xs px-3 py-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200 transition">
+                            삭제
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+    }
+
+    content.innerHTML = html;
+    modal.classList.add('active');
+    document.body.classList.add('modal-open');
+    document.body.dataset.scrollY = window.scrollY;
+}
+window.openMemoArchiveModal = openMemoArchiveModal;
+
+export function closeMemoArchiveModal() {
+    const modal = document.getElementById('memoArchiveModal');
+    if (modal) modal.classList.remove('active');
+    document.body.classList.remove('modal-open');
+    const scrollY = document.body.dataset.scrollY;
+    if (scrollY) window.scrollTo(0, parseInt(scrollY));
+}
+window.closeMemoArchiveModal = closeMemoArchiveModal;
+
 // 메모 수정 모달 관련 변수
 let editingMemoExerciseName = null;
 

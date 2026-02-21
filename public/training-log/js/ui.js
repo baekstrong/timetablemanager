@@ -67,6 +67,10 @@ export function renderStudentScreen() {
                     <h2 class="text-xl font-bold text-gray-800">${state.currentUser}님의 훈련일지</h2>
                     <p class="text-sm text-gray-600">오늘도 화이팅! 💪</p>
                 </div>
+                <button onclick="openMemoArchiveModal()"
+                        class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
+                    📦 메모 보관함
+                </button>
             </div>
 
             <!-- 고정된 메모 목록 (캘린더 바로 위) -->
@@ -390,13 +394,18 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos) {
                                         <button onclick="movePinnedMemo(${idx}, -1)" class="flex-1 bg-gray-100 hover:bg-gray-200 text-xs py-1 rounded text-center">▲</button>
                                         <button onclick="movePinnedMemo(${idx}, 1)" class="flex-1 bg-gray-100 hover:bg-gray-200 text-xs py-1 rounded text-center">▼</button>
                                      </div>
-                                    <button 
-                                        onclick="editStudentMemo('${pinned.exercise}', \`${(pinned.memo || '').replace(/`/g, '\\`').replace(/'/g, "\\'")}\`)" 
+                                    <button
+                                        onclick="editStudentMemo('${pinned.exercise}', \`${(pinned.memo || '').replace(/`/g, '\\`').replace(/'/g, "\\'")}\`)"
                                         class="text-xs px-2 py-1.5 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition text-center">
                                         수정
                                     </button>
-                                    <button 
-                                        onclick="removePinnedExercise(${idx});" 
+                                    <button
+                                        onclick="archiveWorkoutMemo(${idx})"
+                                        class="text-xs px-2 py-1.5 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition text-center">
+                                        보관
+                                    </button>
+                                    <button
+                                        onclick="removePinnedExercise(${idx});"
                                         class="text-xs px-2 py-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200 transition text-center">
                                         삭제
                                     </button>

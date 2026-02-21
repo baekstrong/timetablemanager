@@ -588,14 +588,15 @@ export const calculateEndDateWithHolidays = (startDate, totalSessions, scheduleS
 };
 
 /**
- * 시작일부터 오늘까지 완료된 수업 횟수 계산 (홀딩 기간 제외)
+ * 시작일부터 오늘까지 완료된 수업 횟수 계산 (홀딩 기간 및 공휴일 제외)
  * @param {Date} startDate - 시작일
  * @param {Date} today - 오늘 날짜
  * @param {string} scheduleStr - 요일 및 시간 (예: "화1목1")
  * @param {Object} holdingRange - 홀딩 기간 { start: Date, end: Date } (optional)
+ * @param {Array} firebaseHolidays - Firebase 커스텀 공휴일 배열 (optional)
  * @returns {number} - 완료된 수업 횟수
  */
-const calculateCompletedSessions = (startDate, today, scheduleStr, holdingRange = null) => {
+const calculateCompletedSessions = (startDate, today, scheduleStr, holdingRange = null, firebaseHolidays = []) => {
   if (!startDate || !scheduleStr) return 0;
 
   if (startDate > today) return 0;
@@ -617,7 +618,10 @@ const calculateCompletedSessions = (startDate, today, scheduleStr, holdingRange 
         current >= holdingRange.start &&
         current <= holdingRange.end;
 
-      if (!isInHoldingPeriod) {
+      // 공휴일인 경우 수업 완료로 카운트하지 않음
+      const holiday = isHolidayDate(current, firebaseHolidays);
+
+      if (!isInHoldingPeriod && !holiday) {
         count++;
       }
     }
@@ -688,8 +692,8 @@ export const calculateMembershipStats = (student) => {
     }
   }
 
-  // 홀딩 기간을 제외한 완료된 세션 수 계산
-  const completedSessions = calculateCompletedSessions(startDate, today, scheduleStr, holdingRange);
+  // 홀딩 기간 및 공휴일을 제외한 완료된 세션 수 계산
+  const completedSessions = calculateCompletedSessions(startDate, today, scheduleStr, holdingRange, []);
   const remainingSessions = Math.max(0, totalSessions - completedSessions);
 
   const formatDate = (date) => {
@@ -793,6 +797,12 @@ export const generateAttendanceHistory = (student) => {
       const classInfo = classDays.find(c => c.day === dayOfWeek);
 
       if (classInfo) {
+        // 공휴일인 경우 출석 내역에서 제외
+        if (isHolidayDate(current, [])) {
+          current.setDate(current.getDate() + 1);
+          continue;
+        }
+
         const dateStr = formatDateKorean(current);
         const periodName = `${classInfo.period}교시`;
 

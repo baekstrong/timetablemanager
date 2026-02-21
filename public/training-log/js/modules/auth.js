@@ -1,6 +1,6 @@
 import { state, db, firebaseInitialized } from '../state.js';
 import { saveLogin, loadSavedLogin, clearSavedLogin } from '../utils.js';
-import { loadPinnedExercisesFromStorage, migrateLocalStorageToFirestore } from './records.js';
+import { loadPinnedExercisesFromStorage, loadArchivedMemosFromStorage, migrateLocalStorageToFirestore } from './records.js';
 
 // ============================================
 // 로그인 및 인증 관련
@@ -58,9 +58,13 @@ export async function login() {
         loadPinnedExercisesFromStorage().then(loaded => {
             state.pinnedExercises = loaded;
             if (!state.isCoach && window.updatePinnedDisplay) {
-                // updatePinnedDisplay is in main.js/window
                 window.updatePinnedDisplay();
             }
+        });
+
+        // 보관 메모 불러오기 (async)
+        loadArchivedMemosFromStorage().then(loaded => {
+            state.archivedMemos = loaded;
         });
 
         // 코치 로그인 시 날짜 필터 초기화
@@ -122,6 +126,11 @@ export async function autoLogin() {
                     state.pinnedExercises = loaded;
                 });
 
+                // 보관 메모 불러오기 (async)
+                loadArchivedMemosFromStorage().then(loaded => {
+                    state.archivedMemos = loaded;
+                });
+
                 console.log('✅ 자동 로그인 성공!');
                 if (window.render) window.render();
             } else {
@@ -150,6 +159,7 @@ export function logout() {
     state.allStudents = [];
     state.currentSets = [];
     state.pinnedExercises = []; // 고정 메모 초기화
+    state.archivedMemos = []; // 보관 메모 초기화
     state.coachPinnedMemos = []; // 코치 고정 메모 초기화
     state.calendarYear = new Date().getFullYear();
     state.calendarMonth = new Date().getMonth();

@@ -269,6 +269,17 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student'); // 'student' | 'coach'
     const { students, isAuthenticated, loading, refresh } = useGoogleSheets();
 
+    // 시간표 순서 정렬을 위한 헬퍼 함수
+    const getScheduleSortKey = (scheduleStr) => {
+        if (!scheduleStr) return 999;
+        const parsed = parseScheduleString(scheduleStr);
+        if (parsed.length === 0) return 999;
+        const dayOrder = { '월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일': 6 };
+        // 첫 번째 수업의 요일+교시로 정렬
+        const first = parsed[0];
+        return (dayOrder[first.day] || 0) * 10 + first.period;
+    };
+
     // 오늘 마지막 날인 수강생 (코치 모드) - 이름(요일 및 시간,결제금액) 형식
     const lastDayStudents = (() => {
         if (user?.role !== 'coach' || !students || students.length === 0) return [];
@@ -287,7 +298,36 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             const schedule = s['요일 및 시간'] || '';
             const payment = s['결제금액'] || s['결제\n금액'] || '';
             return { name, schedule, payment };
-        }).filter(Boolean);
+        }).filter(Boolean).sort((a, b) => getScheduleSortKey(a.schedule) - getScheduleSortKey(b.schedule));
+    })();
+
+    // 재등록 지연 수강생 (종료일 다음날인데 재등록 안한 경우)
+    const delayedReregistrationStudents = (() => {
+        if (user?.role !== 'coach' || !students || students.length === 0) return [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return students.filter(student => {
+            const endDateStr = student['종료날짜'];
+            if (!endDateStr) return false;
+            const endDate = parseSheetDate(endDateStr);
+            if (!endDate) return false;
+            endDate.setHours(0, 0, 0, 0);
+            // 종료일이 오늘 이전 (= 종료일 다음날 이후 = 재등록 필요)
+            if (endDate >= today) return false;
+            // 요일 및 시간이 있어야 (아직 종료 처리 안됨)
+            const schedule = student['요일 및 시간'];
+            if (!schedule || !schedule.trim()) return false;
+            return true;
+        }).map(s => {
+            const name = s['이름'];
+            if (!name) return null;
+            const schedule = s['요일 및 시간'] || '';
+            const payment = s['결제금액'] || s['결제\n금액'] || '';
+            const endDateStr = s['종료날짜'];
+            const endDate = parseSheetDate(endDateStr);
+            const endDateFormatted = endDate ? `${endDate.getMonth() + 1}/${endDate.getDate()}` : '';
+            return { name, schedule, payment, endDate: endDateFormatted };
+        }).filter(Boolean).sort((a, b) => getScheduleSortKey(a.schedule) - getScheduleSortKey(b.schedule));
     })();
 
     // Makeup request state (복수 보강 신청 지원)
@@ -1435,6 +1475,27 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
             {mode === 'coach' && lastDayStudents.length > 0 && (
                 <section style={{
+                    background: 'linear-gradient(135deg, #dcfce7, #bbf7d0)',
+                    border: '1px solid #4ade80',
+                    borderRadius: '12px',
+                    padding: '1rem 1.25rem',
+                    marginBottom: '1rem'
+                }}>
+                    <div style={{ fontWeight: '700', fontSize: '1rem', color: '#166534', marginBottom: '0.5rem' }}>
+                        오늘 마지막 수업
+                    </div>
+                    <div style={{ color: '#14532d', fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {lastDayStudents.map((s) => (
+                            <div key={s.name}>
+                                {s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {mode === 'coach' && delayedReregistrationStudents.length > 0 && (
+                <section style={{
                     background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
                     border: '1px solid #f59e0b',
                     borderRadius: '12px',
@@ -1442,14 +1503,13 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     marginBottom: '1rem'
                 }}>
                     <div style={{ fontWeight: '700', fontSize: '1rem', color: '#92400e', marginBottom: '0.5rem' }}>
-                        오늘 마지막 수업
+                        재등록 지연
                     </div>
-                    <div style={{ color: '#78350f', fontSize: '0.95rem' }}>
-                        {lastDayStudents.map((s, idx) => (
-                            <span key={s.name}>
-                                {idx > 0 && ', '}
-                                {s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})
-                            </span>
+                    <div style={{ color: '#78350f', fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {delayedReregistrationStudents.map((s) => (
+                            <div key={s.name}>
+                                {s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''}) <span style={{ fontSize: '0.8rem', color: '#b45309' }}>종료: {s.endDate}</span>
+                            </div>
                         ))}
                     </div>
                 </section>

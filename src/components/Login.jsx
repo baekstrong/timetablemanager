@@ -134,7 +134,7 @@ const Login = ({ onLogin }) => {
         e.preventDefault();
 
         if (!username.trim() || !password.trim()) {
-            setError('아이디와 비밀번호를 입력해주세요.');
+            setError('이름과 비밀번호를 입력해주세요.');
             return;
         }
 
@@ -162,13 +162,13 @@ const Login = ({ onLogin }) => {
 
                 <form onSubmit={handleSubmit} className="login-form">
                     <div className="input-group">
-                        <label htmlFor="username">아이디</label>
+                        <label htmlFor="username">이름</label>
                         <input
                             id="username"
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            placeholder="아이디를 입력하세요"
+                            placeholder="이름을 입력하세요"
                             className="login-input"
                             disabled={loading}
                         />
@@ -200,7 +200,7 @@ const Login = ({ onLogin }) => {
                                 }}
                                 disabled={loading}
                             />
-                            <span>아이디 저장</span>
+                            <span>이름 저장</span>
                         </label>
 
                         <label className="checkbox-label">
@@ -227,7 +227,7 @@ const Login = ({ onLogin }) => {
                 </form>
 
                 <div className="login-footer">
-                    <p>처음이신가요? 원하시는 아이디와 비밀번호로 로그인하면<br />자동으로 새 계정이 생성됩니다.</p>
+                    <p>처음이신가요? 이름과 비밀번호를 입력하면<br />자동으로 새 계정이 생성됩니다.</p>
                 </div>
             </div>
         </div>
