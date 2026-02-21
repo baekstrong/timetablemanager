@@ -315,7 +315,11 @@
 
     /* 모바일 달력 최적화 */
     .calendar-card {
-        padding: 16px;
+        padding: 12px;
+    }
+
+    .calendar {
+        margin-top: 12px;
     }
 
     .calendar-grid {
@@ -334,6 +338,7 @@
     .calendar-day {
         padding: 4px;
         border-radius: 8px;
+        min-width: 0;
     }
 
     .day-number {
@@ -378,6 +383,10 @@
 
     .calendar-subtitle {
         font-size: 13px;
+    }
+
+    .holding-container {
+        padding: 12px 12px 100px;
     }
 }
 
@@ -435,6 +444,8 @@
     grid-template-columns: repeat(5, 1fr);
     gap: 8px;
     margin-bottom: 8px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .weekday {
@@ -449,6 +460,8 @@
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .calendar-day {
@@ -464,6 +477,8 @@
     cursor: pointer;
     transition: all 0.3s ease;
     position: relative;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .calendar-day.empty {
