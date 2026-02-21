@@ -45,6 +45,7 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
     const [form, setForm] = useState({
         이름: '',
         주횟수: '',
+        등록개월수: '1',
         '요일 및 시간': '',
         특이사항: '',
         시작날짜: '',
@@ -80,17 +81,26 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
         const weeklyFreq = parseInt(form.주횟수);
         if (isNaN(weeklyFreq) || weeklyFreq <= 0) return;
 
-        const totalSessions = weeklyFreq * 4;
+        const registrationMonths = parseInt(form.등록개월수 || '1');
+        const totalSessions = weeklyFreq * 4 * registrationMonths;
         const endDate = calculateEndDateWithHolidays(
             startDate, totalSessions, form['요일 및 시간'], holidays, absenceDates
         );
         if (endDate) {
             setForm(prev => ({ ...prev, 종료날짜: formatYYMMDD(endDate) }));
         }
-    }, [form.시작날짜, form.주횟수, form['요일 및 시간'], holidays, absenceDates]);
+    }, [form.시작날짜, form.주횟수, form.등록개월수, form['요일 및 시간'], holidays, absenceDates]);
 
     const handleChange = (field, value) => {
-        setForm(prev => ({ ...prev, [field]: value }));
+        setForm(prev => {
+            const updated = { ...prev, [field]: value };
+            // 등록개월수 변경 시 홀딩 사용여부 자동 설정 (재등록 모드에서만)
+            if (field === '등록개월수' && registrationType === 'renew') {
+                const months = parseInt(value || '1');
+                updated['홀딩 사용여부'] = months > 1 ? `X(0/${months})` : 'X';
+            }
+            return updated;
+        });
     };
 
     // 재등록 모드: 이름 검색
@@ -256,6 +266,26 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
                             onChange={(e) => handleChange('이름', e.target.value)}
                             placeholder="수강생 이름"
                         />
+                    </div>
+                )}
+
+                {/* 등록개월수 (재등록 모드에서만 표시) */}
+                {registrationType === 'renew' && (
+                    <div className="reg-field-group">
+                        <label>등록개월수</label>
+                        <select
+                            value={form.등록개월수}
+                            onChange={(e) => handleChange('등록개월수', e.target.value)}
+                        >
+                            <option value="1">1개월</option>
+                            <option value="2">2개월</option>
+                            <option value="3">3개월</option>
+                        </select>
+                        {parseInt(form.등록개월수) > 1 && (
+                            <div className="field-hint">
+                                홀딩 사용여부: {form['홀딩 사용여부']}
+                            </div>
+                        )}
                     </div>
                 )}
 

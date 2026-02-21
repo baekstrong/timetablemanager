@@ -280,7 +280,33 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         return (dayOrder[first.day] || 0) * 10 + first.period;
     };
 
+    // 수강생의 실질 종료일 계산 (보강 신청 고려)
+    // 종료날짜의 마지막 수업이 보강으로 다른 날로 이동된 경우, 보강 날짜를 실질 종료일로 사용
+    const getEffectiveEndDate = (student, endDate) => {
+        if (!endDate || !weekMakeupRequests || weekMakeupRequests.length === 0) return endDate;
+        const name = student['이름'];
+        if (!name) return endDate;
+
+        const endDateStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+
+        // 이 수강생의 종료날짜에 해당하는 원본 수업이 보강으로 이동되었는지 확인
+        const makeupFromEndDate = weekMakeupRequests.find(m =>
+            m.studentName === name &&
+            m.originalClass.date === endDateStr &&
+            (m.status === 'active' || m.status === 'completed')
+        );
+
+        if (makeupFromEndDate) {
+            // 보강 수업 날짜를 실질 종료일로 사용
+            const makeupDate = new Date(makeupFromEndDate.makeupClass.date + 'T00:00:00');
+            return makeupDate;
+        }
+
+        return endDate;
+    };
+
     // 오늘 마지막 날인 수강생 (코치 모드) - 이름(요일 및 시간,결제금액) 형식
+    // 보강 신청으로 마지막 수업이 다른 날로 이동된 경우도 고려
     const lastDayStudents = (() => {
         if (user?.role !== 'coach' || !students || students.length === 0) return [];
         const today = new Date();
@@ -291,7 +317,12 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             const endDate = parseSheetDate(endDateStr);
             if (!endDate) return false;
             endDate.setHours(0, 0, 0, 0);
-            return endDate.getTime() === today.getTime();
+
+            // 보강 고려한 실질 종료일
+            const effectiveEnd = getEffectiveEndDate(student, endDate);
+            effectiveEnd.setHours(0, 0, 0, 0);
+
+            return effectiveEnd.getTime() === today.getTime();
         }).map(s => {
             const name = s['이름'];
             if (!name) return null;
@@ -326,8 +357,13 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         return Object.values(latestByName).filter(({ student, endDate }) => {
             const ed = new Date(endDate);
             ed.setHours(0, 0, 0, 0);
-            // 종료일이 오늘 이전 (= 종료일 다음날 이후 = 재등록 필요)
-            if (ed >= today) return false;
+
+            // 보강 고려한 실질 종료일
+            const effectiveEnd = getEffectiveEndDate(student, ed);
+            effectiveEnd.setHours(0, 0, 0, 0);
+
+            // 실질 종료일이 오늘 이전 (= 종료일 다음날 이후 = 재등록 필요)
+            if (effectiveEnd >= today) return false;
             // 요일 및 시간이 있어야 (아직 종료 처리 안됨)
             const schedule = student['요일 및 시간'];
             if (!schedule || !schedule.trim()) return false;
