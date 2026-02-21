@@ -280,6 +280,36 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         return (dayOrder[first.day] || 0) * 10 + first.period;
     };
 
+    // Makeup request state (복수 보강 신청 지원)
+    const [showMakeupModal, setShowMakeupModal] = useState(false);
+    const [selectedMakeupSlot, setSelectedMakeupSlot] = useState(null);
+    const [selectedOriginalClass, setSelectedOriginalClass] = useState(null);
+    const [activeMakeupRequests, setActiveMakeupRequests] = useState([]); // 배열로 변경
+    const [isSubmittingMakeup, setIsSubmittingMakeup] = useState(false);
+
+    // 학생의 주횟수 계산
+    const weeklyFrequency = useMemo(() => {
+        if (!studentData) return 2; // 기본값 2회
+        const freqStr = getStudentField(studentData, '주횟수');
+        const freq = parseInt(freqStr);
+        return isNaN(freq) ? 2 : freq;
+    }, [studentData]);
+
+    // Coach mode: Firebase data for this week
+    const [weekMakeupRequests, setWeekMakeupRequests] = useState([]);
+    const [weekHoldings, setWeekHoldings] = useState([]);
+    const [weekAbsences, setWeekAbsences] = useState([]);
+
+    // Holiday state (from Firebase)
+    const [weekHolidays, setWeekHolidays] = useState([]);
+
+    // Pending new student registrations (for "신규 전용" mode)
+    const [pendingRegistrations, setPendingRegistrations] = useState([]);
+
+    // Class disabled state (stored in Firebase)
+    const [disabledClasses, setDisabledClasses] = useState([]);
+    const [disabledClassesLoading, setDisabledClassesLoading] = useState(true);
+
     // 수강생의 실질 종료일 계산 (보강 신청 고려)
     // 종료날짜의 마지막 수업이 보강으로 다른 날로 이동된 경우, 보강 날짜를 실질 종료일로 사용
     const getEffectiveEndDate = (student, endDate) => {
@@ -376,36 +406,6 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             return { name, schedule, payment, endDate: endDateFormatted };
         }).sort((a, b) => getScheduleSortKey(a.schedule) - getScheduleSortKey(b.schedule));
     })();
-
-    // Makeup request state (복수 보강 신청 지원)
-    const [showMakeupModal, setShowMakeupModal] = useState(false);
-    const [selectedMakeupSlot, setSelectedMakeupSlot] = useState(null);
-    const [selectedOriginalClass, setSelectedOriginalClass] = useState(null);
-    const [activeMakeupRequests, setActiveMakeupRequests] = useState([]); // 배열로 변경
-    const [isSubmittingMakeup, setIsSubmittingMakeup] = useState(false);
-
-    // 학생의 주횟수 계산
-    const weeklyFrequency = useMemo(() => {
-        if (!studentData) return 2; // 기본값 2회
-        const freqStr = getStudentField(studentData, '주횟수');
-        const freq = parseInt(freqStr);
-        return isNaN(freq) ? 2 : freq;
-    }, [studentData]);
-
-    // Coach mode: Firebase data for this week
-    const [weekMakeupRequests, setWeekMakeupRequests] = useState([]);
-    const [weekHoldings, setWeekHoldings] = useState([]);
-    const [weekAbsences, setWeekAbsences] = useState([]);
-
-    // Holiday state (from Firebase)
-    const [weekHolidays, setWeekHolidays] = useState([]);
-
-    // Pending new student registrations (for "신규 전용" mode)
-    const [pendingRegistrations, setPendingRegistrations] = useState([]);
-
-    // Class disabled state (stored in Firebase)
-    const [disabledClasses, setDisabledClasses] = useState([]);
-    const [disabledClassesLoading, setDisabledClassesLoading] = useState(true);
 
     // Load disabled classes from Firebase on mount
     useEffect(() => {
