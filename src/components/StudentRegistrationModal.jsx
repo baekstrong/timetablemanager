@@ -257,6 +257,7 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
                             placeholder="수강생 이름 입력"
                             value={form.이름}
                             onChange={(e) => handleChange('이름', e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !searchLoading) handleSearchStudent(); }}
                         />
                         <button
                             className="reg-search-btn"

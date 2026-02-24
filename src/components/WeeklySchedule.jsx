@@ -337,10 +337,13 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
     // 오늘 마지막 날인 수강생 (코치 모드) - 이름(요일 및 시간,결제금액) 형식
     // 보강 신청으로 마지막 수업이 다른 날로 이동된 경우도 고려
+    // 오늘 요일의 교시 기준 정렬 + 수업 시간 ±30분 볼드 표시
     const lastDayStudents = (() => {
         if (user?.role !== 'coach' || !students || students.length === 0) return [];
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+        const todayDayNames = ['일', '월', '화', '수', '목', '금', '토'];
+        const todayDay = todayDayNames[today.getDay()];
         return students.filter(student => {
             const endDateStr = student['종료날짜'];
             if (!endDateStr) return false;
@@ -358,8 +361,12 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             if (!name) return null;
             const schedule = s['요일 및 시간'] || '';
             const payment = s['결제금액'] || s['결제\n금액'] || '';
-            return { name, schedule, payment };
-        }).filter(Boolean).sort((a, b) => getScheduleSortKey(a.schedule) - getScheduleSortKey(b.schedule));
+            // 오늘 요일의 교시 찾기
+            const parsed = parseScheduleString(schedule);
+            const todayClass = parsed.find(p => p.day === todayDay);
+            const todayPeriod = todayClass ? todayClass.period : 999;
+            return { name, schedule, payment, todayPeriod };
+        }).filter(Boolean).sort((a, b) => a.todayPeriod - b.todayPeriod);
     })();
 
     // 재등록 지연 수강생 (종료일 다음날인데 재등록 안한 경우)
@@ -1532,11 +1539,23 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                         오늘 마지막 수업
                     </div>
                     <div style={{ color: '#14532d', fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        {lastDayStudents.map((s) => (
-                            <div key={s.name}>
-                                {s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})
-                            </div>
-                        ))}
+                        {lastDayStudents.map((s) => {
+                            // 수업 시간 ±30분이면 볼드 표시
+                            const now = new Date();
+                            const period = PERIODS.find(p => p.id === s.todayPeriod);
+                            let isBold = false;
+                            if (period) {
+                                const classStartMin = period.startHour * 60 + period.startMinute;
+                                const classEndMin = classStartMin + 90; // 수업 90분
+                                const nowMin = now.getHours() * 60 + now.getMinutes();
+                                isBold = nowMin >= (classStartMin - 30) && nowMin <= (classEndMin + 30);
+                            }
+                            return (
+                                <div key={s.name} style={{ fontWeight: isBold ? '800' : '400' }}>
+                                    {s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})
+                                </div>
+                            );
+                        })}
                     </div>
                 </section>
             )}

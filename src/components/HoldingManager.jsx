@@ -381,6 +381,12 @@ const HoldingManager = ({ user, studentData, onBack }) => {
             return;
         }
 
+        // 종료날짜 이후 날짜 선택 방지
+        if (!isWithinMembershipPeriod(date)) {
+            alert('수강 기간 내의 날짜만 선택할 수 있습니다.');
+            return;
+        }
+
         const dateStr = formatLocalDate(date);
 
         // 이미 선택된 날짜면 제거
@@ -425,6 +431,18 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                 // 홀딩 신청 - Firebase에 저장
                 const startDate = sortedDates[0];
                 const endDate = sortedDates[sortedDates.length - 1];
+
+                // 종료날짜 이후 홀딩 방지 (이중 검증)
+                if (membershipPeriod.end) {
+                    const holdEndObj = new Date(endDate + 'T00:00:00');
+                    const memberEnd = new Date(membershipPeriod.end);
+                    memberEnd.setHours(0, 0, 0, 0);
+                    if (holdEndObj > memberEnd) {
+                        alert('수강 종료일 이후에는 홀딩을 신청할 수 없습니다.');
+                        setIsSubmitting(false);
+                        return;
+                    }
+                }
 
                 await createHoldingRequest(user.username, startDate, endDate);
 
