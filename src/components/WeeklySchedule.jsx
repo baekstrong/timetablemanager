@@ -1564,7 +1564,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                             }
                             return (
                                 <div key={s.name} style={{ fontWeight: isBold ? '800' : '400' }}>
-                                    {s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})
+                                    {s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''}) {period ? `${period.id}교시` : ''}
                                 </div>
                             );
                         })}
