@@ -361,10 +361,22 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             if (!name) return null;
             const schedule = s['요일 및 시간'] || '';
             const payment = s['결제금액'] || s['결제\n금액'] || '';
-            // 오늘 요일의 교시 찾기
-            const parsed = parseScheduleString(schedule);
-            const todayClass = parsed.find(p => p.day === todayDay);
-            const todayPeriod = todayClass ? todayClass.period : 999;
+            // 오늘 실제 출석 교시 찾기 (보강 고려)
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            // 보강으로 오늘 다른 교시에 출석하는 경우 확인
+            const makeupToday = weekMakeupRequests && weekMakeupRequests.find(m =>
+                m.studentName === name &&
+                m.makeupClass.date === todayStr &&
+                (m.status === 'active' || m.status === 'completed')
+            );
+            let todayPeriod;
+            if (makeupToday) {
+                todayPeriod = makeupToday.makeupClass.period;
+            } else {
+                const parsed = parseScheduleString(schedule);
+                const todayClass = parsed.find(p => p.day === todayDay);
+                todayPeriod = todayClass ? todayClass.period : 999;
+            }
             return { name, schedule, payment, todayPeriod };
         }).filter(Boolean).sort((a, b) => a.todayPeriod - b.todayPeriod);
     })();
