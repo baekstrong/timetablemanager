@@ -981,14 +981,25 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     const startDate = parseSheetDate(startDateStr);
                     if (!startDate) return false;
                     if (startDate <= slotDateObj) return false;
-                    // 같은 이름의 다른 행에서 종료날짜가 슬롯 날짜 이후인 게 있으면 미리 등록 → 제외
+                    // 같은 이름의 다른 행에서 기존 등록이 슬롯 날짜 근처까지 유효하면 제외
+                    // 종료날짜가 마지막 수업일 기준이라 슬롯 날짜보다 며칠 앞설 수 있으므로 7일 버퍼 적용
                     const hasActiveEnrollment = students.some(other => {
                         if (other === s) return false;
                         if (other['이름'] !== name) return false;
+                        // 다른 행의 시작일이 슬롯 이후면 미래 등록 → 무시
+                        const otherStartStr = other['시작날짜'];
+                        if (otherStartStr) {
+                            const otherStart = parseSheetDate(otherStartStr);
+                            if (otherStart && otherStart > slotDateObj) return false;
+                        }
                         const endDateStr = other['종료날짜'];
                         if (!endDateStr) return false;
                         const endDate = parseSheetDate(endDateStr);
-                        return endDate && endDate >= slotDateObj;
+                        if (!endDate) return false;
+                        // 종료일 + 7일 >= 슬롯 날짜면 유효한 등록으로 간주
+                        const extendedEnd = new Date(endDate);
+                        extendedEnd.setDate(extendedEnd.getDate() + 7);
+                        return extendedEnd >= slotDateObj;
                     });
                     return !hasActiveEnrollment;
                 });
