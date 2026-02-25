@@ -993,13 +993,12 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     return !hasActiveEnrollment;
                 });
 
-            // 신규이면서 시작일 전 → newStudents, 나머지 → delayedStartStudents
+            // 신규이면서 시작일 전 → newStudents
+            // 재등록 학생은 delayedStartStudents에 넣지 않음 → 일반 수강생으로 표시
             newStudents = delayedStudentsRaw
                 .filter(s => getStudentField(s, '신규/재등록') === '신규')
                 .map(s => s['이름']);
-            delayedStartStudents = delayedStudentsRaw
-                .filter(s => getStudentField(s, '신규/재등록') !== '신규')
-                .map(s => s['이름']);
+            delayedStartStudents = [];
 
             // Find students with absence requests for this date (일반 결석)
             // 해당 슬롯에 등록된 학생만 결석으로 표시
@@ -1419,7 +1418,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                             <span key={`new-${name}`} className="student-tag" style={{ backgroundColor: '#dbeafe', color: '#1e40af' }}>{name}(신규)</span>
                         ))}
 
-                        {/* 3.6. Delayed Start Students (시작지연) - 재등록 등 */}
+                        {/* 3.6. Delayed Start Students (시작지연) - 재등록은 일반 표시, 항상 빈 배열 */}
                         {data.delayedStartStudents.map(name => (
                             <span key={`delayed-${name}`} className="student-tag" style={{ backgroundColor: '#dcfce7', color: '#166534', textDecoration: 'line-through' }}>{name}(시작지연)</span>
                         ))}
