@@ -226,30 +226,27 @@ export const highlightCells = async (ranges, sheetName, color = null) => {
 };
 
 /**
- * Set center alignment for cells
- * @param {Array<string>} ranges - Array of cell ranges (e.g., ["A5", "B5", "C5"])
- * @param {string} sheetName - Sheet name
- * @returns {Promise}
+ * 배경색 + 정렬을 한 번의 API 호출로 적용
+ * @param {Array<string>} ranges - 셀 범위 (e.g., ["A5", "B5"])
+ * @param {string} sheetName - 시트 이름
+ * @param {object} color - 배경색 { red, green, blue } (0~1)
+ * @param {string} horizontalAlignment - 정렬 ('CENTER', 'LEFT', 'RIGHT')
  */
-export const setCenterAlignment = async (ranges, sheetName) => {
+export const formatCellsWithStyle = async (ranges, sheetName, color, horizontalAlignment = 'CENTER') => {
   try {
     const response = await fetch(`${FUNCTIONS_BASE_URL}/formatCells`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ ranges, sheetName, horizontalAlignment: 'CENTER' }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ranges, sheetName, color, horizontalAlignment }),
     });
 
     const data = await response.json();
-
     if (!data.success) {
-      throw new Error(data.error || 'Failed to set alignment');
+      throw new Error(data.error || 'Failed to format cells');
     }
-
     return data;
   } catch (error) {
-    console.error('Error setting alignment:', error);
+    console.error('Error formatting cells:', error);
     throw error;
   }
 };
