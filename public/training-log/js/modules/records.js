@@ -605,17 +605,19 @@ export function movePinnedMemo(index, direction) {
 }
 window.movePinnedMemo = movePinnedMemo;
 
-export async function deleteCoachMessage(exerciseName) {
+export async function deleteCoachMessage(memoId) {
     if (!confirm('이 메시지를 삭제하시겠습니까?')) return;
 
-    // Student deleting a coach message (which is in coachPinnedMemos collection)
-    // We need to update Firestore.
     try {
         const docRef = db.collection('coachPinnedMemos').doc(state.currentUser);
         const doc = await docRef.get();
         if (doc.exists) {
             let memos = doc.data().memos || [];
-            const idx = memos.findIndex(m => m.exercise === exerciseName);
+            // id 기반 매칭, 레거시 데이터는 exercise 폴백
+            let idx = memoId ? memos.findIndex(m => m.id === memoId) : -1;
+            if (idx === -1) {
+                idx = memos.findIndex(m => m.exercise === memoId);
+            }
             if (idx !== -1) {
                 memos.splice(idx, 1);
                 await docRef.update({ memos, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });

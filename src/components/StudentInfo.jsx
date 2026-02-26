@@ -120,7 +120,7 @@ const StudentInfo = ({ user, studentData, onBack }) => {
     };
 
     const attendanceRate = membershipInfo.totalClasses > 0
-        ? ((membershipInfo.attendanceCount / membershipInfo.totalClasses) * 100).toFixed(1)
+        ? Math.min(100, (membershipInfo.attendanceCount / membershipInfo.totalClasses) * 100).toFixed(1)
         : '0.0';
 
     return (

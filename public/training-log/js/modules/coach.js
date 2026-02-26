@@ -86,12 +86,18 @@ export async function loadStudentList() {
                 >
                     ${allSelected ? '✓ 전체 선택됨 (' + state.allStudents.length + '명)' : '👥 전체 선택 (' + state.allStudents.length + '명)'}
                 </button>
-                <button 
+                <button
                     onclick="clearStudentSelection()"
                     class="ml-2 px-4 py-2 rounded-lg text-sm font-semibold bg-red-100 text-red-700 hover:bg-red-200"
                     style="display: ${state.selectedStudents.length > 0 ? '' : 'none'}"
                 >
                     ✕ 선택 해제 (${state.selectedStudents.length})
+                </button>
+                <button
+                    onclick="toggleDeleteMode()"
+                    class="ml-2 px-4 py-2 rounded-lg text-sm font-semibold ${state.deleteMode ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-600'} hover:opacity-90 transition"
+                >
+                    ${state.deleteMode ? '삭제 모드 ON' : '수강생 삭제'}
                 </button>
             </div>
         `;
@@ -110,14 +116,23 @@ export async function loadStudentList() {
 
             students.forEach(student => {
                 const isSelected = state.selectedStudents.includes(student);
-                html += `
-                    <span 
-                        class="student-badge px-3 py-2 rounded-full text-sm font-semibold ${isSelected ? 'active' : 'bg-gray-200 text-gray-700'}"
-                        onclick="toggleStudent('${student}')"
-                    >
-                        ${isSelected ? '✓ ' : ''}${student}
-                    </span>
-                `;
+                if (state.deleteMode) {
+                    html += `
+                        <span class="student-badge px-3 py-2 rounded-full text-sm font-semibold bg-red-100 text-red-700 border-2 border-red-300 flex items-center gap-1">
+                            ${student}
+                            <button onclick="deleteStudentAccount('${student}')" class="ml-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold leading-none hover:bg-red-700">✕</button>
+                        </span>
+                    `;
+                } else {
+                    html += `
+                        <span
+                            class="student-badge px-3 py-2 rounded-full text-sm font-semibold ${isSelected ? 'active' : 'bg-gray-200 text-gray-700'}"
+                            onclick="toggleStudent('${student}')"
+                        >
+                            ${isSelected ? '✓ ' : ''}${student}
+                        </span>
+                    `;
+                }
             });
 
             html += `
@@ -340,8 +355,8 @@ export async function renderPinnedMemosForCoach() {
                         <div class="flex justify-between items-start mb-1">
                             <span class="font-bold text-indigo-900 text-sm">${memo.exercise}</span>
                             <div class="flex gap-2">
-                                <button onclick="editCoachMemo('${studentName}', '${memo.exercise}', \`${(memo.memo || '').replace(/`/g, '\\`')}\`)" class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded border border-blue-300 font-semibold">수정</button>
-                                <button onclick="deleteCoachMemo('${studentName}', '${memo.exercise}')" class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded border border-red-300 font-semibold">삭제</button>
+                                <button onclick="editCoachMemo('${studentName}', '${memo.id || ''}', \`${(memo.memo || '').replace(/`/g, '\\`')}\`)" class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded border border-blue-300 font-semibold">수정</button>
+                                <button onclick="deleteCoachMemo('${studentName}', '${memo.id || ''}')" class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded border border-red-300 font-semibold">삭제</button>
                             </div>
                         </div>
                         <div class="text-gray-800 text-sm whitespace-pre-wrap">${memo.memo}</div>
@@ -443,30 +458,30 @@ export async function saveCoachMessage(studentName, title, content) {
     }
 }
 
-export async function editCoachMemo(studentName, exercise, currentMemo) {
+export async function editCoachMemo(studentName, memoId, currentMemo) {
     const newMemo = prompt('메모 수정:', currentMemo);
     if (newMemo === null) return;
-
-    // Reuse saveCoachMessage or similar logic but update specific item
-    // Logic needs to find by exercise/id.
-    // Since current structure is loose, I'll implement a specific update function.
-    updateCoachMemo(studentName, exercise, newMemo);
+    updateCoachMemo(studentName, memoId, newMemo);
 }
 window.editCoachMemo = editCoachMemo;
 
-export async function deleteCoachMemo(studentName, exercise) {
+export async function deleteCoachMemo(studentName, memoId) {
     if (!confirm('정말 삭제하시겠습니까?')) return;
-    updateCoachMemo(studentName, exercise, null, true);
+    updateCoachMemo(studentName, memoId, null, true);
 }
 window.deleteCoachMemo = deleteCoachMemo;
 
-async function updateCoachMemo(studentName, exercise, newContent, isDelete = false) {
+async function updateCoachMemo(studentName, memoId, newContent, isDelete = false) {
     const docRef = db.collection('coachPinnedMemos').doc(studentName);
     const doc = await docRef.get();
     if (!doc.exists) return;
 
     let memos = doc.data().memos || [];
-    const idx = memos.findIndex(m => m.exercise === exercise);
+    // id 기반 매칭, 레거시 데이터는 exercise 폴백
+    let idx = memoId ? memos.findIndex(m => m.id === memoId) : -1;
+    if (idx === -1) {
+        idx = memos.findIndex(m => m.exercise === memoId);
+    }
 
     if (idx > -1) {
         if (isDelete) {
@@ -544,6 +559,48 @@ export function clearStudentSelection() {
     if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
     if (state.recordsFilter) debouncedLoadAllRecords();
 }
+
+export function toggleDeleteMode() {
+    state.deleteMode = !state.deleteMode;
+    updateStudentBadges();
+}
+window.toggleDeleteMode = toggleDeleteMode;
+
+export async function deleteStudentAccount(name) {
+    if (!confirm(`"${name}" 수강생 계정을 삭제하시겠습니까?`)) return;
+    if (!confirm(`정말로 "${name}"의 계정과 모든 관련 데이터를 삭제합니다. 이 작업은 되돌릴 수 없습니다.`)) return;
+
+    try {
+        const batch = db.batch();
+
+        // users 컬렉션 삭제
+        batch.delete(db.collection('users').doc(name));
+        // coachPinnedMemos 삭제
+        batch.delete(db.collection('coachPinnedMemos').doc(name));
+        // pinnedMemos 삭제
+        batch.delete(db.collection('pinnedMemos').doc(name));
+
+        await batch.commit();
+
+        // records 컬렉션 삭제 (서브컬렉션은 batch로 안되므로 개별 삭제)
+        const recordsSnap = await db.collection('records').where('userName', '==', name).get();
+        const deletePromises = recordsSnap.docs.map(doc => doc.ref.delete());
+        await Promise.all(deletePromises);
+
+        // 선택 목록에서 제거
+        state.selectedStudents = state.selectedStudents.filter(s => s !== name);
+        state.allStudents = state.allStudents.filter(s => s !== name);
+        localStorage.setItem('coachSelectedStudents', JSON.stringify(state.selectedStudents));
+
+        updateStudentBadges();
+        updateStudentSelectionSummary();
+        alert(`"${name}" 계정이 삭제되었습니다.`);
+    } catch (e) {
+        console.error('수강생 삭제 실패:', e);
+        alert('삭제 실패: ' + e.message);
+    }
+}
+window.deleteStudentAccount = deleteStudentAccount;
 
 export function toggleStudentList() {
     const container = document.getElementById('studentListContainer');

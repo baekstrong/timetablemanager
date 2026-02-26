@@ -358,7 +358,7 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos) {
                                     <span class="text-base font-bold text-gray-800">${memo.exercise}</span>
                                     <span class="text-xs text-gray-400 ml-2">${new Date(memo.createdAt || Date.now()).toLocaleDateString()}</span>
                                 </div>
-                                <button onclick="deleteCoachMessage('${memo.exercise}')" class="text-red-500 hover:bg-red-50 p-1 rounded transition text-xs font-bold border border-red-200">
+                                <button onclick="deleteCoachMessage('${memo.id || ''}')" class="text-red-500 hover:bg-red-50 p-1 rounded transition text-xs font-bold border border-red-200">
                                     삭제
                                 </button>
                             </div>

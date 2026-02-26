@@ -24,7 +24,8 @@ export const state = {
 
     // UI state
     addSetCount: 1,
-    addEditSetCount: 1
+    addEditSetCount: 1,
+    deleteMode: false
 };
 
 export let db = null;

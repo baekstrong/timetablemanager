@@ -721,8 +721,16 @@ export const calculateMembershipStats = (student) => {
     }
   }
 
+  let endDate = null;
+  if (startDate && scheduleStr) {
+    endDate = calculateEndDate(startDate, totalSessions, scheduleStr, holdingRange);
+  }
+
+  // 종료일이 지났으면 오늘 대신 종료일까지만 카운트
+  const countUntil = (endDate && endDate < today) ? endDate : today;
+
   // 홀딩 기간 및 공휴일을 제외한 완료된 세션 수 계산
-  const completedSessions = calculateCompletedSessions(startDate, today, scheduleStr, holdingRange, []);
+  const completedSessions = calculateCompletedSessions(startDate, countUntil, scheduleStr, holdingRange, []);
   const remainingSessions = Math.max(0, totalSessions - completedSessions);
 
   const formatDate = (date) => {
@@ -732,11 +740,6 @@ export const calculateMembershipStats = (student) => {
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
-
-  let endDate = null;
-  if (startDate && scheduleStr) {
-    endDate = calculateEndDate(startDate, totalSessions, scheduleStr, holdingRange);
-  }
 
   // completedSessions는 이미 홀딩 기간을 제외하고 계산됨
   const attendanceCount = completedSessions;
