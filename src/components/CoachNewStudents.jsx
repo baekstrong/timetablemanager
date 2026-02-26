@@ -18,7 +18,6 @@ import {
     getCurrentSheetName,
     readSheetData,
     writeSheetData,
-    highlightCells,
     setCenterAlignment
 } from '../services/googleSheetsService';
 import { sendApprovalNotifications } from '../services/smsService';
@@ -233,18 +232,13 @@ const CoachNewStudents = ({ user, onBack }) => {
 
             await writeSheetData(`${targetSheet}!A${nextSheetRow}:R${nextSheetRow}`, [rowData]);
 
-            // 2-1. 주황색 음영 + 가운데 정렬 적용 (신규 수강생 표시)
+            // 2-1. 가운데 정렬 적용
             try {
                 const columns = 'ABCDEFGHIJKLMNOPQR'.split('');
                 const cellRanges = columns.map(col => `${col}${nextSheetRow}`);
-                await highlightCells(cellRanges, targetSheet, {
-                    red: 1.0,
-                    green: 0.87,
-                    blue: 0.68
-                });
                 await setCenterAlignment(cellRanges, targetSheet);
             } catch (err) {
-                console.warn('서식 적용 실패:', err);
+                console.warn('정렬 적용 실패:', err);
             }
 
             // 3. 등록 상태 업데이트
