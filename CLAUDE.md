@@ -18,6 +18,15 @@
 - **SMS**: Solapi API (HMAC-SHA256 인증)
 - **훈련일지 서브앱**: Vanilla JS SPA (`public/training-log/`, Tailwind CDN, Firebase)
 
+## 배포
+
+- **프론트엔드**: GitHub Pages (`.github/workflows/deploy.yml`로 자동 배포, `main` 브랜치 push 시 트리거)
+- **백엔드 (Netlify Functions)**: Netlify 자동 배포 (`netlify.toml` 설정, `main` 브랜치 push 시 트리거)
+  - `netlify.toml`의 `functions = "netlify/functions"` 경로에서 서버리스 함수 배포
+  - 프론트엔드 빌드는 Netlify에서 하지 않음 (`command = ""`)
+- **API 연결**: 프론트엔드에서 `VITE_FUNCTIONS_URL` 환경변수로 Netlify Functions URL 지정
+- **Firebase**: 별도 배포 없음 (Firestore는 클라이언트 SDK로 직접 접근, `src/config/firebase.js`에서 초기화)
+
 ## 개발 명령어
 
 ```bash
