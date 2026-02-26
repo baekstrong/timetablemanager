@@ -244,6 +244,7 @@ export const formatCellsWithStyle = async (ranges, sheetName, color, horizontalA
     if (!data.success) {
       throw new Error(data.error || 'Failed to format cells');
     }
+    console.log(`✅ formatCellsWithStyle 완료: ${ranges.length}개 셀, color=`, color);
     return data;
   } catch (error) {
     console.error('Error formatting cells:', error);
