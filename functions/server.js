@@ -216,6 +216,84 @@ app.post('/batchUpdateSheet', async (req, res) => {
   }
 });
 
+/**
+ * POST /formatCells
+ * 셀 서식 적용 (배경색, 정렬)
+ */
+app.post('/formatCells', async (req, res) => {
+  try {
+    const { ranges, sheetName, color, horizontalAlignment } = req.body;
+
+    if (!ranges || !Array.isArray(ranges) || !sheetName) {
+      return res.status(400).json({ error: 'ranges (array) and sheetName are required' });
+    }
+
+    const sheets = await getGoogleSheetsClient();
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+    const sheet = spreadsheet.data.sheets.find(s => s.properties.title === sheetName);
+    if (!sheet) {
+      return res.status(404).json({ error: `Sheet not found: ${sheetName}` });
+    }
+
+    const sheetId = sheet.properties.sheetId;
+
+    const userEnteredFormat = {};
+    const fieldParts = [];
+
+    if (color) {
+      userEnteredFormat.backgroundColor = { red: color.red ?? 1.0, green: color.green ?? 1.0, blue: color.blue ?? 1.0 };
+      fieldParts.push('userEnteredFormat.backgroundColor');
+    } else if (!horizontalAlignment) {
+      userEnteredFormat.backgroundColor = { red: 1.0, green: 1.0, blue: 0.6 };
+      fieldParts.push('userEnteredFormat.backgroundColor');
+    }
+
+    if (horizontalAlignment) {
+      userEnteredFormat.horizontalAlignment = horizontalAlignment;
+      fieldParts.push('userEnteredFormat.horizontalAlignment');
+    }
+
+    const requests = ranges.map(range => {
+      const match = range.match(/^([A-Z]+)(\d+)$/);
+      if (!match) throw new Error(`Invalid range format: ${range}`);
+
+      const columnLetter = match[1];
+      const rowNumber = parseInt(match[2]) - 1;
+
+      let columnIndex = 0;
+      for (let i = 0; i < columnLetter.length; i++) {
+        columnIndex = columnIndex * 26 + (columnLetter.charCodeAt(i) - 64);
+      }
+      columnIndex -= 1;
+
+      return {
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: rowNumber,
+            endRowIndex: rowNumber + 1,
+            startColumnIndex: columnIndex,
+            endColumnIndex: columnIndex + 1,
+          },
+          cell: { userEnteredFormat },
+          fields: fieldParts.join(','),
+        },
+      };
+    });
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      resource: { requests },
+    });
+
+    console.log(`✅ Formatted ${ranges.length} cells`);
+    res.json({ success: true, updatedCells: ranges.length });
+  } catch (error) {
+    console.error('❌ Error formatting cells:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================
 // Solapi 문자 발송 엔드포인트 (로컬 개발용)
 // ============================================

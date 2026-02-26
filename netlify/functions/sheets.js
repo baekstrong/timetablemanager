@@ -217,9 +217,9 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // POST /sheets/formatCells - Highlight cells with background color
+    // POST /sheets/formatCells - Format cells (background color and/or alignment)
     if (event.httpMethod === 'POST' && path === 'formatCells') {
-      const { ranges, sheetName, color } = JSON.parse(event.body);
+      const { ranges, sheetName, color, horizontalAlignment } = JSON.parse(event.body);
       if (!ranges || !Array.isArray(ranges) || !sheetName) {
         return {
           statusCode: 400,
@@ -243,6 +243,24 @@ exports.handler = async (event, context) => {
       }
 
       const sheetId = sheet.properties.sheetId;
+
+      // Build format object and fields mask
+      const userEnteredFormat = {};
+      const fieldParts = [];
+
+      if (color) {
+        userEnteredFormat.backgroundColor = { red: color.red ?? 1.0, green: color.green ?? 1.0, blue: color.blue ?? 1.0 };
+        fieldParts.push('userEnteredFormat.backgroundColor');
+      } else if (!horizontalAlignment) {
+        // Default yellow when no specific format requested (backward compat)
+        userEnteredFormat.backgroundColor = { red: 1.0, green: 1.0, blue: 0.6 };
+        fieldParts.push('userEnteredFormat.backgroundColor');
+      }
+
+      if (horizontalAlignment) {
+        userEnteredFormat.horizontalAlignment = horizontalAlignment;
+        fieldParts.push('userEnteredFormat.horizontalAlignment');
+      }
 
       // Build batch update requests for formatting
       const requests = ranges.map(range => {
@@ -272,13 +290,9 @@ exports.handler = async (event, context) => {
               endColumnIndex: columnIndex + 1,
             },
             cell: {
-              userEnteredFormat: {
-                backgroundColor: color
-                  ? { red: color.red ?? 1.0, green: color.green ?? 1.0, blue: color.blue ?? 1.0 }
-                  : { red: 1.0, green: 1.0, blue: 0.6 },
-              },
+              userEnteredFormat,
             },
-            fields: 'userEnteredFormat.backgroundColor',
+            fields: fieldParts.join(','),
           },
         };
       });

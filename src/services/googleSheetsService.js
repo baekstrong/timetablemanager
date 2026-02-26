@@ -226,6 +226,35 @@ export const highlightCells = async (ranges, sheetName, color = null) => {
 };
 
 /**
+ * Set center alignment for cells
+ * @param {Array<string>} ranges - Array of cell ranges (e.g., ["A5", "B5", "C5"])
+ * @param {string} sheetName - Sheet name
+ * @returns {Promise}
+ */
+export const setCenterAlignment = async (ranges, sheetName) => {
+  try {
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/formatCells`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ranges, sheetName, horizontalAlignment: 'CENTER' }),
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to set alignment');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error setting alignment:', error);
+    throw error;
+  }
+};
+
+/**
  * Parse student data from Google Sheets
  * Expected columns: 이름, 주횟수, 요일 및 시간, 특이사항, 학기/개월수, 시작날짜, 종료날짜, 홀딩 사용여부, 홀딩 시작일, 홀딩 종료일, etc.
  * Note: Row 1 contains merged cells, Row 2 contains actual headers

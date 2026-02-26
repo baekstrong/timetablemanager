@@ -6,7 +6,8 @@ import {
     getStudentField,
     readSheetData,
     writeSheetData,
-    calculateEndDateWithHolidays
+    calculateEndDateWithHolidays,
+    setCenterAlignment
 } from '../services/googleSheetsService';
 import { getHolidays } from '../services/firebaseService';
 import './StudentRegistrationModal.css';
@@ -206,6 +207,16 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
             ];
 
             await writeSheetData(`${targetSheet}!A${nextSheetRow}:R${nextSheetRow}`, [rowData]);
+
+            // 가운데 정렬 적용
+            try {
+                const columns = 'ABCDEFGHIJKLMNOPQR'.split('');
+                const cellRanges = columns.map(col => `${col}${nextSheetRow}`);
+                await setCenterAlignment(cellRanges, targetSheet);
+            } catch (err) {
+                console.warn('정렬 적용 실패:', err);
+            }
+
             alert('수강생이 등록되었습니다.');
             onSuccess();
         } catch (err) {
