@@ -200,8 +200,8 @@ export const batchUpdateSheet = async (updates) => {
  */
 export const highlightCells = async (ranges, sheetName, color = null) => {
   try {
-    const body = { ranges, sheetName };
-    if (color) body.color = color;
+    // color 미지정 시 노란색 명시 적용
+    const body = { ranges, sheetName, color: color || { red: 1.0, green: 1.0, blue: 0.6 } };
 
     const response = await fetch(`${FUNCTIONS_BASE_URL}/formatCells`, {
       method: 'POST',

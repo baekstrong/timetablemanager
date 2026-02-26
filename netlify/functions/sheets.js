@@ -251,10 +251,6 @@ exports.handler = async (event, context) => {
       if (color) {
         userEnteredFormat.backgroundColor = { red: color.red ?? 1.0, green: color.green ?? 1.0, blue: color.blue ?? 1.0 };
         fieldParts.push('userEnteredFormat.backgroundColor');
-      } else if (!horizontalAlignment) {
-        // Default yellow when no specific format requested (backward compat)
-        userEnteredFormat.backgroundColor = { red: 1.0, green: 1.0, blue: 0.6 };
-        fieldParts.push('userEnteredFormat.backgroundColor');
       }
 
       if (horizontalAlignment) {
