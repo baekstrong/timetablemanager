@@ -249,8 +249,11 @@ exports.handler = async (event, context) => {
       const fieldParts = [];
 
       if (color) {
-        userEnteredFormat.backgroundColor = { red: color.red ?? 1.0, green: color.green ?? 1.0, blue: color.blue ?? 1.0 };
+        const colorObj = { red: color.red ?? 1.0, green: color.green ?? 1.0, blue: color.blue ?? 1.0 };
+        userEnteredFormat.backgroundColor = colorObj;
+        userEnteredFormat.backgroundColorStyle = { rgbColor: colorObj };
         fieldParts.push('userEnteredFormat.backgroundColor');
+        fieldParts.push('userEnteredFormat.backgroundColorStyle');
       }
 
       if (horizontalAlignment) {
