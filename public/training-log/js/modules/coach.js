@@ -592,9 +592,8 @@ export async function deleteStudentAccount(name) {
         state.allStudents = state.allStudents.filter(s => s !== name);
         localStorage.setItem('coachSelectedStudents', JSON.stringify(state.selectedStudents));
 
-        updateStudentBadges();
-        updateStudentSelectionSummary();
         alert(`"${name}" 계정이 삭제되었습니다.`);
+        await loadStudentList();
     } catch (e) {
         console.error('수강생 삭제 실패:', e);
         alert('삭제 실패: ' + e.message);
