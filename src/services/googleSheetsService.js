@@ -238,7 +238,7 @@ export const setCenterAlignment = async (ranges, sheetName) => {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ranges, sheetName, horizontalAlignment: 'CENTER' }),
+      body: JSON.stringify({ ranges, sheetName, horizontalAlignment: 'CENTER', color: { red: 1.0, green: 1.0, blue: 1.0 } }),
     });
 
     const data = await response.json();
