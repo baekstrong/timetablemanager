@@ -562,7 +562,7 @@ export function clearStudentSelection() {
 
 export function toggleDeleteMode() {
     state.deleteMode = !state.deleteMode;
-    updateStudentBadges();
+    loadStudentList();
 }
 window.toggleDeleteMode = toggleDeleteMode;
 
