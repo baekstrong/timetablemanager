@@ -501,11 +501,18 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         return disabledClasses.includes(key);
     };
 
-    // Toggle locked slot (보강 차단)
+    // Toggle locked slot (보강 차단) - 해당 날짜에만 적용, 날짜 지나면 자동 해제
     const toggleLockedSlotHandler = async (day, periodId) => {
         const key = `${day}-${periodId}`;
+        // weekDates에서 해당 요일의 날짜를 YYYY-MM-DD로 변환
+        const dateMMDD = weekDates[day];
+        if (!dateMMDD) return;
+        const [month, dayNum] = dateMMDD.split('/');
+        const year = new Date().getFullYear();
+        const date = `${year}-${month.padStart(2, '0')}-${dayNum.padStart(2, '0')}`;
+
         try {
-            const isNowLocked = await toggleLockedSlot(key);
+            const isNowLocked = await toggleLockedSlot(key, date);
             setLockedSlots(prev => {
                 if (isNowLocked) {
                     return [...prev, key];

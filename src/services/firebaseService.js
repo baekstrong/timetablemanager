@@ -801,7 +801,7 @@ export const toggleDisabledClass = async (key) => {
 // ============================================
 
 /**
- * 잠긴 슬롯 목록 조회
+ * 잠긴 슬롯 목록 조회 (날짜 지난 것은 자동 삭제)
  * @returns {Promise<Array>} - 잠긴 슬롯 키 목록 ["월-1", "금-4", ...]
  */
 export const getLockedSlots = async () => {
@@ -811,9 +811,31 @@ export const getLockedSlots = async () => {
         const q = query(collection(db, 'lockedSlots'));
         const snapshot = await getDocs(q);
 
-        const lockedKeys = snapshot.docs.map(doc => doc.data().key);
-        console.log('🔒 잠긴 슬롯 조회:', lockedKeys);
-        return lockedKeys;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+        const activeKeys = [];
+        const expiredDocs = [];
+
+        snapshot.docs.forEach(docSnap => {
+            const data = docSnap.data();
+            if (data.date && data.date < todayStr) {
+                expiredDocs.push(docSnap.id);
+            } else {
+                activeKeys.push(data.key);
+            }
+        });
+
+        // 지난 날짜 잠금 자동 삭제
+        if (expiredDocs.length > 0) {
+            const { deleteDoc } = await import('firebase/firestore');
+            await Promise.all(expiredDocs.map(id => deleteDoc(doc(db, 'lockedSlots', id))));
+            console.log('🗑️ 만료된 슬롯 잠금 삭제:', expiredDocs.length, '건');
+        }
+
+        console.log('🔒 잠긴 슬롯 조회:', activeKeys);
+        return activeKeys;
     } catch (error) {
         console.error('❌ 잠긴 슬롯 조회 실패:', error);
         return [];
@@ -823,9 +845,10 @@ export const getLockedSlots = async () => {
 /**
  * 슬롯 잠금 상태 토글
  * @param {string} key - 슬롯 키 (예: "월-1")
+ * @param {string} date - 해당 슬롯의 날짜 (YYYY-MM-DD)
  * @returns {Promise<boolean>} - 토글 후 잠금 상태 (true=잠김)
  */
-export const toggleLockedSlot = async (key) => {
+export const toggleLockedSlot = async (key, date) => {
     if (!isFirebaseAvailable()) {
         throw new Error('Firebase가 설정되지 않았습니다.');
     }
@@ -833,22 +856,24 @@ export const toggleLockedSlot = async (key) => {
     try {
         const q = query(
             collection(db, 'lockedSlots'),
-            where('key', '==', key)
+            where('key', '==', key),
+            where('date', '==', date)
         );
         const snapshot = await getDocs(q);
 
         if (snapshot.empty) {
             await addDoc(collection(db, 'lockedSlots'), {
                 key,
+                date,
                 createdAt: serverTimestamp()
             });
-            console.log('🔒 슬롯 잠금:', key);
+            console.log('🔒 슬롯 잠금:', key, date);
             return true;
         } else {
             const docId = snapshot.docs[0].id;
             const { deleteDoc } = await import('firebase/firestore');
             await deleteDoc(doc(db, 'lockedSlots', docId));
-            console.log('🔓 슬롯 잠금 해제:', key);
+            console.log('🔓 슬롯 잠금 해제:', key, date);
             return false;
         }
     } catch (error) {
