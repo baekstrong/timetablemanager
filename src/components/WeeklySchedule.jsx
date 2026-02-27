@@ -14,6 +14,8 @@ import {
     getAbsencesByStudent,
     getDisabledClasses,
     toggleDisabledClass,
+    getLockedSlots,
+    toggleLockedSlot,
     getHolidays,
     getNewStudentRegistrations
 } from '../services/firebaseService';
@@ -310,6 +312,10 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     const [disabledClasses, setDisabledClasses] = useState([]);
     const [disabledClassesLoading, setDisabledClassesLoading] = useState(true);
 
+    // Locked slots state (보강 차단, stored in Firebase)
+    const [lockedSlots, setLockedSlots] = useState([]);
+    const [lockedSlotsLoading, setLockedSlotsLoading] = useState(true);
+
     // 수강생의 실질 종료일 계산 (보강 신청 고려)
     // 종료날짜의 마지막 수업이 보강으로 다른 날로 이동된 경우, 보강 날짜를 실질 종료일로 사용
     const getEffectiveEndDate = (student, endDate) => {
@@ -447,6 +453,21 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         loadDisabledClasses();
     }, []);
 
+    // Load locked slots from Firebase on mount
+    useEffect(() => {
+        const loadLockedSlots = async () => {
+            try {
+                const locked = await getLockedSlots();
+                setLockedSlots(locked);
+            } catch (error) {
+                console.error('Failed to load locked slots:', error);
+            } finally {
+                setLockedSlotsLoading(false);
+            }
+        };
+        loadLockedSlots();
+    }, []);
+
     // Load pending registrations for "신규 전용" mode
     useEffect(() => {
         if (user?.role === 'coach') {
@@ -478,6 +499,30 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     const isClassDisabled = (day, periodId) => {
         const key = `${day}-${periodId}`;
         return disabledClasses.includes(key);
+    };
+
+    // Toggle locked slot (보강 차단)
+    const toggleLockedSlotHandler = async (day, periodId) => {
+        const key = `${day}-${periodId}`;
+        try {
+            const isNowLocked = await toggleLockedSlot(key);
+            setLockedSlots(prev => {
+                if (isNowLocked) {
+                    return [...prev, key];
+                } else {
+                    return prev.filter(k => k !== key);
+                }
+            });
+        } catch (error) {
+            console.error('Failed to toggle locked slot:', error);
+            alert('슬롯 잠금 상태 변경에 실패했습니다.');
+        }
+    };
+
+    // Check if slot is locked
+    const isSlotLocked = (day, periodId) => {
+        const key = `${day}-${periodId}`;
+        return lockedSlots.includes(key);
     };
 
     // Transform Google Sheets data into timetable format
@@ -770,6 +815,12 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     const handleAvailableSeatClick = (day, periodId, date) => {
         // Only allow makeup requests for actual students (not coaches viewing student mode)
         if (mode !== 'student' || user?.role === 'coach') return;
+
+        // 잠긴 슬롯이면 보강 신청 불가
+        if (isSlotLocked(day, periodId)) {
+            alert('해당 시간은 코치에 의해 보강이 차단되었습니다.');
+            return;
+        }
 
         // 주횟수에 따른 보강 신청 제한 체크
         if (activeMakeupRequests.length >= weeklyFrequency) {
@@ -1259,6 +1310,17 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 return <div className="schedule-cell cell-empty"><span style={{ color: '#999' }}>수업 없음</span></div>;
             }
 
+            // If slot is locked by coach, show "보강 불가" (보강 차단)
+            const slotLocked = isSlotLocked(day, periodObj.id);
+            if (slotLocked) {
+                return (
+                    <div className="schedule-cell" style={{ backgroundColor: '#fef2f2', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontSize: '1.2rem' }}>🔒</span>
+                        <span style={{ color: '#991b1b', fontSize: '0.8rem', fontWeight: 'bold', marginTop: '2px' }}>보강 불가</span>
+                    </div>
+                );
+            }
+
             // If class is NOT disabled and no registered students, show available seats (7 자리)
             // This allows students to sign up for coach-activated empty classes
             if (!classDisabled && !hasRegisteredStudents) {
@@ -1365,12 +1427,30 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     style={{ alignItems: 'flex-start', justifyContent: 'flex-start', padding: '8px' }}
                 >
                     {/* Header with count and available seats for Coach */}
-                    <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 'bold', borderBottom: '1px solid #eee' }}>
+                    <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 'bold', borderBottom: '1px solid #eee' }}>
                         <span>
                             {data.isFull
                                 ? <span style={{ color: 'red' }}>Full</span>
                                 : <>{data.currentCount}명<span style={{ color: '#666', fontWeight: 'normal', marginLeft: '4px' }}>(여석: {data.availableSeats}자리)</span></>
                             }
+                        </span>
+                        <span
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                toggleLockedSlotHandler(day, periodObj.id);
+                            }}
+                            style={{
+                                cursor: 'pointer',
+                                fontSize: '0.9rem',
+                                padding: '0 2px',
+                                borderRadius: '4px',
+                                ...(isSlotLocked(day, periodObj.id)
+                                    ? { border: '1px solid #ef4444', backgroundColor: '#fef2f2' }
+                                    : { color: '#d1d5db' })
+                            }}
+                            title={isSlotLocked(day, periodObj.id) ? '보강 잠금 해제' : '보강 잠금'}
+                        >
+                            {isSlotLocked(day, periodObj.id) ? '🔒' : '🔓'}
                         </span>
                     </div>
 

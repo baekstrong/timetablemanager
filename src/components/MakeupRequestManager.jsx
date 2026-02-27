@@ -4,7 +4,8 @@ import { getStudentField } from '../services/googleSheetsService';
 import {
     createMakeupRequest,
     getActiveMakeupRequest,
-    cancelMakeupRequest
+    cancelMakeupRequest,
+    getLockedSlots
 } from '../services/firebaseService';
 import { PERIODS } from '../data/mockData';
 import './MakeupRequestManager.css';
@@ -17,6 +18,7 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
     const [activeMakeup, setActiveMakeup] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [lockedSlots, setLockedSlots] = useState([]);
 
     // 학생의 정규 시간표 파싱
     const regularSchedule = useMemo(() => {
@@ -70,6 +72,11 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
         };
         fetchActiveMakeup();
     }, [user]);
+
+    // 잠긴 슬롯 조회
+    useEffect(() => {
+        getLockedSlots().then(setLockedSlots).catch(() => {});
+    }, []);
 
     // 달력 생성 (다음 2주)
     const calendarDates = useMemo(() => {
@@ -349,16 +356,27 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
                                 <h2 className="step-title">3단계: 보강 시간 선택</h2>
                                 <p className="step-subtitle">선택한 날짜: {selectedDate} ({getDayName(new Date(selectedDate + 'T00:00:00'))}요일)</p>
                                 <div className="period-grid">
-                                    {PERIODS.filter(p => p.type !== 'free').map((period) => (
-                                        <div
-                                            key={period.id}
-                                            className={`period-item ${selectedMakeup?.period === period.id ? 'selected' : ''}`}
-                                            onClick={() => handleMakeupSelect(getDayName(new Date(selectedDate + 'T00:00:00')), period.id)}
-                                        >
-                                            <div className="period-name">{period.name}</div>
-                                            <div className="period-time">{period.time}</div>
-                                        </div>
-                                    ))}
+                                    {PERIODS.filter(p => p.type !== 'free').map((period) => {
+                                        const dayName = getDayName(new Date(selectedDate + 'T00:00:00'));
+                                        const isLocked = lockedSlots.includes(`${dayName}-${period.id}`);
+                                        return (
+                                            <div
+                                                key={period.id}
+                                                className={`period-item ${selectedMakeup?.period === period.id ? 'selected' : ''} ${isLocked ? 'disabled' : ''}`}
+                                                onClick={() => {
+                                                    if (isLocked) {
+                                                        alert('해당 시간은 코치에 의해 보강이 차단되었습니다.');
+                                                        return;
+                                                    }
+                                                    handleMakeupSelect(dayName, period.id);
+                                                }}
+                                                style={isLocked ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: '#f3f4f6' } : {}}
+                                            >
+                                                <div className="period-name">{period.name} {isLocked && '🔒'}</div>
+                                                <div className="period-time">{isLocked ? '보강 불가' : period.time}</div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}

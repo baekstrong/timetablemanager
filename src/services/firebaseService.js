@@ -797,6 +797,67 @@ export const toggleDisabledClass = async (key) => {
 };
 
 // ============================================
+// LOCKED SLOTS FUNCTIONS (보강 차단)
+// ============================================
+
+/**
+ * 잠긴 슬롯 목록 조회
+ * @returns {Promise<Array>} - 잠긴 슬롯 키 목록 ["월-1", "금-4", ...]
+ */
+export const getLockedSlots = async () => {
+    if (!isFirebaseAvailable()) return [];
+
+    try {
+        const q = query(collection(db, 'lockedSlots'));
+        const snapshot = await getDocs(q);
+
+        const lockedKeys = snapshot.docs.map(doc => doc.data().key);
+        console.log('🔒 잠긴 슬롯 조회:', lockedKeys);
+        return lockedKeys;
+    } catch (error) {
+        console.error('❌ 잠긴 슬롯 조회 실패:', error);
+        return [];
+    }
+};
+
+/**
+ * 슬롯 잠금 상태 토글
+ * @param {string} key - 슬롯 키 (예: "월-1")
+ * @returns {Promise<boolean>} - 토글 후 잠금 상태 (true=잠김)
+ */
+export const toggleLockedSlot = async (key) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        const q = query(
+            collection(db, 'lockedSlots'),
+            where('key', '==', key)
+        );
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            await addDoc(collection(db, 'lockedSlots'), {
+                key,
+                createdAt: serverTimestamp()
+            });
+            console.log('🔒 슬롯 잠금:', key);
+            return true;
+        } else {
+            const docId = snapshot.docs[0].id;
+            const { deleteDoc } = await import('firebase/firestore');
+            await deleteDoc(doc(db, 'lockedSlots', docId));
+            console.log('🔓 슬롯 잠금 해제:', key);
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ 슬롯 잠금 토글 실패:', error);
+        throw error;
+    }
+};
+
+// ============================================
 // NEW STUDENT REGISTRATION FUNCTIONS
 // ============================================
 
