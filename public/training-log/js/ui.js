@@ -181,6 +181,9 @@ export function renderCoachScreen() {
                     </div>
                 </div>
             </div>
+
+            <!-- 선택된 수강생 빠른 이동 바 (sticky) -->
+            <div id="studentQuickNav" class="student-quick-nav" style="display: none;"></div>
             
             <!-- 날짜 필터 & 통증 필터 -->
             <div class="bg-white rounded-lg shadow-md p-4 mb-6">

@@ -144,6 +144,9 @@ export async function loadStudentList() {
         studentListDiv.innerHTML = html;
         updateStudentSelectionSummary();
 
+        // Quick nav bar 업데이트
+        updateStudentQuickNav();
+
         // Initial render: 선택된 학생이 있을 때만 데이터 로드
         if (state.selectedStudents.length > 0) {
             // 메모 표시 (pinnedMemoFilter가 true일 때)
@@ -196,6 +199,7 @@ export function toggleStudent(studentName) {
     // Update UI without reloading entire list (which would restore from localStorage)
     updateStudentBadges();
     updateStudentSelectionSummary();
+    updateStudentQuickNav();
 
     // 메모/기록 업데이트
     if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
@@ -246,6 +250,51 @@ function updateStudentBadges() {
         }
     }
 }
+
+// ============================================
+// Student Quick Navigation Bar
+// ============================================
+
+export function updateStudentQuickNav() {
+    const nav = document.getElementById('studentQuickNav');
+    if (!nav) return;
+
+    if (state.selectedStudents.length === 0) {
+        nav.style.display = 'none';
+        // Safe: clearing child elements
+        while (nav.firstChild) nav.removeChild(nav.firstChild);
+        return;
+    }
+
+    nav.style.display = 'flex';
+    // Safe: building DOM elements programmatically (no user-generated HTML)
+    while (nav.firstChild) nav.removeChild(nav.firstChild);
+
+    state.selectedStudents.forEach(name => {
+        const bgColor = getStudentBadgeColor(name, state.allStudents);
+        const textColor = getStudentTextColor(name, state.allStudents);
+        const btn = document.createElement('button');
+        btn.className = 'student-quick-nav-btn';
+        btn.style.backgroundColor = bgColor;
+        btn.style.color = textColor;
+        btn.style.borderColor = bgColor;
+        btn.textContent = name;
+        btn.addEventListener('click', () => scrollToStudent(name));
+        nav.appendChild(btn);
+    });
+}
+
+function scrollToStudent(name) {
+    const section = document.getElementById(`student-section-${name}`);
+    if (!section) return;
+
+    const navBar = document.getElementById('studentQuickNav');
+    const navHeight = navBar ? navBar.offsetHeight + 8 : 0;
+
+    const y = section.getBoundingClientRect().top + window.pageYOffset - navHeight;
+    window.scrollTo({ top: y, behavior: 'smooth' });
+}
+window.scrollToStudent = scrollToStudent;
 
 // ============================================
 // Data Caching & Real-time Listeners
@@ -332,7 +381,7 @@ export async function renderPinnedMemosForCoach() {
         // But if filtering by exercise and no matches, maybe show nothing?
         // User wants "Send Personal Message" capability.
 
-        html += `<div class="rounded-xl p-4 mb-4 shadow-md border border-gray-200" style="background-color: ${studentColor}20;">
+        html += `<div id="student-section-${studentName}" class="rounded-xl p-4 mb-4 shadow-md border border-gray-200" style="background-color: ${studentColor}20;">
             <div class="flex items-center justify-between border-b border-gray-200 pb-2 mb-3">
                 <h3 class="font-bold text-gray-800 text-lg flex items-center gap-2">
                     <span class="px-2 py-1 rounded bg-white border border-gray-200 text-sm shadow-sm">${studentName}</span>
@@ -411,6 +460,7 @@ export async function renderPinnedMemosForCoach() {
     });
 
     section.innerHTML = html;
+    updateStudentQuickNav();
 }
 
 // Helper: Prompt for Personal Message
@@ -544,6 +594,7 @@ export function toggleSelectAll() {
 
     updateStudentBadges();
     updateStudentSelectionSummary();
+    updateStudentQuickNav();
     if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
     if (state.recordsFilter) debouncedLoadAllRecords();
 }
@@ -556,6 +607,7 @@ export function clearStudentSelection() {
 
     updateStudentBadges();
     updateStudentSelectionSummary();
+    updateStudentQuickNav();
     if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
     if (state.recordsFilter) debouncedLoadAllRecords();
 }
