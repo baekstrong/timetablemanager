@@ -225,13 +225,17 @@ body.modal-open {
     border-radius: 20px;
     font-size: 13px;
     font-weight: 600;
-    border: 2px solid transparent;
+    border: none;
     cursor: pointer;
     transition: all 0.2s;
     white-space: nowrap;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+    background: linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%);
+    color: #ffffff;
+    box-shadow: 0 2px 4px rgba(124, 58, 237, 0.25);
 }
 .student-quick-nav-btn:active {
     transform: scale(0.95);
+    opacity: 0.85;
 }

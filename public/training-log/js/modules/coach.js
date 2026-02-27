@@ -271,13 +271,8 @@ export function updateStudentQuickNav() {
     while (nav.firstChild) nav.removeChild(nav.firstChild);
 
     state.selectedStudents.forEach(name => {
-        const bgColor = getStudentBadgeColor(name, state.allStudents);
-        const textColor = getStudentTextColor(name, state.allStudents);
         const btn = document.createElement('button');
         btn.className = 'student-quick-nav-btn';
-        btn.style.backgroundColor = bgColor;
-        btn.style.color = textColor;
-        btn.style.borderColor = bgColor;
         btn.textContent = name;
         btn.addEventListener('click', () => scrollToStudent(name));
         nav.appendChild(btn);
@@ -666,15 +661,46 @@ export function toggleStudentList() {
     }
 }
 
+// 필터 패널 아코디언
+export function toggleFilterPanel() {
+    const container = document.getElementById('filterPanelContainer');
+    const icon = document.getElementById('filterPanelIcon');
+
+    if (container.classList.contains('hidden')) {
+        container.classList.remove('hidden');
+        icon.textContent = '▲';
+    } else {
+        container.classList.add('hidden');
+        icon.textContent = '▼';
+    }
+}
+window.toggleFilterPanel = toggleFilterPanel;
+
+export function updateFilterSummary() {
+    const summary = document.getElementById('filterSummary');
+    if (!summary) return;
+
+    const parts = [];
+    if (state.selectedDate) parts.push(state.selectedDate);
+    if (state.exerciseFilter) parts.push(state.exerciseFilter);
+    if (state.painFilter) parts.push('통증');
+    if (state.pinnedMemoFilter) parts.push('메모');
+    if (state.recordsFilter) parts.push('기록');
+
+    summary.textContent = parts.length > 0 ? parts.join(' · ') : '기본 설정';
+}
+
 // 필터 관련
 export function changeCoachDate(newDate) {
     state.selectedDate = newDate;
+    updateFilterSummary();
     if (state.recordsFilter) debouncedLoadAllRecords();
 }
 
 export function showAllDates() {
     state.selectedDate = null;
     document.getElementById('coachDateFilter').value = '';
+    updateFilterSummary();
     if (state.recordsFilter) debouncedLoadAllRecords();
 }
 
@@ -682,6 +708,8 @@ export function togglePainFilter() {
     const checkbox = document.getElementById('painFilterCheck');
     state.painFilter = checkbox ? checkbox.checked : false;
     localStorage.setItem('coachPainFilter', state.painFilter);
+    updateFilterSummary();
+    if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
     if (state.recordsFilter) debouncedLoadAllRecords();
 }
 
@@ -694,6 +722,7 @@ export function togglePinnedMemoFilter() {
     const checkbox = document.getElementById('pinnedMemoFilterCheck');
     state.pinnedMemoFilter = checkbox ? checkbox.checked : false;
     localStorage.setItem('coachPinnedMemoFilter', state.pinnedMemoFilter);
+    updateFilterSummary();
 
     const pinnedSection = document.getElementById('coachPinnedMemosSection');
     if (state.pinnedMemoFilter) {
@@ -707,6 +736,7 @@ export function togglePinnedMemoFilter() {
 export function toggleRecordsFilter() {
     const checkbox = document.getElementById('recordsFilterCheck');
     state.recordsFilter = checkbox ? checkbox.checked : false;
+    updateFilterSummary();
 
     const allRecordsList = document.getElementById('allRecordsList');
     if (state.recordsFilter) {
@@ -742,8 +772,10 @@ export function promptPersonalMessage(studentName) {
 // I will just add the visual cue to clear date picker in coach.js
 export function changeCoachExerciseFilter(exerciseName) {
     state.exerciseFilter = exerciseName;
+    updateFilterSummary();
 
     // 운동 필터가 켜져도 날짜 필터를 유지하도록 수정 (state.selectedDate = null 제거)
+    if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
     if (state.recordsFilter) debouncedLoadAllRecords();
 }
 

@@ -146,6 +146,9 @@ export function selectExerciseSuggestion(name) {
 
     const suggestionBox = document.getElementById('exerciseSuggestions');
     if (suggestionBox) suggestionBox.classList.add('hidden');
+
+    // 이전 기록 표시
+    if (window.showPreviousRecord) window.showPreviousRecord(name);
 }
 
 // Close suggestions on click outside
