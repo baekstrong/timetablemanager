@@ -62,10 +62,6 @@ export async function addRecord() {
         state.currentSets = [];
         renderSets();
 
-        // 이전 기록 힌트 숨기기 + 캐시 초기화
-        const hint = document.getElementById('previousRecordHint');
-        if (hint) hint.style.display = 'none';
-        previousRecordCache = {};
 
         if (window.clearAutoSave) window.clearAutoSave();
 
@@ -81,22 +77,9 @@ export async function addRecord() {
 // 이전 기록 불러오기 (운동 종목 선택 시)
 // ============================================
 
-let previousRecordCache = {};
-
-export async function showPreviousRecord(exerciseName) {
-    const hint = document.getElementById('previousRecordHint');
-    if (!hint) return;
-
-    if (!exerciseName || !state.currentUser || state.isCoach) {
-        hint.style.display = 'none';
-        return;
-    }
-
-    // 캐시 확인
-    if (previousRecordCache[exerciseName]) {
-        renderPreviousRecordHint(previousRecordCache[exerciseName]);
-        return;
-    }
+export async function loadPreviousRecord(exerciseName) {
+    if (!exerciseName || !state.currentUser || state.isCoach) return;
+    if (!firebaseInitialized || !db) return;
 
     try {
         const snapshot = await db.collection('records')
@@ -106,77 +89,33 @@ export async function showPreviousRecord(exerciseName) {
             .limit(1)
             .get();
 
-        if (snapshot.empty) {
-            hint.style.display = 'none';
-            return;
-        }
+        if (snapshot.empty) return;
 
         const data = snapshot.docs[0].data();
-        previousRecordCache[exerciseName] = data;
-        renderPreviousRecordHint(data);
+        if (!data.sets || data.sets.length === 0) return;
+
+        const setsText = data.sets.map((s, i) => {
+            const intensity = s.intensity?.unit === '맨몸' ? '맨몸' : `${s.intensity?.value || ''}${s.intensity?.unit || 'kg'}`;
+            const reps = s.reps?.unit === '초 x 회'
+                ? `${s.reps?.value || ''}초×${s.reps?.count || ''}회`
+                : `${s.reps?.value || ''}${s.reps?.unit || '회'}`;
+            return `${i + 1}세트: ${intensity} × ${reps}`;
+        }).join('\n');
+
+        if (confirm(`이전 기록이 있습니다.\n\n${setsText}\n\n이전과 동일하게 불러올까요?`)) {
+            state.currentSets = data.sets.map(s => ({
+                intensity: { value: s.intensity?.value || '', unit: s.intensity?.unit || 'kg' },
+                reps: { value: s.reps?.value || '', unit: s.reps?.unit || '회', count: s.reps?.count || '' }
+            }));
+            renderSets();
+            if (window.autoSaveFormData) window.autoSaveFormData();
+        }
     } catch (error) {
         console.error('이전 기록 조회 실패:', error);
-        hint.style.display = 'none';
     }
 }
 
-function renderPreviousRecordHint(data) {
-    const hint = document.getElementById('previousRecordHint');
-    if (!hint || !data.sets || data.sets.length === 0) {
-        if (hint) hint.style.display = 'none';
-        return;
-    }
-
-    const setsText = data.sets.map((s, i) => {
-        const intensity = s.intensity?.unit === '맨몸' ? '맨몸' : `${s.intensity?.value || ''}${s.intensity?.unit || 'kg'}`;
-        const reps = s.reps?.unit === '초 x 회'
-            ? `${s.reps?.value || ''}초×${s.reps?.count || ''}회`
-            : `${s.reps?.value || ''}${s.reps?.unit || '회'}`;
-        return `${i + 1}세트: ${intensity} × ${reps}`;
-    }).join(' / ');
-
-    const dateText = data.date || '';
-
-    // Safe DOM construction
-    hint.style.display = 'block';
-    while (hint.firstChild) hint.removeChild(hint.firstChild);
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'bg-gray-50 border border-gray-200 rounded-lg p-3';
-
-    const header = document.createElement('div');
-    header.className = 'flex items-center justify-between mb-1';
-
-    const label = document.createElement('span');
-    label.className = 'text-xs font-semibold text-gray-500';
-    label.textContent = `지난 기록 (${dateText})`;
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition';
-    btn.textContent = '이전과 동일';
-    btn.addEventListener('click', () => {
-        state.currentSets = data.sets.map(s => ({
-            intensity: { value: s.intensity?.value || '', unit: s.intensity?.unit || 'kg' },
-            reps: { value: s.reps?.value || '', unit: s.reps?.unit || '회', count: s.reps?.count || '' }
-        }));
-        renderSets();
-        if (window.autoSaveFormData) window.autoSaveFormData();
-    });
-
-    header.appendChild(label);
-    header.appendChild(btn);
-
-    const detail = document.createElement('div');
-    detail.className = 'text-sm text-gray-600';
-    detail.textContent = setsText;
-
-    wrapper.appendChild(header);
-    wrapper.appendChild(detail);
-    hint.appendChild(wrapper);
-}
-
-window.showPreviousRecord = showPreviousRecord;
+window.loadPreviousRecord = loadPreviousRecord;
 
 // ============================================
 // 내 기록 불러오기 (수강생)

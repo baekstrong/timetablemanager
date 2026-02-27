@@ -95,7 +95,6 @@ export function renderStudentScreen() {
                                autocomplete="off"
                                oninput="autoSaveFormData(); handleExerciseSearch(this.value);"
                                onfocus="handleExerciseSearch(this.value)"
-                               onblur="setTimeout(() => showPreviousRecord(this.value.trim()), 200)"
                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-gray-800 font-medium">
                         
                         <!-- Custom Autocomplete Dropdown -->
@@ -103,9 +102,6 @@ export function renderStudentScreen() {
                              class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto">
                         </div>
                     </div>
-
-                    <!-- 이전 기록 불러오기 -->
-                    <div id="previousRecordHint" style="display: none;"></div>
 
                     <!-- 세트별 입력 -->
                     <div id="setsContainer"></div>
