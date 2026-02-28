@@ -17,8 +17,15 @@ import {
     getLockedSlots,
     toggleLockedSlot,
     getHolidays,
-    getNewStudentRegistrations
+    getNewStudentRegistrations,
+    createWaitlistRequest,
+    getActiveWaitlistRequests,
+    getAllActiveWaitlist,
+    cancelWaitlistRequest,
+    notifyWaitlistRequest,
+    acceptWaitlistRequest
 } from '../services/firebaseService';
+import { writeSheetData } from '../services/googleSheetsService';
 import { PERIODS, DAYS, MOCK_DATA, MAX_CAPACITY, KOREAN_HOLIDAYS } from '../data/mockData';
 import './WeeklySchedule.css';
 
@@ -307,6 +314,14 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
     // Pending new student registrations (for "신규 전용" mode)
     const [pendingRegistrations, setPendingRegistrations] = useState([]);
+
+    // 대기 신청 state
+    const [weekWaitlist, setWeekWaitlist] = useState([]);
+    const [studentWaitlist, setStudentWaitlist] = useState([]);
+    const [showWaitlistModal, setShowWaitlistModal] = useState(false);
+    const [waitlistDesiredSlot, setWaitlistDesiredSlot] = useState(null);
+    const [waitlistStudentName, setWaitlistStudentName] = useState(''); // 코치가 선택한 수강생
+    const [waitlistStudentSearch, setWaitlistStudentSearch] = useState(''); // 검색어
 
     // Class disabled state (stored in Firebase)
     const [disabledClasses, setDisabledClasses] = useState([]);
@@ -663,6 +678,10 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
                     setActiveMakeupRequests(thisWeekMakeups);
                     console.log(`📊 Student makeup data loaded: ${thisWeekMakeups.length}개 (active: ${thisWeekMakeups.filter(m => m.status === 'active').length}, completed: ${thisWeekMakeups.filter(m => m.status === 'completed').length})`);
+
+                    // 수강생 대기 신청 목록 로드
+                    const waitlist = await getActiveWaitlistRequests(user.username);
+                    setStudentWaitlist(waitlist);
                 } catch (error) {
                     console.error('Failed to load student makeup data:', error);
                 }
@@ -703,18 +722,11 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             console.log(`📅 Loading weekly data: ${startDate} ~ ${endDate}`);
             console.log(`📅 Holding date range: ${startDate} ~ ${thisWeekEndDate} (current week only)`);
 
-            // Load makeup requests from Firebase
-            const makeups = await getMakeupRequestsByWeek(startDate, endDate).catch(err => {
-                console.warn('Failed to load makeup requests:', err);
-                return [];
-            });
-
-            // Extract holding data from Google Sheets students instead of Firebase
+            // Extract holding data from Google Sheets students (no API call)
             const holdings = [];
             if (students && students.length > 0) {
                 students.forEach(student => {
                     const holdingStatus = getStudentField(student, '홀딩 사용여부');
-                    // Parse holding status (supports both 'O' and 'O(1/2)' formats)
                     const holdingInfo = parseHoldingStatus(holdingStatus);
                     if (holdingInfo.isCurrentlyUsed) {
                         const startDateStr = getStudentField(student, '홀딩 시작일');
@@ -728,8 +740,6 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                 const holdingStartStr = formatDate(holdingStartDate);
                                 const holdingEndStr = formatDate(holdingEndDate);
 
-                                // Only include if holding period overlaps with THIS WEEK (not next week)
-                                // Use thisWeekEndDate instead of endDate to limit to current week
                                 if (holdingEndStr >= startDate && holdingStartStr <= thisWeekEndDate) {
                                     holdings.push({
                                         studentName: student['이름'],
@@ -744,7 +754,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 });
             }
 
-            // Load absences for each day of the week
+            // Firebase 호출 병렬화 (makeup, absences, holidays 동시 호출)
             const dates = [];
             for (let i = 0; i < 5; i++) {
                 const date = new Date(monday);
@@ -752,14 +762,27 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 dates.push(formatDate(date));
             }
 
-            const absencePromises = dates.map(date =>
-                getAbsencesByDate(date).catch(err => {
-                    console.warn(`Failed to load absences for ${date}:`, err);
+            const [makeups, absenceArrays, holidays, waitlist] = await Promise.all([
+                getMakeupRequestsByWeek(startDate, endDate).catch(err => {
+                    console.warn('Failed to load makeup requests:', err);
+                    return [];
+                }),
+                Promise.all(dates.map(date =>
+                    getAbsencesByDate(date).catch(err => {
+                        console.warn(`Failed to load absences for ${date}:`, err);
+                        return [];
+                    })
+                )),
+                getHolidays().catch(err => {
+                    console.warn('Failed to load holidays:', err);
+                    return [];
+                }),
+                getAllActiveWaitlist().catch(err => {
+                    console.warn('Failed to load waitlist:', err);
                     return [];
                 })
-            );
+            ]);
 
-            const absenceArrays = await Promise.all(absencePromises);
             const allAbsences = absenceArrays.flat();
 
             // 수업 시간이 지난 active 보강은 자동으로 completed 처리 (코치/수강생 모두)
@@ -767,32 +790,51 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             for (const makeup of passedActiveMakeups) {
                 try {
                     await completeMakeupRequest(makeup.id);
-                    makeup.status = 'completed'; // 로컬 상태도 업데이트
+                    makeup.status = 'completed';
                     console.log('✅ 보강 자동 완료 처리:', makeup.id, makeup.studentName);
                 } catch (err) {
                     console.error('❌ 보강 자동 완료 실패:', makeup.id, err);
                 }
             }
 
-            // Load holidays from Firebase
-            const holidays = await getHolidays().catch(err => {
-                console.warn('Failed to load holidays:', err);
-                return [];
-            });
-
             // active + completed 모두 시간표에 표시 (주간 내역 유지)
             setWeekMakeupRequests(makeups || []);
             setWeekHoldings(holdings || []);
             setWeekAbsences(allAbsences || []);
             setWeekHolidays(holidays || []);
+            setWeekWaitlist(waitlist || []);
 
-            console.log(`✅ Loaded ${makeups?.length || 0} makeup requests (${passedActiveMakeups.length}개 자동완료), ${holdings?.length || 0} holdings (from Google Sheets), ${allAbsences?.length || 0} absences, ${holidays?.length || 0} holidays`);
+            // 대기 중인 요청에 대해 자리가 났는지 자동 체크 → notified로 변경
+            if (waitlist && waitlist.length > 0) {
+                // scheduleData에서 등록 인원 기반으로 자리 체크 (영구적 변경이므로 등록 인원 기준)
+                const transformed = students && students.length > 0 ? transformGoogleSheetsData(students) : null;
+                if (transformed) {
+                    for (const w of waitlist) {
+                        if (w.status !== 'waiting') continue;
+                        const slot = transformed.regularEnrollments.find(
+                            e => e.day === w.desiredSlot.day && e.period === w.desiredSlot.period
+                        );
+                        const registeredCount = slot ? slot.names.length : 0;
+                        if (registeredCount < MAX_CAPACITY) {
+                            try {
+                                await notifyWaitlistRequest(w.id);
+                                w.status = 'notified';
+                                console.log(`✅ 대기 알림: ${w.studentName} → ${w.desiredSlot.day} ${w.desiredSlot.periodName} (자리 남)`);
+                            } catch (err) {
+                                console.error('대기 알림 실패:', w.id, err);
+                            }
+                        }
+                    }
+                }
+            }
+
+            console.log(`✅ Loaded ${makeups?.length || 0} makeup requests (${passedActiveMakeups.length}개 자동완료), ${holdings?.length || 0} holdings (from Google Sheets), ${allAbsences?.length || 0} absences, ${holidays?.length || 0} holidays, ${waitlist?.length || 0} waitlist`);
         } catch (error) {
             console.error('Failed to load weekly data:', error);
-            // Don't crash, just set empty arrays
             setWeekMakeupRequests([]);
             setWeekHoldings([]);
             setWeekAbsences([]);
+            setWeekWaitlist([]);
         }
     };
 
@@ -800,6 +842,24 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     useEffect(() => {
         loadWeeklyData();
     }, [mode, students]); // Depend on students to reload holdings when Google Sheets data changes
+
+    // 코치 모드: 30분마다 자동 리프레시
+    useEffect(() => {
+        if (user?.role !== 'coach' || mode !== 'coach') return;
+
+        const REFRESH_INTERVAL = 30 * 60 * 1000; // 30분
+        const intervalId = setInterval(async () => {
+            console.log('🔄 코치 시간표 자동 리프레시 (30분 주기)');
+            try {
+                await refresh();
+                await loadWeeklyData();
+            } catch (error) {
+                console.error('자동 리프레시 실패:', error);
+            }
+        }, REFRESH_INTERVAL);
+
+        return () => clearInterval(intervalId);
+    }, [user, mode]);
 
     // 수동 새로고침 상태
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -829,9 +889,34 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             return;
         }
 
-        // 주횟수에 따른 보강 신청 제한 체크
-        if (activeMakeupRequests.length >= weeklyFrequency) {
-            alert(`주 ${weeklyFrequency}회 수업이므로 보강 신청은 최대 ${weeklyFrequency}개까지 가능합니다.\n기존 보강을 취소 후 다시 신청해주세요.`);
+        // 주횟수에 따른 보강 신청 제한 체크 (휴일 고려)
+        // 이번 주 수강생의 정규 수업 중 휴일과 겹치는 수업 수를 빼서 실제 보강 가능 횟수 계산
+        const effectiveMakeupLimit = (() => {
+            let holidayClassCount = 0;
+            if (studentSchedule.length > 0 && weekDates) {
+                studentSchedule.forEach(schedule => {
+                    const dateMMDD = weekDates[schedule.day];
+                    if (!dateMMDD) return;
+                    const [m, d] = dateMMDD.split('/');
+                    const y = new Date().getFullYear();
+                    const slotDateStr = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+                    // Firebase 휴일 또는 한국 공휴일 확인
+                    const isFirebaseHoliday = weekHolidays.some(h => h.date === slotDateStr);
+                    const isKoreanHoliday = !!KOREAN_HOLIDAYS[slotDateStr];
+                    if (isFirebaseHoliday || isKoreanHoliday) {
+                        holidayClassCount++;
+                    }
+                });
+            }
+            return Math.max(0, weeklyFrequency - holidayClassCount);
+        })();
+
+        if (activeMakeupRequests.filter(m => m.status === 'active').length >= effectiveMakeupLimit) {
+            if (effectiveMakeupLimit < weeklyFrequency) {
+                alert(`이번 주 휴일로 인해 보강 신청이 최대 ${effectiveMakeupLimit}개까지 가능합니다.\n(주 ${weeklyFrequency}회 중 ${weeklyFrequency - effectiveMakeupLimit}회 휴일)\n기존 보강을 취소 후 다시 신청해주세요.`);
+            } else {
+                alert(`주 ${weeklyFrequency}회 수업이므로 보강 신청은 최대 ${weeklyFrequency}개까지 가능합니다.\n기존 보강을 취소 후 다시 신청해주세요.`);
+            }
             return;
         }
 
@@ -849,6 +934,21 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             const period = PERIODS.find(p => p.id === periodId);
             alert(`${period?.name} 수업이 곧 시작됩니다.\n수업 시작 30분 전까지만 보강 신청이 가능합니다.`);
             return;
+        }
+
+        // 자기 정규 수업 슬롯에 보강 신청 방지
+        // (예: 화5목5 수강생이 목5에 보강 신청하면 자기 수업에 보강하는 것)
+        if (isMyClass(day, periodId)) {
+            // 해당 날짜에 이미 보강으로 빠지는 수업인지 확인
+            const isAlreadyMakeupAbsent = activeMakeupRequests.some(m =>
+                m.originalClass.day === day &&
+                m.originalClass.period === periodId &&
+                m.originalClass.date === date
+            );
+            if (!isAlreadyMakeupAbsent) {
+                alert('본인의 정규 수업 시간에는 보강 신청을 할 수 없습니다.\n다른 시간을 선택해주세요.');
+                return;
+            }
         }
 
         const period = PERIODS.find(p => p.id === periodId);
@@ -875,6 +975,14 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     // Handle makeup submission
     const handleMakeupSubmit = async () => {
         if (!selectedOriginalClass || !selectedMakeupSlot) return;
+
+        // 보강 슬롯이 원본 슬롯과 동일한지 최종 체크
+        if (selectedOriginalClass.day === selectedMakeupSlot.day &&
+            selectedOriginalClass.period === selectedMakeupSlot.period &&
+            selectedOriginalClass.date === selectedMakeupSlot.date) {
+            alert('같은 수업으로 보강 신청할 수 없습니다.\n다른 시간을 선택해주세요.');
+            return;
+        }
 
         setIsSubmittingMakeup(true);
         try {
@@ -906,6 +1014,99 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             await loadWeeklyData();
         } catch (error) {
             alert(`보강 신청 취소 실패: ${error.message}`);
+        }
+    };
+
+    // 대기 등록 핸들러 (코치가 신규 전용 모드에서 수강생 대기 등록)
+    const handleWaitlistSubmit = async (studentName, currentSlot) => {
+        if (!waitlistDesiredSlot) return;
+        const period = PERIODS.find(p => p.id === waitlistDesiredSlot.period);
+        try {
+            await createWaitlistRequest(studentName, currentSlot, {
+                day: waitlistDesiredSlot.day,
+                period: waitlistDesiredSlot.period,
+                periodName: period?.name || ''
+            });
+            alert(`대기 등록 완료!\n${studentName}: ${currentSlot.day} ${currentSlot.periodName} → ${waitlistDesiredSlot.day} ${period?.name}\n자리가 나면 수강생에게 알림이 갑니다.`);
+            setShowWaitlistModal(false);
+            setWaitlistDesiredSlot(null);
+            setWaitlistStudentName('');
+            setWaitlistStudentSearch('');
+            await loadWeeklyData();
+        } catch (error) {
+            alert(`대기 등록 실패: ${error.message}`);
+        }
+    };
+
+    // 대기 취소 핸들러 (수강생/코치 공용)
+    const handleWaitlistCancel = async (waitlistId) => {
+        if (!confirm('대기 신청을 취소하시겠습니까?')) return;
+        try {
+            await cancelWaitlistRequest(waitlistId);
+            alert('대기 신청이 취소되었습니다.');
+            if (user?.role !== 'coach') {
+                const waitlist = await getActiveWaitlistRequests(user.username);
+                setStudentWaitlist(waitlist);
+            }
+            await loadWeeklyData();
+        } catch (error) {
+            alert(`대기 취소 실패: ${error.message}`);
+        }
+    };
+
+    // 대기 수락 핸들러 - 자리가 나서 수강생이 수락 → Google Sheets D열 영구 변경
+    const handleWaitlistAccept = async (waitlistItem) => {
+        const { currentSlot, desiredSlot } = waitlistItem;
+        if (!confirm(
+            `${desiredSlot.day}요일 ${desiredSlot.periodName}에 자리가 났습니다!\n\n` +
+            `시간표를 변경하시겠습니까?\n` +
+            `${currentSlot.day}요일 ${currentSlot.periodName} → ${desiredSlot.day}요일 ${desiredSlot.periodName}\n\n` +
+            `※ 영구적으로 시간표가 변경됩니다.`
+        )) return;
+
+        try {
+            // 1. 수강생의 최신 Google Sheets 데이터 찾기
+            const studentEntry = students.find(s => s['이름'] === user.username && s['요일 및 시간']);
+            if (!studentEntry) {
+                alert('수강생 정보를 찾을 수 없습니다.');
+                return;
+            }
+
+            const sheetName = studentEntry._foundSheetName;
+            const rowIndex = studentEntry._rowIndex;
+            const actualRow = rowIndex + 3; // 행번호 변환
+            const currentSchedule = studentEntry['요일 및 시간'];
+
+            // 2. 스케줄 문자열 변환 (예: "화5목5" → "화5금5")
+            const parsed = parseScheduleString(currentSchedule);
+            const updated = parsed.map(s => {
+                if (s.day === currentSlot.day && s.period === currentSlot.period) {
+                    return { day: desiredSlot.day, period: desiredSlot.period };
+                }
+                return s;
+            });
+            // 요일 순서로 정렬
+            const dayOrder = { '월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일': 6 };
+            updated.sort((a, b) => (dayOrder[a.day] || 0) - (dayOrder[b.day] || 0) || a.period - b.period);
+            const newSchedule = updated.map(s => `${s.day}${s.period}`).join('');
+
+            // 3. Google Sheets D열 업데이트
+            const range = `${sheetName}!D${actualRow}`;
+            await writeSheetData(range, [[newSchedule]]);
+
+            // 4. Firebase 대기 수락 처리
+            await acceptWaitlistRequest(waitlistItem.id);
+
+            alert(`시간표 변경 완료!\n${currentSchedule} → ${newSchedule}`);
+
+            // 5. 전체 데이터 새로고침
+            await refresh();
+            await loadWeeklyData();
+            const waitlist = await getActiveWaitlistRequests(user.username);
+            setStudentWaitlist(waitlist);
+        } catch (error) {
+            alert(`시간표 변경 실패: ${error.message}`);
+            console.error('시간표 변경 실패:', error);
         }
     };
 
@@ -1167,7 +1368,14 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
         if (mode === 'student') {
             if (cellData.isFull) {
-                alert('만석입니다.');
+                if (user?.role === 'coach') {
+                    // 코치 신규 전용 모드: 만석 셀 → 대기 등록 모달
+                    setWaitlistDesiredSlot({ day, period: periodObj.id });
+                    setShowWaitlistModal(true);
+                } else {
+                    alert('만석입니다.\n자리가 나면 코치에게 문의해주세요.');
+                }
+                return;
             } else {
                 // Calculate date for this slot
                 const dateStr = weekDates[day];
@@ -1356,6 +1564,12 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 );
             }
             if (data.isFull) {
+                // 대기 인원 수
+                const waitCount = weekWaitlist.filter(w =>
+                    w.desiredSlot.day === day &&
+                    w.desiredSlot.period === periodObj.id
+                ).length;
+
                 return (
                     <div
                         className="schedule-cell cell-full"
@@ -1363,6 +1577,9 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     >
                         <span className="cell-full-text">Full</span>
                         <span style={{ fontSize: '0.8em' }}>(만석)</span>
+                        {waitCount > 0 && user?.role === 'coach' && (
+                            <span style={{ fontSize: '0.7em', color: '#d97706' }}>대기 {waitCount}명</span>
+                        )}
                     </div>
                 );
             }
@@ -1440,6 +1657,19 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                 ? <span style={{ color: 'red' }}>Full</span>
                                 : <>{data.currentCount}명<span style={{ color: '#666', fontWeight: 'normal', marginLeft: '4px' }}>(여석: {data.availableSeats}자리)</span></>
                             }
+                            {(() => {
+                                const waiters = weekWaitlist.filter(w =>
+                                    w.desiredSlot.day === day &&
+                                    w.desiredSlot.period === periodObj.id
+                                );
+                                if (waiters.length === 0) return null;
+                                return (
+                                    <span style={{ color: '#d97706', fontWeight: 'bold', marginLeft: '4px', fontSize: '0.75rem' }}
+                                        title={`대기: ${waiters.map(w => `${w.studentName}(${w.currentSlot.day}${w.currentSlot.period}→)`).join(', ')}`}>
+                                        대기 {waiters.length}명
+                                    </span>
+                                );
+                            })()}
                         </span>
                         <span
                             onClick={(e) => {
@@ -1680,6 +1910,25 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 </section>
             )}
 
+            {mode === 'student' && user?.role !== 'coach' && (
+                <div style={{
+                    margin: '0 0 12px',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    backgroundColor: '#f0f9ff',
+                    border: '1px solid #bae6fd',
+                    fontSize: '0.82rem',
+                    color: '#0c4a6e',
+                    lineHeight: '1.6'
+                }}>
+                    <strong>이용 안내</strong>
+                    <div style={{ marginTop: '4px' }}>
+                        · 여석이 있는 칸을 눌러 <strong>보강 신청</strong>할 수 있습니다 (1회성 수업 이동)<br/>
+                        · 시간표 변경은 코치에게 문의해주세요
+                    </div>
+                </div>
+            )}
+
             <div className="schedule-grid">
                 {/* Top Header: Time Label + Days */}
                 <div className="grid-header"></div> {/* Empty corner slot */}
@@ -1810,6 +2059,127 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 </div>
             )}
 
+            {/* Waitlist Modal - 코치가 수강생 대기 등록 (신규 전용 모드) */}
+            {showWaitlistModal && user?.role === 'coach' && waitlistDesiredSlot && (
+                <div className="makeup-modal-overlay" onClick={() => { setShowWaitlistModal(false); setWaitlistDesiredSlot(null); setWaitlistStudentName(''); setWaitlistStudentSearch(''); }}>
+                    <div className="makeup-modal" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '80vh', overflowY: 'auto' }}>
+                        <h2>대기 등록</h2>
+                        <p className="makeup-modal-subtitle">
+                            목표: <strong>{waitlistDesiredSlot.day}요일 {PERIODS.find(p => p.id === waitlistDesiredSlot.period)?.name}</strong> (만석)
+                        </p>
+                        <p style={{ fontSize: '0.85rem', color: '#666', margin: '4px 0 12px' }}>
+                            자리가 나면 수강생에게 알림 → 수락 시 시간표 영구 변경
+                        </p>
+
+                        {/* 기존 대기자 목록 */}
+                        {(() => {
+                            const existingWaiters = weekWaitlist.filter(w =>
+                                w.desiredSlot.day === waitlistDesiredSlot.day &&
+                                w.desiredSlot.period === waitlistDesiredSlot.period
+                            );
+                            if (existingWaiters.length === 0) return null;
+                            return (
+                                <div style={{ marginBottom: '12px', padding: '8px 12px', borderRadius: '6px', backgroundColor: '#fffbeb', border: '1px solid #fde68a' }}>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#92400e', marginBottom: '4px' }}>현재 대기 ({existingWaiters.length}명)</div>
+                                    {existingWaiters.map(w => (
+                                        <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', padding: '2px 0' }}>
+                                            <span>{w.studentName} ({w.currentSlot.day}{w.currentSlot.period} → {w.desiredSlot.day}{w.desiredSlot.period})</span>
+                                            <button onClick={() => handleWaitlistCancel(w.id)} style={{ fontSize: '0.75rem', padding: '2px 6px', border: '1px solid #d97706', borderRadius: '4px', backgroundColor: 'transparent', color: '#b45309', cursor: 'pointer' }}>취소</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })()}
+
+                        {/* 수강생 검색 */}
+                        <div className="makeup-modal-content">
+                            <h3>수강생 선택</h3>
+                            <input
+                                type="text"
+                                placeholder="수강생 이름 검색..."
+                                value={waitlistStudentSearch}
+                                onChange={(e) => { setWaitlistStudentSearch(e.target.value); setWaitlistStudentName(''); }}
+                                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.9rem', marginBottom: '8px', boxSizing: 'border-box' }}
+                            />
+                            {waitlistStudentSearch && !waitlistStudentName && (
+                                <div style={{ maxHeight: '120px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '6px', marginBottom: '8px' }}>
+                                    {(() => {
+                                        // 현재 등록 중인 수강생 (스케줄 있는 사람만)
+                                        const uniqueNames = [...new Set(students.filter(s => s['요일 및 시간']).map(s => s['이름']))];
+                                        const filtered = uniqueNames.filter(name =>
+                                            name && name.includes(waitlistStudentSearch)
+                                        );
+                                        if (filtered.length === 0) return <div style={{ padding: '8px 12px', color: '#9ca3af', fontSize: '0.85rem' }}>검색 결과 없음</div>;
+                                        return filtered.map(name => (
+                                            <div key={name}
+                                                onClick={() => { setWaitlistStudentName(name); setWaitlistStudentSearch(name); }}
+                                                style={{ padding: '6px 12px', cursor: 'pointer', fontSize: '0.9rem', borderBottom: '1px solid #f3f4f6' }}
+                                                onMouseEnter={(e) => e.target.style.backgroundColor = '#f0f9ff'}
+                                                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                                            >
+                                                {name}
+                                            </div>
+                                        ));
+                                    })()}
+                                </div>
+                            )}
+
+                            {/* 선택된 수강생의 수업 목록 */}
+                            {waitlistStudentName && (
+                                <>
+                                    <h3 style={{ marginTop: '8px' }}>{waitlistStudentName}님의 수업 중 옮길 수업 선택</h3>
+                                    <div className="original-class-list">
+                                        {(() => {
+                                            const studentEntry = students.find(s => s['이름'] === waitlistStudentName && s['요일 및 시간']);
+                                            if (!studentEntry) return <div style={{ padding: '8px', color: '#999' }}>수강생 정보를 찾을 수 없습니다.</div>;
+                                            const scheduleStr = studentEntry['요일 및 시간'];
+                                            const parsed = parseScheduleString(scheduleStr);
+                                            if (parsed.length === 0) return <div style={{ padding: '8px', color: '#999' }}>등록된 수업이 없습니다.</div>;
+
+                                            return parsed.map((schedule, index) => {
+                                                const periodInfo = PERIODS.find(p => p.id === schedule.period);
+                                                const isSameSlot = schedule.day === waitlistDesiredSlot.day && schedule.period === waitlistDesiredSlot.period;
+                                                const alreadyWaiting = weekWaitlist.some(w =>
+                                                    w.studentName === waitlistStudentName &&
+                                                    w.desiredSlot.day === waitlistDesiredSlot.day &&
+                                                    w.desiredSlot.period === waitlistDesiredSlot.period
+                                                );
+                                                const isDisabled = isSameSlot || alreadyWaiting;
+
+                                                return (
+                                                    <div key={index}
+                                                        className={`original-class-item ${isDisabled ? 'disabled' : ''}`}
+                                                        style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: '#f3f4f6' } : {}}
+                                                        onClick={() => {
+                                                            if (isDisabled) return;
+                                                            handleWaitlistSubmit(waitlistStudentName, {
+                                                                day: schedule.day,
+                                                                period: schedule.period,
+                                                                periodName: periodInfo?.name || ''
+                                                            });
+                                                        }}
+                                                    >
+                                                        <span className="period-name">{schedule.day}요일 {periodInfo?.name}</span>
+                                                        {isSameSlot && <span style={{ fontSize: '0.8em', color: '#999', marginLeft: '8px' }}>같은 시간</span>}
+                                                        {alreadyWaiting && <span style={{ fontSize: '0.8em', color: '#d97706', marginLeft: '8px' }}>이미 대기 중</span>}
+                                                    </div>
+                                                );
+                                            });
+                                        })()}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="makeup-modal-actions">
+                            <button className="btn-cancel" onClick={() => { setShowWaitlistModal(false); setWaitlistDesiredSlot(null); setWaitlistStudentName(''); setWaitlistStudentSearch(''); }}>
+                                닫기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Makeup Banners - 이번 주 보강 내역 (active + completed) */}
             {mode === 'student' && activeMakeupRequests.length > 0 && (
                 <div className="active-makeup-banner">
@@ -1825,6 +2195,74 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                             {makeup.status === 'active' && !isMakeupClassSoon(makeup) && (
                                 <button className="banner-cancel-btn" onClick={() => handleMakeupCancel(makeup.id)}>취소</button>
                             )}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* 대기 신청 배너 */}
+            {mode === 'student' && user?.role !== 'coach' && studentWaitlist.length > 0 && (
+                <div style={{
+                    margin: '12px 16px',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    backgroundColor: '#fffbeb',
+                    border: '1px solid #f59e0b'
+                }}>
+                    <div style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#92400e', fontWeight: 'bold' }}>
+                        ⏳ 대기 신청 ({studentWaitlist.length}건)
+                    </div>
+                    {studentWaitlist.map((w) => (
+                        <div key={w.id} style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '6px 0',
+                            borderBottom: '1px solid #fde68a'
+                        }}>
+                            <div style={{ fontSize: '0.9rem', color: '#78350f' }}>
+                                {w.currentSlot.day} {w.currentSlot.periodName} → {w.desiredSlot.day} {w.desiredSlot.periodName}
+                                {w.status === 'notified' && (
+                                    <span style={{
+                                        marginLeft: '8px',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        backgroundColor: '#22c55e',
+                                        color: '#fff',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 'bold'
+                                    }}>자리 남!</span>
+                                )}
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                                {w.status === 'notified' && (
+                                    <button
+                                        onClick={() => handleWaitlistAccept(w)}
+                                        style={{
+                                            padding: '4px 10px',
+                                            fontSize: '0.8rem',
+                                            backgroundColor: '#22c55e',
+                                            color: '#fff',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            fontWeight: 'bold'
+                                        }}
+                                    >수락</button>
+                                )}
+                                <button
+                                    onClick={() => handleWaitlistCancel(w.id)}
+                                    style={{
+                                        padding: '4px 8px',
+                                        fontSize: '0.8rem',
+                                        backgroundColor: 'transparent',
+                                        color: '#b45309',
+                                        border: '1px solid #d97706',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer'
+                                    }}
+                                >취소</button>
+                            </div>
                         </div>
                     ))}
                 </div>

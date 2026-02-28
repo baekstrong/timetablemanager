@@ -186,6 +186,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `announcements` | 공지사항 (soft delete: `deleted: true`) |
 | `holidays` | 코치 커스텀 공휴일 |
 | `disabledClasses` | 비활성화된 수업 슬롯 (키: `"월-1"`) |
+| `waitlistRequests` | 시간표 대기 신청 — 영구 시간표 변경 (status: waiting/notified/accepted/cancelled) |
 | `newStudentRegistrations` | 신규 수강 신청 (pending/approved/rejected) |
 | `entranceClasses` | 입학반 정보 |
 | `registrationFAQ` | 신규 등록 FAQ |

@@ -1206,3 +1206,196 @@ export const deleteFAQ = async (id) => {
         throw error;
     }
 };
+
+// ============================================
+// WAITLIST FUNCTIONS (대기 신청)
+// ============================================
+
+/**
+ * 대기 신청 생성 (영구적 시간표 변경 요청)
+ * @param {string} studentName - 학생 이름
+ * @param {Object} currentSlot - 현재 수업 {day, period, periodName}
+ * @param {Object} desiredSlot - 옮기고 싶은 슬롯 {day, period, periodName}
+ * @returns {Promise<Object>} - {success: boolean, id: string}
+ */
+export const createWaitlistRequest = async (studentName, currentSlot, desiredSlot) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        // 중복 대기 신청 방지 (같은 목표 슬롯)
+        const existing = await getActiveWaitlistByDesiredSlot(studentName, desiredSlot.day, desiredSlot.period);
+        if (existing) {
+            throw new Error('이미 해당 시간에 대기 신청이 되어 있습니다.');
+        }
+
+        const docRef = await addDoc(collection(db, 'waitlistRequests'), {
+            studentName,
+            currentSlot: {
+                day: currentSlot.day,
+                period: currentSlot.period,
+                periodName: currentSlot.periodName
+            },
+            desiredSlot: {
+                day: desiredSlot.day,
+                period: desiredSlot.period,
+                periodName: desiredSlot.periodName
+            },
+            status: 'waiting', // waiting → notified → accepted → cancelled
+            notifiedAt: null,
+            respondedAt: null,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+
+        console.log('✅ 대기 신청 생성 완료:', docRef.id);
+        return { success: true, id: docRef.id };
+    } catch (error) {
+        console.error('❌ 대기 신청 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 특정 학생+목표 슬롯의 활성 대기 신청 조회
+ */
+const getActiveWaitlistByDesiredSlot = async (studentName, day, period) => {
+    if (!isFirebaseAvailable()) return null;
+
+    try {
+        const q = query(
+            collection(db, 'waitlistRequests'),
+            where('studentName', '==', studentName),
+            where('desiredSlot.day', '==', day),
+            where('desiredSlot.period', '==', period),
+            where('status', 'in', ['waiting', 'notified'])
+        );
+
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) return null;
+        return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+    } catch (error) {
+        console.error('❌ 대기 신청 조회 실패:', error);
+        return null;
+    }
+};
+
+/**
+ * 학생의 활성 대기 신청 목록 조회
+ * @param {string} studentName - 학생 이름
+ * @returns {Promise<Array>}
+ */
+export const getActiveWaitlistRequests = async (studentName) => {
+    if (!isFirebaseAvailable()) return [];
+
+    try {
+        const q = query(
+            collection(db, 'waitlistRequests'),
+            where('studentName', '==', studentName),
+            where('status', 'in', ['waiting', 'notified'])
+        );
+
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error('❌ 대기 신청 목록 조회 실패:', error);
+        return [];
+    }
+};
+
+/**
+ * 모든 활성 대기 신청 조회 (코치/자동 알림용)
+ * @returns {Promise<Array>}
+ */
+export const getAllActiveWaitlist = async () => {
+    if (!isFirebaseAvailable()) return [];
+
+    try {
+        const q = query(
+            collection(db, 'waitlistRequests'),
+            where('status', 'in', ['waiting', 'notified'])
+        );
+
+        const snapshot = await getDocs(q);
+        return snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .sort((a, b) => {
+                const aTime = a.createdAt?.toMillis?.() || 0;
+                const bTime = b.createdAt?.toMillis?.() || 0;
+                return aTime - bTime;
+            });
+    } catch (error) {
+        console.error('❌ 대기 목록 조회 실패:', error);
+        return [];
+    }
+};
+
+/**
+ * 대기 신청 취소
+ * @param {string} waitlistId - 대기 신청 ID
+ * @returns {Promise<void>}
+ */
+export const cancelWaitlistRequest = async (waitlistId) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        await updateDoc(doc(db, 'waitlistRequests', waitlistId), {
+            status: 'cancelled',
+            updatedAt: serverTimestamp()
+        });
+        console.log('✅ 대기 신청 취소 완료');
+    } catch (error) {
+        console.error('❌ 대기 신청 취소 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 대기 신청에 알림 발송 (자리가 남)
+ * @param {string} waitlistId - 대기 신청 ID
+ * @returns {Promise<void>}
+ */
+export const notifyWaitlistRequest = async (waitlistId) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        await updateDoc(doc(db, 'waitlistRequests', waitlistId), {
+            status: 'notified',
+            notifiedAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        console.log('✅ 대기 알림 발송 완료:', waitlistId);
+    } catch (error) {
+        console.error('❌ 대기 알림 발송 실패:', error);
+        throw error;
+    }
+};
+
+/**
+ * 대기 신청 수락 (수강생이 자리를 확정)
+ * @param {string} waitlistId - 대기 신청 ID
+ * @returns {Promise<void>}
+ */
+export const acceptWaitlistRequest = async (waitlistId) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        await updateDoc(doc(db, 'waitlistRequests', waitlistId), {
+            status: 'accepted',
+            respondedAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        console.log('✅ 대기 수락 완료:', waitlistId);
+    } catch (error) {
+        console.error('❌ 대기 수락 실패:', error);
+        throw error;
+    }
+};
+
