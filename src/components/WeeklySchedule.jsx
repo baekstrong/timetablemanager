@@ -315,13 +315,14 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
     // Pending new student registrations (for "신규 전용" mode)
     const [pendingRegistrations, setPendingRegistrations] = useState([]);
 
-    // 대기 신청 state
+    // 대기/이동 신청 state
     const [weekWaitlist, setWeekWaitlist] = useState([]);
     const [studentWaitlist, setStudentWaitlist] = useState([]);
     const [showWaitlistModal, setShowWaitlistModal] = useState(false);
     const [waitlistDesiredSlot, setWaitlistDesiredSlot] = useState(null);
     const [waitlistStudentName, setWaitlistStudentName] = useState(''); // 코치가 선택한 수강생
     const [waitlistStudentSearch, setWaitlistStudentSearch] = useState(''); // 검색어
+    const [isDirectTransfer, setIsDirectTransfer] = useState(false); // true: 즉시 이동, false: 대기 등록
 
     // Class disabled state (stored in Firebase)
     const [disabledClasses, setDisabledClasses] = useState([]);
@@ -1017,7 +1018,61 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         }
     };
 
-    // 대기 등록 핸들러 (코치가 신규 전용 모드에서 수강생 대기 등록)
+    // 즉시 시간표 이동 핸들러 (코치가 신규 전용 모드에서 여석 있는 셀로 수강생 이동)
+    const handleDirectTransfer = async (studentName, currentSlot) => {
+        if (!waitlistDesiredSlot) return;
+        const period = PERIODS.find(p => p.id === waitlistDesiredSlot.period);
+        if (!confirm(
+            `시간표를 이동하시겠습니까?\n\n` +
+            `${studentName}: ${currentSlot.day}요일 ${currentSlot.periodName} → ${waitlistDesiredSlot.day}요일 ${period?.name}\n\n` +
+            `※ 영구적으로 시간표가 변경됩니다.`
+        )) return;
+
+        try {
+            // 1. 수강생의 Google Sheets 데이터 찾기
+            const studentEntry = students.find(s => s['이름'] === studentName && s['요일 및 시간']);
+            if (!studentEntry) {
+                alert('수강생 정보를 찾을 수 없습니다.');
+                return;
+            }
+
+            const sheetName = studentEntry._foundSheetName;
+            const rowIndex = studentEntry._rowIndex;
+            const actualRow = rowIndex + 3;
+            const currentSchedule = studentEntry['요일 및 시간'];
+
+            // 2. 스케줄 문자열 변환
+            const parsed = parseScheduleString(currentSchedule);
+            const updated = parsed.map(s => {
+                if (s.day === currentSlot.day && s.period === currentSlot.period) {
+                    return { day: waitlistDesiredSlot.day, period: waitlistDesiredSlot.period };
+                }
+                return s;
+            });
+            const dayOrder = { '월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일': 6 };
+            updated.sort((a, b) => (dayOrder[a.day] || 0) - (dayOrder[b.day] || 0) || a.period - b.period);
+            const newSchedule = updated.map(s => `${s.day}${s.period}`).join('');
+
+            // 3. Google Sheets D열 업데이트
+            const range = `${sheetName}!D${actualRow}`;
+            await writeSheetData(range, [[newSchedule]]);
+
+            alert(`시간표 이동 완료!\n${studentName}: ${currentSchedule} → ${newSchedule}`);
+            setShowWaitlistModal(false);
+            setWaitlistDesiredSlot(null);
+            setWaitlistStudentName('');
+            setWaitlistStudentSearch('');
+            setIsDirectTransfer(false);
+
+            await refresh();
+            await loadWeeklyData();
+        } catch (error) {
+            alert(`시간표 이동 실패: ${error.message}`);
+            console.error('시간표 이동 실패:', error);
+        }
+    };
+
+    // 대기 등록 핸들러 (코치가 신규 전용 모드에서 만석 셀 대기 등록)
     const handleWaitlistSubmit = async (studentName, currentSlot) => {
         if (!waitlistDesiredSlot) return;
         const period = PERIODS.find(p => p.id === waitlistDesiredSlot.period);
@@ -1032,6 +1087,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             setWaitlistDesiredSlot(null);
             setWaitlistStudentName('');
             setWaitlistStudentSearch('');
+            setIsDirectTransfer(false);
             await loadWeeklyData();
         } catch (error) {
             alert(`대기 등록 실패: ${error.message}`);
@@ -1367,14 +1423,16 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         if (periodObj.type === 'free') return;
 
         if (mode === 'student') {
+            if (user?.role === 'coach') {
+                // 코치 신규 전용 모드: 시간표 이동/대기 모달
+                setWaitlistDesiredSlot({ day, period: periodObj.id });
+                setIsDirectTransfer(!cellData.isFull); // 여석 있으면 즉시 이동, 만석이면 대기
+                setShowWaitlistModal(true);
+                return;
+            }
+
             if (cellData.isFull) {
-                if (user?.role === 'coach') {
-                    // 코치 신규 전용 모드: 만석 셀 → 대기 등록 모달
-                    setWaitlistDesiredSlot({ day, period: periodObj.id });
-                    setShowWaitlistModal(true);
-                } else {
-                    alert('만석입니다.\n자리가 나면 코치에게 문의해주세요.');
-                }
+                alert('만석입니다.\n자리가 나면 코치에게 문의해주세요.');
                 return;
             } else {
                 // Calculate date for this slot
@@ -1382,7 +1440,6 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 if (dateStr) {
                     const [month, dayNum] = dateStr.split('/');
                     const year = new Date().getFullYear();
-                    // Use UTC to avoid timezone issues
                     const dateFormatted = `${year}-${month.padStart(2, '0')}-${dayNum.padStart(2, '0')}`;
 
                     handleAvailableSeatClick(day, periodObj.id, dateFormatted);
@@ -1959,11 +2016,18 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
             <div className="legend">
                 {mode === 'student' ? (
-                    <>
-                        <div className="legend-item"><span className="legend-color" style={{ background: '#ef4444' }}></span> 만석 (대기 가능)</div>
-                        <div className="legend-item"><span className="legend-color" style={{ background: 'white', border: '1px solid #ccc' }}></span> 신청 가능 (숫자: 여석)</div>
-                        <div className="legend-item"><span className="legend-color" style={{ background: '#f59e0b' }}></span> 자율 운동</div>
-                    </>
+                    user?.role === 'coach' ? (
+                        <>
+                            <div className="legend-item"><span className="legend-color" style={{ background: 'white', border: '1px solid #ccc' }}></span> 여석 있음 (클릭: 시간표 이동)</div>
+                            <div className="legend-item"><span className="legend-color" style={{ background: '#ef4444' }}></span> 만석 (클릭: 대기 등록)</div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="legend-item"><span className="legend-color" style={{ background: '#ef4444' }}></span> 만석 (대기 가능)</div>
+                            <div className="legend-item"><span className="legend-color" style={{ background: 'white', border: '1px solid #ccc' }}></span> 신청 가능 (숫자: 여석)</div>
+                            <div className="legend-item"><span className="legend-color" style={{ background: '#f59e0b' }}></span> 자율 운동</div>
+                        </>
+                    )
                 ) : (
                     <>
                         <div className="legend-item"><span className="student-tag" style={{ fontSize: '0.8rem' }}>김철수</span> 출석 예정</div>
@@ -2059,20 +2123,23 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 </div>
             )}
 
-            {/* Waitlist Modal - 코치가 수강생 대기 등록 (신규 전용 모드) */}
+            {/* 시간표 이동/대기 모달 - 코치 신규 전용 모드 */}
             {showWaitlistModal && user?.role === 'coach' && waitlistDesiredSlot && (
-                <div className="makeup-modal-overlay" onClick={() => { setShowWaitlistModal(false); setWaitlistDesiredSlot(null); setWaitlistStudentName(''); setWaitlistStudentSearch(''); }}>
+                <div className="makeup-modal-overlay" onClick={() => { setShowWaitlistModal(false); setWaitlistDesiredSlot(null); setWaitlistStudentName(''); setWaitlistStudentSearch(''); setIsDirectTransfer(false); }}>
                     <div className="makeup-modal" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '80vh', overflowY: 'auto' }}>
-                        <h2>대기 등록</h2>
+                        <h2>{isDirectTransfer ? '시간표 이동' : '대기 등록'}</h2>
                         <p className="makeup-modal-subtitle">
-                            목표: <strong>{waitlistDesiredSlot.day}요일 {PERIODS.find(p => p.id === waitlistDesiredSlot.period)?.name}</strong> (만석)
+                            목표: <strong>{waitlistDesiredSlot.day}요일 {PERIODS.find(p => p.id === waitlistDesiredSlot.period)?.name}</strong>
+                            {isDirectTransfer ? ' (여석 있음)' : ' (만석)'}
                         </p>
                         <p style={{ fontSize: '0.85rem', color: '#666', margin: '4px 0 12px' }}>
-                            자리가 나면 수강생에게 알림 → 수락 시 시간표 영구 변경
+                            {isDirectTransfer
+                                ? '수강생을 선택하면 시간표가 즉시 변경됩니다'
+                                : '자리가 나면 수강생에게 알림 → 수락 시 시간표 영구 변경'}
                         </p>
 
-                        {/* 기존 대기자 목록 */}
-                        {(() => {
+                        {/* 기존 대기자 목록 (대기 모드에서만) */}
+                        {!isDirectTransfer && (() => {
                             const existingWaiters = weekWaitlist.filter(w =>
                                 w.desiredSlot.day === waitlistDesiredSlot.day &&
                                 w.desiredSlot.period === waitlistDesiredSlot.period
@@ -2104,7 +2171,6 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                             {waitlistStudentSearch && !waitlistStudentName && (
                                 <div style={{ maxHeight: '120px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '6px', marginBottom: '8px' }}>
                                     {(() => {
-                                        // 현재 등록 중인 수강생 (스케줄 있는 사람만)
                                         const uniqueNames = [...new Set(students.filter(s => s['요일 및 시간']).map(s => s['이름']))];
                                         const filtered = uniqueNames.filter(name =>
                                             name && name.includes(waitlistStudentSearch)
@@ -2139,7 +2205,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                             return parsed.map((schedule, index) => {
                                                 const periodInfo = PERIODS.find(p => p.id === schedule.period);
                                                 const isSameSlot = schedule.day === waitlistDesiredSlot.day && schedule.period === waitlistDesiredSlot.period;
-                                                const alreadyWaiting = weekWaitlist.some(w =>
+                                                const alreadyWaiting = !isDirectTransfer && weekWaitlist.some(w =>
                                                     w.studentName === waitlistStudentName &&
                                                     w.desiredSlot.day === waitlistDesiredSlot.day &&
                                                     w.desiredSlot.period === waitlistDesiredSlot.period
@@ -2152,11 +2218,19 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                                         style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: '#f3f4f6' } : {}}
                                                         onClick={() => {
                                                             if (isDisabled) return;
-                                                            handleWaitlistSubmit(waitlistStudentName, {
-                                                                day: schedule.day,
-                                                                period: schedule.period,
-                                                                periodName: periodInfo?.name || ''
-                                                            });
+                                                            if (isDirectTransfer) {
+                                                                handleDirectTransfer(waitlistStudentName, {
+                                                                    day: schedule.day,
+                                                                    period: schedule.period,
+                                                                    periodName: periodInfo?.name || ''
+                                                                });
+                                                            } else {
+                                                                handleWaitlistSubmit(waitlistStudentName, {
+                                                                    day: schedule.day,
+                                                                    period: schedule.period,
+                                                                    periodName: periodInfo?.name || ''
+                                                                });
+                                                            }
                                                         }}
                                                     >
                                                         <span className="period-name">{schedule.day}요일 {periodInfo?.name}</span>
@@ -2172,7 +2246,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                         </div>
 
                         <div className="makeup-modal-actions">
-                            <button className="btn-cancel" onClick={() => { setShowWaitlistModal(false); setWaitlistDesiredSlot(null); setWaitlistStudentName(''); setWaitlistStudentSearch(''); }}>
+                            <button className="btn-cancel" onClick={() => { setShowWaitlistModal(false); setWaitlistDesiredSlot(null); setWaitlistStudentName(''); setWaitlistStudentSearch(''); setIsDirectTransfer(false); }}>
                                 닫기
                             </button>
                         </div>
