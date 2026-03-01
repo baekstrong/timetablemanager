@@ -189,6 +189,9 @@ export const sendCoachNewRegistrationSMS = async (studentName, details, studentP
   if (details.wantsConsultation) {
     text += `\n* 상담 요청`;
   }
+  if (details.question) {
+    text += `\n질문: ${details.question}`;
+  }
 
   try {
     await sendSMS(settings.coachPhone, text);

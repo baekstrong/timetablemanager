@@ -253,7 +253,8 @@ const NewStudentRegistration = () => {
                     scheduleString: getScheduleString(),
                     paymentMethod,
                     entranceClassDate: data.entranceClassDate,
-                    wantsConsultation
+                    wantsConsultation,
+                    question: question.trim()
                 });
                 if (!smsResults.studentSMS || !smsResults.coachSMS) {
                     const failed = [];
