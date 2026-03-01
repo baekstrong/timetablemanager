@@ -378,6 +378,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                 }
             }
         }
+        console.log('🔍 만석 체크 - slotsToCheck:', slotsToCheck, '| requestedSlots:', reg.requestedSlots, '| scheduleString:', reg.scheduleString);
 
         // 시간표 슬롯 만석 체크 (모달 열기 전에 먼저 확인)
         if (slotsToCheck && slotsToCheck.length > 0) {
@@ -396,6 +397,12 @@ const CoachNewStudents = ({ user, onBack }) => {
                         });
                     }
                 }
+                console.log('🔍 만석 체크 - slotCounts:', slotCounts);
+                slotsToCheck.forEach(s => {
+                    const key = `${s.day}-${s.period}`;
+                    console.log(`🔍 ${key}: ${slotCounts[key] || 0}/${MAX_CAPACITY}`);
+                });
+
                 const fullSlots = slotsToCheck.filter(s => {
                     const key = `${s.day}-${s.period}`;
                     return (slotCounts[key] || 0) >= MAX_CAPACITY;
@@ -410,7 +417,12 @@ const CoachNewStudents = ({ user, onBack }) => {
                 }
             } catch (err) {
                 console.error('슬롯 만석 체크 실패:', err);
+                alert('시간표 여석 확인에 실패했습니다. 다시 시도해주세요.');
+                return;
             }
+        } else {
+            alert('수강생의 시간표 정보를 찾을 수 없어 여석 확인이 불가합니다.');
+            return;
         }
 
         // 입학반 목록이 비어있으면 로드
