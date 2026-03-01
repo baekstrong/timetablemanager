@@ -209,18 +209,16 @@ export const sendStudentApprovalSMS = async (studentPhone, studentName, details)
 
   let text = `[근력학교] ${studentName}님, 신규 수강이 승인되었습니다.`;
 
-  // 준비물 안내 추가
-  const prepMessage = settings?.preparationMessage;
-  if (prepMessage) {
-    text += `\n\n${prepMessage}`;
-  }
-
-  // 네이버 결제인 경우 스마트스토어 링크 추가
+  // 네이버 결제인 경우 결제 안내 + 스마트스토어 링크 추가
   if (details.paymentMethod === 'naver' && settings?.naverStoreLinks) {
     const link = settings.naverStoreLinks[details.weeklyFrequency];
     if (link) {
+      text += `\n\n아래 네이버 스마트스토어 링크를 통해서 결제해주세요.`;
       text += `\n\n네이버 결제 링크(주${details.weeklyFrequency}회):\n${link}`;
     }
+  } else {
+    // 현장 결제인 경우 방문 안내
+    text += `\n\n입학반 날 방문하셔서 결제해주세요!`;
   }
 
   try {
@@ -246,16 +244,29 @@ export const sendStudentApprovalSMS = async (studentPhone, studentName, details)
  * - 입학반이 이미 지난 경우: 발송하지 않음
  */
 export const scheduleEntranceReminderSMS = async (studentPhone, studentName, details) => {
-  const settings = await getSmsSettings();
+  // 날짜/시간 포맷: "2026-02-28" → "2월 28일(토)", 시간은 entranceClassDate에서 추출
+  let dateTimeStr = details.entranceClassDate || '';
+  try {
+    const d = new Date(details.entranceDate + 'T00:00:00');
+    if (!isNaN(d.getTime())) {
+      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+      const month = d.getMonth() + 1;
+      const day = d.getDate();
+      const dayOfWeek = dayNames[d.getDay()];
+      // entranceClassDate에서 시간 부분 추출 (예: "10:00 ~ 13:00" → "10-1시")
+      const timeMatch = dateTimeStr.match(/(\d{1,2}):?\d{0,2}\s*~\s*(\d{1,2}):?\d{0,2}/);
+      let timeStr = '';
+      if (timeMatch) {
+        let startH = parseInt(timeMatch[1]);
+        let endH = parseInt(timeMatch[2]);
+        if (endH > 12) endH -= 12;
+        timeStr = ` ${startH}-${endH}시`;
+      }
+      dateTimeStr = `${month}월 ${day}일(${dayOfWeek})${timeStr}`;
+    }
+  } catch (e) { /* 파싱 실패 시 원본 사용 */ }
 
-  let text = `[근력학교] ${studentName}님, 입학반 수강 3일 전입니다.`;
-  text += `\n일시: ${details.entranceClassDate}`;
-
-  // 준비물 안내 추가
-  const prepMessage = settings?.preparationMessage;
-  if (prepMessage) {
-    text += `\n\n${prepMessage}`;
-  }
+  let text = `⭐️근력학교 입학반 안내⭐️\n\n안녕하세요 근력학교입니다!\n\n<${dateTimeStr}> 입학반 예정입니다.\n\n준비물은 물 드실 텀블러만 챙겨오시면 되구요.\n옷, 수건 제공해드리니 가져오시지 않아도 됩니다.\n참고로, 수업은 맨발로 진행되니, 신발도 필요없습니다!\n\n이날 늦지 않게 와주시면 감사하겠습니다!`;
 
   const now = new Date();
   const entranceDate = new Date(details.entranceDate + 'T00:00:00');

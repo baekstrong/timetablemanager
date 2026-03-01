@@ -79,7 +79,12 @@ const NewStudentRegistration = () => {
     const [selectedSlots, setSelectedSlots] = useState([]);
     const [disabledClasses, setDisabledClasses] = useState([]);
     const [pendingRegistrations, setPendingRegistrations] = useState([]);
-    const { students } = useGoogleSheets();
+    const { students, refresh } = useGoogleSheets();
+
+    // 마운트 시 Google Sheets 데이터 최신화 (코치 시간표와 동일한 데이터 보장)
+    useEffect(() => {
+        refresh();
+    }, []);
 
     // Step 4: 입학반
     const [entranceClasses, setEntranceClasses] = useState([]);
@@ -108,10 +113,19 @@ const NewStudentRegistration = () => {
             .catch(() => {});
     }, []);
 
-    // Load entrance classes when reaching step 4
+    // Load entrance classes when reaching step 4 (날짜가 지난 입학반 제외)
     useEffect(() => {
         if (step >= 3) {
-            getEntranceClasses(true).then(setEntranceClasses).catch(() => {});
+            getEntranceClasses(true).then(classes => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const activeClasses = classes.filter(ec => {
+                    if (!ec.date) return true;
+                    const ecDate = new Date(ec.date + 'T23:59:59');
+                    return ecDate >= today;
+                });
+                setEntranceClasses(activeClasses);
+            }).catch(() => {});
         }
     }, [step]);
 
@@ -570,6 +584,14 @@ const NewStudentRegistration = () => {
                                     <div className="reg-payment-icon">🏦</div>
                                     <div className="reg-payment-label">현장 계좌 이체</div>
                                     <div className="reg-payment-desc">방문하여 계좌 이체로 결제합니다</div>
+                                </div>
+                                <div
+                                    className={`reg-payment-card ${paymentMethod === 'zeropay' ? 'selected' : ''}`}
+                                    onClick={() => setPaymentMethod('zeropay')}
+                                >
+                                    <div className="reg-payment-icon">Z</div>
+                                    <div className="reg-payment-label">제로페이(서울페이)</div>
+                                    <div className="reg-payment-desc">제로페이로 결제합니다</div>
                                 </div>
                             </div>
                             <div className="reg-payment-total">

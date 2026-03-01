@@ -153,6 +153,24 @@ const CoachNewStudents = ({ user, onBack }) => {
                 getEntranceClasses(false),
                 getNewStudentRegistrations(null)
             ]);
+
+            // 날짜가 지난 입학반 자동 완료 처리 (isActive → false)
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const expiredClasses = data.filter(ec => {
+                if (!ec.isActive || !ec.date) return false;
+                const ecDate = new Date(ec.date + 'T23:59:59');
+                return ecDate < today;
+            });
+            if (expiredClasses.length > 0) {
+                await Promise.all(
+                    expiredClasses.map(ec => updateEntranceClass(ec.id, { isActive: false }))
+                );
+                // 로컬 데이터에도 반영
+                expiredClasses.forEach(ec => { ec.isActive = false; });
+                console.log(`✅ ${expiredClasses.length}개 입학반 자동 완료 처리`);
+            }
+
             setEntranceClassesList(data);
             setEntranceRegs(regs.filter(r => r.entranceClassId && r.status !== 'rejected'));
         } catch (err) {
@@ -198,6 +216,18 @@ const CoachNewStudents = ({ user, onBack }) => {
             }
             const nextSheetRow = lastDataRowIndex + 1 + 1;
 
+            // A열에서 가장 큰 번호 찾기 → 자동 부여
+            let maxNumber = 0;
+            for (let i = 2; i < rows.length; i++) {
+                if (rows[i] && rows[i][0]) {
+                    const num = parseInt(rows[i][0]);
+                    if (!isNaN(num) && num > maxNumber) {
+                        maxNumber = num;
+                    }
+                }
+            }
+            const newNumber = maxNumber + 1;
+
             // 입학반 다음주 기준 시작일/종료일 계산
             const { startDate: calcStartDate, endDate: calcEndDate } = calculateStartEndDates(
                 reg.entranceDate,
@@ -210,7 +240,7 @@ const CoachNewStudents = ({ user, onBack }) => {
             const paymentAmount = reg.totalCost ? String(Math.round(reg.totalCost / 10000)) : '';
 
             const rowData = [
-                '',                                     // A: 번호
+                newNumber,                                  // A: 번호 (자동 부여)
                 reg.name,                               // B: 이름
                 String(reg.weeklyFrequency),             // C: 주횟수
                 reg.scheduleString,                      // D: 요일 및 시간
@@ -221,7 +251,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                 paymentAmount,                           // I: 결제금액 (만원 단위)
                 '',                                      // J: 결제일
                 reg.paymentMethod === 'naver' ? 'O' : 'X', // K: 결제유무
-                reg.paymentMethod === 'naver' ? '네이버' : reg.paymentMethod === 'card' ? '카드' : '계좌', // L: 결제방식
+                reg.paymentMethod === 'naver' ? '네이버' : reg.paymentMethod === 'card' ? '카드' : reg.paymentMethod === 'zeropay' ? '제로페이' : '계좌', // L: 결제방식
                 'X',                                     // M: 홀딩
                 '',                                      // N: 홀딩 시작일
                 '',                                      // O: 홀딩 종료일
