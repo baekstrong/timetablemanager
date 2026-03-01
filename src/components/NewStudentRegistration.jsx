@@ -542,41 +542,29 @@ const NewStudentRegistration = () => {
                                 ))}
                             </div>
 
-                            {/* 대기 신청 안내: 빈 자리가 주횟수보다 부족할 때 */}
-                            {!isWaitlistMode && weeklyFrequency && availableSlotCount < weeklyFrequency && (
-                                <div style={{
-                                    marginTop: '1rem',
-                                    padding: '12px 14px',
-                                    background: '#fef3c7',
-                                    borderRadius: '8px',
-                                    fontSize: '0.85rem',
-                                    lineHeight: '1.5',
-                                    color: '#92400e'
-                                }}>
-                                    <p style={{ margin: '0 0 8px' }}>
-                                        현재 빈 자리가 부족하여 {weeklyFrequency}개 시간을 선택할 수 없습니다.
-                                    </p>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setIsWaitlistMode(true);
-                                            setSelectedSlots([]);
-                                        }}
-                                        style={{
-                                            background: '#f59e0b',
-                                            color: '#fff',
-                                            border: 'none',
-                                            borderRadius: '6px',
-                                            padding: '8px 16px',
-                                            fontSize: '0.85rem',
-                                            fontWeight: '600',
-                                            cursor: 'pointer',
-                                            width: '100%'
-                                        }}
-                                    >
-                                        대기 신청으로 진행하기
-                                    </button>
-                                </div>
+                            {/* 대기 신청 안내: 마감 셀이 하나라도 있으면 표시 */}
+                            {!isWaitlistMode && weeklyFrequency && fullSlotCount > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsWaitlistMode(true);
+                                        setSelectedSlots([]);
+                                    }}
+                                    style={{
+                                        marginTop: '1rem',
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#d97706',
+                                        fontSize: '0.8rem',
+                                        cursor: 'pointer',
+                                        textDecoration: 'underline',
+                                        padding: '4px 0',
+                                        width: '100%',
+                                        textAlign: 'center'
+                                    }}
+                                >
+                                    원하는 시간이 마감인가요? 대기 신청하기
+                                </button>
                             )}
 
                             {isWaitlistMode && (
