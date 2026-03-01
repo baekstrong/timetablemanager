@@ -154,7 +154,7 @@ export const sendStudentRegistrationSMS = async (studentPhone, studentName) => {
  * 코치에게 신규 접수 알림 문자 발송
  * "신규 수강 신청이 접수되었습니다"
  */
-export const sendCoachNewRegistrationSMS = async (studentName, details) => {
+export const sendCoachNewRegistrationSMS = async (studentName, details, studentPhone) => {
   const settings = await getSmsSettings();
   if (!settings) {
     console.error('SMS 설정을 가져올 수 없습니다. 서버 연결 상태를 확인해주세요.');
@@ -177,6 +177,9 @@ export const sendCoachNewRegistrationSMS = async (studentName, details) => {
 
   let text = `[근력학교] 신규 수강 신청이 접수되었습니다.`;
   text += `\n이름: ${studentName}`;
+  if (studentPhone) {
+    text += `\n연락처: ${studentPhone}`;
+  }
   text += `\n주횟수: 주${details.weeklyFrequency}회`;
   text += `\n시간표: ${details.scheduleString}`;
   text += `\n결제방식: ${paymentLabel}`;
@@ -325,7 +328,7 @@ export const sendRegistrationNotifications = async (studentPhone, studentName, d
   // 병렬로 수강생/코치 문자 발송
   const [studentResult, coachResult] = await Promise.allSettled([
     sendStudentRegistrationSMS(studentPhone, studentName),
-    sendCoachNewRegistrationSMS(studentName, details)
+    sendCoachNewRegistrationSMS(studentName, details, studentPhone)
   ]);
 
   results.studentSMS = studentResult.status === 'fulfilled' && studentResult.value;

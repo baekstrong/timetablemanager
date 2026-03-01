@@ -354,17 +354,48 @@ const CoachNewStudents = ({ user, onBack }) => {
     };
 
     const handleDeleteFromEntrance = async (reg, ec) => {
-        if (!confirm(`"${reg.name}" 수강생의 등록을 삭제하시겠습니까?`)) return;
+        const isApproved = reg.status === 'approved';
+        const msg = isApproved
+            ? `"${reg.name}" 수강생의 등록을 삭제하시겠습니까?\n\nFirestore + Google Sheets 모두에서 삭제됩니다.`
+            : `"${reg.name}" 수강생의 등록을 삭제하시겠습니까?`;
+        if (!confirm(msg)) return;
 
         try {
+            // 승인된 등록이었으면 Google Sheets에서도 해당 행 삭제
+            if (isApproved) {
+                try {
+                    const targetSheet = getCurrentSheetName();
+                    const rows = await readSheetData(`${targetSheet}!A:R`);
+                    // B열(이름)으로 해당 수강생 행 찾기
+                    let targetRow = -1;
+                    for (let i = rows.length - 1; i >= 2; i--) {
+                        if (rows[i] && rows[i][1] === reg.name) {
+                            targetRow = i + 1; // 배열 인덱스 → 시트 행번호
+                            break;
+                        }
+                    }
+                    if (targetRow > 0) {
+                        // 행 내용 클리어 (A~R열을 빈 값으로)
+                        const emptyRow = Array(18).fill('');
+                        await writeSheetData(`${targetSheet}!A${targetRow}:R${targetRow}`, [emptyRow]);
+                        console.log(`✅ Google Sheets ${targetSheet} ${targetRow}행 삭제 완료: ${reg.name}`);
+                    }
+                } catch (sheetErr) {
+                    console.warn('Google Sheets 삭제 실패:', sheetErr);
+                }
+            }
+
             await deleteNewStudentRegistration(reg.id);
             // 승인된 등록이었으면 입학반 인원 차감
-            if (reg.status === 'approved' && ec && (ec.currentCount || 0) > 0) {
+            if (isApproved && ec && (ec.currentCount || 0) > 0) {
                 await updateEntranceClass(ec.id, {
                     currentCount: (ec.currentCount || 0) - 1
                 });
             }
             await loadEntranceClasses();
+            if (isApproved) {
+                refreshSheets(); // Google Sheets 데이터 새로고침
+            }
         } catch (err) {
             alert('삭제 실패: ' + err.message);
         }

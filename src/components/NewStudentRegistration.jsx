@@ -574,7 +574,7 @@ const NewStudentRegistration = () => {
                                     onClick={() => setPaymentMethod('card')}
                                 >
                                     <div className="reg-payment-icon">💳</div>
-                                    <div className="reg-payment-label">현장 카드 결제</div>
+                                    <div className="reg-payment-label">현장<br/>카드 결제</div>
                                     <div className="reg-payment-desc">방문하여 카드로 결제합니다</div>
                                 </div>
                                 <div
@@ -582,15 +582,15 @@ const NewStudentRegistration = () => {
                                     onClick={() => setPaymentMethod('transfer')}
                                 >
                                     <div className="reg-payment-icon">🏦</div>
-                                    <div className="reg-payment-label">현장 계좌 이체</div>
-                                    <div className="reg-payment-desc">방문하여 계좌 이체로 결제합니다</div>
+                                    <div className="reg-payment-label">현장<br/>계좌 이체</div>
+                                    <div className="reg-payment-desc">방문하여 계좌이체로 결제합니다</div>
                                 </div>
                                 <div
                                     className={`reg-payment-card ${paymentMethod === 'zeropay' ? 'selected' : ''}`}
                                     onClick={() => setPaymentMethod('zeropay')}
                                 >
                                     <div className="reg-payment-icon">Z</div>
-                                    <div className="reg-payment-label">제로페이(서울페이)</div>
+                                    <div className="reg-payment-label">제로페이<br/>(서울페이)</div>
                                     <div className="reg-payment-desc">제로페이로 결제합니다</div>
                                 </div>
                             </div>
