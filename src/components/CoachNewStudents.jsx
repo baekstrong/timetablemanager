@@ -280,10 +280,61 @@ const CoachNewStudents = ({ user, onBack }) => {
     };
 
     const handleDelete = async (reg) => {
-        if (!confirm(`"${reg.name}" 수강생의 등록을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) return;
+        const isApproved = reg.status === 'approved';
+        const msg = isApproved
+            ? `"${reg.name}" 수강생의 등록을 삭제하시겠습니까?\n\nFirestore + Google Sheets 모두에서 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.`
+            : `"${reg.name}" 수강생의 등록을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`;
+        if (!confirm(msg)) return;
 
         try {
+            // 승인된 등록이면 Google Sheets 행 클리어 + 음영 초기화
+            if (isApproved) {
+                try {
+                    const targetSheet = getCurrentSheetName();
+                    const rows = await readSheetData(`${targetSheet}!A:R`);
+                    let targetRow = -1;
+                    for (let i = rows.length - 1; i >= 2; i--) {
+                        if (rows[i] && rows[i][1] === reg.name) {
+                            targetRow = i + 1;
+                            break;
+                        }
+                    }
+                    if (targetRow > 0) {
+                        const emptyRow = Array(18).fill('');
+                        await writeSheetData(`${targetSheet}!A${targetRow}:R${targetRow}`, [emptyRow]);
+                        try {
+                            const columns = 'ABCDEFGHIJKLMNOPQR'.split('');
+                            const cellRanges = columns.map(col => `${col}${targetRow}`);
+                            await formatCellsWithStyle(cellRanges, targetSheet, { red: 1.0, green: 1.0, blue: 1.0 }, 'LEFT');
+                        } catch (fmtErr) {
+                            console.warn('음영 초기화 실패:', fmtErr);
+                        }
+                    }
+                } catch (sheetErr) {
+                    console.warn('Google Sheets 삭제 실패:', sheetErr);
+                }
+            }
+
             await deleteNewStudentRegistration(reg.id);
+
+            // 승인된 등록이면 입학반 인원 차감
+            if (isApproved && reg.entranceClassId) {
+                try {
+                    const classes = await getEntranceClasses(false);
+                    const ec = classes.find(c => c.id === reg.entranceClassId);
+                    if (ec && (ec.currentCount || 0) > 0) {
+                        await updateEntranceClass(reg.entranceClassId, {
+                            currentCount: (ec.currentCount || 0) - 1
+                        });
+                    }
+                } catch (ecErr) {
+                    console.warn('입학반 인원 차감 실패:', ecErr);
+                }
+            }
+
+            if (isApproved) {
+                refreshSheets();
+            }
             await loadRegistrations();
         } catch (err) {
             alert('삭제 실패: ' + err.message);
