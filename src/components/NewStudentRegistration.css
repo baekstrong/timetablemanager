@@ -260,6 +260,16 @@
     cursor: not-allowed;
 }
 
+.reg-grid-cell.full-waitlist {
+    background: #fef3c7;
+    cursor: pointer;
+    border-color: #f59e0b;
+}
+
+.reg-grid-cell.full-waitlist .reg-cell-text {
+    color: #92400e;
+}
+
 .reg-grid-cell.selected {
     background: linear-gradient(135deg, #667eea, #764ba2);
     border-color: #667eea;

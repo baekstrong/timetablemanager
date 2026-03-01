@@ -889,9 +889,10 @@ export const toggleLockedSlot = async (key, date) => {
 /**
  * 신규 수강생 등록 생성
  * @param {Object} data - 등록 데이터
+ * @param {string} status - 등록 상태 ('pending' | 'waitlist', 기본값 'pending')
  * @returns {Promise<Object>} - {success: boolean, id: string}
  */
-export const createNewStudentRegistration = async (data) => {
+export const createNewStudentRegistration = async (data, status = 'pending') => {
     if (!isFirebaseAvailable()) {
         throw new Error('Firebase가 설정되지 않았습니다.');
     }
@@ -899,7 +900,8 @@ export const createNewStudentRegistration = async (data) => {
     try {
         const docRef = await addDoc(collection(db, 'newStudentRegistrations'), {
             ...data,
-            status: 'pending',
+            status,
+            isWaitlist: status === 'waitlist',
             coachSeen: false,
             questionSeen: false,
             createdAt: serverTimestamp(),
@@ -949,7 +951,7 @@ export const getNewStudentRegistrations = async (status = null) => {
 };
 
 /**
- * 대기 중인 등록 수 조회 (알림용)
+ * 대기 중인 등록 수 조회 (알림용, pending + waitlist 모두 포함)
  * @returns {Promise<number>}
  */
 export const getPendingRegistrationCount = async () => {
@@ -958,7 +960,7 @@ export const getPendingRegistrationCount = async () => {
     try {
         const q = query(
             collection(db, 'newStudentRegistrations'),
-            where('status', '==', 'pending')
+            where('status', 'in', ['pending', 'waitlist'])
         );
         const snapshot = await getDocs(q);
         return snapshot.size;

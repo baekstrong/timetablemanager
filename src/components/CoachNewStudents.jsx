@@ -20,89 +20,11 @@ import {
     writeSheetData,
     formatCellsWithStyle
 } from '../services/googleSheetsService';
-import { sendApprovalNotifications } from '../services/smsService';
+import { sendApprovalNotifications, sendWaitlistAvailableSMS } from '../services/smsService';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { PRICING } from '../data/mockData';
+import { formatEntranceDate, convertToYYMMDD, calculateStartEndDates } from '../utils/dateUtils';
+import { PRICING, PERIODS } from '../data/mockData';
 import './CoachNewStudents.css';
-
-// YYYY-MM-DD → "2026년 2월 21일(토)"
-const formatEntranceDate = (dateStr) => {
-    if (!dateStr) return '';
-    const date = new Date(dateStr + 'T00:00:00');
-    if (isNaN(date.getTime())) return dateStr;
-    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    const dayOfWeek = dayNames[date.getDay()];
-    return `${year}년 ${month}월 ${day}일(${dayOfWeek})`;
-};
-
-// YYYY-MM-DD → YYMMDD
-const convertToYYMMDD = (dateStr) => {
-    if (!dateStr) return '';
-    return dateStr.slice(2).replace(/-/g, '');
-};
-
-// 요일 이름 → JS getDay() 값 매핑 (월=1, 화=2, ..., 금=5)
-const dayNameToIndex = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
-
-/**
- * 입학반 다음주 기준 시작일/종료일 계산
- * @param {string} entranceDateStr - 입학반 날짜 (YYYY-MM-DD)
- * @param {Array} requestedSlots - [{day: '화', period: 2}, {day: '목', period: 2}]
- * @returns {{ startDate: string, endDate: string }} YYYY-MM-DD 형식
- */
-const calculateStartEndDates = (entranceDateStr, requestedSlots) => {
-    // 로컬 시간 기준 YYYY-MM-DD 포맷 (UTC 변환 방지)
-    const fmtLocal = (d) => {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${dd}`;
-    };
-
-    if (!entranceDateStr || !requestedSlots || requestedSlots.length === 0) {
-        const today = new Date();
-        const end = new Date(today);
-        end.setDate(end.getDate() + 30);
-        return { startDate: fmtLocal(today), endDate: fmtLocal(end) };
-    }
-
-    const entranceDate = new Date(entranceDateStr + 'T00:00:00');
-
-    // 입학반 다음주 월요일 찾기
-    const dayOfWeek = entranceDate.getDay(); // 0=일, 1=월, ..., 6=토
-    const daysUntilNextMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
-    const nextMonday = new Date(entranceDate);
-    nextMonday.setDate(entranceDate.getDate() + daysUntilNextMonday);
-
-    // 수강 요일 인덱스 정렬
-    const classDayIndices = requestedSlots
-        .map(s => dayNameToIndex[s.day])
-        .filter(Boolean)
-        .sort((a, b) => a - b);
-
-    if (classDayIndices.length === 0) {
-        const end = new Date(nextMonday);
-        end.setDate(end.getDate() + 27);
-        return { startDate: fmtLocal(nextMonday), endDate: fmtLocal(end) };
-    }
-
-    // 시작일: 다음주 첫 수업 요일
-    const firstClassDayOffset = classDayIndices[0] - 1; // 월=0 offset
-    const startDate = new Date(nextMonday);
-    startDate.setDate(nextMonday.getDate() + firstClassDayOffset);
-
-    // 종료일: 4주차 마지막 수업 요일
-    const lastClassDayOffset = classDayIndices[classDayIndices.length - 1] - 1;
-    const week4Monday = new Date(nextMonday);
-    week4Monday.setDate(nextMonday.getDate() + 21); // 3주 후 = 4주차 월요일
-    const endDate = new Date(week4Monday);
-    endDate.setDate(week4Monday.getDate() + lastClassDayOffset);
-
-    return { startDate: fmtLocal(startDate), endDate: fmtLocal(endDate) };
-};
 
 const CoachNewStudents = ({ user, onBack }) => {
     const { refresh: refreshSheets } = useGoogleSheets();
@@ -353,6 +275,41 @@ const CoachNewStudents = ({ user, onBack }) => {
         }
     };
 
+    const handleSendWaitlistSMS = async (reg) => {
+        if (!reg.phone) {
+            alert('연락처가 없어 문자를 보낼 수 없습니다.');
+            return;
+        }
+        if (!confirm(`"${reg.name}" 수강생에게 여석 안내 SMS를 발송하시겠습니까?`)) return;
+
+        try {
+            const result = await sendWaitlistAvailableSMS(
+                reg.phone,
+                reg.name,
+                reg.requestedSlots || [],
+                PERIODS
+            );
+            if (result) {
+                alert(`"${reg.name}" 수강생에게 여석 안내 SMS가 발송되었습니다.`);
+            } else {
+                alert('SMS 발송에 실패했습니다.');
+            }
+        } catch (err) {
+            alert('SMS 발송 실패: ' + err.message);
+        }
+    };
+
+    const handleWaitlistToPending = async (reg) => {
+        if (!confirm(`"${reg.name}" 수강생을 대기(만석)에서 대기중으로 변경하시겠습니까?`)) return;
+
+        try {
+            await updateNewStudentRegistration(reg.id, { status: 'pending', isWaitlist: false });
+            await loadRegistrations();
+        } catch (err) {
+            alert('상태 변경 실패: ' + err.message);
+        }
+    };
+
     const handleDeleteFromEntrance = async (reg, ec) => {
         const isApproved = reg.status === 'approved';
         const msg = isApproved
@@ -530,13 +487,13 @@ const CoachNewStudents = ({ user, onBack }) => {
                 {activeTab === 'registrations' && (
                     <div className="cns-section">
                         <div className="cns-filter-row">
-                            {['pending', 'approved', 'rejected'].map(f => (
+                            {['pending', 'waitlist', 'approved', 'rejected'].map(f => (
                                 <button
                                     key={f}
                                     className={`cns-filter-btn ${regFilter === f ? 'active' : ''}`}
                                     onClick={() => setRegFilter(f)}
                                 >
-                                    {f === 'pending' ? '대기중' : f === 'approved' ? '승인됨' : '거절됨'}
+                                    {f === 'pending' ? '대기중' : f === 'waitlist' ? '대기(만석)' : f === 'approved' ? '승인됨' : '거절됨'}
                                 </button>
                             ))}
                         </div>
@@ -545,124 +502,180 @@ const CoachNewStudents = ({ user, onBack }) => {
                             <div className="cns-loading">불러오는 중...</div>
                         ) : registrations.length === 0 ? (
                             <div className="cns-empty">
-                                {regFilter === 'pending' ? '대기 중인 등록이 없습니다.' : '해당 목록이 없습니다.'}
+                                {regFilter === 'pending' ? '대기 중인 등록이 없습니다.'
+                                    : regFilter === 'waitlist' ? '대기(만석) 신청이 없습니다.'
+                                    : '해당 목록이 없습니다.'}
                             </div>
-                        ) : (
-                            <div className="cns-reg-list">
-                                {registrations.map(reg => (
-                                    <div key={reg.id} className="cns-reg-card">
-                                        <div
-                                            className="cns-reg-card-header"
-                                            onClick={() => setCollapsedRegs(prev => {
-                                                const next = new Set(prev);
-                                                if (next.has(reg.id)) next.delete(reg.id);
-                                                else next.add(reg.id);
-                                                return next;
-                                            })}
-                                        >
-                                            <div className="cns-reg-main">
-                                                <span className="cns-reg-name">{reg.name}</span>
-                                                <span className="cns-reg-freq">
-                                                    {PRICING.find(p => p.frequency === reg.weeklyFrequency)?.label || `주${reg.weeklyFrequency}회`}
-                                                </span>
-                                                <span className="cns-reg-schedule">{formatScheduleDisplay(reg)}</span>
+                        ) : (() => {
+                            // 카드 렌더링 함수
+                            const renderRegCard = (reg) => (
+                                <div key={reg.id} className="cns-reg-card">
+                                    <div
+                                        className="cns-reg-card-header"
+                                        onClick={() => setCollapsedRegs(prev => {
+                                            const next = new Set(prev);
+                                            if (next.has(reg.id)) next.delete(reg.id);
+                                            else next.add(reg.id);
+                                            return next;
+                                        })}
+                                    >
+                                        <div className="cns-reg-main">
+                                            <span className="cns-reg-name">{reg.name}</span>
+                                            <span className="cns-reg-freq">
+                                                {PRICING.find(p => p.frequency === reg.weeklyFrequency)?.label || `주${reg.weeklyFrequency}회`}
+                                            </span>
+                                            <span className="cns-reg-schedule">{formatScheduleDisplay(reg)}</span>
+                                        </div>
+                                        <div className="cns-reg-badges">
+                                            {reg.wantsConsultation && <span className="cns-badge consult">상담</span>}
+                                            {reg.question && <span className="cns-badge question">질문</span>}
+                                            <span className="cns-expand-arrow">{collapsedRegs.has(reg.id) ? '▼' : '▲'}</span>
+                                        </div>
+                                    </div>
+
+                                    {!collapsedRegs.has(reg.id) && (
+                                        <div className="cns-reg-detail">
+                                            <div className="cns-detail-grid">
+                                                <div className="cns-detail-item">
+                                                    <span className="cns-detail-label">연락처</span>
+                                                    <span className="cns-detail-value">{reg.phone}</span>
+                                                </div>
+                                                <div className="cns-detail-item">
+                                                    <span className="cns-detail-label">결제방식</span>
+                                                    <span className="cns-detail-value">
+                                                        {reg.paymentMethod === 'naver' ? '네이버' : reg.paymentMethod === 'card' ? '현장 카드 결제' : reg.paymentMethod === 'zeropay' ? '제로페이' : '현장 계좌 이체'}
+                                                    </span>
+                                                </div>
+                                                <div className="cns-detail-item">
+                                                    <span className="cns-detail-label">총 비용</span>
+                                                    <span className="cns-detail-value">{reg.totalCost?.toLocaleString()}원</span>
+                                                </div>
+                                                <div className="cns-detail-item">
+                                                    <span className="cns-detail-label">입학반</span>
+                                                    <span className="cns-detail-value">{reg.entranceClassDate || '-'}</span>
+                                                </div>
+                                                {reg.gender && (
+                                                    <div className="cns-detail-item">
+                                                        <span className="cns-detail-label">성별</span>
+                                                        <span className="cns-detail-value">{reg.gender}</span>
+                                                    </div>
+                                                )}
+                                                {reg.occupation && (
+                                                    <div className="cns-detail-item">
+                                                        <span className="cns-detail-label">직업</span>
+                                                        <span className="cns-detail-value">{reg.occupation}</span>
+                                                    </div>
+                                                )}
+                                                {reg.healthIssues && (
+                                                    <div className="cns-detail-item full">
+                                                        <span className="cns-detail-label">불편한 곳</span>
+                                                        <span className="cns-detail-value">{reg.healthIssues}</span>
+                                                    </div>
+                                                )}
+                                                {reg.exerciseGoal && (
+                                                    <div className="cns-detail-item full">
+                                                        <span className="cns-detail-label">운동 목적</span>
+                                                        <span className="cns-detail-value">{reg.exerciseGoal}</span>
+                                                    </div>
+                                                )}
+                                                {reg.question && (
+                                                    <div className="cns-detail-item full">
+                                                        <span className="cns-detail-label">질문</span>
+                                                        <span className="cns-detail-value">{reg.question}</span>
+                                                    </div>
+                                                )}
+                                                <div className="cns-detail-item">
+                                                    <span className="cns-detail-label">등록일</span>
+                                                    <span className="cns-detail-value">{formatDate(reg.createdAt)}</span>
+                                                </div>
                                             </div>
-                                            <div className="cns-reg-badges">
-                                                {reg.wantsConsultation && <span className="cns-badge consult">상담</span>}
-                                                {reg.question && <span className="cns-badge question">질문</span>}
-                                                <span className="cns-expand-arrow">{collapsedRegs.has(reg.id) ? '▼' : '▲'}</span>
+
+                                            <div className="cns-action-row">
+                                                {regFilter === 'pending' && (
+                                                    <>
+                                                        <button
+                                                            className="cns-action-btn approve"
+                                                            onClick={() => handleApprove(reg)}
+                                                            disabled={approving === reg.id}
+                                                        >
+                                                            {approving === reg.id ? '처리 중...' : '승인'}
+                                                        </button>
+                                                        <button
+                                                            className="cns-action-btn reject"
+                                                            onClick={() => handleReject(reg)}
+                                                            disabled={approving === reg.id}
+                                                        >
+                                                            거절
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {regFilter === 'waitlist' && (
+                                                    <>
+                                                        <button
+                                                            className="cns-action-btn"
+                                                            style={{ background: '#f59e0b', color: '#fff' }}
+                                                            onClick={() => handleSendWaitlistSMS(reg)}
+                                                        >
+                                                            SMS 안내
+                                                        </button>
+                                                        <button
+                                                            className="cns-action-btn approve"
+                                                            onClick={() => handleWaitlistToPending(reg)}
+                                                        >
+                                                            대기중으로
+                                                        </button>
+                                                    </>
+                                                )}
+                                                <button
+                                                    className="cns-action-btn delete"
+                                                    onClick={() => handleDelete(reg)}
+                                                >
+                                                    삭제
+                                                </button>
                                             </div>
                                         </div>
+                                    )}
+                                </div>
+                            );
 
-                                        {!collapsedRegs.has(reg.id) && (
-                                            <div className="cns-reg-detail">
-                                                <div className="cns-detail-grid">
-                                                    <div className="cns-detail-item">
-                                                        <span className="cns-detail-label">연락처</span>
-                                                        <span className="cns-detail-value">{reg.phone}</span>
-                                                    </div>
-                                                    <div className="cns-detail-item">
-                                                        <span className="cns-detail-label">결제방식</span>
-                                                        <span className="cns-detail-value">
-                                                            {reg.paymentMethod === 'naver' ? '네이버' : reg.paymentMethod === 'card' ? '현장 카드 결제' : '현장 계좌 이체'}
-                                                        </span>
-                                                    </div>
-                                                    <div className="cns-detail-item">
-                                                        <span className="cns-detail-label">총 비용</span>
-                                                        <span className="cns-detail-value">{reg.totalCost?.toLocaleString()}원</span>
-                                                    </div>
-                                                    <div className="cns-detail-item">
-                                                        <span className="cns-detail-label">입학반</span>
-                                                        <span className="cns-detail-value">{reg.entranceClassDate || '-'}</span>
-                                                    </div>
-                                                    {reg.gender && (
-                                                        <div className="cns-detail-item">
-                                                            <span className="cns-detail-label">성별</span>
-                                                            <span className="cns-detail-value">{reg.gender}</span>
-                                                        </div>
-                                                    )}
-                                                    {reg.occupation && (
-                                                        <div className="cns-detail-item">
-                                                            <span className="cns-detail-label">직업</span>
-                                                            <span className="cns-detail-value">{reg.occupation}</span>
-                                                        </div>
-                                                    )}
-                                                    {reg.healthIssues && (
-                                                        <div className="cns-detail-item full">
-                                                            <span className="cns-detail-label">불편한 곳</span>
-                                                            <span className="cns-detail-value">{reg.healthIssues}</span>
-                                                        </div>
-                                                    )}
-                                                    {reg.exerciseGoal && (
-                                                        <div className="cns-detail-item full">
-                                                            <span className="cns-detail-label">운동 목적</span>
-                                                            <span className="cns-detail-value">{reg.exerciseGoal}</span>
-                                                        </div>
-                                                    )}
-                                                    {reg.question && (
-                                                        <div className="cns-detail-item full">
-                                                            <span className="cns-detail-label">질문</span>
-                                                            <span className="cns-detail-value">{reg.question}</span>
-                                                        </div>
-                                                    )}
-                                                    <div className="cns-detail-item">
-                                                        <span className="cns-detail-label">등록일</span>
-                                                        <span className="cns-detail-value">{formatDate(reg.createdAt)}</span>
-                                                    </div>
-                                                </div>
+                            // 승인됨 필터: 입학반별 그룹 표시
+                            if (regFilter === 'approved') {
+                                const groups = {};
+                                registrations.forEach(reg => {
+                                    const key = reg.entranceDate || 'none';
+                                    if (!groups[key]) groups[key] = [];
+                                    groups[key].push(reg);
+                                });
+                                const sortedKeys = Object.keys(groups).sort((a, b) => {
+                                    if (a === 'none') return 1;
+                                    if (b === 'none') return -1;
+                                    return b.localeCompare(a);
+                                });
 
-                                                <div className="cns-action-row">
-                                                    {regFilter === 'pending' && (
-                                                        <>
-                                                            <button
-                                                                className="cns-action-btn approve"
-                                                                onClick={() => handleApprove(reg)}
-                                                                disabled={approving === reg.id}
-                                                            >
-                                                                {approving === reg.id ? '처리 중...' : '승인'}
-                                                            </button>
-                                                            <button
-                                                                className="cns-action-btn reject"
-                                                                onClick={() => handleReject(reg)}
-                                                                disabled={approving === reg.id}
-                                                            >
-                                                                거절
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                    <button
-                                                        className="cns-action-btn delete"
-                                                        onClick={() => handleDelete(reg)}
-                                                    >
-                                                        삭제
-                                                    </button>
+                                return (
+                                    <div className="cns-reg-list">
+                                        {sortedKeys.map(key => (
+                                            <div key={key}>
+                                                <div className="cns-group-header">
+                                                    <span className="cns-group-title">
+                                                        {key === 'none' ? '입학반 미지정' : formatEntranceDate(key)}
+                                                    </span>
+                                                    <span className="cns-group-count">{groups[key].length}명</span>
                                                 </div>
+                                                {groups[key].map(renderRegCard)}
                                             </div>
-                                        )}
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                        )}
+                                );
+                            }
+
+                            // 기본 렌더링
+                            return (
+                                <div className="cns-reg-list">
+                                    {registrations.map(renderRegCard)}
+                                </div>
+                            );
+                        })()}
                     </div>
                 )}
 

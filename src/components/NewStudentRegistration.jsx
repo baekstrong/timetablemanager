@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getDisabledClasses, createNewStudentRegistration, getEntranceClasses, getFAQs, getNewStudentRegistrations } from '../services/firebaseService';
 import { sendRegistrationNotifications } from '../services/smsService';
+import { formatEntranceDate, calculateStartEndDates } from '../utils/dateUtils';
 import { PERIODS, DAYS, MAX_CAPACITY, PRICING, ENTRANCE_FEE } from '../data/mockData';
 import './NewStudentRegistration.css';
 
@@ -36,21 +37,6 @@ const parseScheduleString = (scheduleStr) => {
         }
     }
     return result;
-};
-
-/**
- * Format date string: "2026-02-21" → "2026년 2월 21일(토)"
- */
-const formatEntranceDate = (dateStr) => {
-    if (!dateStr) return '';
-    const date = new Date(dateStr + 'T00:00:00');
-    if (isNaN(date.getTime())) return dateStr;
-    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    const dayOfWeek = dayNames[date.getDay()];
-    return `${year}년 ${month}월 ${day}일(${dayOfWeek})`;
 };
 
 const STEP_NAMES = ['가입', '주 횟수', '시간표', '입학반', '결제', '상담', '확인'];
@@ -100,6 +86,9 @@ const NewStudentRegistration = () => {
     const [faqs, setFaqs] = useState([]);
     const [question, setQuestion] = useState('');
     const [expandedFaq, setExpandedFaq] = useState(null);
+
+    // 대기(만석) 모드
+    const [isWaitlistMode, setIsWaitlistMode] = useState(false);
 
     // Load disabled classes
     useEffect(() => {
@@ -176,6 +165,34 @@ const NewStudentRegistration = () => {
         return occupancy;
     }, [students, pendingRegistrations]);
 
+    // 만석인 셀 수 계산 (자율 교시 제외)
+    const fullSlotCount = useMemo(() => {
+        let count = 0;
+        PERIODS.filter(p => p.type !== 'free').forEach(period => {
+            DAYS.forEach(day => {
+                const key = `${day}-${period.id}`;
+                if (disabledClasses.includes(key)) return;
+                const occ = slotOccupancy[key] || 0;
+                if (occ >= MAX_CAPACITY) count++;
+            });
+        });
+        return count;
+    }, [slotOccupancy, disabledClasses]);
+
+    // 선택 가능한 빈 슬롯이 주횟수보다 적은지 체크
+    const availableSlotCount = useMemo(() => {
+        let count = 0;
+        PERIODS.filter(p => p.type !== 'free').forEach(period => {
+            DAYS.forEach(day => {
+                const key = `${day}-${period.id}`;
+                if (disabledClasses.includes(key)) return;
+                const occ = slotOccupancy[key] || 0;
+                if (occ < MAX_CAPACITY) count++;
+            });
+        });
+        return count;
+    }, [slotOccupancy, disabledClasses]);
+
     const handleSlotToggle = (day, period) => {
         const key = `${day}-${period}`;
         const exists = selectedSlots.find(s => s.day === day && s.period === period);
@@ -205,7 +222,7 @@ const NewStudentRegistration = () => {
         switch (step) {
             case 0: return name.trim() && password.trim() && phone1.trim() && phone2.trim() && phone3.trim();
             case 1: return weeklyFrequency !== null;
-            case 2: return selectedSlots.length === weeklyFrequency;
+            case 2: return selectedSlots.length === weeklyFrequency || isWaitlistMode;
             case 3: return selectedEntrance !== null;
             case 4: return paymentMethod !== '';
             case 5: return true;
@@ -243,7 +260,7 @@ const NewStudentRegistration = () => {
                 question: question.trim()
             };
 
-            await createNewStudentRegistration(data);
+            await createNewStudentRegistration(data, isWaitlistMode ? 'waitlist' : 'pending');
 
             // 안내 문자 발송 (수강생 SMS 1 + 코치 SMS 1)
             // 실패해도 등록에 영향을 주지 않음
@@ -284,8 +301,10 @@ const NewStudentRegistration = () => {
                 <div className="reg-wizard-inner">
                     <div className="reg-success">
                         <div className="reg-success-icon">✓</div>
-                        <h2>등록이 완료되었습니다!</h2>
-                        <p>코치의 승인 후 안내 문자가 발송될 예정입니다.</p>
+                        <h2>{isWaitlistMode ? '대기 신청이 완료되었습니다!' : '등록이 완료되었습니다!'}</h2>
+                        <p>{isWaitlistMode
+                            ? '선택하신 시간표에 여석이 생기면 코치가 연락드리겠습니다.'
+                            : '코치의 승인 후 안내 문자가 발송될 예정입니다.'}</p>
                         <p className="reg-success-info">
                             아이디: <strong>{name}</strong>
                         </p>
@@ -461,10 +480,16 @@ const NewStudentRegistration = () => {
                     {step === 2 && (
                         <div className="reg-step-content">
                             <p className="reg-description">
-                                원하는 시간을 {weeklyFrequency}개 선택하세요
-                                <span className="reg-slot-count">
-                                    ({selectedSlots.length}/{weeklyFrequency})
-                                </span>
+                                {isWaitlistMode ? (
+                                    <>원하는 시간을 선택하세요 (대기 신청)</>
+                                ) : (
+                                    <>
+                                        원하는 시간을 {weeklyFrequency}개 선택하세요
+                                        <span className="reg-slot-count">
+                                            ({selectedSlots.length}/{weeklyFrequency})
+                                        </span>
+                                    </>
+                                )}
                             </p>
                             <div className="reg-schedule-grid">
                                 <div className="reg-grid-header">
@@ -488,21 +513,25 @@ const NewStudentRegistration = () => {
                                             const isSelected = selectedSlots.some(
                                                 s => s.day === day && s.period === period.id
                                             );
-                                            const canSelect = !isDisabled && !isFull && (isSelected || selectedSlots.length < weeklyFrequency);
+                                            // 대기 모드에서는 만석 셀도 선택 가능
+                                            const canSelect = isWaitlistMode
+                                                ? !isDisabled && (isSelected || selectedSlots.length < weeklyFrequency)
+                                                : !isDisabled && !isFull && (isSelected || selectedSlots.length < weeklyFrequency);
 
                                             return (
                                                 <div
                                                     key={key}
-                                                    className={`reg-grid-cell ${isDisabled ? 'disabled' : ''} ${isFull ? 'full' : ''} ${isSelected ? 'selected' : ''} ${!canSelect && !isSelected ? 'locked' : ''}`}
+                                                    className={`reg-grid-cell ${isDisabled ? 'disabled' : ''} ${isFull && !isWaitlistMode ? 'full' : ''} ${isFull && isWaitlistMode ? 'full-waitlist' : ''} ${isSelected ? 'selected' : ''} ${!canSelect && !isSelected ? 'locked' : ''}`}
                                                     onClick={() => {
-                                                        if (isDisabled || isFull) return;
+                                                        if (isDisabled) return;
+                                                        if (isFull && !isWaitlistMode) return;
                                                         handleSlotToggle(day, period.id);
                                                     }}
                                                 >
                                                     {isDisabled ? (
                                                         <span className="reg-cell-text">-</span>
                                                     ) : isFull ? (
-                                                        <span className="reg-cell-text full-text">마감</span>
+                                                        <span className="reg-cell-text full-text">{isWaitlistMode && isSelected ? '선택' : '마감'}</span>
                                                     ) : (
                                                         <span className="reg-cell-text">{remaining}석</span>
                                                     )}
@@ -512,6 +541,80 @@ const NewStudentRegistration = () => {
                                     </div>
                                 ))}
                             </div>
+
+                            {/* 대기 신청 안내: 빈 자리가 주횟수보다 부족할 때 */}
+                            {!isWaitlistMode && weeklyFrequency && availableSlotCount < weeklyFrequency && (
+                                <div style={{
+                                    marginTop: '1rem',
+                                    padding: '12px 14px',
+                                    background: '#fef3c7',
+                                    borderRadius: '8px',
+                                    fontSize: '0.85rem',
+                                    lineHeight: '1.5',
+                                    color: '#92400e'
+                                }}>
+                                    <p style={{ margin: '0 0 8px' }}>
+                                        현재 빈 자리가 부족하여 {weeklyFrequency}개 시간을 선택할 수 없습니다.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsWaitlistMode(true);
+                                            setSelectedSlots([]);
+                                        }}
+                                        style={{
+                                            background: '#f59e0b',
+                                            color: '#fff',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            padding: '8px 16px',
+                                            fontSize: '0.85rem',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            width: '100%'
+                                        }}
+                                    >
+                                        대기 신청으로 진행하기
+                                    </button>
+                                </div>
+                            )}
+
+                            {isWaitlistMode && (
+                                <div style={{
+                                    marginTop: '1rem',
+                                    padding: '12px 14px',
+                                    background: '#fef3c7',
+                                    borderRadius: '8px',
+                                    fontSize: '0.85rem',
+                                    lineHeight: '1.5',
+                                    color: '#92400e'
+                                }}>
+                                    <p style={{ margin: '0 0 4px', fontWeight: '600' }}>대기 신청 모드</p>
+                                    <p style={{ margin: 0 }}>
+                                        원하는 시간을 {weeklyFrequency}개 선택해주세요. 마감된 시간도 선택할 수 있습니다.
+                                        여석이 생기면 코치가 연락드립니다.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsWaitlistMode(false);
+                                            setSelectedSlots([]);
+                                        }}
+                                        style={{
+                                            marginTop: '8px',
+                                            background: 'transparent',
+                                            color: '#92400e',
+                                            border: '1px solid #d97706',
+                                            borderRadius: '6px',
+                                            padding: '6px 12px',
+                                            fontSize: '0.8rem',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        일반 등록으로 돌아가기
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -671,9 +774,26 @@ const NewStudentRegistration = () => {
                                     <span>입학반</span>
                                     <span>{(() => { const ec = entranceClasses.find(c => c.id === selectedEntrance); return ec ? `${formatEntranceDate(ec.date)} ${ec.time}${ec.endTime ? ' ~ ' + ec.endTime : ''}` : ''; })()}</span>
                                 </div>
+                                {!isWaitlistMode && (() => {
+                                    const ec = entranceClasses.find(c => c.id === selectedEntrance);
+                                    if (!ec) return null;
+                                    const { startDate, endDate } = calculateStartEndDates(ec.date, selectedSlots);
+                                    return (
+                                        <>
+                                            <div className="reg-summary-row">
+                                                <span>예상 시작일</span>
+                                                <span>{formatEntranceDate(startDate)}</span>
+                                            </div>
+                                            <div className="reg-summary-row">
+                                                <span>예상 종료일</span>
+                                                <span>{formatEntranceDate(endDate)}</span>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                                 <div className="reg-summary-row">
                                     <span>결제 방식</span>
-                                    <span>{paymentMethod === 'naver' ? '네이버' : paymentMethod === 'card' ? '현장 카드 결제' : '현장 계좌 이체'}</span>
+                                    <span>{paymentMethod === 'naver' ? '네이버' : paymentMethod === 'card' ? '현장 카드 결제' : paymentMethod === 'zeropay' ? '제로페이' : '현장 계좌 이체'}</span>
                                 </div>
                                 <div className="reg-summary-row total">
                                     <span>총 비용</span><span>{totalCost.toLocaleString()}원</span>
@@ -683,7 +803,23 @@ const NewStudentRegistration = () => {
                                         <span>상담</span><span>요청함</span>
                                     </div>
                                 )}
+                                {isWaitlistMode && (
+                                    <div className="reg-summary-row" style={{ background: '#fef3c7' }}>
+                                        <span style={{ color: '#92400e', fontWeight: 600 }}>대기 신청</span>
+                                        <span style={{ color: '#92400e' }}>여석 발생 시 연락</span>
+                                    </div>
+                                )}
                             </div>
+                            {!isWaitlistMode && (() => {
+                                const ec = entranceClasses.find(c => c.id === selectedEntrance);
+                                if (!ec) return null;
+                                return (
+                                    <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem', lineHeight: 1.5 }}>
+                                        * 정규 수업 시작은 입학반 수업 후 바로 다음주부터 시작됩니다.<br/>
+                                        * 위 시작일/종료일은 예상 날짜입니다. 변경이 필요하면 입학반 날 코치와 상담해주세요.
+                                    </p>
+                                );
+                            })()}
 
                             {/* FAQ */}
                             {faqs.length > 0 && (
@@ -745,7 +881,7 @@ const NewStudentRegistration = () => {
                             disabled={submitting}
                             onClick={handleSubmit}
                         >
-                            {submitting ? '등록 중...' : '등록하기'}
+                            {submitting ? '등록 중...' : isWaitlistMode ? '대기 신청하기' : '등록하기'}
                         </button>
                     )}
                 </div>

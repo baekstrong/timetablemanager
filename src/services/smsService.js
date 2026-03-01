@@ -360,6 +360,39 @@ export const sendRegistrationNotifications = async (studentPhone, studentName, d
 };
 
 // ============================================
+// 대기(만석) 수강생에게 여석 안내 SMS
+// ============================================
+/**
+ * 대기 수강생에게 여석 발생 안내 SMS 발송
+ * @param {string} studentPhone - 수강생 연락처
+ * @param {string} studentName - 수강생 이름
+ * @param {Array} requestedSlots - [{day: '화', period: 2}, ...]
+ * @param {Array} PERIODS - 교시 정보 배열
+ * @returns {Promise<boolean>}
+ */
+export const sendWaitlistAvailableSMS = async (studentPhone, studentName, requestedSlots, PERIODS) => {
+  const slotLines = requestedSlots
+    .map(s => {
+      const periodInfo = PERIODS.find(p => p.id === s.period);
+      const periodName = periodInfo ? periodInfo.name : `${s.period}교시`;
+      const periodTime = periodInfo ? periodInfo.time : '';
+      return `${s.day}요일 ${periodName}(${periodTime})`;
+    })
+    .join('\n');
+
+  const text = `안녕하세요! 근력학교입니다.\n\n요청하신 시간표에 여석이 발생해서 연락드립니다\n${slotLines}\n\n이 시간에 들어가실 수 있으신가요?\n\n답변 주시면 감사하겠습니다!`;
+
+  try {
+    await sendSMS(studentPhone, text);
+    console.log('대기 여석 안내 SMS 발송 완료:', studentName);
+    return true;
+  } catch (error) {
+    console.error('대기 여석 안내 SMS 발송 실패:', studentName, '-', error.message);
+    return false;
+  }
+};
+
+// ============================================
 // 승인 시 일괄 발송 (수강생 SMS 2 + 수강생 SMS 3 예약)
 // ============================================
 /**
