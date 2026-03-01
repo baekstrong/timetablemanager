@@ -368,8 +368,19 @@ const CoachNewStudents = ({ user, onBack }) => {
     };
 
     const handleWaitlistApproveOpen = async (reg) => {
+        // requestedSlots가 없으면 scheduleString에서 파싱
+        let slotsToCheck = reg.requestedSlots;
+        if (!slotsToCheck || slotsToCheck.length === 0) {
+            if (reg.scheduleString) {
+                const parsed = reg.scheduleString.match(/([월화수목금])(\d)/g);
+                if (parsed) {
+                    slotsToCheck = parsed.map(m => ({ day: m[0], period: parseInt(m[1]) }));
+                }
+            }
+        }
+
         // 시간표 슬롯 만석 체크 (모달 열기 전에 먼저 확인)
-        if (reg.requestedSlots && reg.requestedSlots.length > 0) {
+        if (slotsToCheck && slotsToCheck.length > 0) {
             try {
                 const targetSheet = getCurrentSheetName();
                 const rows = await readSheetData(`${targetSheet}!A:R`);
@@ -385,7 +396,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                         });
                     }
                 }
-                const fullSlots = reg.requestedSlots.filter(s => {
+                const fullSlots = slotsToCheck.filter(s => {
                     const key = `${s.day}-${s.period}`;
                     return (slotCounts[key] || 0) >= MAX_CAPACITY;
                 });
