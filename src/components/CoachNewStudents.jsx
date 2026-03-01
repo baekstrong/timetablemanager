@@ -23,7 +23,7 @@ import {
 import { sendApprovalNotifications, sendWaitlistAvailableSMS } from '../services/smsService';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { formatEntranceDate, convertToYYMMDD, calculateStartEndDates } from '../utils/dateUtils';
-import { PRICING, PERIODS } from '../data/mockData';
+import { PRICING, PERIODS, MAX_CAPACITY } from '../data/mockData';
 import './CoachNewStudents.css';
 
 const CoachNewStudents = ({ user, onBack }) => {
@@ -146,6 +146,36 @@ const CoachNewStudents = ({ user, onBack }) => {
             // 2. Google Sheets 행 추가
             const targetSheet = getCurrentSheetName();
             const rows = await readSheetData(`${targetSheet}!A:R`);
+
+            // 시간표 슬롯 만석 체크
+            if (reg.requestedSlots && reg.requestedSlots.length > 0) {
+                const slotCounts = {};
+                for (let i = 2; i < rows.length; i++) {
+                    const schedule = rows[i] && rows[i][3]; // D열: 요일 및 시간
+                    if (!schedule) continue;
+                    const matches = schedule.match(/([월화수목금])(\d)/g);
+                    if (matches) {
+                        matches.forEach(m => {
+                            const key = `${m[0]}-${m[1]}`;
+                            slotCounts[key] = (slotCounts[key] || 0) + 1;
+                        });
+                    }
+                }
+                const fullSlots = reg.requestedSlots.filter(s => {
+                    const key = `${s.day}-${s.period}`;
+                    return (slotCounts[key] || 0) >= MAX_CAPACITY;
+                });
+                if (fullSlots.length > 0) {
+                    const fullNames = fullSlots.map(s => {
+                        const p = PERIODS.find(p => p.id === s.period);
+                        return `${s.day}요일 ${p ? p.name : s.period + '교시'}`;
+                    }).join(', ');
+                    alert(`만석입니다: ${fullNames}\n\n해당 시간에 빈 자리가 없어 승인할 수 없습니다.`);
+                    setApproving(null);
+                    return;
+                }
+            }
+
             let lastDataRowIndex = 1;
             for (let i = rows.length - 1; i >= 2; i--) {
                 if (rows[i] && rows[i][1]) {
@@ -391,6 +421,12 @@ const CoachNewStudents = ({ user, onBack }) => {
         const selectedEC = entranceClasses.find(ec => ec.id === waitlistEntranceId);
         if (!selectedEC) {
             alert('선택한 입학반을 찾을 수 없습니다.');
+            return;
+        }
+
+        // 만석 체크
+        if ((selectedEC.currentCount || 0) >= (selectedEC.maxCapacity || 0)) {
+            alert('선택한 입학반이 만석입니다. 다른 입학반을 선택해주세요.');
             return;
         }
 
