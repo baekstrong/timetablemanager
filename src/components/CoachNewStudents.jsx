@@ -36,6 +36,7 @@ const CoachNewStudents = ({ user, onBack }) => {
     const [regFilter, setRegFilter] = useState('pending');
     const [collapsedRegs, setCollapsedRegs] = useState(new Set());
     const [approving, setApproving] = useState(null);
+    const [regCounts, setRegCounts] = useState({});
 
     // === 입학반 관리 ===
     const [entranceClasses, setEntranceClassesList] = useState([]);
@@ -57,6 +58,19 @@ const CoachNewStudents = ({ user, onBack }) => {
     }, [activeTab, regFilter]);
 
     // ─── Data loading ─────────────────────
+    const loadRegCounts = async () => {
+        try {
+            const all = await getNewStudentRegistrations(null);
+            const counts = {};
+            all.forEach(r => {
+                counts[r.status] = (counts[r.status] || 0) + 1;
+            });
+            setRegCounts(counts);
+        } catch (err) {
+            console.error('등록 건수 조회 실패:', err);
+        }
+    };
+
     const loadRegistrations = async () => {
         setLoading(true);
         try {
@@ -66,6 +80,7 @@ const CoachNewStudents = ({ user, onBack }) => {
             console.error('등록 목록 조회 실패:', err);
         }
         setLoading(false);
+        loadRegCounts();
     };
 
     const loadEntranceClasses = async () => {
@@ -494,6 +509,9 @@ const CoachNewStudents = ({ user, onBack }) => {
                                     onClick={() => setRegFilter(f)}
                                 >
                                     {f === 'pending' ? '대기중' : f === 'waitlist' ? '대기(만석)' : f === 'approved' ? '승인됨' : '거절됨'}
+                                    {(regCounts[f] || 0) > 0 && f !== 'rejected' && (
+                                        <span className="cns-filter-dot" />
+                                    )}
                                 </button>
                             ))}
                         </div>
