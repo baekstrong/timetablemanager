@@ -37,6 +37,8 @@ const CoachNewStudents = ({ user, onBack }) => {
     const [collapsedRegs, setCollapsedRegs] = useState(new Set());
     const [approving, setApproving] = useState(null);
     const [regCounts, setRegCounts] = useState({});
+    const [waitlistApproveReg, setWaitlistApproveReg] = useState(null);
+    const [waitlistEntranceId, setWaitlistEntranceId] = useState('');
 
     // === 입학반 관리 ===
     const [entranceClasses, setEntranceClassesList] = useState([]);
@@ -365,14 +367,55 @@ const CoachNewStudents = ({ user, onBack }) => {
         }
     };
 
-    const handleWaitlistToPending = async (reg) => {
-        if (!confirm(`"${reg.name}" 수강생을 대기(만석)에서 대기중으로 변경하시겠습니까?`)) return;
+    const handleWaitlistApproveOpen = async (reg) => {
+        // 입학반 목록이 비어있으면 로드
+        if (entranceClasses.length === 0) {
+            try {
+                const data = await getEntranceClasses(false);
+                setEntranceClassesList(data);
+            } catch (err) {
+                console.error('입학반 조회 실패:', err);
+            }
+        }
+        setWaitlistEntranceId(reg.entranceClassId || '');
+        setWaitlistApproveReg(reg);
+    };
 
+    const handleWaitlistApproveConfirm = async () => {
+        if (!waitlistApproveReg) return;
+        if (!waitlistEntranceId) {
+            alert('입학반을 선택해주세요.');
+            return;
+        }
+
+        const selectedEC = entranceClasses.find(ec => ec.id === waitlistEntranceId);
+        if (!selectedEC) {
+            alert('선택한 입학반을 찾을 수 없습니다.');
+            return;
+        }
+
+        // 입학반 정보 업데이트 후 승인 진행
         try {
-            await updateNewStudentRegistration(reg.id, { status: 'pending', isWaitlist: false });
-            await loadRegistrations();
+            await updateNewStudentRegistration(waitlistApproveReg.id, {
+                entranceClassId: selectedEC.id,
+                entranceDate: selectedEC.date,
+                entranceClassDate: selectedEC.date,
+                isWaitlist: false
+            });
+
+            // 로컬 reg 객체도 업데이트하여 handleApprove에 전달
+            const updatedReg = {
+                ...waitlistApproveReg,
+                entranceClassId: selectedEC.id,
+                entranceDate: selectedEC.date,
+                entranceClassDate: selectedEC.date,
+                isWaitlist: false
+            };
+
+            setWaitlistApproveReg(null);
+            await handleApprove(updatedReg);
         } catch (err) {
-            alert('상태 변경 실패: ' + err.message);
+            alert('승인 실패: ' + err.message);
         }
     };
 
@@ -689,9 +732,10 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                         </button>
                                                         <button
                                                             className="cns-action-btn approve"
-                                                            onClick={() => handleWaitlistToPending(reg)}
+                                                            onClick={() => handleWaitlistApproveOpen(reg)}
+                                                            disabled={approving === reg.id}
                                                         >
-                                                            대기중으로
+                                                            {approving === reg.id ? '처리 중...' : '수강 승인'}
                                                         </button>
                                                     </>
                                                 )}
@@ -1042,6 +1086,37 @@ const CoachNewStudents = ({ user, onBack }) => {
                     </div>
                 )}
             </div>
+
+            {/* === 대기(만석) 수강 승인 모달 === */}
+            {waitlistApproveReg && (
+                <div className="cns-modal-overlay" onClick={() => setWaitlistApproveReg(null)}>
+                    <div className="cns-modal" onClick={(e) => e.stopPropagation()}>
+                        <h3>수강 승인 - 입학반 선택</h3>
+                        <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '12px' }}>
+                            "{waitlistApproveReg.name}" 수강생의 입학반 날짜를 선택해주세요.
+                        </p>
+                        <div className="cns-form-field">
+                            <label>입학반</label>
+                            <select
+                                value={waitlistEntranceId}
+                                onChange={(e) => setWaitlistEntranceId(e.target.value)}
+                                className="cns-form-input"
+                            >
+                                <option value="">입학반을 선택하세요</option>
+                                {entranceClasses.filter(ec => ec.isActive).map(ec => (
+                                    <option key={ec.id} value={ec.id}>
+                                        {formatEntranceDate(ec.date)} {ec.time}{ec.endTime ? ` ~ ${ec.endTime}` : ''} ({ec.currentCount || 0}/{ec.maxCapacity}명)
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="cns-modal-actions">
+                            <button className="cns-modal-btn cancel" onClick={() => setWaitlistApproveReg(null)}>취소</button>
+                            <button className="cns-modal-btn save" onClick={handleWaitlistApproveConfirm}>승인</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
