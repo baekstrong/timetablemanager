@@ -378,6 +378,14 @@ const CoachNewStudents = ({ user, onBack }) => {
                         // 행 내용 클리어 (A~R열을 빈 값으로)
                         const emptyRow = Array(18).fill('');
                         await writeSheetData(`${targetSheet}!A${targetRow}:R${targetRow}`, [emptyRow]);
+                        // 음영(배경색)도 흰색으로 초기화
+                        try {
+                            const columns = 'ABCDEFGHIJKLMNOPQR'.split('');
+                            const cellRanges = columns.map(col => `${col}${targetRow}`);
+                            await formatCellsWithStyle(cellRanges, targetSheet, { red: 1.0, green: 1.0, blue: 1.0 }, 'LEFT');
+                        } catch (fmtErr) {
+                            console.warn('음영 초기화 실패:', fmtErr);
+                        }
                         console.log(`✅ Google Sheets ${targetSheet} ${targetRow}행 삭제 완료: ${reg.name}`);
                     }
                 } catch (sheetErr) {
