@@ -1061,7 +1061,7 @@ export const getEntranceClasses = async (activeOnly = true) => {
         const snapshot = await getDocs(q);
         const classes = snapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() }))
-            .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+            .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
         return classes;
     } catch (error) {
