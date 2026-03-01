@@ -275,7 +275,8 @@ const NewStudentRegistration = () => {
                     healthIssues: healthIssues.trim(),
                     exerciseGoal: exerciseGoal.trim(),
                     wantsConsultation,
-                    question: question.trim()
+                    question: question.trim(),
+                    isWaitlist: isWaitlistMode
                 });
                 if (!smsResults.studentSMS || !smsResults.coachSMS) {
                     const failed = [];

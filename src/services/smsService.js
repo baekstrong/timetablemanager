@@ -134,8 +134,10 @@ const formatScheduleDate = (date) => {
  * 수강생에게 접수 확인 문자 발송
  * "신규 수강 신청 내역이 코치에게 전달되었습니다. 수강이 승인되면 연락 드리겠습니다"
  */
-export const sendStudentRegistrationSMS = async (studentPhone, studentName) => {
-  const text = `[근력학교] ${studentName}님, 신규 수강 신청 내역이 코치에게 전달되었습니다. 수강이 승인되면 연락 드리겠습니다.`;
+export const sendStudentRegistrationSMS = async (studentPhone, studentName, isWaitlist = false) => {
+  const text = isWaitlist
+    ? `[근력학교] ${studentName}님, 신규 수강 대기 신청 내역이 코치에게 전달되었습니다. 신청한 시간에 여석이 발생하면 연락드리겠습니다.`
+    : `[근력학교] ${studentName}님, 신규 수강 신청 내역이 코치에게 전달되었습니다. 수강이 승인되면 연락 드리겠습니다.`;
 
   try {
     await sendSMS(studentPhone, text);
@@ -154,7 +156,7 @@ export const sendStudentRegistrationSMS = async (studentPhone, studentName) => {
  * 코치에게 신규 접수 알림 문자 발송
  * "신규 수강 신청이 접수되었습니다"
  */
-export const sendCoachNewRegistrationSMS = async (studentName, details, studentPhone) => {
+export const sendCoachNewRegistrationSMS = async (studentName, details, studentPhone, isWaitlist = false) => {
   const settings = await getSmsSettings();
   if (!settings) {
     console.error('SMS 설정을 가져올 수 없습니다. 서버 연결 상태를 확인해주세요.');
@@ -175,7 +177,9 @@ export const sendCoachNewRegistrationSMS = async (studentName, details, studentP
       ? '현장 카드 결제'
       : '현장 계좌 이체';
 
-  let text = `[근력학교] 신규 수강 신청이 접수되었습니다.`;
+  let text = isWaitlist
+    ? `[근력학교] 신규 수강 대기 신청이 접수되었습니다.`
+    : `[근력학교] 신규 수강 신청이 접수되었습니다.`;
   text += `\n이름: ${studentName}`;
   if (studentPhone) {
     text += `\n연락처: ${studentPhone}`;
@@ -341,9 +345,10 @@ export const sendRegistrationNotifications = async (studentPhone, studentName, d
   };
 
   // 병렬로 수강생/코치 문자 발송
+  const isWaitlist = details.isWaitlist || false;
   const [studentResult, coachResult] = await Promise.allSettled([
-    sendStudentRegistrationSMS(studentPhone, studentName),
-    sendCoachNewRegistrationSMS(studentName, details, studentPhone)
+    sendStudentRegistrationSMS(studentPhone, studentName, isWaitlist),
+    sendCoachNewRegistrationSMS(studentName, details, studentPhone, isWaitlist)
   ]);
 
   results.studentSMS = studentResult.status === 'fulfilled' && studentResult.value;
