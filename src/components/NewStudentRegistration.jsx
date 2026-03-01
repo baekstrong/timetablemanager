@@ -253,6 +253,10 @@ const NewStudentRegistration = () => {
                     scheduleString: getScheduleString(),
                     paymentMethod,
                     entranceClassDate: data.entranceClassDate,
+                    gender,
+                    occupation: occupation.trim(),
+                    healthIssues: healthIssues.trim(),
+                    exerciseGoal: exerciseGoal.trim(),
                     wantsConsultation,
                     question: question.trim()
                 });

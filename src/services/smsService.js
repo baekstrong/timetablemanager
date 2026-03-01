@@ -180,11 +180,23 @@ export const sendCoachNewRegistrationSMS = async (studentName, details, studentP
   if (studentPhone) {
     text += `\n연락처: ${studentPhone}`;
   }
+  if (details.gender) {
+    text += `\n성별: ${details.gender}`;
+  }
+  if (details.occupation) {
+    text += `\n직업: ${details.occupation}`;
+  }
   text += `\n주횟수: 주${details.weeklyFrequency}회`;
   text += `\n시간표: ${details.scheduleString}`;
   text += `\n결제방식: ${paymentLabel}`;
   if (details.entranceClassDate) {
     text += `\n입학반: ${details.entranceClassDate}`;
+  }
+  if (details.healthIssues) {
+    text += `\n불편한 곳: ${details.healthIssues}`;
+  }
+  if (details.exerciseGoal) {
+    text += `\n운동 목적: ${details.exerciseGoal}`;
   }
   if (details.wantsConsultation) {
     text += `\n* 상담 요청`;
