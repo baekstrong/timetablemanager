@@ -27,7 +27,7 @@ import { PRICING, PERIODS, MAX_CAPACITY } from '../data/mockData';
 import './CoachNewStudents.css';
 
 const CoachNewStudents = ({ user, onBack }) => {
-    const { refresh: refreshSheets } = useGoogleSheets();
+    const { refresh: refreshSheets, students: allStudents } = useGoogleSheets();
     const [activeTab, setActiveTab] = useState('registrations');
     const [loading, setLoading] = useState(false);
 
@@ -380,44 +380,36 @@ const CoachNewStudents = ({ user, onBack }) => {
         }
         console.log('🔍 만석 체크 - slotsToCheck:', slotsToCheck, '| requestedSlots:', reg.requestedSlots, '| scheduleString:', reg.scheduleString);
 
-        // 시간표 슬롯 만석 체크 (모달 열기 전에 먼저 확인)
+        // 시간표 슬롯 만석 체크 (전체 등록 수강생 기준)
         if (slotsToCheck && slotsToCheck.length > 0) {
-            try {
-                const targetSheet = getCurrentSheetName();
-                const rows = await readSheetData(`${targetSheet}!A:R`);
-                const slotCounts = {};
-                for (let i = 2; i < rows.length; i++) {
-                    const schedule = rows[i] && rows[i][3];
-                    if (!schedule) continue;
-                    const matches = schedule.match(/([월화수목금])(\d)/g);
-                    if (matches) {
-                        matches.forEach(m => {
-                            const key = `${m[0]}-${m[1]}`;
-                            slotCounts[key] = (slotCounts[key] || 0) + 1;
-                        });
-                    }
+            const slotCounts = {};
+            (allStudents || []).forEach(student => {
+                const schedule = student['요일 및 시간'];
+                if (!schedule) return;
+                const matches = schedule.match(/([월화수목금])(\d)/g);
+                if (matches) {
+                    matches.forEach(m => {
+                        const key = `${m[0]}-${m[1]}`;
+                        slotCounts[key] = (slotCounts[key] || 0) + 1;
+                    });
                 }
-                console.log('🔍 만석 체크 - slotCounts:', slotCounts);
-                slotsToCheck.forEach(s => {
-                    const key = `${s.day}-${s.period}`;
-                    console.log(`🔍 ${key}: ${slotCounts[key] || 0}/${MAX_CAPACITY}`);
-                });
+            });
+            console.log('🔍 만석 체크 - slotCounts:', slotCounts, '| 전체 수강생:', (allStudents || []).length);
+            slotsToCheck.forEach(s => {
+                const key = `${s.day}-${s.period}`;
+                console.log(`🔍 ${key}: ${slotCounts[key] || 0}/${MAX_CAPACITY}`);
+            });
 
-                const fullSlots = slotsToCheck.filter(s => {
-                    const key = `${s.day}-${s.period}`;
-                    return (slotCounts[key] || 0) >= MAX_CAPACITY;
-                });
-                if (fullSlots.length > 0) {
-                    const fullNames = fullSlots.map(s => {
-                        const p = PERIODS.find(p => p.id === s.period);
-                        return `${s.day}요일 ${p ? p.name : s.period + '교시'}`;
-                    }).join(', ');
-                    alert(`만석입니다: ${fullNames}\n\n해당 시간에 빈 자리가 없어 승인할 수 없습니다.`);
-                    return;
-                }
-            } catch (err) {
-                console.error('슬롯 만석 체크 실패:', err);
-                alert('시간표 여석 확인에 실패했습니다. 다시 시도해주세요.');
+            const fullSlots = slotsToCheck.filter(s => {
+                const key = `${s.day}-${s.period}`;
+                return (slotCounts[key] || 0) >= MAX_CAPACITY;
+            });
+            if (fullSlots.length > 0) {
+                const fullNames = fullSlots.map(s => {
+                    const p = PERIODS.find(p => p.id === s.period);
+                    return `${s.day}요일 ${p ? p.name : s.period + '교시'}`;
+                }).join(', ');
+                alert(`만석입니다: ${fullNames}\n\n해당 시간에 빈 자리가 없어 승인할 수 없습니다.`);
                 return;
             }
         } else {
