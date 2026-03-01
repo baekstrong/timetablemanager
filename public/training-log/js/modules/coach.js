@@ -255,27 +255,38 @@ function updateStudentBadges() {
 // Student Quick Navigation Bar
 // ============================================
 
+let activeQuickNavStudent = null;
+
 export function updateStudentQuickNav() {
     const nav = document.getElementById('studentQuickNav');
     if (!nav) return;
 
     if (state.selectedStudents.length === 0) {
         nav.style.display = 'none';
-        // Safe: clearing child elements
         while (nav.firstChild) nav.removeChild(nav.firstChild);
+        activeQuickNavStudent = null;
         return;
     }
 
     nav.style.display = 'flex';
-    // Safe: building DOM elements programmatically (no user-generated HTML)
     while (nav.firstChild) nav.removeChild(nav.firstChild);
 
     state.selectedStudents.forEach(name => {
         const btn = document.createElement('button');
-        btn.className = 'student-quick-nav-btn';
+        btn.className = 'student-quick-nav-btn' + (activeQuickNavStudent === name ? ' active' : '');
         btn.textContent = name;
-        btn.addEventListener('click', () => scrollToStudent(name));
+        btn.addEventListener('click', () => {
+            activeQuickNavStudent = name;
+            highlightQuickNavBtn(nav, name);
+            scrollToStudent(name);
+        });
         nav.appendChild(btn);
+    });
+}
+
+function highlightQuickNavBtn(nav, activeName) {
+    nav.querySelectorAll('.student-quick-nav-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent === activeName);
     });
 }
 
