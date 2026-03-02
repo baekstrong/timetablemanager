@@ -40,28 +40,46 @@ async function sendSMS(to, text, scheduledDate = null) {
   const toClean = to.replace(/-/g, '');
   const fromClean = from.replace(/-/g, '');
 
-  const body = {
-    message: {
-      to: toClean,
-      from: fromClean,
-      text: text
-    }
-  };
-
-  if (scheduledDate) {
-    body.scheduledDate = scheduledDate;
-  }
-
   const headers = generateAuthHeaders();
 
   console.log(`SMS 발송 요청: to=${toClean}, textLength=${text.length}, scheduled=${scheduledDate || '즉시'}`);
-  console.log('SMS 요청 body:', JSON.stringify(body));
 
-  const response = await fetch(`${SOLAPI_API_URL}/messages/v4/send`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body)
-  });
+  let response;
+
+  if (scheduledDate) {
+    // 예약 발송: /messages/v4/send-many 사용 (scheduledDate 지원)
+    const body = {
+      messages: [
+        {
+          to: toClean,
+          from: fromClean,
+          text: text
+        }
+      ],
+      scheduledDate: scheduledDate
+    };
+    console.log('SMS 예약 발송 body:', JSON.stringify(body));
+    response = await fetch(`${SOLAPI_API_URL}/messages/v4/send-many`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+  } else {
+    // 즉시 발송: /messages/v4/send 사용
+    const body = {
+      message: {
+        to: toClean,
+        from: fromClean,
+        text: text
+      }
+    };
+    console.log('SMS 즉시 발송 body:', JSON.stringify(body));
+    response = await fetch(`${SOLAPI_API_URL}/messages/v4/send`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+  }
 
   const result = await response.json();
 
