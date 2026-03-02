@@ -55,6 +55,7 @@ async function sendSMS(to, text, scheduledDate = null) {
   const headers = generateAuthHeaders();
 
   console.log(`SMS 발송 요청: to=${toClean}, textLength=${text.length}, scheduled=${scheduledDate || '즉시'}`);
+  console.log('SMS 요청 body:', JSON.stringify(body));
 
   const response = await fetch(`${SOLAPI_API_URL}/messages/v4/send`, {
     method: 'POST',
@@ -65,11 +66,11 @@ async function sendSMS(to, text, scheduledDate = null) {
   const result = await response.json();
 
   if (!response.ok) {
-    console.error('Solapi 오류:', result);
+    console.error('Solapi 오류:', JSON.stringify(result));
     throw new Error(result.errorMessage || `SMS 발송 실패 (${response.status})`);
   }
 
-  console.log('SMS 발송 성공:', result);
+  console.log('SMS 발송 성공:', JSON.stringify(result));
   return result;
 }
 

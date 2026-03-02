@@ -306,9 +306,10 @@ export const scheduleEntranceReminderSMS = async (studentPhone, studentName, det
   if (reminderDate > now) {
     // 3일 이상 남음 → 예약 발송
     const scheduledDate = formatScheduleDate(reminderDate);
+    console.log('📅 리마인더 예약 발송 시도:', { studentName, scheduledDate, entranceDate: details.entranceDate, now: now.toISOString(), reminderDate: reminderDate.toISOString() });
     try {
-      await sendSMS(studentPhone, text, scheduledDate);
-      console.log('수강생 안내문자 3 예약 완료:', studentName, scheduledDate);
+      const result = await sendSMS(studentPhone, text, scheduledDate);
+      console.log('수강생 안내문자 3 예약 완료:', studentName, scheduledDate, '| 서버 응답:', result);
       return true;
     } catch (error) {
       console.error('수강생 안내문자 3 예약 실패:', error.message);
