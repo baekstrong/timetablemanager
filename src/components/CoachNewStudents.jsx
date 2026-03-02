@@ -368,54 +368,7 @@ const CoachNewStudents = ({ user, onBack }) => {
     };
 
     const handleWaitlistApproveOpen = async (reg) => {
-        // requestedSlots가 없으면 scheduleString에서 파싱
-        let slotsToCheck = reg.requestedSlots;
-        if (!slotsToCheck || slotsToCheck.length === 0) {
-            if (reg.scheduleString) {
-                const parsed = reg.scheduleString.match(/([월화수목금])(\d)/g);
-                if (parsed) {
-                    slotsToCheck = parsed.map(m => ({ day: m[0], period: parseInt(m[1]) }));
-                }
-            }
-        }
-        console.log('🔍 만석 체크 - slotsToCheck:', slotsToCheck, '| requestedSlots:', reg.requestedSlots, '| scheduleString:', reg.scheduleString);
-
-        // 시간표 슬롯 만석 체크 (전체 등록 수강생 기준)
-        if (slotsToCheck && slotsToCheck.length > 0) {
-            const slotCounts = {};
-            (allStudents || []).forEach(student => {
-                const schedule = student['요일 및 시간'];
-                if (!schedule) return;
-                const matches = schedule.match(/([월화수목금])(\d)/g);
-                if (matches) {
-                    matches.forEach(m => {
-                        const key = `${m[0]}-${m[1]}`;
-                        slotCounts[key] = (slotCounts[key] || 0) + 1;
-                    });
-                }
-            });
-            console.log('🔍 만석 체크 - slotCounts:', slotCounts, '| 전체 수강생:', (allStudents || []).length);
-            slotsToCheck.forEach(s => {
-                const key = `${s.day}-${s.period}`;
-                console.log(`🔍 ${key}: ${slotCounts[key] || 0}/${MAX_CAPACITY}`);
-            });
-
-            const fullSlots = slotsToCheck.filter(s => {
-                const key = `${s.day}-${s.period}`;
-                return (slotCounts[key] || 0) >= MAX_CAPACITY;
-            });
-            if (fullSlots.length > 0) {
-                const fullNames = fullSlots.map(s => {
-                    const p = PERIODS.find(p => p.id === s.period);
-                    return `${s.day}요일 ${p ? p.name : s.period + '교시'}`;
-                }).join(', ');
-                alert(`만석입니다: ${fullNames}\n\n해당 시간에 빈 자리가 없어 승인할 수 없습니다.`);
-                return;
-            }
-        } else {
-            alert('수강생의 시간표 정보를 찾을 수 없어 여석 확인이 불가합니다.');
-            return;
-        }
+        // 대기(만석) 수강생은 코치가 여석 확인 후 직접 승인하는 것이므로 만석 체크 생략
 
         // 입학반 목록이 비어있으면 로드
         if (entranceClasses.length === 0) {
