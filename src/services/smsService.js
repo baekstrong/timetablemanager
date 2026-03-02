@@ -418,6 +418,7 @@ export const sendApprovalNotifications = async (studentPhone, studentName, detai
   }
 
   // 입학반 리마인더 예약 (입학반 날짜가 있는 경우)
+  console.log('📅 리마인더 체크 - entranceDate:', details.entranceDate, '| entranceClassDate:', details.entranceClassDate);
   if (details.entranceDate && details.entranceClassDate) {
     try {
       results.reminderSMS = await scheduleEntranceReminderSMS(studentPhone, studentName, details);
