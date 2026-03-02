@@ -12,7 +12,7 @@ import GoogleSheetsTest from './components/GoogleSheetsTest';
 import NewStudentRegistration from './components/NewStudentRegistration';
 import CoachNewStudents from './components/CoachNewStudents';
 import BottomNav from './components/BottomNav';
-import { getPendingRegistrationCount } from './services/firebaseService';
+import { getPendingRegistrationCount, getActiveWaitlistRequests } from './services/firebaseService';
 import './App.css';
 
 function AppContent() {
@@ -28,6 +28,7 @@ function AppContent() {
   const [studentData, setStudentData] = useState(null);
   const [currentPage, setCurrentPage] = useState('login');
   const [hasNewStudentNotification, setHasNewStudentNotification] = useState(false);
+  const [hasWaitlistNotification, setHasWaitlistNotification] = useState(false);
   const { getStudentByName, findStudentAcrossSheets } = useGoogleSheets();
 
   // Poll for pending registrations (coach only)
@@ -45,6 +46,24 @@ function AppContent() {
 
     checkPending();
     const interval = setInterval(checkPending, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Poll for waitlist notifications (student only)
+  useEffect(() => {
+    if (!user || user.role === 'coach') return;
+
+    const checkWaitlist = async () => {
+      try {
+        const waitlist = await getActiveWaitlistRequests(user.username);
+        setHasWaitlistNotification(waitlist.some(w => w.status === 'notified'));
+      } catch (err) {
+        // ignore polling errors
+      }
+    };
+
+    checkWaitlist();
+    const interval = setInterval(checkWaitlist, 30000);
     return () => clearInterval(interval);
   }, [user]);
 
@@ -174,6 +193,7 @@ function AppContent() {
           user={user}
           onNavigate={handleNavigate}
           hasNewStudentNotification={hasNewStudentNotification}
+          hasWaitlistNotification={hasWaitlistNotification}
         />
       )}
     </div>

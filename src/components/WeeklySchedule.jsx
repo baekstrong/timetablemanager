@@ -1627,11 +1627,18 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 );
             }
             if (data.isFull) {
-                // 대기 인원 수
-                const waitCount = weekWaitlist.filter(w =>
+                // 대기 인원 수 (기존 수강생 + 신규 대기 합산)
+                const existingWaitCount = weekWaitlist.filter(w =>
                     w.desiredSlot.day === day &&
                     w.desiredSlot.period === periodObj.id
                 ).length;
+                const newWaitCount = newStudentWaitlist.filter(r => {
+                    const slots = r.requestedSlots || [];
+                    if (slots.length > 0) return slots.some(s => s.day === day && s.period === periodObj.id);
+                    const parsed = (r.scheduleString || '').match(/([월화수목금])(\d)/g);
+                    return parsed ? parsed.some(m => m[0] === day && parseInt(m[1]) === periodObj.id) : false;
+                }).length;
+                const waitCount = existingWaitCount + newWaitCount;
 
                 return (
                     <div
@@ -1721,15 +1728,26 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                 : <>{data.currentCount}명<span style={{ color: '#666', fontWeight: 'normal', marginLeft: '4px' }}>(여석: {data.availableSeats}자리)</span></>
                             }
                             {(() => {
-                                const waiters = weekWaitlist.filter(w =>
+                                const existingWaiters = weekWaitlist.filter(w =>
                                     w.desiredSlot.day === day &&
                                     w.desiredSlot.period === periodObj.id
                                 );
-                                if (waiters.length === 0) return null;
+                                const newWaiters = newStudentWaitlist.filter(r => {
+                                    const slots = r.requestedSlots || [];
+                                    if (slots.length > 0) return slots.some(s => s.day === day && s.period === periodObj.id);
+                                    const parsed = (r.scheduleString || '').match(/([월화수목금])(\d)/g);
+                                    return parsed ? parsed.some(m => m[0] === day && parseInt(m[1]) === periodObj.id) : false;
+                                });
+                                const totalWait = existingWaiters.length + newWaiters.length;
+                                if (totalWait === 0) return null;
+                                const tooltipParts = [
+                                    ...existingWaiters.map(w => `${w.studentName}(${w.currentSlot.day}${w.currentSlot.period}→)`),
+                                    ...newWaiters.map(r => `${r.name}(신규)`)
+                                ];
                                 return (
                                     <span style={{ color: '#d97706', fontWeight: 'bold', marginLeft: '4px', fontSize: '0.75rem' }}
-                                        title={`대기: ${waiters.map(w => `${w.studentName}(${w.currentSlot.day}${w.currentSlot.period}→)`).join(', ')}`}>
-                                        대기 {waiters.length}명
+                                        title={`대기: ${tooltipParts.join(', ')}`}>
+                                        대기 {totalWait}명
                                     </span>
                                 );
                             })()}
@@ -2389,73 +2407,7 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 </div>
             )}
 
-            {/* 대기 신청 배너 */}
-            {mode === 'student' && user?.role !== 'coach' && studentWaitlist.length > 0 && (
-                <div style={{
-                    margin: '12px 16px',
-                    padding: '12px 16px',
-                    borderRadius: '8px',
-                    backgroundColor: '#fffbeb',
-                    border: '1px solid #f59e0b'
-                }}>
-                    <div style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#92400e', fontWeight: 'bold' }}>
-                        ⏳ 대기 신청 ({studentWaitlist.length}건)
-                    </div>
-                    {studentWaitlist.map((w) => (
-                        <div key={w.id} style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '6px 0',
-                            borderBottom: '1px solid #fde68a'
-                        }}>
-                            <div style={{ fontSize: '0.9rem', color: '#78350f' }}>
-                                {w.currentSlot.day} {w.currentSlot.periodName} → {w.desiredSlot.day} {w.desiredSlot.periodName}
-                                {w.status === 'notified' && (
-                                    <span style={{
-                                        marginLeft: '8px',
-                                        padding: '2px 6px',
-                                        borderRadius: '4px',
-                                        backgroundColor: '#22c55e',
-                                        color: '#fff',
-                                        fontSize: '0.8rem',
-                                        fontWeight: 'bold'
-                                    }}>자리 남!</span>
-                                )}
-                            </div>
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                                {w.status === 'notified' && (
-                                    <button
-                                        onClick={() => handleWaitlistAccept(w)}
-                                        style={{
-                                            padding: '4px 10px',
-                                            fontSize: '0.8rem',
-                                            backgroundColor: '#22c55e',
-                                            color: '#fff',
-                                            border: 'none',
-                                            borderRadius: '4px',
-                                            cursor: 'pointer',
-                                            fontWeight: 'bold'
-                                        }}
-                                    >수락</button>
-                                )}
-                                <button
-                                    onClick={() => handleWaitlistCancel(w.id)}
-                                    style={{
-                                        padding: '4px 8px',
-                                        fontSize: '0.8rem',
-                                        backgroundColor: 'transparent',
-                                        color: '#b45309',
-                                        border: '1px solid #d97706',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer'
-                                    }}
-                                >취소</button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+            {/* 대기 신청 배너는 Dashboard(공지사항)로 이동됨 */}
         </div>
     );
 };

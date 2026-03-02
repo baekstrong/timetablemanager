@@ -1,16 +1,44 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from '../services/firebaseService';
-import { parseSheetDate, findStudentAcrossSheets } from '../services/googleSheetsService';
+import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest } from '../services/firebaseService';
+import { parseSheetDate, findStudentAcrossSheets, writeSheetData } from '../services/googleSheetsService';
 import GoogleSheetsSync from './GoogleSheetsSync';
 import './Dashboard.css';
+
+const parseScheduleString = (scheduleStr) => {
+    if (!scheduleStr) return [];
+    const result = [];
+    const matches = scheduleStr.match(/([월화수목금토일])(\d)/g);
+    if (matches) {
+        matches.forEach(m => {
+            result.push({ day: m[0], period: parseInt(m[1]) });
+        });
+    }
+    return result;
+};
 
 const Dashboard = ({ user, onNavigate, onLogout }) => {
     const [notices, setNotices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [sheetsExpanded, setSheetsExpanded] = useState(false);
 
-    const { students, isConnected, error: sheetsError, loading: sheetsLoading } = useGoogleSheets();
+    const { students, isConnected, error: sheetsError, loading: sheetsLoading, refresh } = useGoogleSheets();
+
+    // 수강생 대기 신청 목록
+    const [studentWaitlist, setStudentWaitlist] = useState([]);
+
+    useEffect(() => {
+        if (user.role === 'coach') return;
+        const loadWaitlist = async () => {
+            try {
+                const waitlist = await getActiveWaitlistRequests(user.username);
+                setStudentWaitlist(waitlist);
+            } catch (err) {
+                console.error('대기 목록 로드 실패:', err);
+            }
+        };
+        loadWaitlist();
+    }, [user]);
 
     // 수강생 모드: 본인의 종료날짜 확인
     const [isMyLastDay, setIsMyLastDay] = useState(false);
@@ -59,6 +87,66 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             console.error('Failed to load announcements:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // 대기 취소
+    const handleWaitlistCancel = async (waitlistId) => {
+        if (!confirm('대기 신청을 취소하시겠습니까?')) return;
+        try {
+            await cancelWaitlistRequest(waitlistId);
+            alert('대기 신청이 취소되었습니다.');
+            const waitlist = await getActiveWaitlistRequests(user.username);
+            setStudentWaitlist(waitlist);
+        } catch (error) {
+            alert(`대기 취소 실패: ${error.message}`);
+        }
+    };
+
+    // 대기 수락 (시간표 영구 변경)
+    const handleWaitlistAccept = async (waitlistItem) => {
+        const { currentSlot, desiredSlot } = waitlistItem;
+        if (!confirm(
+            `${desiredSlot.day}요일 ${desiredSlot.periodName}에 자리가 났습니다!\n\n` +
+            `시간표를 변경하시겠습니까?\n` +
+            `${currentSlot.day}요일 ${currentSlot.periodName} → ${desiredSlot.day}요일 ${desiredSlot.periodName}\n\n` +
+            `※ 영구적으로 시간표가 변경됩니다.`
+        )) return;
+
+        try {
+            const studentEntry = students.find(s => s['이름'] === user.username && s['요일 및 시간']);
+            if (!studentEntry) {
+                alert('수강생 정보를 찾을 수 없습니다.');
+                return;
+            }
+
+            const sheetName = studentEntry._foundSheetName;
+            const rowIndex = studentEntry._rowIndex;
+            const actualRow = rowIndex + 3;
+            const currentSchedule = studentEntry['요일 및 시간'];
+
+            const parsed = parseScheduleString(currentSchedule);
+            const updated = parsed.map(s => {
+                if (s.day === currentSlot.day && s.period === currentSlot.period) {
+                    return { day: desiredSlot.day, period: desiredSlot.period };
+                }
+                return s;
+            });
+            const dayOrder = { '월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일': 6 };
+            updated.sort((a, b) => (dayOrder[a.day] || 0) - (dayOrder[b.day] || 0) || a.period - b.period);
+            const newSchedule = updated.map(s => `${s.day}${s.period}`).join('');
+
+            const range = `${sheetName}!D${actualRow}`;
+            await writeSheetData(range, [[newSchedule]]);
+            await acceptWaitlistRequest(waitlistItem.id);
+
+            alert(`시간표 변경 완료!\n${currentSchedule} → ${newSchedule}`);
+            await refresh();
+            const waitlist = await getActiveWaitlistRequests(user.username);
+            setStudentWaitlist(waitlist);
+        } catch (error) {
+            alert(`시간표 변경 실패: ${error.message}`);
+            console.error('시간표 변경 실패:', error);
         }
     };
 
@@ -243,6 +331,74 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                             </svg>
                         </button>
+                    </div>
+                )}
+
+                {/* 수강생 대기 신청 배너 */}
+                {user.role !== 'coach' && studentWaitlist.length > 0 && (
+                    <div style={{
+                        margin: '0 0 1rem 0',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        backgroundColor: '#fffbeb',
+                        border: '1px solid #f59e0b'
+                    }}>
+                        <div style={{ marginBottom: '8px', fontSize: '0.95rem', color: '#92400e', fontWeight: 'bold' }}>
+                            대기 신청 ({studentWaitlist.length}건)
+                        </div>
+                        {studentWaitlist.map((w) => (
+                            <div key={w.id} style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '8px 0',
+                                borderBottom: '1px solid #fde68a'
+                            }}>
+                                <div style={{ fontSize: '0.9rem', color: '#78350f' }}>
+                                    {w.currentSlot.day} {w.currentSlot.periodName} → {w.desiredSlot.day} {w.desiredSlot.periodName}
+                                    {w.status === 'notified' && (
+                                        <span style={{
+                                            marginLeft: '8px',
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            backgroundColor: '#22c55e',
+                                            color: '#fff',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 'bold'
+                                        }}>자리 남!</span>
+                                    )}
+                                </div>
+                                <div style={{ display: 'flex', gap: '6px' }}>
+                                    {w.status === 'notified' && (
+                                        <button
+                                            onClick={() => handleWaitlistAccept(w)}
+                                            style={{
+                                                padding: '4px 10px',
+                                                fontSize: '0.8rem',
+                                                backgroundColor: '#22c55e',
+                                                color: '#fff',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                cursor: 'pointer',
+                                                fontWeight: 'bold'
+                                            }}
+                                        >수락</button>
+                                    )}
+                                    <button
+                                        onClick={() => handleWaitlistCancel(w.id)}
+                                        style={{
+                                            padding: '4px 8px',
+                                            fontSize: '0.8rem',
+                                            backgroundColor: 'transparent',
+                                            color: '#b45309',
+                                            border: '1px solid #d97706',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer'
+                                        }}
+                                    >취소</button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 )}
 
