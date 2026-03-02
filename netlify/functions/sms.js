@@ -59,7 +59,7 @@ async function sendSMS(to, text, scheduledDate = null) {
       scheduledDate: scheduledDate
     };
     console.log('SMS 예약 발송 body:', JSON.stringify(body));
-    response = await fetch(`${SOLAPI_API_URL}/messages/v4/send-many`, {
+    response = await fetch(`${SOLAPI_API_URL}/messages/v4/send-many/detail`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body)
