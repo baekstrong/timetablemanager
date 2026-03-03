@@ -1643,16 +1643,6 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
 
         // --- COACH MODE RENDER ---
         else {
-            // If holiday, show "휴일" for coach too
-            if (isHoliday) {
-                return (
-                    <div className="schedule-cell" style={{ backgroundColor: '#fef2f2', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                        <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '0.9rem' }}>휴일</span>
-                        {holidayReason && <span style={{ color: '#6b7280', fontSize: '0.7rem', marginTop: '2px' }}>{holidayReason}</span>}
-                    </div>
-                );
-            }
-
             // If class is disabled, show disabled state with toggle
             if (classDisabled) {
                 return (
@@ -1695,8 +1685,15 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                 <div
                     className="schedule-cell"
                     onClick={() => handleCellClick(day, periodObj, data)}
-                    style={{ alignItems: 'flex-start', justifyContent: 'flex-start', padding: '8px' }}
+                    style={{ alignItems: 'flex-start', justifyContent: 'flex-start', padding: '8px', ...(isHoliday ? { backgroundColor: '#fef2f2' } : {}) }}
                 >
+                    {/* Holiday banner for coach */}
+                    {isHoliday && (
+                        <div style={{ width: '100%', textAlign: 'center', marginBottom: '4px', padding: '2px 0', borderBottom: '1px solid #fca5a5', borderRadius: '4px' }}>
+                            <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '0.75rem' }}>휴일</span>
+                            {holidayReason && <span style={{ color: '#6b7280', fontSize: '0.65rem', marginLeft: '4px' }}>{holidayReason}</span>}
+                        </div>
+                    )}
                     {/* Header with count and available seats for Coach */}
                     <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', fontSize: '0.8rem', fontWeight: 'bold', borderBottom: '1px solid #eee' }}>
                         <span>
