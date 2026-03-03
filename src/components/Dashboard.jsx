@@ -356,6 +356,17 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                             }}>
                                 <div style={{ fontSize: '0.9rem', color: '#78350f' }}>
                                     {w.currentSlot.day} {w.currentSlot.periodName} → {w.desiredSlot.day} {w.desiredSlot.periodName}
+                                    {w.status === 'waiting' && (
+                                        <span style={{
+                                            marginLeft: '8px',
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            backgroundColor: '#f59e0b',
+                                            color: '#fff',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 'bold'
+                                        }}>대기중</span>
+                                    )}
                                     {w.status === 'notified' && (
                                         <span style={{
                                             marginLeft: '8px',
@@ -365,37 +376,54 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                             color: '#fff',
                                             fontSize: '0.8rem',
                                             fontWeight: 'bold'
-                                        }}>자리 남!</span>
+                                        }}>코치 승인!</span>
                                     )}
                                 </div>
                                 <div style={{ display: 'flex', gap: '6px' }}>
                                     {w.status === 'notified' && (
-                                        <button
-                                            onClick={() => handleWaitlistAccept(w)}
-                                            style={{
-                                                padding: '4px 10px',
-                                                fontSize: '0.8rem',
-                                                backgroundColor: '#22c55e',
-                                                color: '#fff',
-                                                border: 'none',
-                                                borderRadius: '4px',
-                                                cursor: 'pointer',
-                                                fontWeight: 'bold'
-                                            }}
-                                        >수락</button>
+                                        <>
+                                            <button
+                                                onClick={() => handleWaitlistAccept(w)}
+                                                style={{
+                                                    padding: '4px 10px',
+                                                    fontSize: '0.8rem',
+                                                    backgroundColor: '#22c55e',
+                                                    color: '#fff',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    cursor: 'pointer',
+                                                    fontWeight: 'bold'
+                                                }}
+                                            >승인</button>
+                                            <button
+                                                onClick={() => handleWaitlistCancel(w.id)}
+                                                style={{
+                                                    padding: '4px 8px',
+                                                    fontSize: '0.8rem',
+                                                    backgroundColor: '#fee2e2',
+                                                    color: '#dc2626',
+                                                    border: '1px solid #dc2626',
+                                                    borderRadius: '4px',
+                                                    cursor: 'pointer',
+                                                    fontWeight: 'bold'
+                                                }}
+                                            >거절</button>
+                                        </>
                                     )}
-                                    <button
-                                        onClick={() => handleWaitlistCancel(w.id)}
-                                        style={{
-                                            padding: '4px 8px',
-                                            fontSize: '0.8rem',
-                                            backgroundColor: 'transparent',
-                                            color: '#b45309',
-                                            border: '1px solid #d97706',
-                                            borderRadius: '4px',
-                                            cursor: 'pointer'
-                                        }}
-                                    >취소</button>
+                                    {w.status === 'waiting' && (
+                                        <button
+                                            onClick={() => handleWaitlistCancel(w.id)}
+                                            style={{
+                                                padding: '4px 8px',
+                                                fontSize: '0.8rem',
+                                                backgroundColor: 'transparent',
+                                                color: '#b45309',
+                                                border: '1px solid #d97706',
+                                                borderRadius: '4px',
+                                                cursor: 'pointer'
+                                            }}
+                                        >취소</button>
+                                    )}
                                 </div>
                             </div>
                         ))}

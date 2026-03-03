@@ -1379,6 +1379,29 @@ export const notifyWaitlistRequest = async (waitlistId) => {
 };
 
 /**
+ * 대기 승인 취소 (notified → waiting 되돌리기)
+ * @param {string} waitlistId - 대기 신청 ID
+ * @returns {Promise<void>}
+ */
+export const revertWaitlistNotification = async (waitlistId) => {
+    if (!isFirebaseAvailable()) {
+        throw new Error('Firebase가 설정되지 않았습니다.');
+    }
+
+    try {
+        await updateDoc(doc(db, 'waitlistRequests', waitlistId), {
+            status: 'waiting',
+            notifiedAt: null,
+            updatedAt: serverTimestamp()
+        });
+        console.log('✅ 대기 승인 취소 완료:', waitlistId);
+    } catch (error) {
+        console.error('❌ 대기 승인 취소 실패:', error);
+        throw error;
+    }
+};
+
+/**
  * 대기 신청 수락 (수강생이 자리를 확정)
  * @param {string} waitlistId - 대기 신청 ID
  * @returns {Promise<void>}

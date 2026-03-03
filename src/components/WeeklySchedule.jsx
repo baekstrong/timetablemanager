@@ -24,6 +24,7 @@ import {
     getAllActiveWaitlist,
     cancelWaitlistRequest,
     notifyWaitlistRequest,
+    revertWaitlistNotification,
     acceptWaitlistRequest
 } from '../services/firebaseService';
 import { writeSheetData } from '../services/googleSheetsService';
@@ -810,30 +811,6 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             setWeekAbsences(allAbsences || []);
             setWeekHolidays(holidays || []);
             setWeekWaitlist(waitlist || []);
-
-            // 대기 중인 요청에 대해 자리가 났는지 자동 체크 → notified로 변경
-            if (waitlist && waitlist.length > 0) {
-                // scheduleData에서 등록 인원 기반으로 자리 체크 (영구적 변경이므로 등록 인원 기준)
-                const transformed = students && students.length > 0 ? transformGoogleSheetsData(students) : null;
-                if (transformed) {
-                    for (const w of waitlist) {
-                        if (w.status !== 'waiting') continue;
-                        const slot = transformed.regularEnrollments.find(
-                            e => e.day === w.desiredSlot.day && e.period === w.desiredSlot.period
-                        );
-                        const registeredCount = slot ? slot.names.length : 0;
-                        if (registeredCount < MAX_CAPACITY) {
-                            try {
-                                await notifyWaitlistRequest(w.id);
-                                w.status = 'notified';
-                                console.log(`✅ 대기 알림: ${w.studentName} → ${w.desiredSlot.day} ${w.desiredSlot.periodName} (자리 남)`);
-                            } catch (err) {
-                                console.error('대기 알림 실패:', w.id, err);
-                            }
-                        }
-                    }
-                }
-            }
 
             console.log(`✅ Loaded ${makeups?.length || 0} makeup requests (${passedActiveMakeups.length}개 자동완료), ${holdings?.length || 0} holdings (from Google Sheets), ${allAbsences?.length || 0} absences, ${holidays?.length || 0} holidays, ${waitlist?.length || 0} waitlist`);
         } catch (error) {
@@ -2023,6 +2000,11 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                         {weekWaitlist.map(w => {
                             const desiredP = PERIODS.find(p => p.id === w.desiredSlot.period);
                             const currentP = PERIODS.find(p => p.id === w.currentSlot.period);
+                            const slot = scheduleData.regularEnrollments.find(
+                                e => e.day === w.desiredSlot.day && e.period === w.desiredSlot.period
+                            );
+                            const registeredCount = slot ? slot.names.length : 0;
+                            const hasSpace = registeredCount < MAX_CAPACITY;
                             return (
                                 <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span>
@@ -2031,29 +2013,85 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                                             {w.currentSlot.day}{currentP ? currentP.id : w.currentSlot.period}교시 → {w.desiredSlot.day}{desiredP ? desiredP.id : w.desiredSlot.period}교시
                                         </span>
                                         <span style={{ fontSize: '0.75rem', color: '#a16207', marginLeft: '4px' }}>
-                                            ({w.status === 'waiting' ? '대기중' : w.status === 'notified' ? '알림발송' : w.status})
+                                            ({w.status === 'waiting' ? '대기중' : w.status === 'notified' ? '승인완료' : w.status})
                                         </span>
                                     </span>
-                                    {showWaitlistDeleteMode && (
-                                        <button
-                                            onClick={async () => {
-                                                if (!confirm(`"${w.studentName}"의 대기 신청을 삭제하시겠습니까?`)) return;
-                                                try {
-                                                    await cancelWaitlistRequest(w.id);
-                                                    setWeekWaitlist(prev => prev.filter(item => item.id !== w.id));
-                                                } catch (err) {
-                                                    alert('삭제 실패: ' + err.message);
-                                                }
-                                            }}
-                                            style={{
-                                                fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px',
-                                                border: '1px solid #dc2626', background: '#fee2e2', color: '#dc2626',
-                                                cursor: 'pointer', fontWeight: '600', flexShrink: 0
-                                            }}
-                                        >
-                                            삭제
-                                        </button>
-                                    )}
+                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                        {w.status === 'waiting' && (
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await notifyWaitlistRequest(w.id);
+                                                        setWeekWaitlist(prev => prev.map(item =>
+                                                            item.id === w.id ? { ...item, status: 'notified' } : item
+                                                        ));
+                                                    } catch (err) {
+                                                        alert('승인 실패: ' + err.message);
+                                                    }
+                                                }}
+                                                disabled={!hasSpace}
+                                                style={{
+                                                    fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px',
+                                                    border: hasSpace ? '1px solid #16a34a' : '1px solid #9ca3af',
+                                                    background: hasSpace ? '#dcfce7' : '#f3f4f6',
+                                                    color: hasSpace ? '#16a34a' : '#9ca3af',
+                                                    cursor: hasSpace ? 'pointer' : 'not-allowed',
+                                                    fontWeight: '600'
+                                                }}
+                                            >
+                                                {hasSpace ? '승인' : '승인(만석)'}
+                                            </button>
+                                        )}
+                                        {w.status === 'notified' && (
+                                            <>
+                                                <span style={{
+                                                    fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px',
+                                                    background: '#dbeafe', color: '#2563eb', fontWeight: '600'
+                                                }}>
+                                                    수락중...
+                                                </span>
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            await revertWaitlistNotification(w.id);
+                                                            setWeekWaitlist(prev => prev.map(item =>
+                                                                item.id === w.id ? { ...item, status: 'waiting' } : item
+                                                            ));
+                                                        } catch (err) {
+                                                            alert('승인 취소 실패: ' + err.message);
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px',
+                                                        border: '1px solid #dc2626', background: '#fee2e2', color: '#dc2626',
+                                                        cursor: 'pointer', fontWeight: '600'
+                                                    }}
+                                                >
+                                                    취소
+                                                </button>
+                                            </>
+                                        )}
+                                        {showWaitlistDeleteMode && (
+                                            <button
+                                                onClick={async () => {
+                                                    if (!confirm(`"${w.studentName}"의 대기 신청을 삭제하시겠습니까?`)) return;
+                                                    try {
+                                                        await cancelWaitlistRequest(w.id);
+                                                        setWeekWaitlist(prev => prev.filter(item => item.id !== w.id));
+                                                    } catch (err) {
+                                                        alert('삭제 실패: ' + err.message);
+                                                    }
+                                                }}
+                                                style={{
+                                                    fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px',
+                                                    border: '1px solid #dc2626', background: '#fee2e2', color: '#dc2626',
+                                                    cursor: 'pointer', fontWeight: '600'
+                                                }}
+                                            >
+                                                삭제
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             );
                         })}
