@@ -445,7 +445,7 @@ export const findStudentAcrossSheets = async (studentName) => {
  * 요일 및 시간 문자열 파싱
  * 예: "월5수5" → [{day: '월', period: 5}, {day: '수', period: 5}]
  */
-const parseScheduleString = (scheduleStr) => {
+export const parseScheduleString = (scheduleStr) => {
   if (!scheduleStr || typeof scheduleStr !== 'string') return [];
 
   const result = [];
@@ -501,7 +501,7 @@ const KOREAN_HOLIDAYS_2026 = {
 };
 
 // 특정 날짜가 공휴일인지 확인
-const isHolidayDate = (date, firebaseHolidays = []) => {
+export const isHolidayDate = (date, firebaseHolidays = []) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');

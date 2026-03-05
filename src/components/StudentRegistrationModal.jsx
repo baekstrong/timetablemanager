@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     getAllSheetNames,
     getCurrentSheetName,
@@ -7,7 +7,9 @@ import {
     readSheetData,
     writeSheetData,
     calculateEndDateWithHolidays,
-    formatCellsWithStyle
+    formatCellsWithStyle,
+    parseScheduleString,
+    isHolidayDate
 } from '../services/googleSheetsService';
 import { getHolidays } from '../services/firebaseService';
 import './StudentRegistrationModal.css';
@@ -26,10 +28,38 @@ const formatYYMMDD = (date) => {
     return `${year}${month}${day}`;
 };
 
+// Date → YYYY-MM-DD
+const formatDateInput = (date) => {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
 // 오늘 → YYYY-MM-DD
-const formatToday = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const formatToday = () => formatDateInput(new Date());
+
+// YYMMDD → Date
+const convertYYMMDDtoDate = (yymmdd) => {
+    if (!yymmdd || yymmdd.length !== 6) return null;
+    const year = 2000 + parseInt(yymmdd.slice(0, 2));
+    const month = parseInt(yymmdd.slice(2, 4)) - 1;
+    const day = parseInt(yymmdd.slice(4, 6));
+    return new Date(year, month, day);
+};
+
+// 다음 수업일 계산 (fromDate 다음 날부터 최대 14일 탐색)
+const DAY_MAP = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
+
+const getNextClassDay = (fromDate, scheduleStr) => {
+    const schedule = parseScheduleString(scheduleStr);
+    const classDays = schedule.map(s => DAY_MAP[s.day]).filter(d => d !== undefined);
+    if (classDays.length === 0) return null;
+
+    const date = new Date(fromDate);
+    date.setDate(date.getDate() + 1);
+    for (let i = 0; i < 14; i++) {
+        if (classDays.includes(date.getDay())) return new Date(date);
+        date.setDate(date.getDate() + 1);
+    }
+    return null;
 };
 
 const StudentRegistrationModal = ({ onClose, onSuccess }) => {
@@ -92,6 +122,80 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
         }
     }, [form.시작날짜, form.주횟수, form.등록개월수, form['요일 및 시간'], holidays, absenceDates]);
 
+    // 신규 모드: 요일 및 시간 변경 시 시작날짜 자동 세팅
+    useEffect(() => {
+        if (registrationType !== 'new') return;
+        if (!form['요일 및 시간']) return;
+
+        const nextDay = getNextClassDay(new Date(), form['요일 및 시간']);
+        if (nextDay) {
+            setForm(prev => ({ ...prev, 시작날짜: formatDateInput(nextDay) }));
+        }
+    }, [form['요일 및 시간'], registrationType]);
+
+    // 예정 출석일 달력 데이터
+    const calendarData = useMemo(() => {
+        if (!form.시작날짜 || !form.종료날짜 || !form['요일 및 시간']) return [];
+
+        const startDate = new Date(form.시작날짜 + 'T00:00:00');
+        const endDate = convertYYMMDDtoDate(form.종료날짜);
+        if (!startDate || !endDate || endDate < startDate) return [];
+
+        const schedule = parseScheduleString(form['요일 및 시간']);
+        const classDays = schedule.map(s => DAY_MAP[s.day]).filter(d => d !== undefined);
+        if (classDays.length === 0) return [];
+
+        // 월 범위 수집
+        const months = [];
+        let cur = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        const lastMonth = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+        while (cur <= lastMonth) {
+            months.push({ year: cur.getFullYear(), month: cur.getMonth() });
+            cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+        }
+
+        let totalClassDays = 0;
+
+        const result = months.map(({ year, month }) => {
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const days = [];
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const date = new Date(year, month, d);
+                const dayOfWeek = date.getDay();
+                if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const inRange = date >= startDate && date <= endDate;
+                const isScheduleDay = classDays.includes(dayOfWeek);
+                const holiday = inRange && isScheduleDay && isHolidayDate(date, holidays);
+                const absence = inRange && absenceDates.includes(dateStr);
+                const classDay = inRange && isScheduleDay && !holiday && !absence;
+
+                if (classDay) totalClassDays++;
+
+                days.push({ date: d, dayOfWeek, inRange, classDay, holiday, absence });
+            }
+
+            // 주 단위로 분할
+            const weeks = [];
+            let currentWeek = new Array(5).fill(null);
+            for (const day of days) {
+                const col = day.dayOfWeek - 1;
+                currentWeek[col] = day;
+                if (col === 4) {
+                    weeks.push(currentWeek);
+                    currentWeek = new Array(5).fill(null);
+                }
+            }
+            if (currentWeek.some(d => d !== null)) weeks.push(currentWeek);
+
+            return { year, month, weeks };
+        });
+
+        return { months: result, totalClassDays };
+    }, [form.시작날짜, form.종료날짜, form['요일 및 시간'], holidays, absenceDates]);
+
     const handleChange = (field, value) => {
         setForm(prev => {
             const updated = { ...prev, [field]: value };
@@ -114,16 +218,30 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
         try {
             const result = await findStudentAcrossSheets(form.이름.trim());
             if (result) {
+                const scheduleStr = result.student['요일 및 시간'] || getStudentField(result.student, '요일 및 시간') || '';
+                const endDateStr = getStudentField(result.student, '종료날짜') || '';
+
+                // 시작날짜 자동 계산: 기존 종료일 다음 수업일
+                let autoStartDate = '';
+                if (endDateStr && scheduleStr) {
+                    const prevEndDate = convertYYMMDDtoDate(endDateStr);
+                    if (prevEndDate) {
+                        const nextDay = getNextClassDay(prevEndDate, scheduleStr);
+                        if (nextDay) autoStartDate = formatDateInput(nextDay);
+                    }
+                }
+
                 setForm(prev => ({
                     ...prev,
                     주횟수: result.student['주횟수'] || getStudentField(result.student, '주횟수') || '',
-                    '요일 및 시간': result.student['요일 및 시간'] || getStudentField(result.student, '요일 및 시간') || '',
+                    '요일 및 시간': scheduleStr,
                     특이사항: result.student['특이사항'] || getStudentField(result.student, '특이사항') || '',
                     핸드폰: getStudentField(result.student, '핸드폰') || '',
                     성별: getStudentField(result.student, '성별') || '',
                     직업: getStudentField(result.student, '직업') || '',
                     '홀딩 사용여부': 'X',
                     결제금액: getStudentField(result.student, '결제금액') || '',
+                    시작날짜: autoStartDate,
                 }));
                 alert(`${result.foundSheetName}에서 정보를 불러왔습니다.`);
             } else {
@@ -412,6 +530,49 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
                         </div>
                     </div>
                 </div>
+
+                {/* 예정 출석일 달력 */}
+                {calendarData && calendarData.months && calendarData.months.length > 0 && (
+                    <div className="reg-calendar-section">
+                        <div className="reg-calendar-header">
+                            예정 출석일
+                            <span className="reg-calendar-count">{calendarData.totalClassDays}회</span>
+                        </div>
+                        <div className="reg-calendar-legend">
+                            <span className="reg-legend-item"><span className="reg-legend-dot class" />수업</span>
+                            <span className="reg-legend-item"><span className="reg-legend-dot holiday" />공휴일</span>
+                            <span className="reg-legend-item"><span className="reg-legend-dot absence" />결석</span>
+                        </div>
+                        {calendarData.months.map(({ year, month, weeks }) => (
+                            <div key={`${year}-${month}`} className="reg-calendar-month">
+                                <div className="reg-calendar-month-title">{year}년 {month + 1}월</div>
+                                <div className="reg-calendar-grid">
+                                    <div className="reg-calendar-weekday">월</div>
+                                    <div className="reg-calendar-weekday">화</div>
+                                    <div className="reg-calendar-weekday">수</div>
+                                    <div className="reg-calendar-weekday">목</div>
+                                    <div className="reg-calendar-weekday">금</div>
+                                    {weeks.map((week, wi) =>
+                                        week.map((day, di) => (
+                                            <div
+                                                key={`${wi}-${di}`}
+                                                className={`reg-calendar-cell${
+                                                    !day ? ' empty' :
+                                                    !day.inRange ? ' out-of-range' :
+                                                    day.classDay ? ' class-day' :
+                                                    day.holiday ? ' holiday' :
+                                                    day.absence ? ' absence' : ''
+                                                }`}
+                                            >
+                                                {day ? day.date : ''}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
 
                 <hr className="reg-section-divider" />
 
