@@ -357,6 +357,32 @@ export const getHoldingsByStudent = async (studentName) => {
 };
 
 /**
+ * 학생의 전체 홀딩 이력 조회 (active + completed + cancelled)
+ * @param {string} studentName - 학생 이름
+ * @returns {Promise<Array>} - 홀딩 이력 (최신순)
+ */
+export const getHoldingHistory = async (studentName) => {
+    if (!isFirebaseAvailable()) return [];
+
+    try {
+        const q = query(
+            collection(db, 'holdingRequests'),
+            where('studentName', '==', studentName)
+        );
+
+        const snapshot = await getDocs(q);
+        const holdings = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
+
+        return holdings;
+    } catch (error) {
+        console.error('❌ 홀딩 이력 조회 실패:', error);
+        return [];
+    }
+};
+
+/**
  * 특정 주의 홀딩 목록 조회
  * @param {string} startDate - 주 시작일 (YYYY-MM-DD)
  * @param {string} endDate - 주 종료일 (YYYY-MM-DD)

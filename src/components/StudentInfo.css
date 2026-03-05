@@ -348,6 +348,60 @@
     color: #1e40af;
 }
 
+/* 홀딩 기간 표시 */
+.holding-periods {
+    padding: 12px 16px;
+    background: #f9fafb;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.holding-period-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.holding-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: #9ca3af;
+}
+
+.holding-status-dot.active {
+    background: #f59e0b;
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+}
+
+.holding-status-dot.completed {
+    background: #10b981;
+}
+
+.holding-period-dates {
+    font-weight: 600;
+    color: #374151;
+    flex: 1;
+}
+
+.holding-period-status {
+    font-size: 12px;
+    font-weight: 700;
+    color: #6b7280;
+    padding: 2px 8px;
+    background: #e5e7eb;
+    border-radius: 10px;
+}
+
+.holding-period-status.active {
+    color: #92400e;
+    background: #fef3c7;
+}
+
 @media (max-width: 768px) {
     .student-info-header {
         flex-direction: column;

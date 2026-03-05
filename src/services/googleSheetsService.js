@@ -666,6 +666,7 @@ export const calculateMembershipStats = (student) => {
   if (!student) return null;
 
   const startDateStr = getStudentField(student, '시작날짜');
+  const endDateStr = getStudentField(student, '종료날짜'); // H열: Google Sheets에 저장된 종료일
   const scheduleStr = getStudentField(student, '요일 및 시간');
   const weeklyFrequencyStr = getStudentField(student, '주횟수');
 
@@ -710,16 +711,16 @@ export const calculateMembershipStats = (student) => {
 
   // 홀딩 기간 정보 가져오기 (completedSessions 계산에 사용)
   let holdingRange = null;
-  if (holdingUsed) {
-    const holdingStartDate = parseDate(getStudentField(student, '홀딩 시작일'));
-    const holdingEndDate = parseDate(getStudentField(student, '홀딩 종료일'));
-    if (holdingStartDate && holdingEndDate) {
-      holdingRange = { start: holdingStartDate, end: holdingEndDate };
-    }
+  const holdingStartDate = parseDate(getStudentField(student, '홀딩 시작일'));
+  const holdingEndDate = parseDate(getStudentField(student, '홀딩 종료일'));
+  if (holdingUsed && holdingStartDate && holdingEndDate) {
+    holdingRange = { start: holdingStartDate, end: holdingEndDate };
   }
 
-  let endDate = null;
-  if (startDate && scheduleStr) {
+  // Google Sheets H열 종료날짜를 우선 사용 (홀딩/결석 처리 시 정확하게 갱신됨)
+  // H열이 없으면 JS로 재계산 (폴백)
+  let endDate = parseDate(endDateStr);
+  if (!endDate && startDate && scheduleStr) {
     endDate = calculateEndDate(startDate, totalSessions, scheduleStr, holdingRange);
   }
 
@@ -755,7 +756,10 @@ export const calculateMembershipStats = (student) => {
     registrationMonths: holdingInfo.months, // 등록 개월 수
     schedule: scheduleStr,
     attendanceCount: Math.max(0, attendanceCount),
-    totalClasses: totalSessions
+    totalClasses: totalSessions,
+    // 홀딩 기간 정보 (N/O열)
+    holdingStartDate: formatDate(holdingStartDate),
+    holdingEndDate: formatDate(holdingEndDate),
   };
 };
 

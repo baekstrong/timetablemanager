@@ -1,25 +1,30 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 // isExpiringSoon, isExpired 사용하지 않음 - 추후 필요시 복원
-import { getActiveMakeupRequest } from '../services/firebaseService';
+import { getActiveMakeupRequest, getHoldingHistory } from '../services/firebaseService';
 import './StudentInfo.css';
 
 const StudentInfo = ({ user, studentData, onBack }) => {
     const { calculateMembershipStats, generateAttendanceHistory } = useGoogleSheets();
     const [makeupRequest, setMakeupRequest] = useState(null);
+    const [holdingHistory, setHoldingHistory] = useState([]);
 
-    // Firebase에서 보강 신청 데이터 로드
+    // Firebase에서 보강 신청 + 홀딩 이력 로드
     useEffect(() => {
-        const loadMakeupRequest = async () => {
+        const loadData = async () => {
             if (!user) return;
             try {
-                const makeup = await getActiveMakeupRequest(user.username);
+                const [makeup, holdings] = await Promise.all([
+                    getActiveMakeupRequest(user.username),
+                    getHoldingHistory(user.username)
+                ]);
                 setMakeupRequest(makeup);
+                setHoldingHistory(holdings);
             } catch (error) {
-                console.error('보강 신청 조회 실패:', error);
+                console.error('데이터 조회 실패:', error);
             }
         };
-        loadMakeupRequest();
+        loadData();
     }, [user]);
 
     // 구글 시트 데이터로부터 수강권 정보 계산
@@ -182,6 +187,23 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                                 )}
                             </span>
                         </div>
+                        {/* 홀딩 사용 기간 표시 */}
+                        {holdingHistory.length > 0 && (
+                            <div className="holding-periods">
+                                <span className="detail-label" style={{ marginBottom: '4px', display: 'block' }}>홀딩 기간</span>
+                                {holdingHistory.map((h, idx) => (
+                                    <div key={h.id || idx} className="holding-period-item">
+                                        <span className={`holding-status-dot ${h.status === 'active' ? 'active' : 'completed'}`} />
+                                        <span className="holding-period-dates">
+                                            {h.startDate} ~ {h.endDate}
+                                        </span>
+                                        <span className={`holding-period-status ${h.status === 'active' ? 'active' : ''}`}>
+                                            {h.status === 'active' ? '진행중' : h.status === 'cancelled' ? '취소' : '완료'}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* 진행률 바 */}
