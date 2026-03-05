@@ -182,8 +182,8 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                                 )}
                             </span>
                         </div>
-                        {/* 홀딩 사용 기간 표시 (Google Sheets N/O열 기준, M열이 O일 때만) */}
-                        {membershipInfo.isCurrentlyHolding && membershipInfo.holdingStartDate && membershipInfo.holdingEndDate && (
+                        {/* 홀딩 사용 기간 표시 (M열이 O이고 종료일이 아직 안 지난 경우만) */}
+                        {membershipInfo.isCurrentlyHolding && membershipInfo.holdingStartDate && membershipInfo.holdingEndDate && new Date(membershipInfo.holdingEndDate) >= new Date(new Date().toDateString()) && (
                             <div className="holding-periods">
                                 <span className="detail-label" style={{ marginBottom: '4px', display: 'block' }}>홀딩 기간</span>
                                 <div className="holding-period-item">
