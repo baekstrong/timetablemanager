@@ -724,12 +724,38 @@ export const calculateMembershipStats = (student) => {
     endDate = calculateEndDate(startDate, totalSessions, scheduleStr, holdingRange);
   }
 
-  // 종료일이 지났으면 오늘 대신 종료일까지만 카운트
-  const countUntil = (endDate && endDate < today) ? endDate : today;
+  // 남은 횟수 계산: 종료일(H열)이 있으면 오늘~종료일 사이의 수업일을 카운트
+  // (기존 방식: 시작일~오늘 카운트 → 공휴일/홀딩으로 종료일이 연장된 경우 completedSessions > totalSessions 발생)
+  let completedSessions, remainingSessions;
 
-  // 홀딩 기간 및 공휴일을 제외한 완료된 세션 수 계산
-  const completedSessions = calculateCompletedSessions(startDate, countUntil, scheduleStr, holdingRange, []);
-  const remainingSessions = Math.max(0, totalSessions - completedSessions);
+  if (endDate) {
+    if (today >= endDate) {
+      // 종료일이 지났거나 오늘이 종료일 → 남은 횟수 0
+      remainingSessions = 0;
+      completedSessions = totalSessions;
+    } else if (!startDate || today < startDate) {
+      // 시작 전 → 남은 횟수 = 총 횟수
+      remainingSessions = totalSessions;
+      completedSessions = 0;
+    } else {
+      // 진행 중: 내일부터 종료일까지의 수업일 수 = 남은 횟수
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      remainingSessions = Math.min(
+        totalSessions,
+        calculateCompletedSessions(tomorrow, endDate, scheduleStr, holdingRange, [])
+      );
+      completedSessions = Math.max(0, totalSessions - remainingSessions);
+    }
+  } else {
+    // endDate가 없는 경우 기존 방식 (폴백)
+    const countUntil = today;
+    completedSessions = Math.min(
+      totalSessions,
+      calculateCompletedSessions(startDate, countUntil, scheduleStr, holdingRange, [])
+    );
+    remainingSessions = Math.max(0, totalSessions - completedSessions);
+  }
 
   const formatDate = (date) => {
     if (!date) return '';
