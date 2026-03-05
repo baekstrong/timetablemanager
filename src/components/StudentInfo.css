@@ -268,7 +268,7 @@
 .attendance-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 6px;
 }
 
 .attendance-item {
@@ -417,12 +417,8 @@
     }
 
     .attendance-item {
-        grid-template-columns: 1fr;
+        grid-template-columns: auto auto auto auto;
         gap: 8px;
-    }
-
-    .attendance-period,
-    .attendance-type {
-        justify-self: start;
+        padding: 10px 12px;
     }
 }
