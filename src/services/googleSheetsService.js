@@ -757,9 +757,10 @@ export const calculateMembershipStats = (student) => {
     schedule: scheduleStr,
     attendanceCount: Math.max(0, attendanceCount),
     totalClasses: totalSessions,
-    // 홀딩 기간 정보 (N/O열)
+    // 홀딩 기간 정보 (N/O열, M열)
     holdingStartDate: formatDate(holdingStartDate),
     holdingEndDate: formatDate(holdingEndDate),
+    isCurrentlyHolding: holdingUsed, // M열이 O로 시작하면 true
   };
 };
 
