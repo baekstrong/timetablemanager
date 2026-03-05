@@ -839,22 +839,19 @@ export const generateAttendanceHistory = (student) => {
         const dateStr = formatDateKorean(current);
         const periodName = `${classInfo.period}교시`;
 
+        // 홀딩 기간은 출석 내역에서 제외
         if (holdingStart && holdingEnd &&
           current >= holdingStart && current <= holdingEnd) {
-          history.push({
-            date: dateStr,
-            period: periodName,
-            type: '정규',
-            status: '홀딩'
-          });
-        } else {
-          history.push({
-            date: dateStr,
-            period: periodName,
-            type: '정규',
-            status: '출석'
-          });
+          current.setDate(current.getDate() + 1);
+          continue;
         }
+
+        history.push({
+          date: dateStr,
+          period: periodName,
+          type: '정규',
+          status: '출석'
+        });
       }
 
       current.setDate(current.getDate() + 1);
