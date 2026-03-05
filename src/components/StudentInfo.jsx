@@ -187,19 +187,19 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                                 )}
                             </span>
                         </div>
-                        {/* 홀딩 사용 기간 표시 */}
-                        {holdingHistory.length > 0 && (
+                        {/* 홀딩 사용 기간 표시 (취소 제외) */}
+                        {holdingHistory.filter(h => h.status !== 'cancelled').length > 0 && (
                             <div className="holding-periods">
                                 <span className="detail-label" style={{ marginBottom: '4px', display: 'block' }}>홀딩 기간</span>
-                                {holdingHistory.map((h, idx) => (
+                                {holdingHistory.filter(h => h.status !== 'cancelled').map((h, idx) => (
                                     <div key={h.id || idx} className="holding-period-item">
                                         <span className={`holding-status-dot ${h.status === 'active' ? 'active' : 'completed'}`} />
                                         <span className="holding-period-dates">
                                             {h.startDate} ~ {h.endDate}
                                         </span>
-                                        <span className={`holding-period-status ${h.status === 'active' ? 'active' : ''}`}>
-                                            {h.status === 'active' ? '진행중' : h.status === 'cancelled' ? '취소' : '완료'}
-                                        </span>
+                                        {h.status === 'active' && (
+                                            <span className="holding-period-status active">진행중</span>
+                                        )}
                                     </div>
                                 ))}
                             </div>
