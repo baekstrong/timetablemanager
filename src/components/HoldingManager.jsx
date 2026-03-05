@@ -376,8 +376,17 @@ const HoldingManager = ({ user, studentData, onBack }) => {
             return;
         }
 
+        if (!date || !isClassDay(date) || isHoldingDate(date)) {
+            return;
+        }
+
         const canRequest = requestType === 'absence' ? canRequestAbsence(date) : canRequestHolding(date);
-        if (!date || !isClassDay(date) || !canRequest || isHoldingDate(date)) {
+        if (!canRequest) {
+            if (requestType === 'absence') {
+                alert('결석 신청은 수업 시작 30분 전까지만 가능합니다.');
+            } else {
+                alert('홀딩 신청은 수업 시작 1시간 전까지만 가능합니다.');
+            }
             return;
         }
 
