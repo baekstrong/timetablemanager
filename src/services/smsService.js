@@ -254,18 +254,41 @@ export const sendCoachNewRegistrationSMS = async (studentName, details, studentP
 export const sendStudentApprovalSMS = async (studentPhone, studentName, details) => {
   const settings = await getSmsSettings();
 
+  // 입학반 날짜/시간 포맷
+  let entranceDateTimeStr = '';
+  try {
+    if (details.entranceDate) {
+      const d = new Date(details.entranceDate + 'T00:00:00');
+      if (!isNaN(d.getTime())) {
+        const month = d.getMonth() + 1;
+        const day = d.getDate();
+        // entranceClassDate에서 시간 추출
+        const timeMatch = (details.entranceClassDate || '').match(/(\d{1,2}:\d{2})/);
+        const timeStr = timeMatch ? ` ${timeMatch[1]}` : '';
+        entranceDateTimeStr = `${month}월 ${day}일${timeStr}`;
+      }
+    }
+  } catch (e) { /* 파싱 실패 시 생략 */ }
+
   let text = `[근력학교] ${studentName}님, 신규 수강이 승인되었습니다.`;
 
   // 네이버 결제인 경우 결제 안내 + 스마트스토어 링크 추가
   if (details.paymentMethod === 'naver' && settings?.naverStoreLinks) {
     const link = settings.naverStoreLinks[details.weeklyFrequency];
     if (link) {
+      if (entranceDateTimeStr) {
+        text += `\n\n${entranceDateTimeStr} 입학반날 방문해주세요!`;
+      }
       text += `\n\n아래 네이버 스마트스토어 링크를 통해서 결제해주세요.`;
       text += `\n\n네이버 결제 링크(주${details.weeklyFrequency}회):\n${link}`;
     }
   } else {
     // 현장 결제인 경우 방문 안내
-    text += `\n\n입학반 날 방문하셔서 결제해주세요!`;
+    if (entranceDateTimeStr) {
+      text += `\n\n${entranceDateTimeStr} 입학반날 방문하셔서 결제해주세요!`;
+    } else {
+      text += `\n\n입학반 날 방문하셔서 결제해주세요!`;
+    }
   }
 
   try {

@@ -173,8 +173,9 @@ const CoachNewStudents = ({ user, onBack }) => {
             const newNumber = maxNumber + 1;
 
             // 입학반 다음주 기준 시작일/종료일 계산
+            const entranceDateForCalc = reg.entranceInquiry || reg.entranceDate;
             const { startDate: calcStartDate, endDate: calcEndDate } = calculateStartEndDates(
-                reg.entranceDate,
+                entranceDateForCalc,
                 reg.requestedSlots
             );
             const startDateYYMMDD = convertToYYMMDD(calcStartDate);
@@ -211,6 +212,15 @@ const CoachNewStudents = ({ user, onBack }) => {
                 const columns = 'ABCDEFGHIJKLMNOPQR'.split('');
                 const cellRanges = columns.map(col => `${col}${nextSheetRow}`);
                 await formatCellsWithStyle(cellRanges, targetSheet, { red: 1.0, green: 0.87, blue: 0.68 });
+
+                // 현장 결제(네이버 외)인 경우 결제일(J), 결제유무(K)에 빨간색 음영
+                if (reg.paymentMethod !== 'naver') {
+                    await formatCellsWithStyle(
+                        [`J${nextSheetRow}`, `K${nextSheetRow}`],
+                        targetSheet,
+                        { red: 0.92, green: 0.36, blue: 0.36 }
+                    );
+                }
             } catch (err) {
                 console.warn('서식 적용 실패:', err);
             }
@@ -221,8 +231,37 @@ const CoachNewStudents = ({ user, onBack }) => {
                 approvedAt: new Date().toISOString()
             });
 
-            // 4. 입학반 인원 증가
-            if (reg.entranceClassId) {
+            // 4. 입학반 처리
+            let finalEntranceDate = reg.entranceDate;
+            let finalEntranceClassDate = reg.entranceClassDate;
+
+            if (reg.entranceInquiry && !reg.entranceClassId) {
+                // 다른 날 문의로 승인 → 새 입학반 자동 생성
+                try {
+                    const ecResult = await createEntranceClass({
+                        date: reg.entranceInquiry,
+                        time: '10:00',
+                        endTime: '13:00',
+                        description: '',
+                        maxCapacity: 6
+                    });
+                    const newECId = ecResult.id;
+                    // 인원 1로 설정
+                    await updateEntranceClass(newECId, { currentCount: 1 });
+                    // Firestore 등록 문서에 입학반 연결
+                    finalEntranceDate = reg.entranceInquiry;
+                    finalEntranceClassDate = `${formatEntranceDate(reg.entranceInquiry)} 10:00 ~ 13:00`;
+                    await updateNewStudentRegistration(reg.id, {
+                        entranceClassId: newECId,
+                        entranceDate: finalEntranceDate,
+                        entranceClassDate: finalEntranceClassDate,
+                        entranceInquiry: ''
+                    });
+                    console.log(`✅ 입학반 자동 생성: ${finalEntranceClassDate}, 수강생: ${reg.name}`);
+                } catch (ecErr) {
+                    console.warn('입학반 자동 생성 실패:', ecErr);
+                }
+            } else if (reg.entranceClassId) {
                 try {
                     const classes = await getEntranceClasses(false);
                     const ec = classes.find(c => c.id === reg.entranceClassId);
@@ -244,8 +283,8 @@ const CoachNewStudents = ({ user, onBack }) => {
                     const smsResults = await sendApprovalNotifications(reg.phone, reg.name, {
                         paymentMethod: reg.paymentMethod,
                         weeklyFrequency: reg.weeklyFrequency,
-                        entranceDate: reg.entranceDate,
-                        entranceClassDate: reg.entranceClassDate
+                        entranceDate: finalEntranceDate,
+                        entranceClassDate: finalEntranceClassDate
                     });
                     const sent = [];
                     const failed = [];
