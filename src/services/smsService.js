@@ -93,6 +93,31 @@ const sendSMS = async (to, text, scheduledDate = null) => {
 };
 
 /**
+ * 예약 SMS 취소 (groupId 기반)
+ */
+export const cancelScheduledSMS = async (groupId) => {
+  if (!groupId) return false;
+  try {
+    const baseUrl = getSmsBaseUrl();
+    const response = await fetch(`${baseUrl}/cancel-scheduled`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId })
+    });
+    const data = await response.json();
+    if (data.success) {
+      console.log('예약 SMS 취소 성공:', groupId);
+      return true;
+    }
+    console.warn('예약 SMS 취소 실패:', data.error);
+    return false;
+  } catch (error) {
+    console.error('예약 SMS 취소 오류:', error.message);
+    return false;
+  }
+};
+
+/**
  * SMS 일괄 발송 (내부 API 호출)
  */
 const sendBatchSMS = async (messages) => {
@@ -310,7 +335,9 @@ export const scheduleEntranceReminderSMS = async (studentPhone, studentName, det
     try {
       const result = await sendSMS(studentPhone, text, scheduledDate);
       console.log('수강생 안내문자 3 예약 완료:', studentName, scheduledDate, '| 서버 응답:', result);
-      return true;
+      // groupId 반환 (예약 취소용)
+      const groupId = result?.result?.groupId || null;
+      return { sent: true, groupId };
     } catch (error) {
       console.error('수강생 안내문자 3 예약 실패:', error.message);
       return false;

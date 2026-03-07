@@ -216,6 +216,44 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // POST /sms/cancel-scheduled - 예약 SMS 취소
+    if (event.httpMethod === 'POST' && path === 'cancel-scheduled') {
+      const { groupId } = JSON.parse(event.body);
+      if (!groupId) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ success: false, error: 'groupId는 필수입니다.' })
+        };
+      }
+
+      const authHeaders = generateAuthHeaders();
+      console.log('예약 SMS 취소 요청:', groupId);
+
+      const response = await fetch(`${SOLAPI_API_URL}/messages/v4/groups/${groupId}/scheduled`, {
+        method: 'DELETE',
+        headers: authHeaders
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error('예약 SMS 취소 실패:', JSON.stringify(result));
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({ success: false, error: result.errorMessage || `취소 실패 (${response.status})` })
+        };
+      }
+
+      console.log('예약 SMS 취소 성공:', JSON.stringify(result));
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ success: true, result })
+      };
+    }
+
     return {
       statusCode: 404,
       headers,

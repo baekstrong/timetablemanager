@@ -75,6 +75,8 @@ const NewStudentRegistration = () => {
     // Step 4: 입학반
     const [entranceClasses, setEntranceClasses] = useState([]);
     const [selectedEntrance, setSelectedEntrance] = useState(null);
+    const [entranceInquiry, setEntranceInquiry] = useState(''); // 다른 날 문의
+    const [showEntranceExplain, setShowEntranceExplain] = useState(false);
 
     // Step 5: 결제
     const [paymentMethod, setPaymentMethod] = useState('');
@@ -223,7 +225,7 @@ const NewStudentRegistration = () => {
             case 0: return name.trim() && password.trim() && phone1.trim() && phone2.trim() && phone3.trim();
             case 1: return weeklyFrequency !== null;
             case 2: return selectedSlots.length === weeklyFrequency || isWaitlistMode;
-            case 3: return selectedEntrance !== null;
+            case 3: return selectedEntrance !== null || entranceInquiry.trim() !== '';
             case 4: return paymentMethod !== '';
             case 5: return true;
             case 6: return true;
@@ -253,6 +255,7 @@ const NewStudentRegistration = () => {
                 entranceClassId: selectedEntrance,
                 entranceDate: entranceClass ? entranceClass.date : '',
                 entranceClassDate: entranceClass ? `${formatEntranceDate(entranceClass.date)} ${entranceClass.time}${entranceClass.endTime ? ' ~ ' + entranceClass.endTime : ''}` : '',
+                entranceInquiry: entranceInquiry.trim(),
                 entranceCost,
                 totalCost,
                 paymentMethod,
@@ -611,6 +614,20 @@ const NewStudentRegistration = () => {
                     {step === 3 && (
                         <div className="reg-step-content">
                             <p className="reg-description">입학반 일정을 선택하세요</p>
+
+                            {/* 입학반 설명 토글 */}
+                            <div className="reg-entrance-explain-toggle" onClick={() => setShowEntranceExplain(v => !v)}>
+                                <span>입학반은 무엇인가요? (비용 {entranceCost.toLocaleString()}원)</span>
+                                <span className="reg-entrance-explain-arrow">{showEntranceExplain ? '▲' : '▼'}</span>
+                            </div>
+                            {showEntranceExplain && (
+                                <div className="reg-entrance-explain">
+                                    <p><strong>입학반</strong>은 정규 수업에 합류하기 전, 원활한 적응과 안전한 운동을 위해 꼭 필요한 <strong>기초 이론과 핵심 자세를 익히는 입문 과정</strong>입니다.</p>
+                                    <p>근력학교의 모든 수업은 그룹으로 진행됩니다. 따라서 정규 수업의 흐름을 유지하고, 수강생분들 개개인이 최상의 운동 효율을 얻으실 수 있도록 기초를 먼저 다지는 시간을 갖고 있습니다. 이는 처음 오신 분들이 수업에 소외되지 않고 자신감 있게 시작하실 수 있도록 돕는 과정이기도 합니다.</p>
+                                    <p>모든 신규 수강생분은 정규 수업 참여에 앞서 입학반을 우선 이수해 주시길 부탁드립니다. 수업은 바쁜 일정을 고려하여 <strong>주말 중 단 하루, 3시간(이론 1시간 + 자세 실습 2시간)</strong> 동안 압축적으로 진행됩니다.</p>
+                                </div>
+                            )}
+
                             <div className="reg-entrance-info">
                                 <div className="reg-cost-row">
                                     <span>수업료 ({PRICING.find(p => p.frequency === weeklyFrequency)?.label})</span>
@@ -636,6 +653,7 @@ const NewStudentRegistration = () => {
                                             onClick={() => {
                                                 if (ec.currentCount >= ec.maxCapacity) return;
                                                 setSelectedEntrance(ec.id);
+                                                setEntranceInquiry('');
                                             }}
                                         >
                                             <div className="reg-entrance-date">{formatEntranceDate(ec.date)}</div>
@@ -650,6 +668,35 @@ const NewStudentRegistration = () => {
                                     ))}
                                 </div>
                             )}
+
+                            {/* 다른 날 문의 */}
+                            <div className="reg-entrance-inquiry">
+                                <div
+                                    className="reg-entrance-inquiry-label"
+                                    onClick={() => {
+                                        if (!entranceInquiry) {
+                                            setSelectedEntrance(null);
+                                            setEntranceInquiry(' ');
+                                        } else {
+                                            setEntranceInquiry('');
+                                        }
+                                    }}
+                                >
+                                    위 날짜가 어려우신가요? 다른 날짜를 문의해보세요.
+                                </div>
+                                {(entranceInquiry || selectedEntrance === null) && entranceInquiry !== '' && (
+                                    <textarea
+                                        className="reg-entrance-inquiry-input"
+                                        value={entranceInquiry.trim() ? entranceInquiry : ''}
+                                        onChange={(e) => {
+                                            setEntranceInquiry(e.target.value);
+                                            if (e.target.value.trim()) setSelectedEntrance(null);
+                                        }}
+                                        placeholder="희망하시는 날짜/시간을 적어주세요. (예: 3월 둘째 주 토요일 오전)"
+                                        rows={2}
+                                    />
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -761,7 +808,11 @@ const NewStudentRegistration = () => {
                                 </div>
                                 <div className="reg-summary-row">
                                     <span>입학반</span>
-                                    <span>{(() => { const ec = entranceClasses.find(c => c.id === selectedEntrance); return ec ? `${formatEntranceDate(ec.date)} ${ec.time}${ec.endTime ? ' ~ ' + ec.endTime : ''}` : ''; })()}</span>
+                                    <span>{(() => {
+                                        if (entranceInquiry.trim()) return `날짜 문의: ${entranceInquiry.trim()}`;
+                                        const ec = entranceClasses.find(c => c.id === selectedEntrance);
+                                        return ec ? `${formatEntranceDate(ec.date)} ${ec.time}${ec.endTime ? ' ~ ' + ec.endTime : ''}` : '';
+                                    })()}</span>
                                 </div>
                                 {!isWaitlistMode && (() => {
                                     const ec = entranceClasses.find(c => c.id === selectedEntrance);

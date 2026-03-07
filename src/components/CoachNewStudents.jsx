@@ -20,7 +20,7 @@ import {
     writeSheetData,
     formatCellsWithStyle
 } from '../services/googleSheetsService';
-import { sendApprovalNotifications, sendWaitlistAvailableSMS } from '../services/smsService';
+import { sendApprovalNotifications, sendWaitlistAvailableSMS, cancelScheduledSMS } from '../services/smsService';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { formatEntranceDate, convertToYYMMDD, calculateStartEndDates } from '../utils/dateUtils';
 import { PRICING, PERIODS, MAX_CAPACITY } from '../data/mockData';
@@ -250,7 +250,14 @@ const CoachNewStudents = ({ user, onBack }) => {
                     const failed = [];
                     if (smsResults.approvalSMS) sent.push('승인 문자');
                     else failed.push('승인 문자');
-                    if (smsResults.reminderSMS) sent.push('입학반 리마인더');
+                    if (smsResults.reminderSMS) {
+                        sent.push('입학반 리마인더');
+                        // 예약 SMS groupId 저장 (취소용)
+                        const groupId = smsResults.reminderSMS?.groupId;
+                        if (groupId) {
+                            await updateNewStudentRegistration(reg.id, { reminderGroupId: groupId });
+                        }
+                    }
                     if (sent.length > 0) {
                         console.log(`문자 발송 완료: ${sent.join(', ')}`);
                     }
@@ -322,6 +329,16 @@ const CoachNewStudents = ({ user, onBack }) => {
             }
 
             await deleteNewStudentRegistration(reg.id);
+
+            // 예약 SMS 취소 (groupId가 있는 경우)
+            if (reg.reminderGroupId) {
+                try {
+                    await cancelScheduledSMS(reg.reminderGroupId);
+                    console.log('예약 SMS 취소 완료:', reg.reminderGroupId);
+                } catch (smsErr) {
+                    console.warn('예약 SMS 취소 실패:', smsErr);
+                }
+            }
 
             // 승인된 등록이면 입학반 인원 차감
             if (isApproved && reg.entranceClassId) {
@@ -472,6 +489,14 @@ const CoachNewStudents = ({ user, onBack }) => {
             }
 
             await deleteNewStudentRegistration(reg.id);
+            // 예약 SMS 취소
+            if (reg.reminderGroupId) {
+                try {
+                    await cancelScheduledSMS(reg.reminderGroupId);
+                } catch (smsErr) {
+                    console.warn('예약 SMS 취소 실패:', smsErr);
+                }
+            }
             // 승인된 등록이었으면 입학반 인원 차감
             if (isApproved && ec && (ec.currentCount || 0) > 0) {
                 await updateEntranceClass(ec.id, {
@@ -774,6 +799,12 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                     <span className="cns-detail-label">입학반</span>
                                                     <span className="cns-detail-value">{reg.entranceClassDate || '-'}</span>
                                                 </div>
+                                                {reg.entranceInquiry && (
+                                                    <div className="cns-detail-item full">
+                                                        <span className="cns-detail-label">입학반 날짜 문의</span>
+                                                        <span className="cns-detail-value" style={{ color: '#dc2626' }}>{reg.entranceInquiry}</span>
+                                                    </div>
+                                                )}
                                                 {reg.gender && (
                                                     <div className="cns-detail-item">
                                                         <span className="cns-detail-label">성별</span>

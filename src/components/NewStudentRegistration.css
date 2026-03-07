@@ -297,6 +297,79 @@
 }
 
 /* Entrance Classes */
+/* 입학반 설명 */
+.reg-entrance-explain-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: #eef2ff;
+    border-radius: 10px;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #4338ca;
+}
+
+.reg-entrance-explain-arrow {
+    font-size: 0.7rem;
+    color: #667eea;
+}
+
+.reg-entrance-explain {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: #374151;
+}
+
+.reg-entrance-explain p {
+    margin: 0 0 0.6rem;
+}
+
+.reg-entrance-explain p:last-child {
+    margin-bottom: 0;
+}
+
+/* 다른 날 문의 */
+.reg-entrance-inquiry {
+    margin-top: 1rem;
+}
+
+.reg-entrance-inquiry-label {
+    font-size: 0.85rem;
+    color: #667eea;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    padding: 0.5rem;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.reg-entrance-inquiry-input {
+    width: 100%;
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    border: 1.5px solid #667eea;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    resize: none;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.reg-entrance-inquiry-input:focus {
+    outline: none;
+    border-color: #4338ca;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
 .reg-entrance-info {
     background: #f9fafb;
     border-radius: 10px;
