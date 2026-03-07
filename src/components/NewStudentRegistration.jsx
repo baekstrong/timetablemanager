@@ -77,6 +77,10 @@ const NewStudentRegistration = () => {
     const [selectedEntrance, setSelectedEntrance] = useState(null);
     const [entranceInquiry, setEntranceInquiry] = useState(''); // 다른 날 문의 (YYYY-MM-DD)
     const [showInquiryCalendar, setShowInquiryCalendar] = useState(false);
+    const [inquiryCalMonth, setInquiryCalMonth] = useState(() => {
+        const now = new Date();
+        return { year: now.getFullYear(), month: now.getMonth() };
+    });
     const [showEntranceExplain, setShowEntranceExplain] = useState(true);
 
     // Step 5: 결제
@@ -686,51 +690,86 @@ const NewStudentRegistration = () => {
                                     위 날짜가 어려우신가요? 다른 날짜를 문의해보세요.
                                 </div>
                                 {showInquiryCalendar && (() => {
-                                    // 오늘부터 8주간 주말(토/일)만 표시
+                                    const { year, month } = inquiryCalMonth;
                                     const today = new Date();
                                     today.setHours(0, 0, 0, 0);
-                                    const weekends = [];
-                                    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-                                    for (let i = 1; i <= 56; i++) {
-                                        const d = new Date(today);
-                                        d.setDate(d.getDate() + i);
-                                        const dow = d.getDay();
-                                        if (dow === 0 || dow === 6) {
-                                            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                                            // 이미 등록된 입학반 날짜는 제외
-                                            const isExistingEntrance = entranceClasses.some(ec => ec.date === dateStr);
-                                            if (!isExistingEntrance) {
-                                                weekends.push({
-                                                    dateStr,
-                                                    label: `${d.getMonth() + 1}/${d.getDate()}(${dayNames[dow]})`
-                                                });
-                                            }
-                                        }
+                                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+                                    const firstDow = new Date(year, month, 1).getDay(); // 0=일
+
+                                    // 달력 그리드 생성
+                                    const cells = [];
+                                    for (let i = 0; i < firstDow; i++) cells.push(null); // 빈칸
+                                    for (let d = 1; d <= daysInMonth; d++) {
+                                        const date = new Date(year, month, d);
+                                        const dow = date.getDay();
+                                        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                                        const isWeekend = dow === 0 || dow === 6;
+                                        const isPast = date <= today;
+                                        const isExistingEntrance = entranceClasses.some(ec => ec.date === dateStr);
+                                        cells.push({
+                                            day: d, dateStr, isWeekend,
+                                            disabled: !isWeekend || isPast || isExistingEntrance,
+                                            isEntrance: isExistingEntrance && isWeekend
+                                        });
                                     }
+
+                                    const canPrevMonth = !(year === today.getFullYear() && month === today.getMonth());
+                                    const maxDate = new Date(today);
+                                    maxDate.setMonth(maxDate.getMonth() + 3);
+                                    const canNextMonth = new Date(year, month + 1, 1) <= maxDate;
+
                                     return (
                                         <div className="reg-inquiry-calendar">
-                                            <div className="reg-inquiry-calendar-hint">희망하시는 주말 날짜를 선택해주세요</div>
-                                            <div className="reg-inquiry-calendar-grid">
-                                                {weekends.map(w => (
+                                            <div className="reg-inquiry-cal-header">
+                                                <button
+                                                    type="button"
+                                                    className="reg-inquiry-cal-nav"
+                                                    disabled={!canPrevMonth}
+                                                    onClick={() => setInquiryCalMonth(prev => {
+                                                        const d = new Date(prev.year, prev.month - 1, 1);
+                                                        return { year: d.getFullYear(), month: d.getMonth() };
+                                                    })}
+                                                >&lt;</button>
+                                                <span className="reg-inquiry-cal-title">{year}년 {month + 1}월</span>
+                                                <button
+                                                    type="button"
+                                                    className="reg-inquiry-cal-nav"
+                                                    disabled={!canNextMonth}
+                                                    onClick={() => setInquiryCalMonth(prev => {
+                                                        const d = new Date(prev.year, prev.month + 1, 1);
+                                                        return { year: d.getFullYear(), month: d.getMonth() };
+                                                    })}
+                                                >&gt;</button>
+                                            </div>
+                                            <div className="reg-inquiry-cal-grid">
+                                                {['일', '월', '화', '수', '목', '금', '토'].map(d => (
+                                                    <div key={d} className={`reg-inquiry-cal-dow${d === '토' || d === '일' ? ' weekend' : ''}`}>{d}</div>
+                                                ))}
+                                                {cells.map((cell, idx) => (
                                                     <div
-                                                        key={w.dateStr}
-                                                        className={`reg-inquiry-date${entranceInquiry === w.dateStr ? ' selected' : ''}`}
+                                                        key={idx}
+                                                        className={`reg-inquiry-cal-cell${
+                                                            !cell ? ' empty' :
+                                                            cell.disabled ? (cell.isEntrance ? ' entrance' : ' disabled') :
+                                                            entranceInquiry === cell.dateStr ? ' selected' : ' selectable'
+                                                        }`}
                                                         onClick={() => {
-                                                            if (entranceInquiry === w.dateStr) {
+                                                            if (!cell || cell.disabled) return;
+                                                            if (entranceInquiry === cell.dateStr) {
                                                                 setEntranceInquiry('');
                                                             } else {
-                                                                setEntranceInquiry(w.dateStr);
+                                                                setEntranceInquiry(cell.dateStr);
                                                                 setSelectedEntrance(null);
                                                             }
                                                         }}
                                                     >
-                                                        {w.label}
+                                                        {cell ? cell.day : ''}
                                                     </div>
                                                 ))}
                                             </div>
                                             {entranceInquiry && (
                                                 <div className="reg-inquiry-selected">
-                                                    {formatEntranceDate(entranceInquiry)} 희망
+                                                    {formatEntranceDate(entranceInquiry)} 10:00 ~ 13:00 희망
                                                 </div>
                                             )}
                                         </div>
@@ -849,7 +888,7 @@ const NewStudentRegistration = () => {
                                 <div className="reg-summary-row">
                                     <span>입학반</span>
                                     <span>{(() => {
-                                        if (entranceInquiry) return `날짜 문의: ${formatEntranceDate(entranceInquiry)}`;
+                                        if (entranceInquiry) return `날짜 문의: ${formatEntranceDate(entranceInquiry)} 10:00~13:00`;
                                         const ec = entranceClasses.find(c => c.id === selectedEntrance);
                                         return ec ? `${formatEntranceDate(ec.date)} ${ec.time}${ec.endTime ? ' ~ ' + ec.endTime : ''}` : '';
                                     })()}</span>

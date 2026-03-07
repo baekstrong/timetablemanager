@@ -353,39 +353,102 @@
 }
 
 .reg-inquiry-calendar {
-    margin-top: 0.5rem;
+    margin-top: 0.75rem;
+    background: #fff;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 0.75rem;
 }
 
-.reg-inquiry-calendar-hint {
-    font-size: 0.8rem;
-    color: #6b7280;
-    text-align: center;
+.reg-inquiry-cal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 0.5rem;
 }
 
-.reg-inquiry-calendar-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.5rem;
+.reg-inquiry-cal-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1f2937;
 }
 
-.reg-inquiry-date {
-    padding: 0.6rem 0.25rem;
-    text-align: center;
+.reg-inquiry-cal-nav {
+    background: none;
     border: 1.5px solid #e5e7eb;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    font-weight: 600;
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    font-size: 0.9rem;
+    font-weight: 700;
     color: #374151;
     cursor: pointer;
-    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.reg-inquiry-date:active,
-.reg-inquiry-date.selected {
-    background: #eef2ff;
-    border-color: #667eea;
+.reg-inquiry-cal-nav:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.reg-inquiry-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.reg-inquiry-cal-dow {
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #9ca3af;
+    padding: 0.3rem 0;
+}
+
+.reg-inquiry-cal-dow.weekend {
+    color: #667eea;
+}
+
+.reg-inquiry-cal-cell {
+    text-align: center;
+    padding: 0.5rem 0;
+    font-size: 0.85rem;
+    border-radius: 8px;
+}
+
+.reg-inquiry-cal-cell.empty {
+    /* nothing */
+}
+
+.reg-inquiry-cal-cell.disabled {
+    color: #d1d5db;
+}
+
+.reg-inquiry-cal-cell.entrance {
+    color: #9ca3af;
+    background: #f3f4f6;
+    text-decoration: line-through;
+}
+
+.reg-inquiry-cal-cell.selectable {
     color: #4338ca;
+    font-weight: 700;
+    cursor: pointer;
+    background: #f0f0ff;
+}
+
+.reg-inquiry-cal-cell.selectable:active {
+    background: #667eea;
+    color: #fff;
+}
+
+.reg-inquiry-cal-cell.selected {
+    background: #667eea;
+    color: #fff;
+    font-weight: 700;
+    border-radius: 8px;
 }
 
 .reg-inquiry-selected {
