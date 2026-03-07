@@ -455,8 +455,49 @@
     border-radius: 6px;
 }
 
+.cns-icon-btn.add {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #667eea;
+}
+
 .cns-icon-btn:active {
     background: #f3f4f6;
+}
+
+/* 수강생 수동 추가 리스트 */
+.cns-add-student-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.cns-add-student-item {
+    padding: 0.75rem;
+    background: #f9fafb;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.cns-add-student-item:active {
+    background: #eef2ff;
+    border-color: #667eea;
+}
+
+.cns-add-student-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #1f2937;
+}
+
+.cns-add-student-info {
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-top: 0.15rem;
 }
 
 /* FAQ List */

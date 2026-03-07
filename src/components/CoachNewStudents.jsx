@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db } from '../config/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import {
     getNewStudentRegistrations,
     updateNewStudentRegistration,
@@ -46,6 +46,9 @@ const CoachNewStudents = ({ user, onBack }) => {
     const [showEntranceForm, setShowEntranceForm] = useState(false);
     const [editingEntrance, setEditingEntrance] = useState(null);
     const [entranceForm, setEntranceForm] = useState({ date: '', time: '', description: '', maxCapacity: 6 });
+    const [showAddStudentModal, setShowAddStudentModal] = useState(null); // 수동 추가 대상 입학반
+    const [sheetNewStudents, setSheetNewStudents] = useState([]);
+    const [addStudentLoading, setAddStudentLoading] = useState(false);
 
     // === FAQ 관리 ===
     const [faqList, setFaqList] = useState([]);
@@ -483,6 +486,86 @@ const CoachNewStudents = ({ user, onBack }) => {
         }
     };
 
+    // ─── 입학반 수동 수강생 추가 ─────────────────────
+    const handleOpenAddStudent = async (ec) => {
+        setShowAddStudentModal(ec);
+        setAddStudentLoading(true);
+        try {
+            const targetSheet = getCurrentSheetName();
+            const rows = await readSheetData(`${targetSheet}!A:R`);
+            // F열(index 5)이 '신규'인 수강생 필터링
+            const newStudents = [];
+            // 이미 이 입학반에 등록된 수강생 이름 목록
+            const existingNames = new Set(
+                entranceRegs.filter(r => r.entranceClassId === ec.id).map(r => r.name)
+            );
+            for (let i = 2; i < rows.length; i++) {
+                const row = rows[i];
+                if (!row || !row[1]) continue; // B열(이름) 없으면 스킵
+                if (row[5] === '신규') {
+                    const name = row[1];
+                    if (!existingNames.has(name)) {
+                        newStudents.push({
+                            rowIndex: i,
+                            name,
+                            weeklyFrequency: row[2] || '',
+                            schedule: row[3] || '',
+                            startDate: row[6] || '',
+                            phone: row[15] || ''
+                        });
+                    }
+                }
+            }
+            setSheetNewStudents(newStudents);
+        } catch (err) {
+            console.error('신규 수강생 목록 로드 실패:', err);
+            alert('신규 수강생 목록을 불러오지 못했습니다.');
+            setShowAddStudentModal(null);
+        }
+        setAddStudentLoading(false);
+    };
+
+    const handleAddStudentToEntrance = async (student) => {
+        const ec = showAddStudentModal;
+        if (!ec) return;
+        if ((ec.currentCount || 0) >= (ec.maxCapacity || 0)) {
+            alert('이 입학반은 만석입니다.');
+            return;
+        }
+        if (!confirm(`"${student.name}" 수강생을 이 입학반에 추가하시겠습니까?`)) return;
+
+        try {
+            // Firestore에 newStudentRegistration 문서 생성 (수동 추가)
+            const regRef = collection(db, 'newStudentRegistrations');
+            await addDoc(regRef, {
+                name: student.name,
+                phone: student.phone,
+                weeklyFrequency: parseInt(student.weeklyFrequency) || 0,
+                scheduleString: student.schedule,
+                entranceClassId: ec.id,
+                entranceClassDate: ec.date,
+                entranceDate: ec.date,
+                status: 'approved',
+                source: 'manual',
+                approvedAt: new Date().toISOString(),
+                createdAt: serverTimestamp()
+            });
+
+            // 입학반 인원 증가
+            await updateEntranceClass(ec.id, {
+                currentCount: (ec.currentCount || 0) + 1
+            });
+
+            alert(`"${student.name}" 수강생이 입학반에 추가되었습니다.`);
+            setShowAddStudentModal(null);
+            setSheetNewStudents([]);
+            await loadEntranceClasses();
+        } catch (err) {
+            console.error('수강생 추가 실패:', err);
+            alert('수강생 추가에 실패했습니다: ' + err.message);
+        }
+    };
+
     // ─── 입학반 CRUD ─────────────────────
     const handleEntranceSubmit = async () => {
         if (!entranceForm.date || !entranceForm.time) {
@@ -855,6 +938,13 @@ const CoachNewStudents = ({ user, onBack }) => {
                                         </div>
                                         <div className="cns-entrance-actions">
                                             <button
+                                                className="cns-icon-btn add"
+                                                onClick={() => handleOpenAddStudent(ec)}
+                                                title="수강생 추가"
+                                            >
+                                                +
+                                            </button>
+                                            <button
                                                 className="cns-icon-btn edit"
                                                 onClick={() => {
                                                     setEditingEntrance(ec);
@@ -880,6 +970,41 @@ const CoachNewStudents = ({ user, onBack }) => {
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+                        )}
+
+                        {/* 수강생 수동 추가 모달 */}
+                        {showAddStudentModal && (
+                            <div className="cns-modal-overlay" onClick={() => { setShowAddStudentModal(null); setSheetNewStudents([]); }}>
+                                <div className="cns-modal" onClick={(e) => e.stopPropagation()}>
+                                    <h3>수강생 추가</h3>
+                                    <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.75rem' }}>
+                                        {formatEntranceDate(showAddStudentModal.date)} 입학반에 추가할 신규 수강생을 선택하세요.
+                                    </p>
+                                    {addStudentLoading ? (
+                                        <div className="cns-loading">불러오는 중...</div>
+                                    ) : sheetNewStudents.length === 0 ? (
+                                        <div className="cns-empty">추가 가능한 신규 수강생이 없습니다.</div>
+                                    ) : (
+                                        <div className="cns-add-student-list">
+                                            {sheetNewStudents.map(s => (
+                                                <div
+                                                    key={s.rowIndex}
+                                                    className="cns-add-student-item"
+                                                    onClick={() => handleAddStudentToEntrance(s)}
+                                                >
+                                                    <div className="cns-add-student-name">{s.name}</div>
+                                                    <div className="cns-add-student-info">
+                                                        주{s.weeklyFrequency}회 · {s.schedule}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <div className="cns-modal-actions">
+                                        <button className="cns-modal-btn cancel" onClick={() => { setShowAddStudentModal(null); setSheetNewStudents([]); }}>닫기</button>
+                                    </div>
+                                </div>
                             </div>
                         )}
 
