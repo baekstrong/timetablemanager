@@ -18,7 +18,8 @@ import {
     getCurrentSheetName,
     readSheetData,
     writeSheetData,
-    formatCellsWithStyle
+    formatCellsWithStyle,
+    getStudentField
 } from '../services/googleSheetsService';
 import { sendApprovalNotifications, sendWaitlistAvailableSMS, cancelScheduledSMS } from '../services/smsService';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
@@ -788,7 +789,22 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                 <div className="cns-detail-item">
                                                     <span className="cns-detail-label">결제방식</span>
                                                     <span className="cns-detail-value">
-                                                        {reg.paymentMethod === 'naver' ? '네이버' : reg.paymentMethod === 'card' ? '현장 카드 결제' : reg.paymentMethod === 'zeropay' ? '제로페이' : '현장 계좌 이체'}
+                                                        {(() => {
+                                                            // 승인된 수강생은 구글 시트의 결제 정보 확인
+                                                            if (reg.status === 'approved') {
+                                                                const sheetStudent = allStudents.find(s => (s['이름'] || getStudentField(s, '이름')) === reg.name);
+                                                                if (sheetStudent) {
+                                                                    const 결제일 = getStudentField(sheetStudent, '결제일');
+                                                                    const 결제유무 = getStudentField(sheetStudent, '결제유무');
+                                                                    const 결제방식 = getStudentField(sheetStudent, '결제방식');
+                                                                    if (!결제일 && !결제유무 && !결제방식) {
+                                                                        return <span style={{ color: '#dc2626', fontWeight: 700 }}>미결제</span>;
+                                                                    }
+                                                                    if (결제방식) return 결제방식;
+                                                                }
+                                                            }
+                                                            return reg.paymentMethod === 'naver' ? '네이버' : reg.paymentMethod === 'card' ? '현장 카드 결제' : reg.paymentMethod === 'zeropay' ? '제로페이' : '현장 계좌 이체';
+                                                        })()}
                                                     </span>
                                                 </div>
                                                 <div className="cns-detail-item">
@@ -802,7 +818,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                 {reg.entranceInquiry && (
                                                     <div className="cns-detail-item full">
                                                         <span className="cns-detail-label">입학반 날짜 문의</span>
-                                                        <span className="cns-detail-value" style={{ color: '#dc2626' }}>{reg.entranceInquiry}</span>
+                                                        <span className="cns-detail-value" style={{ color: '#dc2626' }}>{formatEntranceDate(reg.entranceInquiry) || reg.entranceInquiry}</span>
                                                     </div>
                                                 )}
                                                 {reg.gender && (

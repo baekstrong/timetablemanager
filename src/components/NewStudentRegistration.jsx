@@ -75,8 +75,9 @@ const NewStudentRegistration = () => {
     // Step 4: 입학반
     const [entranceClasses, setEntranceClasses] = useState([]);
     const [selectedEntrance, setSelectedEntrance] = useState(null);
-    const [entranceInquiry, setEntranceInquiry] = useState(''); // 다른 날 문의
-    const [showEntranceExplain, setShowEntranceExplain] = useState(false);
+    const [entranceInquiry, setEntranceInquiry] = useState(''); // 다른 날 문의 (YYYY-MM-DD)
+    const [showInquiryCalendar, setShowInquiryCalendar] = useState(false);
+    const [showEntranceExplain, setShowEntranceExplain] = useState(true);
 
     // Step 5: 결제
     const [paymentMethod, setPaymentMethod] = useState('');
@@ -225,7 +226,7 @@ const NewStudentRegistration = () => {
             case 0: return name.trim() && password.trim() && phone1.trim() && phone2.trim() && phone3.trim();
             case 1: return weeklyFrequency !== null;
             case 2: return selectedSlots.length === weeklyFrequency || isWaitlistMode;
-            case 3: return selectedEntrance !== null || entranceInquiry.trim() !== '';
+            case 3: return selectedEntrance !== null || entranceInquiry !== '';
             case 4: return paymentMethod !== '';
             case 5: return true;
             case 6: return true;
@@ -255,7 +256,7 @@ const NewStudentRegistration = () => {
                 entranceClassId: selectedEntrance,
                 entranceDate: entranceClass ? entranceClass.date : '',
                 entranceClassDate: entranceClass ? `${formatEntranceDate(entranceClass.date)} ${entranceClass.time}${entranceClass.endTime ? ' ~ ' + entranceClass.endTime : ''}` : '',
-                entranceInquiry: entranceInquiry.trim(),
+                entranceInquiry: entranceInquiry || '',
                 entranceCost,
                 totalCost,
                 paymentMethod,
@@ -674,28 +675,67 @@ const NewStudentRegistration = () => {
                                 <div
                                     className="reg-entrance-inquiry-label"
                                     onClick={() => {
-                                        if (!entranceInquiry) {
-                                            setSelectedEntrance(null);
-                                            setEntranceInquiry(' ');
-                                        } else {
+                                        if (showInquiryCalendar) {
+                                            setShowInquiryCalendar(false);
                                             setEntranceInquiry('');
+                                        } else {
+                                            setShowInquiryCalendar(true);
                                         }
                                     }}
                                 >
                                     위 날짜가 어려우신가요? 다른 날짜를 문의해보세요.
                                 </div>
-                                {(entranceInquiry || selectedEntrance === null) && entranceInquiry !== '' && (
-                                    <textarea
-                                        className="reg-entrance-inquiry-input"
-                                        value={entranceInquiry.trim() ? entranceInquiry : ''}
-                                        onChange={(e) => {
-                                            setEntranceInquiry(e.target.value);
-                                            if (e.target.value.trim()) setSelectedEntrance(null);
-                                        }}
-                                        placeholder="희망하시는 날짜/시간을 적어주세요. (예: 3월 둘째 주 토요일 오전)"
-                                        rows={2}
-                                    />
-                                )}
+                                {showInquiryCalendar && (() => {
+                                    // 오늘부터 8주간 주말(토/일)만 표시
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+                                    const weekends = [];
+                                    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+                                    for (let i = 1; i <= 56; i++) {
+                                        const d = new Date(today);
+                                        d.setDate(d.getDate() + i);
+                                        const dow = d.getDay();
+                                        if (dow === 0 || dow === 6) {
+                                            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                            // 이미 등록된 입학반 날짜는 제외
+                                            const isExistingEntrance = entranceClasses.some(ec => ec.date === dateStr);
+                                            if (!isExistingEntrance) {
+                                                weekends.push({
+                                                    dateStr,
+                                                    label: `${d.getMonth() + 1}/${d.getDate()}(${dayNames[dow]})`
+                                                });
+                                            }
+                                        }
+                                    }
+                                    return (
+                                        <div className="reg-inquiry-calendar">
+                                            <div className="reg-inquiry-calendar-hint">희망하시는 주말 날짜를 선택해주세요</div>
+                                            <div className="reg-inquiry-calendar-grid">
+                                                {weekends.map(w => (
+                                                    <div
+                                                        key={w.dateStr}
+                                                        className={`reg-inquiry-date${entranceInquiry === w.dateStr ? ' selected' : ''}`}
+                                                        onClick={() => {
+                                                            if (entranceInquiry === w.dateStr) {
+                                                                setEntranceInquiry('');
+                                                            } else {
+                                                                setEntranceInquiry(w.dateStr);
+                                                                setSelectedEntrance(null);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {w.label}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            {entranceInquiry && (
+                                                <div className="reg-inquiry-selected">
+                                                    {formatEntranceDate(entranceInquiry)} 희망
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                     )}
@@ -809,7 +849,7 @@ const NewStudentRegistration = () => {
                                 <div className="reg-summary-row">
                                     <span>입학반</span>
                                     <span>{(() => {
-                                        if (entranceInquiry.trim()) return `날짜 문의: ${entranceInquiry.trim()}`;
+                                        if (entranceInquiry) return `날짜 문의: ${formatEntranceDate(entranceInquiry)}`;
                                         const ec = entranceClasses.find(c => c.id === selectedEntrance);
                                         return ec ? `${formatEntranceDate(ec.date)} ${ec.time}${ec.endTime ? ' ~ ' + ec.endTime : ''}` : '';
                                     })()}</span>

@@ -352,22 +352,48 @@
     text-underline-offset: 3px;
 }
 
-.reg-entrance-inquiry-input {
-    width: 100%;
+.reg-inquiry-calendar {
     margin-top: 0.5rem;
-    padding: 0.75rem;
-    border: 1.5px solid #667eea;
-    border-radius: 10px;
-    font-size: 0.9rem;
-    resize: none;
-    box-sizing: border-box;
-    font-family: inherit;
 }
 
-.reg-entrance-inquiry-input:focus {
-    outline: none;
-    border-color: #4338ca;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+.reg-inquiry-calendar-hint {
+    font-size: 0.8rem;
+    color: #6b7280;
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+.reg-inquiry-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+}
+
+.reg-inquiry-date {
+    padding: 0.6rem 0.25rem;
+    text-align: center;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.reg-inquiry-date:active,
+.reg-inquiry-date.selected {
+    background: #eef2ff;
+    border-color: #667eea;
+    color: #4338ca;
+}
+
+.reg-inquiry-selected {
+    margin-top: 0.6rem;
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #667eea;
 }
 
 .reg-entrance-info {
