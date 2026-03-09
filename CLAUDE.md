@@ -58,13 +58,17 @@ src/
 │   ├── HolidayManager.jsx           # 코치용 공휴일 관리
 │   ├── MakeupRequestManager.jsx     # 보강 관리
 │   ├── CoachNewStudents.jsx         # 신규 신청 승인/거절
+│   ├── ContractView.jsx            # 재등록 계약 동의 페이지 (학생용)
+│   ├── ContractHistory.jsx         # 계약 이력 모달 (코치/학생 공용)
 │   ├── NewStudentRegistration.jsx   # 신규 수강생 7단계 위자드 (외부 접근: ?register=true)
 │   ├── MonthSelector.jsx            # 월 선택 드롭다운 (6개월전~3개월후)
 │   ├── BottomNav.jsx                # 하단 네비게이션 (코치/학생 탭 다름)
 │   ├── GoogleSheetsSync.jsx         # Sheets 동기화 UI
 │   ├── GoogleSheetsEmbed.jsx        # Sheets 임베드
 │   └── GoogleSheetsTest.jsx         # Sheets 연결 테스트
-└── data/mockData.js                 # 교시 정의, 요금제, 상수
+└── data/
+    ├── mockData.js                  # 교시 정의, 요금제, 상수
+    └── contractTerms.js             # 재등록 계약 조건 상수
 
 netlify/functions/
 ├── sheets.js    # Google Sheets 서버리스 함수
@@ -92,6 +96,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `students` | StudentManager | 수강생 관리 (코치용) |
 | `holidays` | HolidayManager | 공휴일 (코치용) |
 | `newstudents` | CoachNewStudents | 신규 승인 (코치용) |
+| `contractView` | ContractView | 재등록 계약 동의 (학생용) |
 
 - URL `?register=true` → 로그인 없이 `NewStudentRegistration` 직접 렌더링
 - 훈련일지 탭 → `window.location.href = './training-log/index.html'` (React 외부)
@@ -192,6 +197,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `registrationFAQ` | 신규 등록 FAQ |
 | `coachPinnedMemos` | 코치가 수강생별 고정한 메모 (훈련일지) |
 | `pinnedMemos` | 수강생 자신의 고정 메모 (훈련일지) |
+| `renewalContracts` | 재등록 계약 (status: pending/agreed/cancelled) |
 
 ## 데이터 흐름
 

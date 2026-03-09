@@ -781,3 +781,62 @@ export const acceptWaitlistRequest = async (waitlistId) => {
         console.log('대기 수락 완료:', waitlistId);
     });
 };
+
+// ============================================
+// RENEWAL CONTRACT FUNCTIONS (재등록 계약)
+// ============================================
+
+export const createRenewalContract = async (data) => {
+    return safeWrite(async () => {
+        const result = await createDoc('renewalContracts', {
+            ...data,
+            status: 'pending',
+            agreedAt: null,
+            updatedAt: serverTimestamp()
+        });
+        console.log('재등록 계약 생성 완료:', result.id);
+        return result;
+    });
+};
+
+export const getPendingContractForStudent = async (studentName) => {
+    return safeRead(null, async () => {
+        const results = await queryDocs('renewalContracts',
+            where('studentName', '==', studentName),
+            where('status', '==', 'pending')
+        );
+        return results.length > 0 ? results[0] : null;
+    });
+};
+
+export const getContractHistory = async (studentName) => {
+    return safeRead([], async () => {
+        const contracts = await queryDocs('renewalContracts',
+            where('studentName', '==', studentName)
+        );
+        return contracts.sort((a, b) => {
+            const aTime = a.createdAt?.toMillis?.() || 0;
+            const bTime = b.createdAt?.toMillis?.() || 0;
+            return bTime - aTime;
+        });
+    });
+};
+
+export const agreeToContract = async (contractId) => {
+    return safeWrite(async () => {
+        await updateDocStatus('renewalContracts', contractId, {
+            status: 'agreed',
+            agreedAt: serverTimestamp()
+        });
+        console.log('계약 동의 완료:', contractId);
+    });
+};
+
+export const cancelContract = async (contractId) => {
+    return safeWrite(async () => {
+        await updateDocStatus('renewalContracts', contractId, {
+            status: 'cancelled'
+        });
+        console.log('계약 취소 완료:', contractId);
+    });
+};

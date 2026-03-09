@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest } from '../services/firebaseService';
+import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, writeSheetData } from '../services/googleSheetsService';
 import GoogleSheetsSync from './GoogleSheetsSync';
 import './Dashboard.css';
@@ -26,18 +26,24 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
 
     // 수강생 대기 신청 목록
     const [studentWaitlist, setStudentWaitlist] = useState([]);
+    // 수강생 재등록 계약
+    const [pendingContract, setPendingContract] = useState(null);
 
     useEffect(() => {
         if (user.role === 'coach') return;
-        const loadWaitlist = async () => {
+        const loadStudentData = async () => {
             try {
-                const waitlist = await getActiveWaitlistRequests(user.username);
+                const [waitlist, contract] = await Promise.all([
+                    getActiveWaitlistRequests(user.username),
+                    getPendingContractForStudent(user.username)
+                ]);
                 setStudentWaitlist(waitlist);
+                setPendingContract(contract);
             } catch (err) {
-                console.error('대기 목록 로드 실패:', err);
+                console.error('수강생 데이터 로드 실패:', err);
             }
         };
-        loadWaitlist();
+        loadStudentData();
     }, [user]);
 
     // 수강생 모드: 본인의 종료날짜 확인
@@ -331,6 +337,39 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                             </svg>
                         </button>
+                    </div>
+                )}
+
+                {/* 수강생 재등록 계약 배너 */}
+                {user.role !== 'coach' && pendingContract && (
+                    <div style={{
+                        margin: '0 0 1rem 0',
+                        padding: '14px 16px',
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+                        border: '1.5px solid #f59e0b',
+                        cursor: 'pointer'
+                    }}
+                    onClick={() => onNavigate('contractView')}
+                    >
+                        <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#92400e', marginBottom: '6px' }}>
+                            재등록 계약서가 도착했습니다
+                        </div>
+                        <div style={{ fontSize: '0.88rem', color: '#78350f' }}>
+                            주{pendingContract.registrationData?.주횟수}회 | {pendingContract.registrationData?.['요일 및 시간']}
+                        </div>
+                        <div style={{
+                            marginTop: '10px',
+                            padding: '7px 14px',
+                            background: '#f59e0b',
+                            color: 'white',
+                            borderRadius: '6px',
+                            textAlign: 'center',
+                            fontWeight: '700',
+                            fontSize: '0.9rem'
+                        }}>
+                            계약서 확인하기
+                        </div>
                     </div>
                 )}
 

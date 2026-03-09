@@ -1,6 +1,6 @@
 import './BottomNav.css';
 
-const BottomNav = ({ currentPage, user, onNavigate, hasNewStudentNotification, hasWaitlistNotification }) => {
+const BottomNav = ({ currentPage, user, onNavigate, hasNewStudentNotification, hasWaitlistNotification, hasContractNotification }) => {
     const coachTabs = [
         {
             id: 'dashboard',
@@ -123,7 +123,7 @@ const BottomNav = ({ currentPage, user, onNavigate, hasNewStudentNotification, h
                             {tab.id === 'newstudents' && hasNewStudentNotification && (
                                 <span className="notification-dot" />
                             )}
-                            {tab.id === 'dashboard' && hasWaitlistNotification && (
+                            {tab.id === 'dashboard' && (hasWaitlistNotification || hasContractNotification) && (
                                 <span className="notification-dot" />
                             )}
                         </div>

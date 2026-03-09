@@ -11,8 +11,9 @@ import StudentManager from './components/StudentManager';
 import GoogleSheetsTest from './components/GoogleSheetsTest';
 import NewStudentRegistration from './components/NewStudentRegistration';
 import CoachNewStudents from './components/CoachNewStudents';
+import ContractView from './components/ContractView';
 import BottomNav from './components/BottomNav';
-import { getPendingRegistrationCount, getActiveWaitlistRequests } from './services/firebaseService';
+import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent } from './services/firebaseService';
 import './App.css';
 
 function AppContent() {
@@ -29,6 +30,7 @@ function AppContent() {
   const [currentPage, setCurrentPage] = useState('login');
   const [hasNewStudentNotification, setHasNewStudentNotification] = useState(false);
   const [hasWaitlistNotification, setHasWaitlistNotification] = useState(false);
+  const [hasContractNotification, setHasContractNotification] = useState(false);
   const { getStudentByName, findStudentAcrossSheets } = useGoogleSheets();
 
   // Poll for pending registrations (coach only)
@@ -49,21 +51,25 @@ function AppContent() {
     return () => clearInterval(interval);
   }, [user]);
 
-  // Poll for waitlist notifications (student only)
+  // Poll for waitlist + contract notifications (student only)
   useEffect(() => {
     if (!user || user.role === 'coach') return;
 
-    const checkWaitlist = async () => {
+    const checkStudentNotifications = async () => {
       try {
-        const waitlist = await getActiveWaitlistRequests(user.username);
+        const [waitlist, contract] = await Promise.all([
+          getActiveWaitlistRequests(user.username),
+          getPendingContractForStudent(user.username)
+        ]);
         setHasWaitlistNotification(waitlist.some(w => w.status === 'notified'));
+        setHasContractNotification(!!contract);
       } catch (err) {
         // ignore polling errors
       }
     };
 
-    checkWaitlist();
-    const interval = setInterval(checkWaitlist, 30000);
+    checkStudentNotifications();
+    const interval = setInterval(checkStudentNotifications, 30000);
     return () => clearInterval(interval);
   }, [user]);
 
@@ -167,6 +173,9 @@ function AppContent() {
       case 'newstudents':
         return <CoachNewStudents user={user} onBack={handleBackToDashboard} />;
 
+      case 'contractView':
+        return <ContractView user={user} onBack={handleBackToDashboard} />;
+
       case 'training':
         return (
           <div className="coming-soon">
@@ -194,6 +203,7 @@ function AppContent() {
           onNavigate={handleNavigate}
           hasNewStudentNotification={hasNewStudentNotification}
           hasWaitlistNotification={hasWaitlistNotification}
+          hasContractNotification={hasContractNotification}
         />
       )}
     </div>

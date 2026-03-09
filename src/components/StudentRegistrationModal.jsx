@@ -11,7 +11,8 @@ import {
     parseScheduleString,
     isHolidayDate
 } from '../services/googleSheetsService';
-import { getHolidays } from '../services/firebaseService';
+import { getHolidays, createRenewalContract } from '../services/firebaseService';
+import { CONTRACT_VERSION } from '../data/contractTerms';
 import './StudentRegistrationModal.css';
 
 // YYYY-MM-DD → YYMMDD
@@ -353,6 +354,65 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
         setSubmitting(false);
     };
 
+    // 계약 전송 (재등록 모드 전용)
+    const handleSendContract = async () => {
+        if (!form.이름 || !form.주횟수 || !form['요일 및 시간'] || !form.시작날짜 || !targetSheet) {
+            alert('필수 항목을 모두 입력해주세요.\n(이름, 주횟수, 요일 및 시간, 시작날짜, 대상 시트)');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            const startDateYYMMDD = convertToYYMMDD(form.시작날짜);
+            const 결제일YYMMDD = form.결제일 ? convertToYYMMDD(form.결제일) : '';
+
+            // 결석 날짜가 있으면 특이사항에 추가
+            let finalNotes = form.특이사항;
+            if (absenceDates.length > 0) {
+                const absenceTexts = absenceDates.map(dateStr => {
+                    const d = new Date(dateStr + 'T00:00:00');
+                    const yy = String(d.getFullYear()).slice(2);
+                    const m = d.getMonth() + 1;
+                    const day = d.getDate();
+                    return `${yy}.${m}.${day}`;
+                });
+                const absenceNote = `${absenceTexts.join(', ')} 결석`;
+                finalNotes = finalNotes ? `${finalNotes}, ${absenceNote}` : absenceNote;
+            }
+
+            await createRenewalContract({
+                studentName: form.이름,
+                registrationData: {
+                    이름: form.이름,
+                    주횟수: form.주횟수,
+                    등록개월수: form.등록개월수 || '1',
+                    '요일 및 시간': form['요일 및 시간'],
+                    특이사항: finalNotes,
+                    시작날짜: startDateYYMMDD,
+                    종료날짜: form.종료날짜,
+                    결제금액: form.결제금액,
+                    결제일: 결제일YYMMDD,
+                    결제유무: form.결제유무,
+                    결제방식: form.결제방식,
+                    '홀딩 사용여부': form['홀딩 사용여부'],
+                    핸드폰: form.핸드폰,
+                    성별: form.성별,
+                    직업: form.직업
+                },
+                targetSheet,
+                absenceDates: [...absenceDates],
+                contractVersion: CONTRACT_VERSION
+            });
+
+            alert('계약서가 수강생에게 전송되었습니다.\n수강생이 동의하면 자동으로 등록됩니다.');
+            onSuccess();
+        } catch (err) {
+            console.error('계약 전송 실패:', err);
+            alert('계약 전송에 실패했습니다: ' + err.message);
+        }
+        setSubmitting(false);
+    };
+
     return (
         <div className="reg-modal-overlay">
             <div className="reg-modal-content">
@@ -675,8 +735,13 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
                     <button className="reg-cancel-btn" onClick={onClose} disabled={submitting}>
                         취소
                     </button>
+                    {registrationType === 'renew' && (
+                        <button className="reg-contract-btn" onClick={handleSendContract} disabled={submitting}>
+                            {submitting ? '전송 중...' : '계약 전송'}
+                        </button>
+                    )}
                     <button className="reg-submit-btn" onClick={handleSubmit} disabled={submitting}>
-                        {submitting ? '등록 중...' : '등록'}
+                        {submitting ? '등록 중...' : '즉시 등록'}
                     </button>
                 </div>
             </div>

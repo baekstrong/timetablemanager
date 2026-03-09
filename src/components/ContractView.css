@@ -1,0 +1,186 @@
+.contract-view-container {
+    min-height: 100vh;
+    background: #f9fafb;
+    padding-bottom: 100px;
+}
+
+.contract-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: white;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.contract-back-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 0.3rem 0;
+    flex-shrink: 0;
+}
+
+.contract-back-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+.contract-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0;
+}
+
+.contract-loading,
+.contract-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #6b7280;
+    font-size: 1rem;
+}
+
+.contract-content {
+    padding: 1rem 1.25rem;
+}
+
+/* 등록 정보 카드 */
+.contract-info-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e5e7eb;
+}
+
+.contract-section-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0 0 0.75rem 0;
+}
+
+.contract-info-grid {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.contract-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.contract-info-row:last-child {
+    border-bottom: none;
+}
+
+.contract-info-label {
+    font-size: 0.88rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.contract-info-value {
+    font-size: 0.92rem;
+    color: #1f2937;
+    font-weight: 600;
+}
+
+/* 규정 카드 */
+.contract-terms-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e5e7eb;
+}
+
+.contract-terms-card.risk {
+    border-color: #fca5a5;
+    background: #fef2f2;
+}
+
+.contract-terms-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.88rem;
+    color: #374151;
+    line-height: 1.7;
+}
+
+.contract-terms-list li {
+    margin-bottom: 0.4rem;
+}
+
+.contract-risk-text {
+    font-size: 0.88rem;
+    color: #991b1b;
+    line-height: 1.7;
+    margin: 0;
+}
+
+/* 동의 섹션 */
+.contract-agree-section {
+    background: white;
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-top: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    border: 1.5px solid #d1d5db;
+    text-align: center;
+}
+
+.contract-agree-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.contract-agree-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: #f59e0b;
+}
+
+.contract-agree-btn {
+    width: 100%;
+    padding: 0.85rem;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.contract-agree-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+.contract-agree-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

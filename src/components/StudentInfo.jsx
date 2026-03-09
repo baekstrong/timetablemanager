@@ -2,12 +2,14 @@ import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 // isExpiringSoon, isExpired 사용하지 않음 - 추후 필요시 복원
 import { getActiveMakeupRequest, getHoldingHistory } from '../services/firebaseService';
+import ContractHistory from './ContractHistory';
 import './StudentInfo.css';
 
 const StudentInfo = ({ user, studentData, onBack }) => {
     const { calculateMembershipStats, generateAttendanceHistory } = useGoogleSheets();
     const [makeupRequest, setMakeupRequest] = useState(null);
     const [holdingHistory, setHoldingHistory] = useState([]);
+    const [showContractHistory, setShowContractHistory] = useState(false);
 
     // Firebase에서 보강 신청 + 홀딩 이력 로드
     useEffect(() => {
@@ -290,7 +292,45 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                         ))}
                     </div>
                 </div>
+
+                {/* 계약 이력 */}
+                <div className="contract-history-card" style={{
+                    background: 'white',
+                    borderRadius: '16px',
+                    padding: '1.25rem',
+                    marginTop: '1rem',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
+                }}>
+                    <button
+                        onClick={() => setShowContractHistory(true)}
+                        style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            background: '#f9fafb',
+                            border: '1.5px solid #e5e7eb',
+                            borderRadius: '10px',
+                            fontSize: '0.95rem',
+                            fontWeight: '600',
+                            color: '#374151',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.5rem'
+                        }}
+                    >
+                        계약 이력 보기
+                    </button>
+                </div>
             </div>
+
+            {showContractHistory && (
+                <ContractHistory
+                    studentName={user.username}
+                    isCoach={false}
+                    onClose={() => setShowContractHistory(false)}
+                />
+            )}
         </div>
     );
 };

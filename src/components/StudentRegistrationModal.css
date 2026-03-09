@@ -276,6 +276,28 @@
     cursor: not-allowed;
 }
 
+.reg-contract-btn {
+    padding: 0.7rem 1.5rem;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.reg-contract-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(245, 158, 11, 0.3);
+}
+
+.reg-contract-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 /* Register button in header */
 .register-btn {
     padding: 0.75rem 1.5rem;

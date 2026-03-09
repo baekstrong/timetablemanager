@@ -329,6 +329,16 @@
     box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
 }
 
+.contract-btn {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: white;
+}
+
+.contract-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
 .end-class-btn {
     background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
     color: white;

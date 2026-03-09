@@ -1,0 +1,165 @@
+.ch-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+.ch-modal {
+    background: white;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.ch-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.ch-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0;
+}
+
+.ch-close-btn {
+    background: #f3f4f6;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #6b7280;
+    cursor: pointer;
+}
+
+.ch-body {
+    overflow-y: auto;
+    padding: 1rem 1.5rem;
+}
+
+.ch-loading,
+.ch-empty {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+    font-size: 0.95rem;
+}
+
+.ch-item {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+}
+
+.ch-item-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    cursor: pointer;
+    background: #fafafa;
+}
+
+.ch-item-header:hover {
+    background: #f3f4f6;
+}
+
+.ch-status-badge {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.ch-status-badge.pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.ch-status-badge.agreed {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.ch-status-badge.cancelled {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.ch-item-summary {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ch-item-schedule {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.ch-item-period {
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+
+.ch-expand-icon {
+    font-size: 0.7rem;
+    color: #9ca3af;
+}
+
+.ch-item-detail {
+    padding: 0.75rem 1rem;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+}
+
+.ch-detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.35rem 0;
+    font-size: 0.85rem;
+}
+
+.ch-detail-row span:first-child {
+    color: #6b7280;
+}
+
+.ch-detail-row span:last-child {
+    font-weight: 600;
+    color: #374151;
+}
+
+.ch-cancel-btn {
+    margin-top: 0.75rem;
+    width: 100%;
+    padding: 0.6rem;
+    background: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #dc2626;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}

@@ -4,6 +4,7 @@ import { getStudentField, clearStudentScheduleAllSheets, parseSheetDate, process
 import { getHolidays } from '../services/firebaseService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
+import ContractHistory from './ContractHistory';
 import './StudentManager.css';
 
 const StudentManager = ({ onBack }) => {
@@ -24,6 +25,7 @@ const StudentManager = ({ onBack }) => {
     const [absenceDateInput, setAbsenceDateInput] = useState(''); // 날짜 입력
     const [absenceProcessing, setAbsenceProcessing] = useState(false);
     const [holidays, setHolidays] = useState([]);
+    const [contractHistoryTarget, setContractHistoryTarget] = useState(null);
 
     // 공휴일 로드
     useEffect(() => {
@@ -346,6 +348,9 @@ const StudentManager = ({ onBack }) => {
                                                         <button onClick={() => handleOpenAbsence(student)} className="absence-btn" title="결석 처리">
                                                             결석
                                                         </button>
+                                                        <button onClick={() => setContractHistoryTarget(student['이름'])} className="contract-btn" title="계약 이력">
+                                                            계약
+                                                        </button>
                                                         <button onClick={() => handleEndClass(student, index)} className="end-class-btn" title="수강 종료 (시간표에서 제거)">
                                                             종료
                                                         </button>
@@ -365,6 +370,15 @@ const StudentManager = ({ onBack }) => {
                 <StudentRegistrationModal
                     onClose={() => setShowRegistrationModal(false)}
                     onSuccess={handleRegistrationSuccess}
+                />
+            )}
+
+            {/* 계약 이력 모달 */}
+            {contractHistoryTarget && (
+                <ContractHistory
+                    studentName={contractHistoryTarget}
+                    isCoach={true}
+                    onClose={() => setContractHistoryTarget(null)}
                 />
             )}
 
