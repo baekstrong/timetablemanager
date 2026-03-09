@@ -187,7 +187,7 @@ const ContractView = ({ user, onBack }) => {
                         <div className="contract-info-row">
                             <span className="contract-info-label">결제금액</span>
                             <span className="contract-info-value">
-                                {rd.결제금액 ? `${Number(rd.결제금액).toLocaleString()}원` : '-'}
+                                {rd.결제금액 ? `${rd.결제금액}만원` : '-'}
                             </span>
                         </div>
                         <div className="contract-info-row">

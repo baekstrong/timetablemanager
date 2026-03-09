@@ -151,6 +151,35 @@
     color: #374151;
 }
 
+.ch-detail-section-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-top: 1rem;
+    margin-bottom: 0.4rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f3f4f6;
+}
+
+.ch-terms-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    font-size: 0.82rem;
+    color: #374151;
+    line-height: 1.65;
+}
+
+.ch-terms-list li {
+    margin-bottom: 0.25rem;
+}
+
+.ch-risk-text {
+    font-size: 0.82rem;
+    color: #991b1b;
+    line-height: 1.65;
+    margin: 0;
+}
+
 .ch-cancel-btn {
     margin-top: 0.75rem;
     width: 100%;

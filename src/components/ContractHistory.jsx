@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getContractHistory, cancelContract } from '../services/firebaseService';
+import { CONTRACT_TITLE, TRAINING_RULES, GUARANTEES, RISK_NOTICE } from '../data/contractTerms';
 import './ContractHistory.css';
 
 const formatYYMMDD = (yymmdd) => {
@@ -90,13 +91,35 @@ const ContractHistory = ({ studentName, isCoach, onClose }) => {
 
                                     {isExpanded && (
                                         <div className="ch-item-detail">
+                                            {/* 등록 정보 */}
+                                            <div className="ch-detail-section-title">등록 정보</div>
+                                            <div className="ch-detail-row">
+                                                <span>이름</span>
+                                                <span>{rd.이름}</span>
+                                            </div>
+                                            <div className="ch-detail-row">
+                                                <span>주횟수</span>
+                                                <span>주 {rd.주횟수}회</span>
+                                            </div>
+                                            <div className="ch-detail-row">
+                                                <span>요일/시간</span>
+                                                <span>{rd['요일 및 시간']}</span>
+                                            </div>
                                             <div className="ch-detail-row">
                                                 <span>등록기간</span>
                                                 <span>{rd.등록개월수 || '1'}개월</span>
                                             </div>
                                             <div className="ch-detail-row">
+                                                <span>시작일</span>
+                                                <span>{formatYYMMDD(rd.시작날짜)}</span>
+                                            </div>
+                                            <div className="ch-detail-row">
+                                                <span>종료일</span>
+                                                <span>{formatYYMMDD(rd.종료날짜)}</span>
+                                            </div>
+                                            <div className="ch-detail-row">
                                                 <span>결제금액</span>
-                                                <span>{rd.결제금액 ? `${Number(rd.결제금액).toLocaleString()}원` : '-'}</span>
+                                                <span>{rd.결제금액 ? `${rd.결제금액}만원` : '-'}</span>
                                             </div>
                                             <div className="ch-detail-row">
                                                 <span>결제방식</span>
@@ -112,6 +135,27 @@ const ContractHistory = ({ studentName, isCoach, onClose }) => {
                                                     <span>{formatTimestamp(c.agreedAt)}</span>
                                                 </div>
                                             )}
+
+                                            {/* 수강 규정 */}
+                                            <div className="ch-detail-section-title">수강 규정</div>
+                                            <ol className="ch-terms-list">
+                                                {TRAINING_RULES.map((rule, i) => (
+                                                    <li key={i}>{rule}</li>
+                                                ))}
+                                            </ol>
+
+                                            {/* 보증 및 승인 */}
+                                            <div className="ch-detail-section-title">보증 및 승인 사항</div>
+                                            <ol className="ch-terms-list">
+                                                {GUARANTEES.map((item, i) => (
+                                                    <li key={i}>{item}</li>
+                                                ))}
+                                            </ol>
+
+                                            {/* 위험 고지 */}
+                                            <div className="ch-detail-section-title">위험에 대한 고지</div>
+                                            <p className="ch-risk-text">{RISK_NOTICE}</p>
+
                                             {isCoach && c.status === 'pending' && (
                                                 <button
                                                     className="ch-cancel-btn"
