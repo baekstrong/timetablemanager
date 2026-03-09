@@ -95,7 +95,7 @@ export async function loadPreviousRecord(exerciseName) {
         if (!data.sets || data.sets.length === 0) return;
 
         const setsText = data.sets.map((s, i) => {
-            const intensity = s.intensity?.unit === '맨몸' ? '맨몸' : `${s.intensity?.value || ''}${s.intensity?.unit || 'kg'}`;
+            const intensity = s.intensity?.unit === '맨몸' ? '맨몸' : s.intensity?.unit === '자율' ? (s.intensity?.value || '자율') : `${s.intensity?.value || ''}${s.intensity?.unit || 'kg'}`;
             const reps = s.reps?.unit === '초 x 회'
                 ? `${s.reps?.value || ''}초×${s.reps?.count || ''}회`
                 : `${s.reps?.value || ''}${s.reps?.unit || '회'}`;
@@ -168,6 +168,8 @@ export function loadMyRecords() {
                         const normalized = normalizeSet(set);
                         const intensityStr = normalized.intensity.unit === '맨몸'
                             ? '맨몸'
+                            : normalized.intensity.unit === '자율'
+                            ? (normalized.intensity.value || '자율')
                             : `${normalized.intensity.value}${normalized.intensity.unit}`;
                         let repsStr = '';
 
@@ -399,6 +401,7 @@ export function renderEditSets() {
         state.editingSets[index] = normalized;
         const isSecXReps = normalized.reps.unit === '초 x 회';
         const isBodyweight = normalized.intensity.unit === '맨몸';
+        const isFreeform = normalized.intensity.unit === '자율';
 
         html += `
             <div class="set-row">
@@ -406,25 +409,25 @@ export function renderEditSets() {
                     <span class="text-sm font-semibold text-gray-700 min-w-[60px]">${index + 1}세트</span>
                     ${state.editingSets.length > 1 ? `<button onclick="removeEditSet(${index})" type="button" class="text-red-600 text-xs">삭제</button>` : ''}
                 </div>
-                
+
                 <div class="mb-2">
                     <label class="text-xs text-gray-600 mb-1 block">강도</label>
                     <div class="flex gap-1">
-                        ${!isBodyweight ? `
-                            <input 
-                                type="text" 
-                                id="edit-intensity-value-${index}" 
-                                value="${normalized.intensity.value}"
-                                placeholder="80"
-                                onchange="updateEditSetIntensity(${index}, this.value)"
-                                class="intensity-input px-3 py-2 border rounded-lg text-sm"
-                            >
-                        ` : `
+                        ${isBodyweight ? `
                             <div class="flex-1 px-3 py-2 border rounded-lg text-sm bg-gray-50 flex items-center text-gray-600">
                                 맨몸 운동
                             </div>
+                        ` : `
+                            <input
+                                type="text"
+                                id="edit-intensity-value-${index}"
+                                value="${normalized.intensity.value}"
+                                placeholder="${isFreeform ? '자유 입력' : '80'}"
+                                onchange="updateEditSetIntensity(${index}, this.value)"
+                                class="intensity-input px-3 py-2 border rounded-lg text-sm"
+                            >
                         `}
-                        <select 
+                        <select
                             id="edit-intensity-unit-${index}"
                             onchange="updateEditSetIntensityUnit(${index}, this.value)"
                             class="px-2 py-2 border rounded-lg text-sm bg-white"
@@ -432,6 +435,7 @@ export function renderEditSets() {
                             <option value="kg" ${normalized.intensity.unit === 'kg' ? 'selected' : ''}>kg</option>
                             <option value="높이" ${normalized.intensity.unit === '높이' ? 'selected' : ''}>높이</option>
                             <option value="맨몸" ${normalized.intensity.unit === '맨몸' ? 'selected' : ''}>맨몸</option>
+                            <option value="자율" ${normalized.intensity.unit === '자율' ? 'selected' : ''}>자율</option>
                         </select>
                     </div>
                 </div>
@@ -513,7 +517,11 @@ export function updateEditSetIntensity(index, value) {
 export function updateEditSetIntensityUnit(index, unit) {
     if (state.editingSets[index]) {
         state.editingSets[index].intensity.unit = unit;
-        if (unit === '맨몸') state.editingSets[index].intensity.value = '맨몸';
+        if (unit === '맨몸') {
+            state.editingSets[index].intensity.value = '맨몸';
+        } else if (state.editingSets[index].intensity.value === '맨몸') {
+            state.editingSets[index].intensity.value = '';
+        }
         renderEditSets();
     }
 }

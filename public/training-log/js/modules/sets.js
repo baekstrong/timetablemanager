@@ -25,6 +25,7 @@ export function renderSets() {
 
         const isSecXReps = set.reps.unit === '초 x 회';
         const isBodyweight = set.intensity.unit === '맨몸';
+        const isFreeform = set.intensity.unit === '자율';
 
         html += `
             <div class="set-row">
@@ -32,26 +33,26 @@ export function renderSets() {
                     <span class="text-sm font-semibold text-gray-700 min-w-[60px]">${index + 1}세트</span>
                     ${state.currentSets.length > 1 ? `<button onclick="removeSet(${index})" type="button" class="set-delete-btn text-red-600 text-sm font-semibold">삭제</button>` : ''}
                 </div>
-                
+
                 <!-- 강도 입력 -->
                 <div class="mb-2">
                     <label class="text-xs text-gray-600 mb-1 block">강도</label>
                     <div class="flex gap-1">
-                        ${!isBodyweight ? `
-                            <input 
-                                type="text" 
-                                id="intensity-value-${index}" 
-                                value="${set.intensity.value}"
-                                placeholder="80"
-                                onchange="updateSetIntensity(${index}, this.value)"
-                                class="intensity-input px-3 py-2 border rounded-lg text-sm"
-                            >
-                        ` : `
+                        ${isBodyweight ? `
                             <div class="flex-1 px-3 py-2 border rounded-lg text-sm bg-gray-50 flex items-center text-gray-600">
                                 맨몸 운동
                             </div>
+                        ` : `
+                            <input
+                                type="text"
+                                id="intensity-value-${index}"
+                                value="${set.intensity.value}"
+                                placeholder="${isFreeform ? '자유 입력' : '80'}"
+                                onchange="updateSetIntensity(${index}, this.value)"
+                                class="intensity-input px-3 py-2 border rounded-lg text-sm"
+                            >
                         `}
-                        <select 
+                        <select
                             id="intensity-unit-${index}"
                             onchange="updateSetIntensityUnit(${index}, this.value)"
                             class="px-2 py-2 border rounded-lg text-sm bg-white"
@@ -59,6 +60,7 @@ export function renderSets() {
                             <option value="kg" ${set.intensity.unit === 'kg' ? 'selected' : ''}>kg</option>
                             <option value="높이" ${set.intensity.unit === '높이' ? 'selected' : ''}>높이</option>
                             <option value="맨몸" ${set.intensity.unit === '맨몸' ? 'selected' : ''}>맨몸</option>
+                            <option value="자율" ${set.intensity.unit === '자율' ? 'selected' : ''}>자율</option>
                         </select>
                     </div>
                 </div>
@@ -240,6 +242,9 @@ export function updateSetIntensityUnit(index, unit) {
         if (unit === '맨몸') {
             state.currentSets[index].intensity.value = '맨몸';
         } else if (state.currentSets[index].intensity.value === '맨몸') {
+            state.currentSets[index].intensity.value = '';
+        }
+        if (unit === '자율' && state.currentSets[index].intensity.value === '맨몸') {
             state.currentSets[index].intensity.value = '';
         }
 
