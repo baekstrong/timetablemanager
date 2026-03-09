@@ -88,12 +88,8 @@ const ContractView = ({ user, onBack }) => {
             // 3. 시트에 쓰기
             await writeSheetData(`${targetSheet}!A${nextSheetRow}:R${nextSheetRow}`, [rowData]);
 
-            // 4. 서식 적용 (주황색 + 미결제 빨간색)
+            // 4. 서식 적용 (재등록이므로 주황색 없음, 미결제만 빨간색)
             try {
-                const columns = 'ABCDEFGHIJKLMNOPQR'.split('');
-                const cellRanges = columns.map(col => `${col}${nextSheetRow}`);
-                await formatCellsWithStyle(cellRanges, targetSheet, { red: 1.0, green: 0.87, blue: 0.68 });
-
                 const paymentEmpty = [];
                 if (!registrationData.결제일) paymentEmpty.push(`J${nextSheetRow}`);
                 if (!registrationData.결제유무) paymentEmpty.push(`K${nextSheetRow}`);

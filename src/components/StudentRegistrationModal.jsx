@@ -327,11 +327,13 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
 
             await writeSheetData(`${targetSheet}!A${nextSheetRow}:R${nextSheetRow}`, [rowData]);
 
-            // 주황색 음영 + 가운데 정렬 적용 (신규 수강생 표시)
+            // 서식 적용 (신규만 주황색, 미결제는 빨간색)
             try {
-                const columns = 'ABCDEFGHIJKLMNOPQR'.split('');
-                const cellRanges = columns.map(col => `${col}${nextSheetRow}`);
-                await formatCellsWithStyle(cellRanges, targetSheet, { red: 1.0, green: 0.87, blue: 0.68 });
+                if (registrationType === 'new') {
+                    const columns = 'ABCDEFGHIJKLMNOPQR'.split('');
+                    const cellRanges = columns.map(col => `${col}${nextSheetRow}`);
+                    await formatCellsWithStyle(cellRanges, targetSheet, { red: 1.0, green: 0.87, blue: 0.68 });
+                }
 
                 // 결제일(J), 결제유무(K), 결제방식(L)이 비어있으면 빨간색 음영
                 const paymentEmpty = [];
