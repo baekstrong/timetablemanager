@@ -156,7 +156,7 @@ function AppContent() {
         return <Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} />;
 
       case 'schedule':
-        return <WeeklySchedule user={user} studentData={studentData} onBack={handleBackToDashboard} />;
+        return <WeeklySchedule user={user} studentData={studentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} />;
 
       case 'holding':
         return <HoldingManager user={user} studentData={studentData} onBack={handleBackToDashboard} />;

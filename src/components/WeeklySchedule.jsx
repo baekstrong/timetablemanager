@@ -376,7 +376,7 @@ function CoachInfoSection({ title, items, style, titleColor, itemColor, renderIt
 // Main component
 // ──────────────────────────────────────────────
 
-const WeeklySchedule = ({ user, studentData, onBack }) => {
+const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
     const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student');
     const { students, isAuthenticated, loading, refresh } = useGoogleSheets();
 
@@ -1586,7 +1586,13 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                         }
                         return (
                             <div key={s.name} style={{ fontWeight: isBold ? '800' : '400' }}>
-                                {s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''}) {period ? <span style={{ fontSize: '0.8rem', color: '#15803d' }}>{period.id}교시</span> : ''}
+                                <span
+                                    onClick={() => {
+                                        sessionStorage.setItem('renewalStudentName', s.name);
+                                        onNavigate?.('students');
+                                    }}
+                                    style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: '#15803d40' }}
+                                >{s.name}</span>({s.schedule}{s.payment ? `,${s.payment}` : ''}) {period ? <span style={{ fontSize: '0.8rem', color: '#15803d' }}>{period.id}교시</span> : ''}
                             </div>
                         );
                     }}
@@ -1603,7 +1609,13 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
                     itemColor="#78350f"
                     renderItem={(s) => (
                         <div key={s.name}>
-                            {s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''}) <span style={{ fontSize: '0.8rem', color: '#b45309' }}>종료: {s.endDate}</span>
+                            <span
+                                onClick={() => {
+                                    sessionStorage.setItem('renewalStudentName', s.name);
+                                    onNavigate?.('students');
+                                }}
+                                style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: '#b4530940' }}
+                            >{s.name}</span>({s.schedule}{s.payment ? `,${s.payment}` : ''}) <span style={{ fontSize: '0.8rem', color: '#b45309' }}>종료: {s.endDate}</span>
                         </div>
                     )}
                 />

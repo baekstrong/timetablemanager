@@ -20,6 +20,7 @@ const StudentManager = ({ onBack }) => {
     const [editForm, setEditForm] = useState({});
     const [viewMode, setViewMode] = useState('table'); // 'table' or 'sheet'
     const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+    const [renewalStudentName, setRenewalStudentName] = useState(null);
     const [absenceTarget, setAbsenceTarget] = useState(null); // 결석 대상 수강생
     const [absenceDates, setAbsenceDates] = useState([]); // 결석 날짜 목록
     const [absenceDateInput, setAbsenceDateInput] = useState(''); // 날짜 입력
@@ -30,6 +31,16 @@ const StudentManager = ({ onBack }) => {
     // 공휴일 로드
     useEffect(() => {
         getHolidays().then(setHolidays).catch(err => console.error('공휴일 로드 실패:', err));
+    }, []);
+
+    // 시간표 배너에서 재등록 모달 자동 열기
+    useEffect(() => {
+        const name = sessionStorage.getItem('renewalStudentName');
+        if (name) {
+            sessionStorage.removeItem('renewalStudentName');
+            setRenewalStudentName(name);
+            setShowRegistrationModal(true);
+        }
     }, []);
 
     // Start editing a student
@@ -368,8 +379,9 @@ const StudentManager = ({ onBack }) => {
 
             {showRegistrationModal && (
                 <StudentRegistrationModal
-                    onClose={() => setShowRegistrationModal(false)}
+                    onClose={() => { setShowRegistrationModal(false); setRenewalStudentName(null); }}
                     onSuccess={handleRegistrationSuccess}
+                    initialRenewalName={renewalStudentName}
                 />
             )}
 

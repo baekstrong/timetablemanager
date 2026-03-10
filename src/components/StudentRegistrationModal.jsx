@@ -63,8 +63,8 @@ const getNextClassDay = (fromDate, scheduleStr) => {
     return null;
 };
 
-const StudentRegistrationModal = ({ onClose, onSuccess }) => {
-    const [registrationType, setRegistrationType] = useState('new');
+const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName }) => {
+    const [registrationType, setRegistrationType] = useState(initialRenewalName ? 'renew' : 'new');
     const [targetSheet, setTargetSheet] = useState('');
     const [availableSheets, setAvailableSheets] = useState([]);
     const [holidays, setHolidays] = useState([]);
@@ -102,6 +102,21 @@ const StudentRegistrationModal = ({ onClose, onSuccess }) => {
 
         getHolidays().then(setHolidays).catch(err => console.error('공휴일 로드 실패:', err));
     }, []);
+
+    // 재등록 이름 자동 입력 & 자동 검색
+    const [autoSearchTriggered, setAutoSearchTriggered] = useState(false);
+    useEffect(() => {
+        if (initialRenewalName && !autoSearchTriggered) {
+            setForm(prev => ({ ...prev, 이름: initialRenewalName }));
+            setAutoSearchTriggered(true);
+        }
+    }, [initialRenewalName, autoSearchTriggered]);
+
+    useEffect(() => {
+        if (autoSearchTriggered && form.이름 === initialRenewalName && !searchLoading) {
+            handleSearchStudent();
+        }
+    }, [autoSearchTriggered, form.이름]);
 
     // 종료날짜 자동 계산 (결석일 반영)
     useEffect(() => {
