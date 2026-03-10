@@ -1591,7 +1591,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                                         sessionStorage.setItem('renewalStudentName', s.name);
                                         onNavigate?.('students');
                                     }}
-                                    style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                                    style={{ cursor: 'pointer' }}
                                 >{s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})</span> {period ? <span style={{ fontSize: '0.8rem', color: '#15803d' }}>{period.id}교시</span> : ''}
                             </div>
                         );
@@ -1614,7 +1614,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                                     sessionStorage.setItem('renewalStudentName', s.name);
                                     onNavigate?.('students');
                                 }}
-                                style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                                style={{ cursor: 'pointer' }}
                             >{s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})</span> <span style={{ fontSize: '0.8rem', color: '#b45309' }}>종료: {s.endDate}</span>
                         </div>
                     )}
