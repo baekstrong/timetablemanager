@@ -886,6 +886,15 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             return;
         }
 
+        // 다른 요일 수업을 본인 정규 수업 요일로 옮기는 것 차단 (같은 요일 내 교시 변경은 허용)
+        if (selectedOriginalClass.day !== selectedMakeupSlot.day) {
+            const isTargetMyScheduleDay = studentSchedule.some(s => s.day === selectedMakeupSlot.day);
+            if (isTargetMyScheduleDay) {
+                alert('다른 요일의 수업을 본인 정규 수업 요일로 옮길 수 없습니다.\n다른 요일을 선택해주세요.');
+                return;
+            }
+        }
+
         setIsSubmittingMakeup(true);
         try {
             await createMakeupRequest(user.username, selectedOriginalClass, selectedMakeupSlot);
