@@ -859,14 +859,14 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
             return;
         }
 
-        if (isMyClass(day, periodId)) {
+        const isMyScheduleDay = studentSchedule.some(s => s.day === day);
+        if (isMyScheduleDay) {
             const isAlreadyMakeupAbsent = activeMakeupRequests.some(m =>
                 m.originalClass.day === day &&
-                m.originalClass.period === periodId &&
                 m.originalClass.date === date
             );
             if (!isAlreadyMakeupAbsent) {
-                alert('본인의 정규 수업 시간에는 보강 신청을 할 수 없습니다.\n다른 시간을 선택해주세요.');
+                alert('본인의 정규 수업 요일에는 보강 신청을 할 수 없습니다.\n다른 요일을 선택해주세요.');
                 return;
             }
         }
