@@ -469,7 +469,30 @@ const WeeklySchedule = ({ user, studentData, onBack }) => {
         );
 
         if (makeupFromEndDate) {
-            return new Date(makeupFromEndDate.makeupClass.date + 'T00:00:00');
+            const makeupDate = new Date(makeupFromEndDate.makeupClass.date + 'T00:00:00');
+
+            // 종료일 이전에 남아있는 마지막 정규 수업일 찾기
+            const schedule = student['요일 및 시간'] || '';
+            const parsed = parseScheduleString(schedule);
+            const scheduleDays = parsed.map(p => p.day);
+            const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+            let lastRegularDate = null;
+            const checkDate = new Date(endDate);
+            for (let i = 0; i < 7; i++) {
+                checkDate.setDate(checkDate.getDate() - 1);
+                const dayName = dayNames[checkDate.getDay()];
+                if (scheduleDays.includes(dayName)) {
+                    lastRegularDate = new Date(checkDate);
+                    break;
+                }
+            }
+
+            // 보강일 vs 마지막 정규수업일 중 더 늦은 날짜 반환
+            if (lastRegularDate && lastRegularDate > makeupDate) {
+                return lastRegularDate;
+            }
+            return makeupDate;
         }
         return endDate;
     }
