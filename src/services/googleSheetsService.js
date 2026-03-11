@@ -791,18 +791,25 @@ export const getAllStudentsFromAllSheets = async () => {
       latestByName[name] = {
         ...student,
         _sheetOrder: sheetOrder,
-        _prevEndDate: existing['종료날짜'],
-        _prevSchedule: existing['요일 및 시간'],
+        _prevEndDate: getStudentField(existing, '종료날짜'),
+        _prevSchedule: getStudentField(existing, '요일 및 시간'),
       };
     } else if (sheetOrder < existing._sheetOrder) {
       // 현재가 더 오래된 레코드 → 이전 등록 정보로 저장
-      existing._prevEndDate = student['종료날짜'];
-      existing._prevSchedule = student['요일 및 시간'];
+      existing._prevEndDate = getStudentField(student, '종료날짜');
+      existing._prevSchedule = getStudentField(student, '요일 및 시간');
     }
   });
 
   const deduplicatedStudents = Object.values(latestByName).map(({ _sheetOrder, ...student }) => student);
   console.log(`🧹 Deduplicated: ${allStudents.length} → ${deduplicatedStudents.length} students`);
+
+  // 디버그: _prevEndDate가 설정된 수강생 확인
+  const withPrev = deduplicatedStudents.filter(s => s._prevEndDate);
+  if (withPrev.length > 0) {
+    console.log(`📌 이전 등록 보존된 수강생 (${withPrev.length}명):`,
+      withPrev.map(s => `${s['이름']}: prevEnd=${s._prevEndDate}, start=${getStudentField(s, '시작날짜')}`));
+  }
 
   return deduplicatedStudents;
 };
