@@ -1117,6 +1117,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 if (!startDateStr) return false;
                 const startDate = parseSheetDate(startDateStr);
                 if (!startDate || startDate <= slotDateObj) return false;
+                // 다른 레코드에 활성 등록이 있는지 확인
                 const hasActiveEnrollment = students.some(other => {
                     if (other === s || other['이름'] !== name) return false;
                     const endDateStr = other['종료날짜'];
@@ -1124,7 +1125,15 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     const endDate = parseSheetDate(endDateStr);
                     return endDate && endDate >= slotDateObj;
                 });
-                return !hasActiveEnrollment;
+                if (hasActiveEnrollment) return false;
+                // 이전 등록의 종료날짜가 보존되어 있으면 그것도 확인
+                // (중복 제거로 이전 레코드가 병합된 경우)
+                const prevEndDateStr = s._prevEndDate;
+                if (prevEndDateStr) {
+                    const prevEndDate = parseSheetDate(prevEndDateStr);
+                    if (prevEndDate && prevEndDate >= slotDateObj) return false;
+                }
+                return true;
             });
 
             newStudents = delayedStudentsRaw

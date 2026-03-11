@@ -769,6 +769,7 @@ export const getAllStudentsFromAllSheets = async () => {
   console.log(`✨ Total students loaded from all sheets: ${allStudents.length}`);
 
   // 같은 이름의 수강생이 여러 시트에 있으면 최신 시트의 데이터만 유지
+  // 단, 이전 등록의 종료날짜를 _prevEndDate로 보존 (시작지연 판단용)
   const parseSheetMonth = (sheetName) => {
     const match = sheetName.match(/등록생 목록\((\d+)년(\d+)월\)/);
     if (!match) return 0;
@@ -783,8 +784,20 @@ export const getAllStudentsFromAllSheets = async () => {
     if (!name) return;
     const sheetOrder = parseSheetMonth(student._foundSheetName || '');
     const existing = latestByName[name];
-    if (!existing || sheetOrder > existing._sheetOrder) {
+    if (!existing) {
       latestByName[name] = { ...student, _sheetOrder: sheetOrder };
+    } else if (sheetOrder > existing._sheetOrder) {
+      // 최신 레코드로 교체하되, 이전 등록의 종료날짜와 시간표 보존
+      latestByName[name] = {
+        ...student,
+        _sheetOrder: sheetOrder,
+        _prevEndDate: existing['종료날짜'],
+        _prevSchedule: existing['요일 및 시간'],
+      };
+    } else if (sheetOrder < existing._sheetOrder) {
+      // 현재가 더 오래된 레코드 → 이전 등록 정보로 저장
+      existing._prevEndDate = student['종료날짜'];
+      existing._prevSchedule = student['요일 및 시간'];
     }
   });
 
