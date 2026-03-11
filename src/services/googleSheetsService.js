@@ -768,7 +768,30 @@ export const getAllStudentsFromAllSheets = async () => {
   const allStudents = studentsArrays.flat();
   console.log(`✨ Total students loaded from all sheets: ${allStudents.length}`);
 
-  return allStudents;
+  // 같은 이름의 수강생이 여러 시트에 있으면 최신 시트의 데이터만 유지
+  const parseSheetMonth = (sheetName) => {
+    const match = sheetName.match(/등록생 목록\((\d+)년(\d+)월\)/);
+    if (!match) return 0;
+    const year = parseInt(match[1]) + 2000;
+    const month = parseInt(match[2]);
+    return year * 100 + month; // e.g., 202603
+  };
+
+  const latestByName = {};
+  allStudents.forEach(student => {
+    const name = student['이름'];
+    if (!name) return;
+    const sheetOrder = parseSheetMonth(student._foundSheetName || '');
+    const existing = latestByName[name];
+    if (!existing || sheetOrder > existing._sheetOrder) {
+      latestByName[name] = { ...student, _sheetOrder: sheetOrder };
+    }
+  });
+
+  const deduplicatedStudents = Object.values(latestByName).map(({ _sheetOrder, ...student }) => student);
+  console.log(`🧹 Deduplicated: ${allStudents.length} → ${deduplicatedStudents.length} students`);
+
+  return deduplicatedStudents;
 };
 
 // ─── 수강권 통계 / 출석 내역 ───
