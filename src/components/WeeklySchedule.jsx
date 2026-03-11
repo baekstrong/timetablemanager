@@ -1131,16 +1131,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 const prevEndDateStr = s._prevEndDate;
                 if (prevEndDateStr) {
                     const prevEndDate = parseSheetDate(prevEndDateStr);
-                    // 디버그
-                    if (['황지원','김기안','장하늘','이종호'].includes(name)) {
-                        console.log(`🔍 [${name}] slot=${slotDate}, startDate=${startDateStr}, prevEndDate=${prevEndDateStr}, parsed=${prevEndDate}, slotDateObj=${slotDateObj}, pass=${prevEndDate && prevEndDate >= slotDateObj}`);
-                    }
                     if (prevEndDate && prevEndDate >= slotDateObj) return false;
-                } else {
-                    // 디버그
-                    if (['황지원','김기안','장하늘','이종호'].includes(name)) {
-                        console.log(`⚠️ [${name}] slot=${slotDate}, startDate=${startDateStr}, _prevEndDate 없음, keys:`, Object.keys(s).filter(k => k.startsWith('_')));
-                    }
                 }
                 return true;
             });

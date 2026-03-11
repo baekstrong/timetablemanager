@@ -808,13 +808,6 @@ export const getAllStudentsFromAllSheets = async () => {
   const deduplicatedStudents = Object.values(latestByName).map(({ _sheetOrder, _prevSheetOrder, ...student }) => student);
   console.log(`🧹 Deduplicated: ${allStudents.length} → ${deduplicatedStudents.length} students`);
 
-  // 디버그: _prevEndDate가 설정된 수강생 확인
-  const withPrev = deduplicatedStudents.filter(s => s._prevEndDate);
-  if (withPrev.length > 0) {
-    console.log(`📌 이전 등록 보존된 수강생 (${withPrev.length}명):`,
-      withPrev.map(s => `${s['이름']}: prevEnd=${s._prevEndDate}, start=${getStudentField(s, '시작날짜')}`));
-  }
-
   return deduplicatedStudents;
 };
 
