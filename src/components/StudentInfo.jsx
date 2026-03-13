@@ -1,13 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 // isExpiringSoon, isExpired 사용하지 않음 - 추후 필요시 복원
-import { getActiveMakeupRequest, getHoldingHistory } from '../services/firebaseService';
+import { getActiveMakeupRequests, getHoldingHistory } from '../services/firebaseService';
 import ContractHistory from './ContractHistory';
 import './StudentInfo.css';
 
 const StudentInfo = ({ user, studentData, onBack }) => {
     const { calculateMembershipStats, generateAttendanceHistory } = useGoogleSheets();
-    const [makeupRequest, setMakeupRequest] = useState(null);
+    const [activeMakeups, setActiveMakeups] = useState([]);
     const [holdingHistory, setHoldingHistory] = useState([]);
     const [showContractHistory, setShowContractHistory] = useState(false);
 
@@ -16,11 +16,11 @@ const StudentInfo = ({ user, studentData, onBack }) => {
         const loadData = async () => {
             if (!user) return;
             try {
-                const [makeup, holdings] = await Promise.all([
-                    getActiveMakeupRequest(user.username),
+                const [makeups, holdings] = await Promise.all([
+                    getActiveMakeupRequests(user.username),
                     getHoldingHistory(user.username)
                 ]);
-                setMakeupRequest(makeup);
+                setActiveMakeups(makeups.filter(m => m.status === 'active'));
                 setHoldingHistory(holdings.filter(h => h.status !== 'cancelled'));
             } catch (error) {
                 console.error('데이터 조회 실패:', error);
@@ -53,10 +53,14 @@ const StudentInfo = ({ user, studentData, onBack }) => {
         return calculateMembershipStats(studentData);
     }, [studentData, user.username, calculateMembershipStats]);
 
-    // 출석 내역 생성 (보강 데이터 반영)
+    // 특정 날짜가 홀딩 기간에 포함되는지 확인
+    const isDateInHolding = (dateStr) => {
+        return holdingHistory.some(h => dateStr >= h.startDate && dateStr <= h.endDate);
+    };
+
+    // 출석 내역 생성 (보강 + 홀딩 데이터 반영)
     const attendanceHistory = useMemo(() => {
         if (!studentData) {
-            // 폴백: 목 데이터
             return [
                 { date: '2026-01-08', period: '4교시', type: '정규', status: '출석' },
                 { date: '2026-01-07', period: '2교시', type: '정규', status: '출석' },
@@ -66,55 +70,51 @@ const StudentInfo = ({ user, studentData, onBack }) => {
         // 구글 시트에서 출석 내역 생성
         let history = generateAttendanceHistory(studentData);
 
-        // 보강 신청이 있으면 출석 내역 수정
-        if (makeupRequest && makeupRequest.status === 'active') {
-            const originalDate = makeupRequest.originalClass.date;
-            const makeupDate = makeupRequest.makeupClass.date;
-            const makeupPeriod = `${makeupRequest.makeupClass.period}교시`;
-
-            // 원래 수업일 찾아서 상태 변경
-            history = history.map(record => {
-                if (record.date === originalDate) {
-                    return {
-                        ...record,
-                        status: '보강변경',
-                        type: '정규→보강'
-                    };
-                }
-                return record;
-            });
-
-            // 보강 날짜가 오늘 이전이면 출석 내역에 추가
+        // 보강 신청 반영 (복수 건)
+        if (activeMakeups.length > 0) {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            const makeupDateObj = new Date(makeupDate + 'T00:00:00');
 
-            if (makeupDateObj <= today) {
-                // 이미 같은 날짜의 보강 기록이 있는지 확인
-                const existingMakeup = history.find(r => r.date === makeupDate && r.type === '보강');
-                if (!existingMakeup) {
-                    history.push({
-                        date: makeupDate,
-                        period: makeupPeriod,
-                        type: '보강',
-                        status: '출석'
-                    });
+            for (const makeup of activeMakeups) {
+                const originalDate = makeup.originalClass.date;
+                const makeupDate = makeup.makeupClass.date;
+                const makeupPeriod = `${makeup.makeupClass.period}교시`;
+
+                // 원래 수업일 → 보강변경 표시
+                history = history.map(record => {
+                    if (record.date === originalDate) {
+                        return { ...record, status: '보강변경', type: '정규→보강' };
+                    }
+                    return record;
+                });
+
+                // 보강 날짜가 오늘 이전이면 출석 내역에 추가
+                const makeupDateObj = new Date(makeupDate + 'T00:00:00');
+                if (makeupDateObj <= today) {
+                    const existingMakeup = history.find(r => r.date === makeupDate && r.type === '보강');
+                    if (!existingMakeup) {
+                        history.push({
+                            date: makeupDate,
+                            period: makeupPeriod,
+                            type: '보강',
+                            status: '출석'
+                        });
+                    }
                 }
             }
-
-            // 다시 날짜순 정렬 (최신순)
-            history.sort((a, b) => {
-                const dateA = new Date(a.date);
-                const dateB = new Date(b.date);
-                return dateB - dateA;
-            });
-
-            // 상위 10개만 반환
-            history = history.slice(0, 10);
         }
 
-        return history;
-    }, [studentData, generateAttendanceHistory, makeupRequest]);
+        // 홀딩 기간 + 보강변경 날짜는 출석 내역에서 제외 (출석한 것만 표시)
+        history = history.filter(record => {
+            if (record.status === '보강변경') return false;
+            if (isDateInHolding(record.date)) return false;
+            return true;
+        });
+
+        // 날짜순 정렬 (최신순) → 상위 10개
+        history.sort((a, b) => new Date(b.date) - new Date(a.date));
+        return history.slice(0, 10);
+    }, [studentData, generateAttendanceHistory, activeMakeups, holdingHistory]);
 
     const getStatusColor = (status) => {
         switch (status) {

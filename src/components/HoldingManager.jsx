@@ -9,7 +9,8 @@ import {
     getAbsencesByStudent,
     cancelHolding,
     cancelAbsence,
-    getHolidays
+    getHolidays,
+    getActiveMakeupRequests
 } from '../services/firebaseService';
 import { cancelHoldingInSheets } from '../services/googleSheetsService';
 import './HoldingManager.css';
@@ -55,6 +56,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
     const [allHoldings, setAllHoldings] = useState([]); // Firebase의 모든 홀딩 내역
     const [absences, setAbsences] = useState([]);
     const [coachHolidays, setCoachHolidays] = useState({}); // 코치가 설정한 휴일
+    const [activeMakeups, setActiveMakeups] = useState([]); // 활성 보강 신청
 
     // 달력 월 선택 (기본값: 현재 월)
     const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
@@ -196,6 +198,10 @@ const HoldingManager = ({ user, studentData, onBack }) => {
 
                 const absenceList = await getAbsencesByStudent(user.username);
                 setAbsences(absenceList);
+
+                // 활성 보강 신청 로드
+                const makeups = await getActiveMakeupRequests(user.username);
+                setActiveMakeups(makeups.filter(m => m.status === 'active'));
             } catch (error) {
                 console.error('Failed to load holding/absence data:', error);
             }
@@ -303,18 +309,47 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         setSelectedDates([]); // 선택된 날짜 초기화
     };
 
-    // 특정 날짜가 수업일인지 확인
+    // 특정 날짜에 보강으로 출석하는지 확인
+    const getMakeupForDate = (date) => {
+        if (!date || activeMakeups.length === 0) return null;
+        const dateStr = formatLocalDate(date);
+        return activeMakeups.find(m => m.makeupClass.date === dateStr);
+    };
+
+    // 특정 날짜가 보강으로 인해 원래 수업을 빠지는 날인지 확인
+    const isOriginalClassMovedOut = (date) => {
+        if (!date || activeMakeups.length === 0) return false;
+        const dateStr = formatLocalDate(date);
+        return activeMakeups.some(m => m.originalClass.date === dateStr);
+    };
+
+    // 특정 날짜가 수업일인지 확인 (보강 반영)
     const isClassDay = (date) => {
         if (!date) return false;
+
+        // 보강으로 이 날짜에 출석하는 경우 → 수업일
+        if (getMakeupForDate(date)) return true;
+
+        // 보강으로 원래 수업을 다른 날로 옮긴 경우 → 수업일 아님
+        if (isOriginalClassMovedOut(date)) return false;
+
         const dayOfWeek = date.getDay();
         const dayMap = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금' };
         const dayName = dayMap[dayOfWeek];
         return schedule.some(s => s.day === dayName);
     };
 
-    // 특정 날짜의 수업 시간 가져오기
+    // 특정 날짜의 수업 시간 가져오기 (보강 반영)
     const getClassPeriod = (date) => {
         if (!date) return null;
+
+        // 보강으로 이 날짜에 출석하는 경우 → 보강 교시
+        const makeup = getMakeupForDate(date);
+        if (makeup) return makeup.makeupClass.period;
+
+        // 보강으로 원래 수업을 다른 날로 옮긴 경우 → 교시 없음
+        if (isOriginalClassMovedOut(date)) return null;
+
         const dayOfWeek = date.getDay();
         const dayMap = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금' };
         const dayName = dayMap[dayOfWeek];
@@ -771,6 +806,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
 
                                 const isInPeriod = isWithinMembershipPeriod(date);
                                 const isClass = isClassDay(date) && isInPeriod; // 수강 기간 내의 수업일만 표시
+                                const isMakeupDay = !!getMakeupForDate(date); // 보강 출석일
                                 const isHolding = isHoldingDate(date);
                                 const isAbsence = absences.some(a => a.date === formatLocalDate(date));
                                 const isSelected = selectedDates.includes(formatLocalDate(date));
@@ -798,7 +834,9 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                         onClick={() => handleDateClick(date)}
                                     >
                                         <span className="day-number">{date.getDate()}</span>
-                                        {isClass && <span className="class-indicator">●</span>}
+                                        {isClass && !isMakeupDay && <span className="class-indicator">●</span>}
+                                        {isMakeupDay && <span className="class-indicator" style={{ color: '#f59e0b' }}>●</span>}
+                                        {isMakeupDay && <span className="makeup-badge" style={{ fontSize: '9px', color: '#f59e0b', fontWeight: 600 }}>보강</span>}
                                         {isHolding && <span className="holding-badge">홀딩</span>}
                                         {isAbsence && <span className="absence-badge">결석</span>}
                                         {holidayName && <span className="holiday-badge">{holidayName}</span>}
@@ -810,6 +848,9 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                         <div className="calendar-legend">
                             <div className="legend-item">
                                 <span className="legend-dot class">●</span> 수업일
+                            </div>
+                            <div className="legend-item">
+                                <span className="legend-dot" style={{ color: '#f59e0b' }}>●</span> 보강
                             </div>
                             <div className="legend-item">
                                 <span className="legend-dot holding">●</span> 홀딩 신청
