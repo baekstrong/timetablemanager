@@ -1092,13 +1092,24 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     m.makeupClass.period === periodObj.id &&
                     m.makeupClass.date === slotDate
                 )
-                .map(m => m.studentName);
+                .map(m => m.studentName)
+                .filter(name => !weekHoldings.some(h =>
+                    h.studentName === name &&
+                    h.startDate <= slotDate &&
+                    h.endDate >= slotDate
+                ));
 
             makeupAbsentStudents = weekMakeupRequests
                 .filter(m =>
                     m.originalClass.day === day &&
                     m.originalClass.period === periodObj.id &&
-                    m.originalClass.date === slotDate
+                    m.originalClass.date === slotDate &&
+                    // 보강일에 홀딩을 쓴 경우 원래 자리를 비운 게 아니므로 제외
+                    !weekHoldings.some(h =>
+                        h.studentName === m.studentName &&
+                        h.startDate <= m.makeupClass.date &&
+                        h.endDate >= m.makeupClass.date
+                    )
                 )
                 .map(m => m.studentName);
 
