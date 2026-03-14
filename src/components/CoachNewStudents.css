@@ -165,7 +165,7 @@
 .cns-reg-list {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1rem;
 }
 
 .cns-reg-card {
@@ -687,7 +687,7 @@
     align-items: center;
     padding: 0.6rem 0.75rem;
     margin-top: 0.75rem;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.5rem;
     background: #eef2ff;
     border-radius: 8px;
     border-left: 3px solid #667eea;

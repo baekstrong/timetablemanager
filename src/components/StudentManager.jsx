@@ -178,12 +178,6 @@ const StudentManager = ({ onBack }) => {
         return (
             <div className="student-manager-container">
                 <div className="student-header">
-                    <button onClick={onBack} className="back-button">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                        뒤로가기
-                    </button>
                     <h1 className="student-title">수강생 관리</h1>
                 </div>
                 <div className="not-connected-message">
@@ -198,17 +192,13 @@ const StudentManager = ({ onBack }) => {
     return (
         <div className="student-manager-container">
             <div className="student-header">
-                <button onClick={onBack} className="back-button">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                    뒤로가기
-                </button>
                 <h1 className="student-title">수강생 관리</h1>
-                <div className="header-actions">
-                    <div className="info-message" style={{ fontSize: '0.9rem', color: '#666', marginRight: '1rem' }}>
-                        📋 활성 수강생만 조회 중 (종료일 기준 필터링)
-                    </div>
+            </div>
+            <div className="student-header-actions-mobile">
+                <div className="info-message-mobile">
+                    📋 활성 수강생만 조회 중 (종료일 기준 필터링)
+                </div>
+                <div className="header-buttons-row">
                     <button onClick={() => setShowRegistrationModal(true)} className="register-btn">
                         + 수강생 등록
                     </button>

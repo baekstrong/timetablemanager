@@ -74,8 +74,8 @@ export function renderStudentScreen() {
             </div>
 
             <!-- 고정된 메모 목록 (캘린더 바로 위) -->
-            <div id="pinnedMemosContainer"></div>
-            
+            <div id="pinnedMemosContainer" class="mb-4"></div>
+
             <!-- 달력 -->
             <div class="bg-white rounded-lg shadow-md p-4 mb-4">
                 <h3 class="text-lg font-bold mb-3 text-gray-800">📅 출석 캘린더</h3>

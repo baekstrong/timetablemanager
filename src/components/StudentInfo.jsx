@@ -133,12 +133,6 @@ const StudentInfo = ({ user, studentData, onBack }) => {
     return (
         <div className="student-info-container">
             <div className="student-info-header">
-                <button onClick={onBack} className="back-button">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                    뒤로가기
-                </button>
                 <h1 className="student-info-title">내 정보</h1>
             </div>
 

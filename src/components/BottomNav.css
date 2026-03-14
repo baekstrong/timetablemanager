@@ -1,6 +1,6 @@
 .bottom-nav {
     position: fixed;
-    bottom: 12px;
+    bottom: 0;
     left: 10px;
     right: 10px;
     z-index: 1000;
@@ -12,7 +12,8 @@
     box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.1);
     height: 64px;
     border-radius: 20px;
-    margin-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    margin-bottom: 0;
 }
 
 .bottom-nav-tab {

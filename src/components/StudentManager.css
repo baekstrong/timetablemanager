@@ -20,6 +20,36 @@
     gap: 1rem;
 }
 
+.student-header-actions-mobile {
+    margin-bottom: 1.5rem;
+}
+
+.info-message-mobile {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 0.75rem;
+}
+
+.header-buttons-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.register-btn {
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
 .view-switch-btn {
     padding: 0.75rem 1.5rem;
     background: rgba(255, 255, 255, 0.95);

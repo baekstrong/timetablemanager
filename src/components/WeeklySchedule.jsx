@@ -1510,7 +1510,6 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         return (
             <div className="schedule-container">
                 <div className="schedule-page-header">
-                    {onBack && <BackButton onClick={onBack} />}
                     <h1 className="schedule-page-title">
                         {mode === 'coach' ? '코치 시간표' : '수강생 시간표'}
                     </h1>
@@ -1527,7 +1526,6 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         return (
             <div className="schedule-container">
                 <div className="schedule-page-header">
-                    {onBack && <BackButton onClick={onBack} />}
                     <h1 className="schedule-page-title">
                         {mode === 'coach' ? '코치 시간표' : '수강생 시간표'}
                     </h1>
@@ -1545,7 +1543,6 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
     return (
         <div className={`schedule-container mode-${mode}`}>
             <div className="schedule-page-header">
-                {onBack && <BackButton onClick={onBack} />}
                 <h1 className="schedule-page-title">
                     {mode === 'coach' ? '코치 시간표' : '수강생 시간표'}
                 </h1>
@@ -2065,8 +2062,8 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     </div>
                     {activeMakeupRequests.map((makeup, index) => (
                         <div key={makeup.id} className="banner-content" style={{ marginBottom: index < activeMakeupRequests.length - 1 ? '8px' : '0' }}>
-                            <div className="banner-text">
-                                {makeup.originalClass.day}요일 {makeup.originalClass.periodName} → {makeup.makeupClass.day}요일 {makeup.makeupClass.periodName}
+                            <div className="banner-text" style={{ whiteSpace: 'normal' }}>
+                                {makeup.originalClass.day}요일 {makeup.originalClass.periodName} →{'\u00A0'}{makeup.makeupClass.day}요일 {makeup.makeupClass.periodName}
                                 {makeup.status === 'completed' && <span style={{ marginLeft: '6px', color: '#16a34a', fontWeight: 700 }}>완료</span>}
                             </div>
                             {makeup.status === 'active' && !isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 60) && (

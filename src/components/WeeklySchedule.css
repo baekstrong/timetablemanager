@@ -456,6 +456,8 @@
     transform: translateX(-50%);
     z-index: 999;
     animation: slideDown 0.3s ease;
+    width: 90%;
+    max-width: 400px;
 }
 
 @keyframes slideDown {
@@ -488,6 +490,9 @@
 .banner-text {
     font-size: 14px;
     line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .banner-cancel-btn {
