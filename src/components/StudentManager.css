@@ -33,34 +33,36 @@
 .header-buttons-row {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
 }
 
 .register-btn {
-    padding: 0.75rem 1.5rem;
+    padding: 0.5rem 0.75rem;
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     border: none;
-    border-radius: 12px;
+    border-radius: 8px;
     color: white;
-    font-size: 0.95rem;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .view-switch-btn {
-    padding: 0.75rem 1.5rem;
+    padding: 0.5rem 0.75rem;
     background: rgba(255, 255, 255, 0.95);
     border: none;
-    border-radius: 12px;
+    border-radius: 8px;
     color: #667eea;
-    font-size: 0.95rem;
+    font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .view-switch-btn:hover {
@@ -104,14 +106,15 @@
 }
 
 .student-count {
-    padding: 0.75rem 1.5rem;
+    padding: 0.5rem 0.75rem;
     background: rgba(255, 255, 255, 0.15);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 12px;
+    border-radius: 8px;
     color: white;
-    font-size: 1rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    backdrop-filter: blur(10px);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .not-connected-message {

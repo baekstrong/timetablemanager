@@ -1551,13 +1551,15 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                         onClick={handleManualRefresh}
                         disabled={isRefreshing}
                         style={{
-                            marginLeft: '12px',
+                            marginLeft: 'auto',
                             padding: '4px 12px',
-                            fontSize: '0.9rem',
+                            fontSize: '0.85rem',
                             border: '1px solid #ddd',
                             borderRadius: '4px',
                             backgroundColor: isRefreshing ? '#f3f4f6' : '#fff',
-                            cursor: isRefreshing ? 'not-allowed' : 'pointer'
+                            cursor: isRefreshing ? 'not-allowed' : 'pointer',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0
                         }}
                     >
                         {isRefreshing ? '새로고침 중...' : '🔄 새로고침'}
