@@ -53,10 +53,13 @@ const StudentInfo = ({ user, studentData, onBack }) => {
         return calculateMembershipStats(studentData);
     }, [studentData, user.username, calculateMembershipStats]);
 
-    // 현재 등록 기간 내 홀딩만 필터
+    // 현재 등록 기간 내 홀딩만 필터 (시작일 7일 전부터, 보강 날짜가 시작일 직전일 수 있음)
     const currentHoldings = useMemo(() => {
         if (!membershipInfo.startDate) return holdingHistory;
-        return holdingHistory.filter(h => h.endDate >= membershipInfo.startDate);
+        const cutoff = new Date(membershipInfo.startDate);
+        cutoff.setDate(cutoff.getDate() - 7);
+        const cutoffStr = cutoff.toISOString().split('T')[0];
+        return holdingHistory.filter(h => h.endDate >= cutoffStr);
     }, [holdingHistory, membershipInfo.startDate]);
 
     // Firebase 기반 실제 홀딩 남은 횟수 (시트 M열 대신)

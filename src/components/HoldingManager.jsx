@@ -161,14 +161,19 @@ const HoldingManager = ({ user, studentData, onBack }) => {
             return dayMap[s.day];
         });
 
-        // 현재 등록 기간의 시작일 (이전 등록 홀딩 필터용)
-        const membershipStartStr = membershipPeriod.start ? formatLocalDate(membershipPeriod.start) : null;
+        // 현재 등록 기간의 시작일 (이전 등록 홀딩 필터용, 7일 여유)
+        let cutoffStr = null;
+        if (membershipPeriod.start) {
+            const cutoff = new Date(membershipPeriod.start);
+            cutoff.setDate(cutoff.getDate() - 7);
+            cutoffStr = formatLocalDate(cutoff);
+        }
 
         // Firebase 홀딩 데이터를 내역 형식으로 변환 (현재 등록 기간만)
         return allHoldings
             .filter(holding => {
-                // 현재 등록 시작일 이후의 홀딩만 표시
-                if (membershipStartStr && holding.endDate < membershipStartStr) return false;
+                // 등록 시작 7일 전 이후의 홀딩만 표시 (보강 날짜가 시작일 직전일 수 있음)
+                if (cutoffStr && holding.endDate < cutoffStr) return false;
                 return true;
             })
             .map(holding => {
