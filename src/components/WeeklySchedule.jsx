@@ -1098,6 +1098,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         );
 
         let makeupStudents = [];
+        let makeupHeldStudents = [];
         let makeupAbsentStudents = [];
         let absenceStudents = [];
         let agreedAbsenceStudents = [];
@@ -1124,7 +1125,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 ));
 
             // 보강 목적지가 홀딩된 학생 (보강홀딩 표시용)
-            const makeupHeldStudents = weekMakeupRequests
+            makeupHeldStudents = weekMakeupRequests
                 .filter(m =>
                     m.makeupClass.day === day &&
                     m.makeupClass.period === periodObj.id &&
@@ -1244,7 +1245,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             isFull,
             activeStudents,
             makeupStudents,
-            makeupHeldStudents: makeupHeldStudents || [],
+            makeupHeldStudents,
             makeupAbsentStudents,
             absenceStudents,
             agreedAbsenceStudents,
