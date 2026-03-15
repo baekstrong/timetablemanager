@@ -151,7 +151,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
     // 홀딩 사용 완료 여부 (남은 횟수가 0인 경우)
     const hasUsedAllHoldings = remainingHoldings <= 0;
 
-    // 홀딩 내역 조회 (Firebase 데이터 기반 - 여러 홀딩 지원)
+    // 홀딩 내역 조회 (Firebase 데이터 기반 - 현재 등록 기간만 표시)
     const holdingHistory = useMemo(() => {
         if (allHoldings.length === 0) return [];
 
@@ -161,30 +161,39 @@ const HoldingManager = ({ user, studentData, onBack }) => {
             return dayMap[s.day];
         });
 
-        // Firebase 홀딩 데이터를 내역 형식으로 변환
-        return allHoldings.map(holding => {
-            const startDate = new Date(holding.startDate + 'T00:00:00');
-            const endDate = new Date(holding.endDate + 'T00:00:00');
+        // 현재 등록 기간의 시작일 (이전 등록 홀딩 필터용)
+        const membershipStartStr = membershipPeriod.start ? formatLocalDate(membershipPeriod.start) : null;
 
-            // 홀딩 기간 내 수업일 계산
-            const dates = [];
-            const current = new Date(startDate);
-            while (current <= endDate) {
-                if (classDays.includes(current.getDay())) {
-                    dates.push(formatLocalDate(current));
+        // Firebase 홀딩 데이터를 내역 형식으로 변환 (현재 등록 기간만)
+        return allHoldings
+            .filter(holding => {
+                // 현재 등록 시작일 이후의 홀딩만 표시
+                if (membershipStartStr && holding.endDate < membershipStartStr) return false;
+                return true;
+            })
+            .map(holding => {
+                const startDate = new Date(holding.startDate + 'T00:00:00');
+                const endDate = new Date(holding.endDate + 'T00:00:00');
+
+                // 홀딩 기간 내 수업일 계산
+                const dates = [];
+                const current = new Date(startDate);
+                while (current <= endDate) {
+                    if (classDays.includes(current.getDay())) {
+                        dates.push(formatLocalDate(current));
+                    }
+                    current.setDate(current.getDate() + 1);
                 }
-                current.setDate(current.getDate() + 1);
-            }
 
-            return {
-                id: holding.id, // Firebase document ID (취소 시 필요)
-                startDate: holding.startDate,
-                endDate: holding.endDate,
-                dates,
-                status: '승인됨'
-            };
-        }).sort((a, b) => new Date(a.startDate) - new Date(b.startDate)); // 날짜순 정렬
-    }, [allHoldings, schedule]);
+                return {
+                    id: holding.id, // Firebase document ID (취소 시 필요)
+                    startDate: holding.startDate,
+                    endDate: holding.endDate,
+                    dates,
+                    status: '승인됨'
+                };
+            }).sort((a, b) => new Date(a.startDate) - new Date(b.startDate)); // 날짜순 정렬
+    }, [allHoldings, schedule, membershipPeriod]);
 
     // Load all holdings and absences from Firebase
     useEffect(() => {
@@ -271,9 +280,12 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         return { year, month, dates };
     }, [calendarYear, calendarMonth]);
 
-    // 특정 날짜가 수강 기간 내인지 확인
+    // 특정 날짜가 수강 기간 내인지 확인 (보강 날짜도 허용)
     const isWithinMembershipPeriod = (date) => {
         if (!date || !membershipPeriod.start || !membershipPeriod.end) return true;
+
+        // 보강으로 출석하는 날짜는 수강 기간과 무관하게 허용
+        if (getMakeupForDate(date)) return true;
 
         const dateOnly = new Date(date);
         dateOnly.setHours(0, 0, 0, 0);

@@ -623,6 +623,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 }
 
                 const thisWeekMakeups = makeups.filter(m => {
+                    if (m.status === 'active') return true;
                     const makeupDate = m.makeupClass?.date;
                     return makeupDate >= start && makeupDate <= end;
                 });
