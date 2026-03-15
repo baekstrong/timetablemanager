@@ -413,11 +413,13 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         return now < thirtyMinBefore;
     };
 
-    // 이미 홀딩 신청한 날짜인지 확인
+    // 이미 홀딩 신청한 날짜인지 확인 (정규 수업일 + 홀딩 기간 범위 모두 체크)
     const isHoldingDate = (date) => {
         if (!date) return false;
         const dateStr = formatLocalDate(date);
-        return holdingHistory.some(h => h.dates.includes(dateStr));
+        return holdingHistory.some(h =>
+            h.dates.includes(dateStr) || (dateStr >= h.startDate && dateStr <= h.endDate)
+        );
     };
 
     // 날짜 선택 핸들러

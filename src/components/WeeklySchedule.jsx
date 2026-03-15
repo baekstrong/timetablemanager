@@ -1109,6 +1109,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         if (dateStr) {
             const slotDate = weekDateToISO(dateStr);
 
+            // 보강 목적지 슬롯: 홀딩되지 않은 보강만 표시
             makeupStudents = weekMakeupRequests
                 .filter(m =>
                     m.makeupClass.day === day &&
@@ -1122,17 +1123,26 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     h.endDate >= slotDate
                 ));
 
+            // 보강 목적지가 홀딩된 학생 (보강홀딩 표시용)
+            const makeupHeldStudents = weekMakeupRequests
+                .filter(m =>
+                    m.makeupClass.day === day &&
+                    m.makeupClass.period === periodObj.id &&
+                    m.makeupClass.date === slotDate &&
+                    weekHoldings.some(h =>
+                        h.studentName === m.studentName &&
+                        h.startDate <= slotDate &&
+                        h.endDate >= slotDate
+                    )
+                )
+                .map(m => m.studentName);
+
+            // 보강 원래 자리: 홀딩된 보강도 포함 (보강결석 표시)
             makeupAbsentStudents = weekMakeupRequests
                 .filter(m =>
                     m.originalClass.day === day &&
                     m.originalClass.period === periodObj.id &&
-                    m.originalClass.date === slotDate &&
-                    // 보강일에 홀딩을 쓴 경우 원래 자리를 비운 게 아니므로 제외
-                    !weekHoldings.some(h =>
-                        h.studentName === m.studentName &&
-                        h.startDate <= m.makeupClass.date &&
-                        h.endDate >= m.makeupClass.date
-                    )
+                    m.originalClass.date === slotDate
                 )
                 .map(m => m.studentName);
 
@@ -1234,6 +1244,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             isFull,
             activeStudents,
             makeupStudents,
+            makeupHeldStudents: makeupHeldStudents || [],
             makeupAbsentStudents,
             absenceStudents,
             agreedAbsenceStudents,
@@ -1522,6 +1533,9 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     })}
                     {data.makeupStudents.map(name => (
                         <StudentTag key={`makeup-${name}`} name={name} status="makeup" label="보강" />
+                    ))}
+                    {data.makeupHeldStudents.map(name => (
+                        <StudentTag key={`makeup-held-${name}`} name={name} status="holding" label="보강홀딩" />
                     ))}
                     {data.holdingStudents.map(name => (
                         <StudentTag key={`holding-${name}`} name={name} status="holding" label="홀딩" />
