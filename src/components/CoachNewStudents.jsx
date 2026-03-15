@@ -969,7 +969,9 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                     </span>
                                                     <span className="cns-group-count">{groups[key].length}명</span>
                                                 </div>
-                                                {groups[key].map(renderRegCard)}
+                                                <div className="cns-reg-list">
+                                                    {groups[key].map(renderRegCard)}
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
