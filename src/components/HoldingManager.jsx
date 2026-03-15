@@ -845,9 +845,9 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                         onClick={() => handleDateClick(date)}
                                     >
                                         <span className="day-number">{date.getDate()}</span>
-                                        {isClass && !isMakeupDay && <span className="class-indicator">●</span>}
-                                        {isMakeupDay && <span className="class-indicator" style={{ color: '#f59e0b' }}>●</span>}
-                                        {isMakeupDay && <span className="makeup-badge" style={{ fontSize: '9px', color: '#f59e0b', fontWeight: 600 }}>보강</span>}
+                                        {isClass && !isMakeupDay && !isHolding && <span className="class-indicator">●</span>}
+                                        {isMakeupDay && !isHolding && <span className="class-indicator" style={{ color: '#f59e0b' }}>●</span>}
+                                        {isMakeupDay && !isHolding && <span className="makeup-badge" style={{ fontSize: '9px', color: '#f59e0b', fontWeight: 600 }}>보강</span>}
                                         {isHolding && <span className="holding-badge">홀딩</span>}
                                         {isAbsence && <span className="absence-badge">결석</span>}
                                         {holidayName && <span className="holiday-badge">{holidayName}</span>}

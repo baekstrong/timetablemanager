@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getStudentField, parseHoldingStatus } from '../services/googleSheetsService';
+import { getStudentField, parseHoldingStatus, parseSheetDate as parseSheetDateSvc } from '../services/googleSheetsService';
 import {
     getActiveMakeupRequests,
     createMakeupRequest,
@@ -422,6 +422,28 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
     // Manual refresh state
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    // ── Student holding period (from Sheets N/O columns) ──
+    const studentHoldingRange = useMemo(() => {
+        if (!studentData) return null;
+        const holdingStatus = getStudentField(studentData, '홀딩 사용여부');
+        const holdingInfo = parseHoldingStatus(holdingStatus);
+        if (!holdingInfo.isCurrentlyUsed) return null;
+        const startStr = getStudentField(studentData, '홀딩 시작일');
+        const endStr = getStudentField(studentData, '홀딩 종료일');
+        if (!startStr || !endStr) return null;
+        const start = parseSheetDateSvc(startStr);
+        const end = parseSheetDateSvc(endStr);
+        if (!start || !end) return null;
+        return { start: formatDateISO(start), end: formatDateISO(end) };
+    }, [studentData]);
+
+    // Check if a makeup request's target date is within the student's holding period
+    const isMakeupHeld = (makeup) => {
+        if (!studentHoldingRange) return false;
+        const makeupDate = makeup.makeupClass?.date;
+        return makeupDate >= studentHoldingRange.start && makeupDate <= studentHoldingRange.end;
+    };
 
     // ── Derived data ──
 
@@ -1255,30 +1277,38 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         // Check makeup status for this cell
         let isMakeupFrom = false;
         let isMakeupTo = false;
+        let isMakeupToHeld = false;
+        let isMakeupFromHeld = false;
         if (activeMakeupRequests.length > 0 && weekDates[day]) {
             const cellDate = weekDateToISO(weekDates[day]);
-            isMakeupFrom = activeMakeupRequests.some(m =>
+            const makeupFrom = activeMakeupRequests.find(m =>
                 m.originalClass.date === cellDate &&
                 m.originalClass.day === day &&
                 m.originalClass.period === periodObj.id
             );
-            isMakeupTo = activeMakeupRequests.some(m =>
+            const makeupTo = activeMakeupRequests.find(m =>
                 m.makeupClass.date === cellDate &&
                 m.makeupClass.day === day &&
                 m.makeupClass.period === periodObj.id
             );
+            isMakeupFrom = !!makeupFrom;
+            isMakeupTo = !!makeupTo;
+            if (makeupTo) isMakeupToHeld = isMakeupHeld(makeupTo);
+            if (makeupFrom) isMakeupFromHeld = isMakeupHeld(makeupFrom);
         }
 
         // My class (with or without makeup-absent)
         if (myClass) {
+            // 보강이 홀딩된 경우: 원래 수업은 다시 정상 (보강결석이 아님)
+            const showMakeupAbsent = isMakeupFrom && !isMakeupFromHeld;
             return (
                 <div
-                    className={`schedule-cell cell-available my-class ${isMakeupFrom ? 'makeup-absent' : ''}`}
+                    className={`schedule-cell cell-available my-class ${showMakeupAbsent ? 'makeup-absent' : ''}`}
                     onClick={cellClick}
                 >
                     <div className="cell-content">
                         <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
-                        {isMakeupFrom ? (
+                        {showMakeupAbsent ? (
                             <span className="my-class-badge" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>보강결석</span>
                         ) : (
                             <span className="my-class-badge">MY</span>
@@ -1290,6 +1320,21 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
         // Makeup TO cell
         if (isMakeupTo) {
+            // 보강이 홀딩된 경우
+            if (isMakeupToHeld) {
+                return (
+                    <div
+                        className="schedule-cell cell-available"
+                        onClick={cellClick}
+                        style={{ borderColor: '#9ca3af', borderWidth: '2px', opacity: 0.7 }}
+                    >
+                        <div className="cell-content">
+                            <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
+                            <span className="my-class-badge" style={{ backgroundColor: '#6b7280', color: '#fff', fontSize: '0.65rem' }}>보강홀딩</span>
+                        </div>
+                    </div>
+                );
+            }
             return (
                 <div
                     className="schedule-cell cell-available makeup-class"
@@ -2063,17 +2108,24 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     <div className="banner-header" style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#666' }}>
                         🔄 이번 주 보강 ({activeMakeupRequests.length}/{weeklyFrequency}개)
                     </div>
-                    {activeMakeupRequests.map((makeup, index) => (
-                        <div key={makeup.id} className="banner-content" style={{ marginBottom: index < activeMakeupRequests.length - 1 ? '8px' : '0' }}>
-                            <div className="banner-text" style={{ whiteSpace: 'normal' }}>
-                                {makeup.originalClass.day}요일 {makeup.originalClass.periodName} →{'\u00A0'}{makeup.makeupClass.day}요일 {makeup.makeupClass.periodName}
-                                {makeup.status === 'completed' && <span style={{ marginLeft: '6px', color: '#16a34a', fontWeight: 700 }}>완료</span>}
+                    {activeMakeupRequests.map((makeup, index) => {
+                        const held = isMakeupHeld(makeup);
+                        return (
+                            <div key={makeup.id} className="banner-content" style={{
+                                marginBottom: index < activeMakeupRequests.length - 1 ? '8px' : '0',
+                                ...(held ? { background: 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)' } : {})
+                            }}>
+                                <div className="banner-text" style={{ whiteSpace: 'normal' }}>
+                                    {makeup.originalClass.day}요일 {makeup.originalClass.periodName} →{'\u00A0'}{makeup.makeupClass.day}요일 {makeup.makeupClass.periodName}
+                                    {held && <span style={{ marginLeft: '6px', fontWeight: 700 }}>홀딩</span>}
+                                    {!held && makeup.status === 'completed' && <span style={{ marginLeft: '6px', color: '#16a34a', fontWeight: 700 }}>완료</span>}
+                                </div>
+                                {!held && makeup.status === 'active' && !isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 60) && (
+                                    <button className="banner-cancel-btn" onClick={() => handleMakeupCancel(makeup.id)}>취소</button>
+                                )}
                             </div>
-                            {makeup.status === 'active' && !isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 60) && (
-                                <button className="banner-cancel-btn" onClick={() => handleMakeupCancel(makeup.id)}>취소</button>
-                            )}
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>
