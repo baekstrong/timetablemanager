@@ -53,6 +53,19 @@ const StudentInfo = ({ user, studentData, onBack }) => {
         return calculateMembershipStats(studentData);
     }, [studentData, user.username, calculateMembershipStats]);
 
+    // 현재 등록 기간 내 홀딩만 필터
+    const currentHoldings = useMemo(() => {
+        if (!membershipInfo.startDate) return holdingHistory;
+        return holdingHistory.filter(h => h.endDate >= membershipInfo.startDate);
+    }, [holdingHistory, membershipInfo.startDate]);
+
+    // Firebase 기반 실제 홀딩 남은 횟수 (시트 M열 대신)
+    const actualRemainingHolding = useMemo(() => {
+        const totalHolding = membershipInfo.totalHolding || 1;
+        const usedCount = currentHoldings.length;
+        return Math.max(0, totalHolding - usedCount);
+    }, [membershipInfo.totalHolding, currentHoldings]);
+
     // 특정 날짜가 홀딩 기간에 포함되는지 확인
     const isDateInHolding = (dateStr) => {
         return holdingHistory.some(h => dateStr >= h.startDate && dateStr <= h.endDate);
@@ -175,7 +188,7 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                         <div className="detail-row">
                             <span className="detail-label">홀딩</span>
                             <span className="detail-value">
-                                {membershipInfo.remainingHolding}회 남음
+                                {actualRemainingHolding}회 남음
                                 {membershipInfo.registrationMonths > 1 && (
                                     <span style={{ fontSize: '0.85em', color: '#6b7280', marginLeft: '8px' }}>
                                         ({membershipInfo.registrationMonths}개월 등록)
@@ -184,25 +197,19 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                             </span>
                         </div>
                         {/* 홀딩 사용 기간 표시 (현재 등록 기간 내 홀딩만, 취소 제외) */}
-                        {(() => {
-                            const currentHoldings = holdingHistory.filter(h => {
-                                if (!membershipInfo.startDate || !h.startDate) return false;
-                                return h.startDate >= membershipInfo.startDate;
-                            });
-                            return currentHoldings.length > 0 && (
-                                <div className="holding-periods">
-                                    <span className="detail-label" style={{ marginBottom: '4px', display: 'block' }}>홀딩 사용 기간</span>
-                                    {currentHoldings.map((h, idx) => (
-                                        <div key={h.id || idx} className="holding-period-item">
-                                            <span className="holding-status-dot completed" />
-                                            <span className="holding-period-dates">
-                                                {h.startDate} ~ {h.endDate}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            );
-                        })()}
+                        {currentHoldings.length > 0 && (
+                            <div className="holding-periods">
+                                <span className="detail-label" style={{ marginBottom: '4px', display: 'block' }}>홀딩 사용 기간</span>
+                                {currentHoldings.map((h, idx) => (
+                                    <div key={h.id || idx} className="holding-period-item">
+                                        <span className="holding-status-dot completed" />
+                                        <span className="holding-period-dates">
+                                            {h.startDate} ~ {h.endDate}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* 진행률 바 */}
@@ -263,7 +270,7 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                         <div className="stat-item">
                             <div className="stat-icon">⏸️</div>
                             <div className="stat-info">
-                                <div className="stat-value">{membershipInfo.remainingHolding}회</div>
+                                <div className="stat-value">{actualRemainingHolding}회</div>
                                 <div className="stat-label">남은 홀딩</div>
                             </div>
                         </div>
