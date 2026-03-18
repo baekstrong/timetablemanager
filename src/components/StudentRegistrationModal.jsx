@@ -11,7 +11,7 @@ import {
     parseScheduleString,
     isHolidayDate
 } from '../services/googleSheetsService';
-import { getHolidays, createRenewalContract } from '../services/firebaseService';
+import { getHolidays, createRenewalContract, createNewStudentRegistration } from '../services/firebaseService';
 import { CONTRACT_VERSION } from '../data/contractTerms';
 import './StudentRegistrationModal.css';
 
@@ -360,6 +360,23 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName }) =>
                 }
             } catch (err) {
                 console.warn('서식 적용 실패:', err);
+            }
+
+            // 신규 수강생 관리 페이지에 승인 이력 남기기
+            try {
+                await createNewStudentRegistration({
+                    name: form.이름,
+                    phone: form.핸드폰 || '',
+                    gender: form.성별 || '',
+                    occupation: form.직업 || '',
+                    weeklyFrequency: parseInt(form.주횟수),
+                    scheduleString: form['요일 및 시간'],
+                    paymentMethod: form.결제방식 || '',
+                    registeredByCoach: true,
+                    approvedAt: new Date()
+                }, 'approved');
+            } catch (regErr) {
+                console.warn('신규 수강생 이력 저장 실패 (시트 등록은 완료):', regErr);
             }
 
             alert('수강생이 등록되었습니다.');
