@@ -48,6 +48,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
 
     // 수강생 모드: 본인의 종료날짜 확인
     const [isMyLastDay, setIsMyLastDay] = useState(false);
+    const [isCourseExpired, setIsCourseExpired] = useState(false);
 
     useEffect(() => {
         const checkMyLastDay = async () => {
@@ -63,6 +64,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                             today.setHours(0, 0, 0, 0);
                             endDate.setHours(0, 0, 0, 0);
                             setIsMyLastDay(endDate.getTime() === today.getTime());
+                            setIsCourseExpired(today.getTime() > endDate.getTime());
                         }
                     }
                 }
@@ -247,6 +249,22 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         fontSize: '0.95rem'
                     }}>
                         오늘은 마지막 수업일입니다
+                    </div>
+                )}
+
+                {user.role !== 'coach' && isCourseExpired && (
+                    <div style={{
+                        background: 'linear-gradient(135deg, #fee2e2, #fecaca)',
+                        border: '1px solid #ef4444',
+                        borderRadius: '8px',
+                        padding: '0.75rem 1rem',
+                        marginBottom: '1rem',
+                        textAlign: 'center',
+                        fontWeight: '600',
+                        color: '#991b1b',
+                        fontSize: '0.95rem'
+                    }}>
+                        수강 기간이 만료되었습니다. 재등록을 원하시면 코치에게 문의해주세요.
                     </div>
                 )}
 
