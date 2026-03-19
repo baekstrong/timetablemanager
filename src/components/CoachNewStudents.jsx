@@ -12,14 +12,16 @@ import {
     createFAQ,
     getFAQs,
     updateFAQ,
-    deleteFAQ
+    deleteFAQ,
+    getHolidays
 } from '../services/firebaseService';
 import {
     getCurrentSheetName,
     readSheetData,
     writeSheetData,
     formatCellsWithStyle,
-    getStudentField
+    getStudentField,
+    calculateEndDateWithHolidays
 } from '../services/googleSheetsService';
 import { sendApprovalNotifications, sendWaitlistAvailableSMS, cancelScheduledSMS } from '../services/smsService';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
@@ -172,14 +174,25 @@ const CoachNewStudents = ({ user, onBack }) => {
             }
             const newNumber = maxNumber + 1;
 
-            // 입학반 다음주 기준 시작일/종료일 계산
+            // 입학반 다음주 기준 시작일 계산 + 공휴일 반영 종료일 계산
             const entranceDateForCalc = reg.entranceInquiry || reg.entranceDate;
-            const { startDate: calcStartDate, endDate: calcEndDate } = calculateStartEndDates(
+            const { startDate: calcStartDate } = calculateStartEndDates(
                 entranceDateForCalc,
                 reg.requestedSlots
             );
             const startDateYYMMDD = convertToYYMMDD(calcStartDate);
-            const endDateYYMMDD = convertToYYMMDD(calcEndDate);
+
+            // 공휴일 반영하여 종료일 재계산
+            const firebaseHolidays = await getHolidays().catch(() => []);
+            const weeklyFreq = parseInt(reg.weeklyFrequency) || 2;
+            const totalSessions = weeklyFreq * 4; // 신규 등록은 1개월
+            const startDateObj = new Date(calcStartDate + 'T00:00:00');
+            const calcEndDateObj = calculateEndDateWithHolidays(
+                startDateObj, totalSessions, reg.scheduleString, firebaseHolidays
+            );
+            const endDateYYMMDD = calcEndDateObj
+                ? convertToYYMMDD(`${calcEndDateObj.getFullYear()}-${String(calcEndDateObj.getMonth() + 1).padStart(2, '0')}-${String(calcEndDateObj.getDate()).padStart(2, '0')}`)
+                : convertToYYMMDD(calculateStartEndDates(entranceDateForCalc, reg.requestedSlots).endDate);
 
             // 결제금액: 만원 단위 (390000 → 39)
             const paymentAmount = reg.totalCost ? String(Math.round(reg.totalCost / 10000)) : '';
