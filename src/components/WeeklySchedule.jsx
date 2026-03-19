@@ -537,7 +537,35 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             endDate.setHours(0, 0, 0, 0);
             const effectiveEnd = getEffectiveEndDate(student, endDate);
             effectiveEnd.setHours(0, 0, 0, 0);
-            return effectiveEnd.getTime() === today.getTime();
+
+            // 기본: effectiveEnd가 오늘이면 마지막 수업일
+            if (effectiveEnd.getTime() === today.getTime()) return true;
+
+            // 보강으로 종료일이 연장된 경우:
+            // 원래 종료일 ≤ 오늘 < effectiveEnd이고,
+            // 오늘이 정규 수업 요일이며,
+            // 오늘~effectiveEnd 사이에 더 이상 정규 수업일이 없으면 마지막 정규 수업일
+            if (endDate.getTime() <= today.getTime() && effectiveEnd.getTime() > today.getTime()) {
+                const schedule = student['요일 및 시간'] || '';
+                const parsed = parseScheduleString(schedule);
+                const scheduleDays = parsed.map(p => p.day);
+
+                // 오늘이 정규 수업 요일인지 확인
+                if (!scheduleDays.includes(todayDay)) return false;
+
+                // 오늘 이후 ~ effectiveEnd 전에 정규 수업일이 있는지 확인
+                const dayNamesArr = ['일', '월', '화', '수', '목', '금', '토'];
+                const checkDate = new Date(today);
+                for (let i = 0; i < 7; i++) {
+                    checkDate.setDate(checkDate.getDate() + 1);
+                    if (checkDate.getTime() >= effectiveEnd.getTime()) break;
+                    const dayName = dayNamesArr[checkDate.getDay()];
+                    if (scheduleDays.includes(dayName)) return false; // 아직 정규 수업이 남아있음
+                }
+                return true; // 오늘이 마지막 정규 수업일
+            }
+
+            return false;
         }).map(s => {
             const name = s['이름'];
             if (!name) return null;
