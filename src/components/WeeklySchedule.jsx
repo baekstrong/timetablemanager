@@ -553,6 +553,15 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 // 오늘이 정규 수업 요일인지 확인
                 if (!scheduleDays.includes(todayDay)) return false;
 
+                // 오늘 수업을 보강으로 옮긴 경우 제외 (보강결석 상태)
+                const name = student['이름'];
+                const hasMakeupFromToday = weekMakeupRequests && weekMakeupRequests.some(m =>
+                    m.studentName === name &&
+                    m.originalClass.date === todayStr &&
+                    (m.status === 'active' || m.status === 'completed')
+                );
+                if (hasMakeupFromToday) return false;
+
                 // 오늘 이후 ~ effectiveEnd 전에 정규 수업일이 있는지 확인
                 const dayNamesArr = ['일', '월', '화', '수', '목', '금', '토'];
                 const checkDate = new Date(today);
