@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 // isExpiringSoon, isExpired 사용하지 않음 - 추후 필요시 복원
-import { getActiveMakeupRequests, getHoldingHistory } from '../services/firebaseService';
+import { getActiveMakeupRequests, getHoldingHistory, getHolidays } from '../services/firebaseService';
 import ContractHistory from './ContractHistory';
 import './StudentInfo.css';
 
@@ -9,19 +9,22 @@ const StudentInfo = ({ user, studentData, onBack }) => {
     const { calculateMembershipStats, generateAttendanceHistory } = useGoogleSheets();
     const [activeMakeups, setActiveMakeups] = useState([]);
     const [holdingHistory, setHoldingHistory] = useState([]);
+    const [firebaseHolidays, setFirebaseHolidays] = useState([]);
     const [showContractHistory, setShowContractHistory] = useState(false);
 
-    // Firebase에서 보강 신청 + 홀딩 이력 로드
+    // Firebase에서 보강 신청 + 홀딩 이력 + 공휴일 로드
     useEffect(() => {
         const loadData = async () => {
             if (!user) return;
             try {
-                const [makeups, holdings] = await Promise.all([
+                const [makeups, holdings, holidays] = await Promise.all([
                     getActiveMakeupRequests(user.username),
-                    getHoldingHistory(user.username)
+                    getHoldingHistory(user.username),
+                    getHolidays()
                 ]);
                 setActiveMakeups(makeups.filter(m => m.status === 'active'));
                 setHoldingHistory(holdings.filter(h => h.status !== 'cancelled'));
+                setFirebaseHolidays(holidays || []);
             } catch (error) {
                 console.error('데이터 조회 실패:', error);
             }
@@ -84,7 +87,7 @@ const StudentInfo = ({ user, studentData, onBack }) => {
         }
 
         // 구글 시트에서 출석 내역 생성
-        let history = generateAttendanceHistory(studentData);
+        let history = generateAttendanceHistory(studentData, firebaseHolidays);
 
         // 보강 신청 반영 (복수 건)
         if (activeMakeups.length > 0) {
@@ -130,7 +133,7 @@ const StudentInfo = ({ user, studentData, onBack }) => {
         // 날짜순 정렬 (최신순) → 상위 10개
         history.sort((a, b) => new Date(b.date) - new Date(a.date));
         return history.slice(0, 10);
-    }, [studentData, generateAttendanceHistory, activeMakeups, holdingHistory]);
+    }, [studentData, generateAttendanceHistory, activeMakeups, holdingHistory, firebaseHolidays]);
 
     const getStatusColor = (status) => {
         switch (status) {

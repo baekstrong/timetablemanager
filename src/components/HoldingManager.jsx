@@ -517,7 +517,8 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                 const startDateObj = parseLocalDate(startDate);
                 const endDateObj = parseLocalDate(endDate);
                 // 기존 홀딩 목록을 전달하여 종료일 계산에 포함
-                await requestHolding(user.username, startDateObj, endDateObj, allHoldings);
+                const holidaysArray = Object.entries(coachHolidays).map(([date, reason]) => ({ date, reason }));
+                await requestHolding(user.username, startDateObj, endDateObj, allHoldings, holidaysArray);
 
                 alert(`홀딩 신청이 완료되었습니다.\n기간: ${startDate} ~ ${endDate}`);
 
@@ -637,7 +638,8 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                                                                         // 남은 홀딩 목록 계산 (취소된 홀딩 제외)
                                                                         const remainingHoldingsList = allHoldings.filter(h => h.id !== holdingData.id);
                                                                         // Google Sheets의 홀딩 정보 업데이트 (남은 홀딩 고려하여 종료일 재계산)
-                                                                        await cancelHoldingInSheets(user.username, remainingHoldingsList);
+                                                                        const holidaysArray = Object.entries(coachHolidays).map(([date, reason]) => ({ date, reason }));
+                                                                        await cancelHoldingInSheets(user.username, remainingHoldingsList, holidaysArray);
 
                                                                         // 상태 업데이트
                                                                         setAllHoldings(remainingHoldingsList);

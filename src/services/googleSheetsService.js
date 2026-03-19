@@ -907,7 +907,7 @@ export const calculateMembershipStats = (student) => {
  * @param {Object} student
  * @returns {Array}
  */
-export const generateAttendanceHistory = (student) => {
+export const generateAttendanceHistory = (student, firebaseHolidays = []) => {
   if (!student) return [];
 
   const startDateStr = getStudentField(student, '시작날짜');
@@ -942,7 +942,7 @@ export const generateAttendanceHistory = (student) => {
       const classInfo = classDays.find(c => c.day === dayOfWeek);
 
       if (classInfo) {
-        if (isHolidayDate(current, [])) {
+        if (isHolidayDate(current, firebaseHolidays)) {
           current.setDate(current.getDate() + 1);
           continue;
         }
@@ -1066,7 +1066,7 @@ export const updateStudentData = async (rowIndex, studentData, year = null, mont
  * @param {Array} existingHoldings - [{startDate, endDate}, ...]
  * @returns {Promise<Object>}
  */
-export const requestHolding = async (studentName, holdingStartDate, holdingEndDate = null, year = null, month = null, existingHoldings = []) => {
+export const requestHolding = async (studentName, holdingStartDate, holdingEndDate = null, year = null, month = null, existingHoldings = [], firebaseHolidays = []) => {
   const endDate = holdingEndDate || holdingStartDate;
 
   console.log(`🔍 홀딩 신청 시작: ${studentName}, ${holdingStartDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}`);
@@ -1122,7 +1122,7 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
   allHoldingRanges.push({ start: holdingStartDate, end: endDate });
   console.log(`📊 총 ${allHoldingRanges.length}개 홀딩 기간으로 종료일 계산`);
 
-  const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allHoldingRanges);
+  const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allHoldingRanges, firebaseHolidays);
 
   if (!newEndDate) {
     throw new Error('종료일 계산에 실패했습니다.');
@@ -1172,7 +1172,7 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
  * @param {Array} remainingHoldings - 취소 후 남은 홀딩 목록
  * @returns {Promise<Object>}
  */
-export const cancelHoldingInSheets = async (studentName, remainingHoldings = []) => {
+export const cancelHoldingInSheets = async (studentName, remainingHoldings = [], firebaseHolidays = []) => {
   console.log(`🔄 홀딩 취소 시작 (Google Sheets): ${studentName}`);
 
   const result = await findStudentAcrossSheets(studentName);
@@ -1223,7 +1223,7 @@ export const cancelHoldingInSheets = async (studentName, remainingHoldings = [])
       console.log(`📊 남은 홀딩 없음 - 원래 종료일로 계산`);
     }
 
-    const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, holdingRanges);
+    const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, holdingRanges, firebaseHolidays);
     if (newEndDate) {
       newEndDateStr = formatDateToYYMMDD(newEndDate);
     }
