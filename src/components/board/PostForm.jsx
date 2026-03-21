@@ -29,7 +29,7 @@ const PostForm = ({ user, editingPost, onSubmit, onClose }) => {
     };
 
     return (
-        <div className="post-form-overlay" onClick={onClose}>
+        <div className="post-form-overlay">
             <div className="post-form-modal" onClick={e => e.stopPropagation()}>
                 <h3>📝 {editingPost ? '글 수정' : '글 작성'}</h3>
 
