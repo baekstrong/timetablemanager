@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, getPosts, updatePost, deletePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent } from '../services/firebaseService';
+import { createPost, subscribePosts, updatePost, deletePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, writeSheetData } from '../services/googleSheetsService';
 import GoogleSheetsSync from './GoogleSheetsSync';
 import { POST_LIMITS } from '../data/boardConstants';
@@ -86,25 +86,19 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         checkMyLastDay();
     }, [user]);
 
-    const loadPosts = async (category = selectedCategory) => {
-        try {
-            setPostsLoading(true);
-            setPostsError(null);
-            const data = await getPosts(category, POST_LIMITS.PAGE_SIZE);
+    // 실시간 게시글 구독
+    useEffect(() => {
+        setPostsLoading(true);
+        setPostsError(null);
+        const unsubscribe = subscribePosts(selectedCategory, POST_LIMITS.PAGE_SIZE, (data) => {
             setPosts(data);
-        } catch (error) {
-            console.error('Failed to load posts:', error);
-            setPostsError('게시글을 불러오는데 실패했습니다.');
-        } finally {
             setPostsLoading(false);
-        }
-    };
-
-    useEffect(() => { loadPosts(); }, []);
+        });
+        return () => unsubscribe();
+    }, [selectedCategory]);
 
     const handleCategoryChange = (category) => {
         setSelectedCategory(category);
-        loadPosts(category);
     };
 
     const handlePostClick = (postId) => {
@@ -115,7 +109,6 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     const handleBackToList = () => {
         setViewMode('list');
         setSelectedPostId(null);
-        loadPosts();
     };
 
     const handlePostSubmit = async (formData) => {
@@ -131,7 +124,6 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             }
             setShowPostForm(false);
             setEditingPost(null);
-            await loadPosts();
         } catch (error) {
             alert('저장 실패: ' + error.message);
         }

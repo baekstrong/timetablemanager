@@ -16,7 +16,8 @@ import {
     arrayUnion,
     arrayRemove,
     increment,
-    writeBatch
+    writeBatch,
+    onSnapshot
 } from 'firebase/firestore';
 
 // ============================================
@@ -879,6 +880,35 @@ export const getPosts = async (category = null, limitCount = 20) => {
             const bTime = b.createdAt?.toMillis?.() || 0;
             return bTime - aTime;
         }).slice(0, limitCount);
+    });
+};
+
+export const subscribePosts = (category, limitCount, callback) => {
+    if (!db) {
+        callback([]);
+        return () => {};
+    }
+    const constraints = category && category !== 'all'
+        ? [where('category', '==', category)]
+        : [];
+    const q = query(collection(db, 'posts'), ...constraints);
+    return onSnapshot(q, (snapshot) => {
+        const posts = snapshot.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(p => !p.deleted);
+        const sorted = posts.sort((a, b) => {
+            const aPinned = a.pinned && a.category === 'notice';
+            const bPinned = b.pinned && b.category === 'notice';
+            if (aPinned && !bPinned) return -1;
+            if (!aPinned && bPinned) return 1;
+            const aTime = a.createdAt?.toMillis?.() || 0;
+            const bTime = b.createdAt?.toMillis?.() || 0;
+            return bTime - aTime;
+        }).slice(0, limitCount);
+        callback(sorted);
+    }, (error) => {
+        console.error('게시글 실시간 구독 실패:', error);
+        callback([]);
     });
 };
 
