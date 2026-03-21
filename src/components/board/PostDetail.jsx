@@ -138,6 +138,16 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                         {post.author}
                     </span>
                     <span className="post-detail-date">{formatDate(post.createdAt)}</span>
+                    {isAuthor && (
+                        <button className="post-action-btn" onClick={() => onEdit(post)} style={{ marginLeft: 'auto', fontSize: '0.8rem', color: '#6b7280' }}>
+                            수정
+                        </button>
+                    )}
+                    {canDelete && (
+                        <button className="post-action-btn" onClick={handleDelete} style={{ fontSize: '0.8rem', color: '#dc2626' }}>
+                            삭제
+                        </button>
+                    )}
                 </div>
 
                 <h2 className="post-detail-title">{post.title}</h2>
@@ -150,27 +160,19 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                 </div>
             </div>
 
-            <div className="post-actions">
+            <div className="post-actions" style={{ justifyContent: 'flex-start', gap: '16px' }}>
                 <button
                     className={`post-action-btn${liked ? ' liked' : ''}`}
                     onClick={handleToggleLike}
+                    style={{ fontSize: '1.08rem' }}
                 >
                     {liked ? '❤️' : '🤍'} {(post.likes || []).length}
                 </button>
-                {isAuthor && (
-                    <button className="post-action-btn" onClick={() => onEdit(post)}>
-                        수정
-                    </button>
-                )}
-                {canDelete && (
-                    <button className="post-action-btn" onClick={handleDelete}>
-                        삭제
-                    </button>
-                )}
+                <span style={{ fontSize: '1.08rem', color: '#666' }}>💬 {comments.length}</span>
             </div>
 
             <div className="comments-section">
-                <h3 className="comments-header">💬 댓글 {comments.length}</h3>
+                <h3 className="comments-header">댓글</h3>
                 <div className="comment-list">
                     {comments.map((c) => (
                         <CommentItem
