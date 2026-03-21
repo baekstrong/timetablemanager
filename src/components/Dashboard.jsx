@@ -203,11 +203,13 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             </div>
 
             <div className="dashboard-content">
-                <header className="dashboard-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', marginBottom: '0.5rem' }}>
-                    <h1 className="dashboard-title" style={{ fontSize: '1.1rem', margin: 0 }}>환영합니다, {user.username}님</h1>
-                    <button onClick={onLogout} className="logout-button" style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}>
+                <header className="dashboard-header">
+                    <div className="header-left">
+                        <h1 className="dashboard-title">환영합니다, {user.username}님</h1>
+                    </div>
+                    <button onClick={onLogout} className="logout-button">
                         <span>로그아웃</span>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ width: '14px', height: '14px' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                         </svg>
                     </button>

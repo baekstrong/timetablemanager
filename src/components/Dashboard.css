@@ -22,15 +22,14 @@
 
 .dashboard-header {
     display: flex;
-    flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
-    padding: 12px 16px;
+    margin-bottom: 48px;
+    padding: 32px;
     background: rgba(255, 255, 255, 0.9);
     backdrop-filter: blur(20px);
-    border-radius: 12px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
     animation: slideDown 0.6s ease-out;
 }
 
@@ -193,13 +192,13 @@
 
 @media (max-width: 768px) {
     .dashboard-header {
-        flex-direction: row;
-        gap: 8px;
-        align-items: center;
+        flex-direction: column;
+        gap: 20px;
+        align-items: flex-start;
     }
 
     .dashboard-title {
-        font-size: 1rem;
+        font-size: 24px;
     }
 
     .notices-grid {
