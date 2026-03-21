@@ -189,6 +189,24 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                             📢 공지로 전환
                         </button>
                     )}
+                    {user?.role === 'coach' && post.category === 'notice' && (
+                        <button
+                            className="post-action-btn"
+                            style={{ fontSize: '0.8rem', color: '#6b7280' }}
+                            onClick={async () => {
+                                if (!confirm('공지를 해제하시겠습니까? 자유 게시글로 전환됩니다.')) return;
+                                try {
+                                    await updatePost(postId, { category: 'free', pinned: false });
+                                    const updated = await getPost(postId);
+                                    setPost(updated);
+                                } catch (err) {
+                                    alert('공지 해제 실패: ' + err.message);
+                                }
+                            }}
+                        >
+                            공지 해제
+                        </button>
+                    )}
                 </div>
 
                 <h2 className="post-detail-title">{post.title}</h2>
