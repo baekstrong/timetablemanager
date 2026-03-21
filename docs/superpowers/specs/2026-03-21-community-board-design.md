@@ -44,6 +44,16 @@
 
 기존 `announcements` 컬렉션은 건드리지 않는다. 새 `posts` 컬렉션을 사용하기 시작하면 기존 공지는 코치가 게시판에 다시 작성한다.
 
+### 구현 노트
+
+- `toggleLike`는 Firestore `arrayUnion`/`arrayRemove` 원자 연산 사용 (동시 쓰기 충돌 방지)
+- `commentCount` 변경은 댓글 생성/삭제와 Firestore batch write로 묶어 처리
+- `getComments`는 `deleted !== true` 필터링, `createdAt` 오름차순 정렬
+- `getPosts`는 `deleted !== true` 필터링, 최대 20개씩 로드 (추후 "더보기" 가능)
+- `pinned`는 `category === 'notice'`일 때만 의미 있음. 다른 카테고리에서는 무시
+- `updatedAt`은 `updatePost` (글 수정) 시에만 갱신. 좋아요/댓글 변경 시에는 갱신하지 않음
+- 입력 제한: 제목 100자, 본문 5000자, 댓글 1000자
+
 ## 카테고리
 
 | 카테고리 | key | 아이콘 | 작성 권한 |
@@ -117,10 +127,10 @@ src/components/
 | `getPost(postId)` | 글 상세 |
 | `updatePost(postId, data)` | 글 수정 |
 | `deletePost(postId)` | soft delete |
-| `toggleLike(postId, username)` | 좋아요 토글 (배열에 추가/제거) |
-| `getComments(postId)` | 댓글 목록 (작성순) |
-| `createComment(postId, data)` | 댓글 작성 + commentCount 증가 |
-| `deleteComment(postId, commentId)` | 댓글 soft delete + commentCount 감소 |
+| `toggleLike(postId, username)` | 좋아요 토글 (arrayUnion/arrayRemove 사용) |
+| `getComments(postId)` | 댓글 목록 (deleted 제외, createdAt 오름차순) |
+| `createComment(postId, data)` | 댓글 작성 + commentCount increment (batch) |
+| `deleteComment(postId, commentId)` | 댓글 soft delete + commentCount decrement (batch) |
 
 ## 권한 규칙
 
@@ -157,8 +167,20 @@ src/components/
 - 휴일설정 버튼 (코치 전용)
 - 로그아웃 버튼
 
+## 에러 처리
+
+- 글/댓글 작성 실패 시 `alert`로 에러 표시
+- 좋아요는 낙관적 UI (즉시 반영 후 실패 시 롤백)
+- 목록 로딩 실패 시 "불러오기 실패" 메시지 + 재시도 버튼
+
 ## 마이그레이션
 
 - 기존 `announcements` 컬렉션은 삭제하지 않음
 - `Dashboard.jsx`에서 `announcements` 관련 코드 제거, `posts` 관련 코드로 교체
 - 기존 공지는 코치가 게시판에 재작성
+
+## 문서 업데이트
+
+- CLAUDE.md의 Firestore 컬렉션 테이블에 `posts`, `comments` 추가
+- Dashboard 컴포넌트 설명 업데이트
+- `board/` 디렉토리 구조 추가
