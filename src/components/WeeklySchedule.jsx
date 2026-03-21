@@ -11,15 +11,15 @@ import {
     getLockedSlots,
     toggleLockedSlot,
     getNewStudentRegistrations,
-    deleteNewStudentRegistration,
     createWaitlistRequest,
     cancelWaitlistRequest,
-    notifyWaitlistRequest,
-    revertWaitlistNotification,
 } from '../services/firebaseService';
 import { writeSheetData } from '../services/googleSheetsService';
 import { useWeeklyData } from '../hooks/useWeeklyData';
 import { PERIODS, DAYS, MOCK_DATA, MAX_CAPACITY, KOREAN_HOLIDAYS } from '../data/mockData';
+import MakeupModal from './schedule/MakeupModal';
+import CoachWaitlistPanel from './schedule/CoachWaitlistPanel';
+import CoachWaitlistModal from './schedule/CoachWaitlistModal';
 import {
     parseScheduleString,
     parseSheetDate,
@@ -1346,150 +1346,15 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
             {/* Waitlist status section (coach only) */}
             {mode === 'coach' && (weekWaitlist.length > 0 || newStudentWaitlist.length > 0) && (
-                <section style={SECTION_STYLES.waitlist}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                        <div style={{ fontWeight: '700', fontSize: '1rem', color: '#713f12' }}>
-                            시간표 대기 현황 <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>({weekWaitlist.length + newStudentWaitlist.length}명)</span>
-                        </div>
-                        <button
-                            onClick={() => setShowWaitlistDeleteMode(prev => !prev)}
-                            style={{
-                                fontSize: '0.75rem',
-                                padding: '3px 8px',
-                                borderRadius: '4px',
-                                border: showWaitlistDeleteMode ? '1px solid #dc2626' : '1px solid #a16207',
-                                background: showWaitlistDeleteMode ? '#fee2e2' : 'transparent',
-                                color: showWaitlistDeleteMode ? '#dc2626' : '#a16207',
-                                cursor: 'pointer',
-                                fontWeight: '600'
-                            }}
-                        >
-                            {showWaitlistDeleteMode ? '완료' : '삭제'}
-                        </button>
-                    </div>
-                    <div style={{ color: '#78350f', fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                        {weekWaitlist.map(w => {
-                            const desiredP = PERIODS.find(p => p.id === w.desiredSlot.period);
-                            const currentP = PERIODS.find(p => p.id === w.currentSlot.period);
-                            const slot = scheduleData.regularEnrollments.find(
-                                e => e.day === w.desiredSlot.day && e.period === w.desiredSlot.period
-                            );
-                            const hasSpace = (slot ? slot.names.length : 0) < MAX_CAPACITY;
-                            return (
-                                <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span>
-                                        {w.studentName}
-                                        <span style={{ fontSize: '0.8rem', color: '#92400e', marginLeft: '4px' }}>
-                                            {w.currentSlot.day}{currentP ? currentP.id : w.currentSlot.period}교시 → {w.desiredSlot.day}{desiredP ? desiredP.id : w.desiredSlot.period}교시
-                                        </span>
-                                        <span style={{ fontSize: '0.75rem', color: '#a16207', marginLeft: '4px' }}>
-                                            ({w.status === 'waiting' ? '대기중' : w.status === 'notified' ? '승인완료' : w.status})
-                                        </span>
-                                    </span>
-                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                                        {w.status === 'waiting' && (
-                                            <button
-                                                onClick={async () => {
-                                                    try {
-                                                        await notifyWaitlistRequest(w.id);
-                                                        setWeekWaitlist(prev => prev.map(item =>
-                                                            item.id === w.id ? { ...item, status: 'notified' } : item
-                                                        ));
-                                                    } catch (err) {
-                                                        alert('승인 실패: ' + err.message);
-                                                    }
-                                                }}
-                                                disabled={!hasSpace}
-                                                style={{
-                                                    fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px',
-                                                    border: hasSpace ? '1px solid #16a34a' : '1px solid #9ca3af',
-                                                    background: hasSpace ? '#dcfce7' : '#f3f4f6',
-                                                    color: hasSpace ? '#16a34a' : '#9ca3af',
-                                                    cursor: hasSpace ? 'pointer' : 'not-allowed',
-                                                    fontWeight: '600'
-                                                }}
-                                            >
-                                                {hasSpace ? '승인' : '승인(만석)'}
-                                            </button>
-                                        )}
-                                        {w.status === 'notified' && (
-                                            <>
-                                                <span style={{
-                                                    fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px',
-                                                    background: '#dbeafe', color: '#2563eb', fontWeight: '600'
-                                                }}>
-                                                    수락중...
-                                                </span>
-                                                <button
-                                                    onClick={async () => {
-                                                        try {
-                                                            await revertWaitlistNotification(w.id);
-                                                            setWeekWaitlist(prev => prev.map(item =>
-                                                                item.id === w.id ? { ...item, status: 'waiting' } : item
-                                                            ));
-                                                        } catch (err) {
-                                                            alert('승인 취소 실패: ' + err.message);
-                                                        }
-                                                    }}
-                                                    style={DELETE_BTN_STYLE}
-                                                >
-                                                    취소
-                                                </button>
-                                            </>
-                                        )}
-                                        {showWaitlistDeleteMode && (
-                                            <button
-                                                onClick={async () => {
-                                                    if (!confirm(`"${w.studentName}"의 대기 신청을 삭제하시겠습니까?`)) return;
-                                                    try {
-                                                        await cancelWaitlistRequest(w.id);
-                                                        setWeekWaitlist(prev => prev.filter(item => item.id !== w.id));
-                                                    } catch (err) {
-                                                        alert('삭제 실패: ' + err.message);
-                                                    }
-                                                }}
-                                                style={DELETE_BTN_STYLE}
-                                            >
-                                                삭제
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                        {newStudentWaitlist.map(r => {
-                            const slots = r.requestedSlots || [];
-                            const slotStr = slots.length > 0
-                                ? slots.map(s => `${s.day}${s.period}`).join('')
-                                : (r.scheduleString || '');
-                            return (
-                                <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span>
-                                        {r.name}
-                                        <span style={{ fontSize: '0.8rem', color: '#92400e', marginLeft: '4px' }}>{slotStr}</span>
-                                        <span style={{ fontSize: '0.75rem', color: '#d97706', marginLeft: '4px', fontWeight: '600' }}>(신규대기)</span>
-                                    </span>
-                                    {showWaitlistDeleteMode && (
-                                        <button
-                                            onClick={async () => {
-                                                if (!confirm(`"${r.name}"의 신규 대기 신청을 삭제하시겠습니까?`)) return;
-                                                try {
-                                                    await deleteNewStudentRegistration(r.id);
-                                                    setNewStudentWaitlist(prev => prev.filter(item => item.id !== r.id));
-                                                } catch (err) {
-                                                    alert('삭제 실패: ' + err.message);
-                                                }
-                                            }}
-                                            style={{ ...DELETE_BTN_STYLE, flexShrink: 0 }}
-                                        >
-                                            삭제
-                                        </button>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </section>
+                <CoachWaitlistPanel
+                    weekWaitlist={weekWaitlist}
+                    setWeekWaitlist={setWeekWaitlist}
+                    newStudentWaitlist={newStudentWaitlist}
+                    setNewStudentWaitlist={setNewStudentWaitlist}
+                    showWaitlistDeleteMode={showWaitlistDeleteMode}
+                    setShowWaitlistDeleteMode={setShowWaitlistDeleteMode}
+                    scheduleData={scheduleData}
+                />
             )}
 
             {/* Student usage guide */}
@@ -1562,202 +1427,39 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
             {/* Makeup Request Modal */}
             {showMakeupModal && mode === 'student' && selectedMakeupSlot && (
-                <div className="makeup-modal-overlay" onClick={() => setShowMakeupModal(false)}>
-                    <div className="makeup-modal" onClick={(e) => e.stopPropagation()}>
-                        <h2>보강 신청</h2>
-                        <p className="makeup-modal-subtitle">
-                            선택한 시간: <strong>{selectedMakeupSlot.day}요일 {selectedMakeupSlot.periodName}</strong>
-                        </p>
-
-                        <div className="makeup-modal-content">
-                            <h3>어느 수업을 옮기시겠습니까?</h3>
-                            <div className="original-class-list">
-                                {studentSchedule.map((schedule, index) => {
-                                    const periodInfo = PERIODS.find(p => p.id === schedule.period);
-                                    const dateStr = weekDates[schedule.day];
-                                    let originalDateStr = '';
-                                    let isAlreadyRequested = false;
-                                    if (dateStr) {
-                                        originalDateStr = weekDateToISO(dateStr);
-                                        isAlreadyRequested = activeMakeupRequests.some(m =>
-                                            m.originalClass.date === originalDateStr &&
-                                            m.originalClass.day === schedule.day &&
-                                            m.originalClass.period === schedule.period
-                                        );
-                                    }
-
-                                    return (
-                                        <div
-                                            key={index}
-                                            className={`original-class-item ${selectedOriginalClass?.day === schedule.day && selectedOriginalClass?.period === schedule.period ? 'selected' : ''} ${isAlreadyRequested ? 'disabled' : ''}`}
-                                            style={isAlreadyRequested ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: '#e0f2fe' } : {}}
-                                            onClick={() => {
-                                                if (isAlreadyRequested) {
-                                                    alert('이미 보강 신청한 수업입니다.');
-                                                    return;
-                                                }
-                                                setSelectedOriginalClass({
-                                                    day: schedule.day,
-                                                    period: schedule.period,
-                                                    periodName: periodInfo.name,
-                                                    date: originalDateStr
-                                                });
-                                            }}
-                                        >
-                                            <span className="period-name">{schedule.day}요일 {periodInfo?.name}</span>
-                                            <span style={{ fontSize: '0.8em', color: isAlreadyRequested ? '#999' : '#666', marginLeft: '8px' }}>
-                                                ({dateStr}){isAlreadyRequested && ' - 신청됨'}
-                                            </span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        <div className="makeup-modal-actions">
-                            <button
-                                className="btn-cancel"
-                                onClick={() => {
-                                    setShowMakeupModal(false);
-                                    setSelectedMakeupSlot(null);
-                                    setSelectedOriginalClass(null);
-                                }}
-                            >
-                                취소
-                            </button>
-                            <button
-                                className="btn-submit"
-                                onClick={handleMakeupSubmit}
-                                disabled={!selectedOriginalClass || isSubmittingMakeup}
-                            >
-                                {isSubmittingMakeup ? '신청 중...' : '보강 신청'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <MakeupModal
+                    selectedMakeupSlot={selectedMakeupSlot}
+                    selectedOriginalClass={selectedOriginalClass}
+                    setSelectedOriginalClass={setSelectedOriginalClass}
+                    studentSchedule={studentSchedule}
+                    weekDates={weekDates}
+                    activeMakeupRequests={activeMakeupRequests}
+                    isSubmittingMakeup={isSubmittingMakeup}
+                    onSubmit={handleMakeupSubmit}
+                    onClose={() => {
+                        setShowMakeupModal(false);
+                        setSelectedMakeupSlot(null);
+                        setSelectedOriginalClass(null);
+                    }}
+                />
             )}
 
             {/* Waitlist / Transfer Modal (coach "신규 전용" mode) */}
             {showWaitlistModal && user?.role === 'coach' && waitlistDesiredSlot && (
-                <div className="makeup-modal-overlay" onClick={closeWaitlistModal}>
-                    <div className="makeup-modal" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '80vh', overflowY: 'auto' }}>
-                        <h2>{isDirectTransfer ? '시간표 이동' : '대기 등록'}</h2>
-                        <p className="makeup-modal-subtitle">
-                            목표: <strong>{waitlistDesiredSlot.day}요일 {PERIODS.find(p => p.id === waitlistDesiredSlot.period)?.name}</strong>
-                            {isDirectTransfer ? ' (여석 있음)' : ' (만석)'}
-                        </p>
-                        <p style={{ fontSize: '0.85rem', color: '#666', margin: '4px 0 12px' }}>
-                            {isDirectTransfer
-                                ? '수강생을 선택하면 시간표가 즉시 변경됩니다'
-                                : '자리가 나면 수강생에게 알림 → 수락 시 시간표 영구 변경'}
-                        </p>
-
-                        {/* Existing waiters (waitlist mode only) */}
-                        {!isDirectTransfer && (() => {
-                            const existingWaiters = weekWaitlist.filter(w =>
-                                w.desiredSlot.day === waitlistDesiredSlot.day &&
-                                w.desiredSlot.period === waitlistDesiredSlot.period
-                            );
-                            if (existingWaiters.length === 0) return null;
-                            return (
-                                <div style={{ marginBottom: '12px', padding: '8px 12px', borderRadius: '6px', backgroundColor: '#fffbeb', border: '1px solid #fde68a' }}>
-                                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#92400e', marginBottom: '4px' }}>현재 대기 ({existingWaiters.length}명)</div>
-                                    {existingWaiters.map(w => (
-                                        <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', padding: '2px 0' }}>
-                                            <span>{w.studentName} ({w.currentSlot.day}{w.currentSlot.period} → {w.desiredSlot.day}{w.desiredSlot.period})</span>
-                                            <button onClick={() => handleWaitlistCancel(w.id)} style={{ fontSize: '0.75rem', padding: '2px 6px', border: '1px solid #d97706', borderRadius: '4px', backgroundColor: 'transparent', color: '#b45309', cursor: 'pointer' }}>취소</button>
-                                        </div>
-                                    ))}
-                                </div>
-                            );
-                        })()}
-
-                        {/* Student search */}
-                        <div className="makeup-modal-content">
-                            <h3>수강생 선택</h3>
-                            <input
-                                type="text"
-                                placeholder="수강생 이름 검색..."
-                                value={waitlistStudentSearch}
-                                onChange={(e) => { setWaitlistStudentSearch(e.target.value); setWaitlistStudentName(''); }}
-                                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.9rem', marginBottom: '8px', boxSizing: 'border-box' }}
-                            />
-                            {waitlistStudentSearch && !waitlistStudentName && (
-                                <div style={{ maxHeight: '120px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '6px', marginBottom: '8px' }}>
-                                    {(() => {
-                                        const uniqueNames = [...new Set(students.filter(s => s['요일 및 시간']).map(s => s['이름']))];
-                                        const filtered = uniqueNames.filter(name => name && name.includes(waitlistStudentSearch));
-                                        if (filtered.length === 0) return <div style={{ padding: '8px 12px', color: '#9ca3af', fontSize: '0.85rem' }}>검색 결과 없음</div>;
-                                        return filtered.map(name => (
-                                            <div key={name}
-                                                onClick={() => { setWaitlistStudentName(name); setWaitlistStudentSearch(name); }}
-                                                style={{ padding: '6px 12px', cursor: 'pointer', fontSize: '0.9rem', borderBottom: '1px solid #f3f4f6' }}
-                                                onMouseEnter={(e) => e.target.style.backgroundColor = '#f0f9ff'}
-                                                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                                            >
-                                                {name}
-                                            </div>
-                                        ));
-                                    })()}
-                                </div>
-                            )}
-
-                            {/* Selected student's class list */}
-                            {waitlistStudentName && (
-                                <>
-                                    <h3 style={{ marginTop: '8px' }}>{waitlistStudentName}님의 수업 중 옮길 수업 선택</h3>
-                                    <div className="original-class-list">
-                                        {(() => {
-                                            const studentEntry = students.find(s => s['이름'] === waitlistStudentName && s['요일 및 시간']);
-                                            if (!studentEntry) return <div style={{ padding: '8px', color: '#999' }}>수강생 정보를 찾을 수 없습니다.</div>;
-                                            const parsed = parseScheduleString(studentEntry['요일 및 시간']);
-                                            if (parsed.length === 0) return <div style={{ padding: '8px', color: '#999' }}>등록된 수업이 없습니다.</div>;
-
-                                            return parsed.map((schedule, index) => {
-                                                const periodInfo = PERIODS.find(p => p.id === schedule.period);
-                                                const isSameSlot = schedule.day === waitlistDesiredSlot.day && schedule.period === waitlistDesiredSlot.period;
-                                                const alreadyWaiting = !isDirectTransfer && weekWaitlist.some(w =>
-                                                    w.studentName === waitlistStudentName &&
-                                                    w.desiredSlot.day === waitlistDesiredSlot.day &&
-                                                    w.desiredSlot.period === waitlistDesiredSlot.period
-                                                );
-                                                const isDisabled = isSameSlot || alreadyWaiting;
-
-                                                return (
-                                                    <div key={index}
-                                                        className={`original-class-item ${isDisabled ? 'disabled' : ''}`}
-                                                        style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: '#f3f4f6' } : {}}
-                                                        onClick={() => {
-                                                            if (isDisabled) return;
-                                                            const slotData = {
-                                                                day: schedule.day,
-                                                                period: schedule.period,
-                                                                periodName: periodInfo?.name || ''
-                                                            };
-                                                            if (isDirectTransfer) {
-                                                                handleDirectTransfer(waitlistStudentName, slotData);
-                                                            } else {
-                                                                handleWaitlistSubmit(waitlistStudentName, slotData);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <span className="period-name">{schedule.day}요일 {periodInfo?.name}</span>
-                                                        {isSameSlot && <span style={{ fontSize: '0.8em', color: '#999', marginLeft: '8px' }}>같은 시간</span>}
-                                                        {alreadyWaiting && <span style={{ fontSize: '0.8em', color: '#d97706', marginLeft: '8px' }}>이미 대기 중</span>}
-                                                    </div>
-                                                );
-                                            });
-                                        })()}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        <div className="makeup-modal-actions">
-                            <button className="btn-cancel" onClick={closeWaitlistModal}>닫기</button>
-                        </div>
-                    </div>
-                </div>
+                <CoachWaitlistModal
+                    waitlistDesiredSlot={waitlistDesiredSlot}
+                    isDirectTransfer={isDirectTransfer}
+                    weekWaitlist={weekWaitlist}
+                    students={students}
+                    waitlistStudentName={waitlistStudentName}
+                    setWaitlistStudentName={setWaitlistStudentName}
+                    waitlistStudentSearch={waitlistStudentSearch}
+                    setWaitlistStudentSearch={setWaitlistStudentSearch}
+                    onDirectTransfer={handleDirectTransfer}
+                    onWaitlistSubmit={handleWaitlistSubmit}
+                    onWaitlistCancel={handleWaitlistCancel}
+                    onClose={closeWaitlistModal}
+                />
             )}
 
             {/* Makeup banners - active + completed for this week */}
