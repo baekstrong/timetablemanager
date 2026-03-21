@@ -11,7 +11,12 @@ import {
     serverTimestamp,
     Timestamp,
     orderBy,
-    getCountFromServer
+    getCountFromServer,
+    getDoc,
+    arrayUnion,
+    arrayRemove,
+    increment,
+    writeBatch
 } from 'firebase/firestore';
 
 // ============================================
@@ -838,5 +843,118 @@ export const cancelContract = async (contractId) => {
             status: 'cancelled'
         });
         console.log('계약 취소 완료:', contractId);
+    });
+};
+
+// ============================================
+// BOARD - POSTS
+// ============================================
+
+export const createPost = async (data) => {
+    return safeWrite(async () => {
+        const result = await createDoc('posts', {
+            ...data,
+            likes: [],
+            commentCount: 0,
+            deleted: false,
+            updatedAt: serverTimestamp(),
+        });
+        return result;
+    });
+};
+
+export const getPosts = async (category = null, limitCount = 20) => {
+    return safeRead([], async () => {
+        const constraints = category && category !== 'all'
+            ? [where('category', '==', category)]
+            : [];
+        const posts = await queryDocs('posts', ...constraints);
+        const filtered = posts.filter(p => !p.deleted);
+        return filtered.sort((a, b) => {
+            const aPinned = a.pinned && a.category === 'notice';
+            const bPinned = b.pinned && b.category === 'notice';
+            if (aPinned && !bPinned) return -1;
+            if (!aPinned && bPinned) return 1;
+            const aTime = a.createdAt?.toMillis?.() || 0;
+            const bTime = b.createdAt?.toMillis?.() || 0;
+            return bTime - aTime;
+        }).slice(0, limitCount);
+    });
+};
+
+export const getPost = async (postId) => {
+    return safeRead(null, async () => {
+        const docRef = doc(db, 'posts', postId);
+        const docSnap = await getDoc(docRef);
+        if (!docSnap.exists()) return null;
+        return { id: docSnap.id, ...docSnap.data() };
+    });
+};
+
+export const updatePost = async (postId, data) => {
+    return safeWrite(async () => {
+        await updateDocStatus('posts', postId, data);
+    });
+};
+
+export const deletePost = async (postId) => {
+    return safeWrite(async () => {
+        await updateDocStatus('posts', postId, { deleted: true });
+    });
+};
+
+export const toggleLike = async (postId, username) => {
+    return safeWrite(async () => {
+        const postRef = doc(db, 'posts', postId);
+        const docSnap = await getDoc(postRef);
+        if (!docSnap.exists()) throw new Error('게시글을 찾을 수 없습니다.');
+        const likes = docSnap.data().likes || [];
+        const isLiked = likes.includes(username);
+        await updateDoc(postRef, {
+            likes: isLiked ? arrayRemove(username) : arrayUnion(username),
+        });
+        return !isLiked;
+    });
+};
+
+// ============================================
+// BOARD - COMMENTS
+// ============================================
+
+export const getComments = async (postId) => {
+    return safeRead([], async () => {
+        const commentsRef = collection(db, 'posts', postId, 'comments');
+        const q = query(commentsRef, orderBy('createdAt', 'asc'));
+        const snapshot = await getDocs(q);
+        return snapshot.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(c => !c.deleted);
+    });
+};
+
+export const createComment = async (postId, data) => {
+    return safeWrite(async () => {
+        const batch = writeBatch(db);
+        const commentRef = doc(collection(db, 'posts', postId, 'comments'));
+        batch.set(commentRef, {
+            ...data,
+            deleted: false,
+            createdAt: serverTimestamp(),
+        });
+        const postRef = doc(db, 'posts', postId);
+        batch.update(postRef, { commentCount: increment(1) });
+        await batch.commit();
+        return { success: true, id: commentRef.id };
+    });
+};
+
+export const deleteComment = async (postId, commentId) => {
+    return safeWrite(async () => {
+        const batch = writeBatch(db);
+        const commentRef = doc(db, 'posts', postId, 'comments', commentId);
+        batch.update(commentRef, { deleted: true });
+        const postRef = doc(db, 'posts', postId);
+        batch.update(postRef, { commentCount: increment(-1) });
+        await batch.commit();
     });
 };
