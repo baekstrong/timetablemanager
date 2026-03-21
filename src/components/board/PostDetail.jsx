@@ -201,6 +201,7 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                             onDelete={handleDeleteComment}
                             onReply={handleReply}
                             replies={repliesByParent[c.id] || []}
+                            repliesByParent={repliesByParent}
                         />
                     ))}
                 </div>

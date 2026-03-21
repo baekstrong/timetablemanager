@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { POST_LIMITS } from '../../data/boardConstants';
 
-const CommentItem = ({ comment, user, onDelete, onReply, replies = [], depth = 0 }) => {
+const CommentItem = ({ comment, user, onDelete, onReply, replies = [], repliesByParent = {}, depth = 0 }) => {
     if (!comment) return null;
 
     const [showReplyInput, setShowReplyInput] = useState(false);
@@ -39,7 +39,6 @@ const CommentItem = ({ comment, user, onDelete, onReply, replies = [], depth = 0
     };
 
     const canDelete = user && (user.username === comment.author || user.role === 'coach');
-    const maxDepth = 1; // 대댓글은 1단계까지만
 
     return (
         <>
@@ -51,7 +50,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, replies = [], depth = 0
                     </span>
                     <div className="comment-header-right">
                         <span className="comment-date">{getFormattedDate(comment.createdAt)}</span>
-                        {depth < maxDepth && (
+                        {(
                             <button
                                 className="comment-reply-btn"
                                 onClick={() => setShowReplyInput(!showReplyInput)}
@@ -106,7 +105,8 @@ const CommentItem = ({ comment, user, onDelete, onReply, replies = [], depth = 0
                     user={user}
                     onDelete={onDelete}
                     onReply={onReply}
-                    replies={[]}
+                    replies={repliesByParent[reply.id] || []}
+                    repliesByParent={repliesByParent}
                     depth={depth + 1}
                 />
             ))}
