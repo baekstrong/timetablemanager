@@ -451,14 +451,8 @@
 
 /* Active Makeup Banner */
 .active-makeup-banner {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 999;
-    animation: slideDown 0.3s ease;
-    width: 90%;
-    max-width: 400px;
+    margin-bottom: 12px;
+    width: 100%;
 }
 
 @keyframes slideDown {
