@@ -355,6 +355,63 @@
     font-weight: 600;
 }
 
+/* ===== Search ===== */
+.board-search {
+    margin-top: 20px;
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.board-search-modes {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.board-search-input-row {
+    display: flex;
+    gap: 6px;
+}
+
+.board-search-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 16px;
+    font-family: inherit;
+    outline: none;
+}
+
+.board-search-input:focus {
+    border-color: #667eea;
+}
+
+.board-search-btn {
+    padding: 8px 16px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.board-search-clear-btn {
+    padding: 8px 12px;
+    background: #f3f4f6;
+    color: #6b7280;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
 /* ===== Write Button (Fixed) ===== */
 .write-btn-fixed {
     position: fixed;

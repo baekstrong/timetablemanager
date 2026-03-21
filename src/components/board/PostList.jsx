@@ -3,6 +3,12 @@ import { BOARD_CATEGORIES, CATEGORY_MAP } from '../../data/boardConstants';
 
 const POSTS_PER_PAGE = 10;
 
+const SEARCH_MODES = [
+    { key: 'title', label: '제목' },
+    { key: 'content', label: '내용' },
+    { key: 'both', label: '제목+내용' },
+];
+
 const formatDate = (createdAt) => {
     if (!createdAt) return '';
     const date = createdAt?.toDate?.() ?? new Date(createdAt);
@@ -23,17 +29,42 @@ const PostList = ({
     onCategoryChange,
 }) => {
     const [currentPage, setCurrentPage] = useState(1);
+    const [searchMode, setSearchMode] = useState('both');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [activeSearch, setActiveSearch] = useState('');
 
-    // 카테고리 변경 시 1페이지로 리셋
+    // 카테고리 변경 시 리셋
     useEffect(() => {
         setCurrentPage(1);
+        setSearchQuery('');
+        setActiveSearch('');
     }, [selectedCategory]);
 
-    // 글 목록이 바뀌면 현재 페이지가 범위 밖이면 조정
-    const totalPages = Math.max(1, Math.ceil(posts.length / POSTS_PER_PAGE));
+    // 검색 필터링
+    const filteredPosts = activeSearch
+        ? posts.filter(post => {
+            const q = activeSearch.toLowerCase();
+            if (searchMode === 'title') return post.title?.toLowerCase().includes(q);
+            if (searchMode === 'content') return post.content?.toLowerCase().includes(q);
+            return post.title?.toLowerCase().includes(q) || post.content?.toLowerCase().includes(q);
+        })
+        : posts;
+
+    const totalPages = Math.max(1, Math.ceil(filteredPosts.length / POSTS_PER_PAGE));
     const safePage = Math.min(currentPage, totalPages);
     const startIdx = (safePage - 1) * POSTS_PER_PAGE;
-    const pagedPosts = posts.slice(startIdx, startIdx + POSTS_PER_PAGE);
+    const pagedPosts = filteredPosts.slice(startIdx, startIdx + POSTS_PER_PAGE);
+
+    const handleSearch = () => {
+        setActiveSearch(searchQuery.trim());
+        setCurrentPage(1);
+    };
+
+    const handleClearSearch = () => {
+        setSearchQuery('');
+        setActiveSearch('');
+        setCurrentPage(1);
+    };
 
     return (
         <div style={{ position: 'relative', paddingBottom: '60px' }}>
@@ -64,8 +95,15 @@ const PostList = ({
                 </div>
             )}
 
-            {!loading && !error && posts.length === 0 && (
-                <div className="board-empty">게시글이 없습니다.</div>
+            {!loading && !error && filteredPosts.length === 0 && (
+                <div className="board-empty">
+                    {activeSearch ? `"${activeSearch}" 검색 결과가 없습니다.` : '게시글이 없습니다.'}
+                    {activeSearch && (
+                        <div style={{ marginTop: '8px' }}>
+                            <button className="board-retry-btn" onClick={handleClearSearch}>검색 초기화</button>
+                        </div>
+                    )}
+                </div>
             )}
 
             {/* Post list (paged) */}
@@ -139,6 +177,38 @@ const PostList = ({
                     >
                         ›
                     </button>
+                </div>
+            )}
+
+            {/* Search */}
+            {!loading && !error && (
+                <div className="board-search">
+                    <div className="board-search-modes">
+                        {SEARCH_MODES.map((mode) => (
+                            <button
+                                key={mode.key}
+                                className={`board-tab${searchMode === mode.key ? ' active' : ''}`}
+                                onClick={() => setSearchMode(mode.key)}
+                                style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                            >
+                                {mode.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="board-search-input-row">
+                        <input
+                            type="text"
+                            className="board-search-input"
+                            placeholder="검색어를 입력하세요..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+                        />
+                        <button className="board-search-btn" onClick={handleSearch}>검색</button>
+                        {activeSearch && (
+                            <button className="board-search-clear-btn" onClick={handleClearSearch}>초기화</button>
+                        )}
+                    </div>
                 </div>
             )}
 
