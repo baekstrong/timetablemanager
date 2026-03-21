@@ -415,7 +415,7 @@
 /* ===== Write Button (Fixed) ===== */
 .write-btn-fixed {
     position: fixed;
-    bottom: 72px;
+    bottom: 90px;
     right: 20px;
     z-index: 100;
 }
