@@ -171,6 +171,24 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                             삭제
                         </button>
                     )}
+                    {user?.role === 'coach' && post.category !== 'notice' && (
+                        <button
+                            className="post-action-btn"
+                            style={{ fontSize: '0.8rem', color: '#f59e0b' }}
+                            onClick={async () => {
+                                if (!confirm('이 글을 공지사항으로 전환하시겠습니까?')) return;
+                                try {
+                                    await updatePost(postId, { category: 'notice', pinned: true });
+                                    const updated = await getPost(postId);
+                                    setPost(updated);
+                                } catch (err) {
+                                    alert('공지 전환 실패: ' + err.message);
+                                }
+                            }}
+                        >
+                            📢 공지로 전환
+                        </button>
+                    )}
                 </div>
 
                 <h2 className="post-detail-title">{post.title}</h2>
