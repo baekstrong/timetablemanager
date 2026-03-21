@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getPost, toggleLike, deletePost, getComments, createComment, deleteComment, toggleCommentLike } from '../../services/firebaseService';
+import { getPost, toggleLike, updatePost, deletePost, getComments, createComment, deleteComment, toggleCommentLike } from '../../services/firebaseService';
 import { CATEGORY_MAP, POST_LIMITS } from '../../data/boardConstants';
 import CommentItem from './CommentItem';
 
