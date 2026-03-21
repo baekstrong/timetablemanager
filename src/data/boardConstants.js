@@ -2,7 +2,7 @@ export const BOARD_CATEGORIES = [
     { key: 'all', label: '전체', icon: '' },
     { key: 'notice', label: '공지', icon: '📢', coachOnly: true },
     { key: 'free', label: '자유', icon: '💬' },
-    { key: 'exercise', label: '운동', icon: '💪' },
+    { key: 'exercise', label: '맛집', icon: '🍽️' },
     { key: 'question', label: '질문', icon: '❓' },
 ];
 
