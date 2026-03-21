@@ -1,0 +1,409 @@
+/* ===== Category Tabs ===== */
+.board-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    margin-bottom: 12px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.board-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.board-tab {
+    padding: 4px 12px;
+    border-radius: 16px;
+    background: #f3f4f6;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border: none;
+    white-space: nowrap;
+    color: #374151;
+    transition: all 0.2s ease;
+}
+
+.board-tab.active {
+    background: #667eea;
+    color: white;
+    font-weight: 600;
+}
+
+/* ===== Post List Cards ===== */
+.post-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: opacity 0.1s ease;
+}
+
+.post-card:active {
+    opacity: 0.7;
+}
+
+.post-card.pinned {
+    background: #fff4e5;
+    border-color: #f59e0b;
+}
+
+.post-card-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.post-card-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1f2937;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.post-card-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    color: #999;
+}
+
+/* ===== Category Badges ===== */
+.post-category-badge {
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.post-category-badge[data-category="notice"] {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.post-category-badge[data-category="free"] {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.post-category-badge[data-category="exercise"] {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.post-category-badge[data-category="question"] {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+/* ===== Post Detail ===== */
+.post-detail {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.post-detail-header {
+    display: flex;
+    align-items: center;
+}
+
+.post-detail-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 8px 0;
+    color: #1f2937;
+    line-height: 1.4;
+}
+
+.post-detail-content {
+    white-space: pre-wrap;
+    line-height: 1.6;
+    color: #374151;
+    margin: 12px 0;
+    font-size: 0.95rem;
+}
+
+.post-detail-meta {
+    font-size: 0.85rem;
+    color: #999;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.post-actions {
+    display: flex;
+    gap: 12px;
+    padding: 8px 0;
+    border-top: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+    margin: 12px 0;
+}
+
+.post-action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #6b7280;
+    transition: color 0.2s ease;
+}
+
+.post-action-btn.liked {
+    color: #ef4444;
+}
+
+/* ===== Comments ===== */
+.comment-list {
+    margin-top: 16px;
+}
+
+.comment-item {
+    padding: 10px 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.comment-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.comment-author {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #1f2937;
+}
+
+.comment-author-coach {
+    color: #667eea;
+}
+
+.comment-date {
+    font-size: 0.75rem;
+    color: #999;
+}
+
+.comment-content {
+    font-size: 0.9rem;
+    color: #374151;
+    line-height: 1.5;
+}
+
+.comment-delete-btn {
+    background: none;
+    border: none;
+    color: #dc2626;
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0;
+}
+
+.comment-input-area {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    align-items: flex-end;
+}
+
+.comment-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    resize: none;
+    min-height: 40px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+
+.comment-input:focus {
+    border-color: #667eea;
+}
+
+.comment-submit-btn {
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s ease;
+}
+
+.comment-submit-btn:hover {
+    background: #5a6fd6;
+}
+
+/* ===== Write Button ===== */
+.write-btn {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+}
+
+.write-btn button {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 24px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.write-btn button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+/* ===== Post Form Modal ===== */
+.post-form-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.post-form-modal {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.post-form-modal h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 1rem;
+}
+
+.post-form-category-select {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.post-form-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    box-sizing: border-box;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s ease;
+    margin-bottom: 0.75rem;
+}
+
+.post-form-input:focus {
+    border-color: #667eea;
+}
+
+.post-form-textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    box-sizing: border-box;
+    min-height: 120px;
+    resize: vertical;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s ease;
+    margin-bottom: 0.75rem;
+}
+
+.post-form-textarea:focus {
+    border-color: #667eea;
+}
+
+.post-form-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+}
+
+/* ===== Back Button ===== */
+.back-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #667eea;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    margin-bottom: 8px;
+    font-family: inherit;
+    transition: opacity 0.2s ease;
+}
+
+.back-btn:hover {
+    opacity: 0.7;
+}
+
+/* ===== Error / Empty States ===== */
+.board-empty {
+    text-align: center;
+    padding: 2rem;
+    color: #999;
+}
+
+.board-error {
+    text-align: center;
+    padding: 2rem;
+    color: #dc2626;
+}
+
+.board-retry-btn {
+    margin-top: 8px;
+    padding: 6px 16px;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s ease;
+}
+
+.board-retry-btn:hover {
+    background: #e5e7eb;
+}
