@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { POST_LIMITS } from '../../data/boardConstants';
 
-const CommentItem = ({ comment, user, onDelete, onReply, replies = [], repliesByParent = {}, depth = 0 }) => {
+const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, replies = [], repliesByParent = {}, depth = 0 }) => {
     if (!comment) return null;
 
     const [showReplyInput, setShowReplyInput] = useState(false);
     const [replyText, setReplyText] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [localLikes, setLocalLikes] = useState(comment.likes || []);
 
     const getFormattedDate = (createdAt) => {
         if (!createdAt) return '-';
@@ -38,7 +39,22 @@ const CommentItem = ({ comment, user, onDelete, onReply, replies = [], repliesBy
         }
     };
 
+    const handleLike = async () => {
+        if (!user || !onToggleLike) return;
+        const alreadyLiked = localLikes.includes(user.username);
+        const newLikes = alreadyLiked
+            ? localLikes.filter(u => u !== user.username)
+            : [...localLikes, user.username];
+        setLocalLikes(newLikes);
+        try {
+            await onToggleLike(comment.id);
+        } catch (err) {
+            setLocalLikes(comment.likes || []);
+        }
+    };
+
     const canDelete = user && (user.username === comment.author || user.role === 'coach');
+    const liked = user && localLikes.includes(user.username);
 
     return (
         <>
@@ -50,14 +66,12 @@ const CommentItem = ({ comment, user, onDelete, onReply, replies = [], repliesBy
                     </span>
                     <div className="comment-header-right">
                         <span className="comment-date">{getFormattedDate(comment.createdAt)}</span>
-                        {(
-                            <button
-                                className="comment-reply-btn"
-                                onClick={() => setShowReplyInput(!showReplyInput)}
-                            >
-                                답글
-                            </button>
-                        )}
+                        <button
+                            className="comment-reply-btn"
+                            onClick={() => setShowReplyInput(!showReplyInput)}
+                        >
+                            답글
+                        </button>
                         {canDelete && (
                             <button className="comment-delete-btn" onClick={handleDelete}>
                                 삭제
@@ -66,6 +80,14 @@ const CommentItem = ({ comment, user, onDelete, onReply, replies = [], repliesBy
                     </div>
                 </div>
                 <div className="comment-content">{comment.content}</div>
+                <div className="comment-like-row">
+                    <button
+                        className={`comment-like-btn${liked ? ' liked' : ''}`}
+                        onClick={handleLike}
+                    >
+                        {liked ? '❤️' : '🤍'} {localLikes.length > 0 ? localLikes.length : ''}
+                    </button>
+                </div>
 
                 {showReplyInput && (
                     <div className="comment-reply-input-area">
@@ -105,6 +127,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, replies = [], repliesBy
                     user={user}
                     onDelete={onDelete}
                     onReply={onReply}
+                    onToggleLike={onToggleLike}
                     replies={repliesByParent[reply.id] || []}
                     repliesByParent={repliesByParent}
                     depth={depth + 1}

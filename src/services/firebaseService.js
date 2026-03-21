@@ -988,3 +988,17 @@ export const deleteComment = async (postId, commentId) => {
         await batch.commit();
     });
 };
+
+export const toggleCommentLike = async (postId, commentId, username) => {
+    return safeWrite(async () => {
+        const commentRef = doc(db, 'posts', postId, 'comments', commentId);
+        const docSnap = await getDoc(commentRef);
+        if (!docSnap.exists()) throw new Error('댓글을 찾을 수 없습니다.');
+        const likes = docSnap.data().likes || [];
+        const isLiked = likes.includes(username);
+        await updateDoc(commentRef, {
+            likes: isLiked ? arrayRemove(username) : arrayUnion(username),
+        });
+        return !isLiked;
+    });
+};

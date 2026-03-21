@@ -219,6 +219,23 @@
     padding: 0;
 }
 
+.comment-like-row {
+    margin-top: 4px;
+}
+
+.comment-like-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #9ca3af;
+    padding: 0;
+}
+
+.comment-like-btn.liked {
+    color: #ef4444;
+}
+
 .comment-reply-btn {
     background: none;
     border: none;
