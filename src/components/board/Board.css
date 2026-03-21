@@ -302,27 +302,64 @@
     background: #5a6fd6;
 }
 
-/* ===== Write Button ===== */
-.write-btn {
+/* ===== Pagination ===== */
+.board-pagination {
     display: flex;
     justify-content: center;
+    align-items: center;
+    gap: 4px;
     margin-top: 16px;
+    padding: 8px 0;
 }
 
-.write-btn button {
+.board-page-btn {
+    min-width: 32px;
+    height: 32px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    color: #374151;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.board-page-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.board-page-btn.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+    font-weight: 600;
+}
+
+/* ===== Write Button (Fixed) ===== */
+.write-btn-fixed {
+    position: fixed;
+    bottom: 72px;
+    right: 20px;
+    z-index: 100;
+}
+
+.write-btn-fixed button {
     background: linear-gradient(135deg, #667eea, #764ba2);
     color: white;
     border: none;
-    padding: 10px 24px;
+    padding: 12px 20px;
     border-radius: 24px;
     font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
     transition: opacity 0.2s ease, transform 0.2s ease;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
-.write-btn button:hover {
+.write-btn-fixed button:hover {
     opacity: 0.9;
     transform: translateY(-1px);
 }

@@ -1,4 +1,7 @@
+import { useState, useEffect } from 'react';
 import { BOARD_CATEGORIES, CATEGORY_MAP } from '../../data/boardConstants';
+
+const POSTS_PER_PAGE = 10;
 
 const formatDate = (createdAt) => {
     if (!createdAt) return '';
@@ -19,8 +22,21 @@ const PostList = ({
     selectedCategory,
     onCategoryChange,
 }) => {
+    const [currentPage, setCurrentPage] = useState(1);
+
+    // 카테고리 변경 시 1페이지로 리셋
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedCategory]);
+
+    // 글 목록이 바뀌면 현재 페이지가 범위 밖이면 조정
+    const totalPages = Math.max(1, Math.ceil(posts.length / POSTS_PER_PAGE));
+    const safePage = Math.min(currentPage, totalPages);
+    const startIdx = (safePage - 1) * POSTS_PER_PAGE;
+    const pagedPosts = posts.slice(startIdx, startIdx + POSTS_PER_PAGE);
+
     return (
-        <div>
+        <div style={{ position: 'relative', paddingBottom: '60px' }}>
             {/* Category tabs */}
             <div className="board-tabs">
                 {BOARD_CATEGORIES.map((category) => (
@@ -52,8 +68,8 @@ const PostList = ({
                 <div className="board-empty">게시글이 없습니다.</div>
             )}
 
-            {/* Post list */}
-            {!loading && !error && posts.map((post) => {
+            {/* Post list (paged) */}
+            {!loading && !error && pagedPosts.map((post) => {
                 const isPinned = post.pinned && post.category === 'notice';
                 const categoryInfo = CATEGORY_MAP[post.category];
 
@@ -97,8 +113,37 @@ const PostList = ({
                 );
             })}
 
-            {/* Write button */}
-            <div className="write-btn">
+            {/* Pagination */}
+            {!loading && !error && totalPages > 1 && (
+                <div className="board-pagination">
+                    <button
+                        className="board-page-btn"
+                        disabled={safePage <= 1}
+                        onClick={() => setCurrentPage(safePage - 1)}
+                    >
+                        ‹
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <button
+                            key={page}
+                            className={`board-page-btn${page === safePage ? ' active' : ''}`}
+                            onClick={() => setCurrentPage(page)}
+                        >
+                            {page}
+                        </button>
+                    ))}
+                    <button
+                        className="board-page-btn"
+                        disabled={safePage >= totalPages}
+                        onClick={() => setCurrentPage(safePage + 1)}
+                    >
+                        ›
+                    </button>
+                </div>
+            )}
+
+            {/* Write button - fixed at bottom */}
+            <div className="write-btn-fixed">
                 <button onClick={onWriteClick}>✏️ 글쓰기</button>
             </div>
         </div>
