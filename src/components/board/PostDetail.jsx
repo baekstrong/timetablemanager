@@ -99,6 +99,25 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
         }
     };
 
+    const handleReply = async (parentId, content) => {
+        await createComment(postId, {
+            content,
+            author: user.username,
+            isCoach: user.role === 'coach',
+            parentId,
+        });
+        const updated = await getComments(postId);
+        setComments(updated);
+    };
+
+    // 댓글을 트리 구조로 변환
+    const rootComments = comments.filter(c => !c.parentId);
+    const repliesByParent = {};
+    comments.filter(c => c.parentId).forEach(c => {
+        if (!repliesByParent[c.parentId]) repliesByParent[c.parentId] = [];
+        repliesByParent[c.parentId].push(c);
+    });
+
     if (loading) {
         return <div style={{ padding: '24px', textAlign: 'center' }}>로딩 중...</div>;
     }
@@ -174,12 +193,14 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
             <div className="comments-section">
                 <h3 className="comments-header">댓글</h3>
                 <div className="comment-list">
-                    {comments.map((c) => (
+                    {rootComments.map((c) => (
                         <CommentItem
                             key={c.id}
                             comment={c}
                             user={user}
                             onDelete={handleDeleteComment}
+                            onReply={handleReply}
+                            replies={repliesByParent[c.id] || []}
                         />
                     ))}
                 </div>

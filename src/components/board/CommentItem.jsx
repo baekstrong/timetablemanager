@@ -1,7 +1,13 @@
-const CommentItem = ({ comment, user, onDelete }) => {
+import { useState } from 'react';
+import { POST_LIMITS } from '../../data/boardConstants';
+
+const CommentItem = ({ comment, user, onDelete, onReply, replies = [], depth = 0 }) => {
     if (!comment) return null;
 
-    // Firestore Timestamp 또는 일반 Date 객체 처리
+    const [showReplyInput, setShowReplyInput] = useState(false);
+    const [replyText, setReplyText] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+
     const getFormattedDate = (createdAt) => {
         if (!createdAt) return '-';
         const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
@@ -18,24 +24,93 @@ const CommentItem = ({ comment, user, onDelete }) => {
         }
     };
 
-    // 삭제 버튼 표시 조건: 댓글 작성자 또는 코치
+    const handleReplySubmit = async () => {
+        if (!replyText.trim() || submitting) return;
+        setSubmitting(true);
+        try {
+            await onReply(comment.id, replyText.trim());
+            setReplyText('');
+            setShowReplyInput(false);
+        } catch (err) {
+            alert('답글 등록 중 오류가 발생했습니다.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const canDelete = user && (user.username === comment.author || user.role === 'coach');
+    const maxDepth = 1; // 대댓글은 1단계까지만
 
     return (
-        <div className="comment-item">
-            <div className="comment-item-header">
-                <span className={`comment-author ${comment.isCoach ? 'comment-author-coach' : ''}`}>
-                    {comment.author}
-                </span>
-                <span className="comment-date">{getFormattedDate(comment.createdAt)}</span>
-                {canDelete && (
-                    <button className="comment-delete-btn" onClick={handleDelete}>
-                        삭제
-                    </button>
+        <>
+            <div className={`comment-item ${depth > 0 ? 'comment-reply' : ''}`}>
+                <div className="comment-item-header">
+                    <span className={`comment-author ${comment.isCoach ? 'comment-author-coach' : ''}`}>
+                        {depth > 0 && <span style={{ color: '#9ca3af', marginRight: '4px' }}>↳</span>}
+                        {comment.author}
+                    </span>
+                    <div className="comment-header-right">
+                        <span className="comment-date">{getFormattedDate(comment.createdAt)}</span>
+                        {depth < maxDepth && (
+                            <button
+                                className="comment-reply-btn"
+                                onClick={() => setShowReplyInput(!showReplyInput)}
+                            >
+                                답글
+                            </button>
+                        )}
+                        {canDelete && (
+                            <button className="comment-delete-btn" onClick={handleDelete}>
+                                삭제
+                            </button>
+                        )}
+                    </div>
+                </div>
+                <div className="comment-content">{comment.content}</div>
+
+                {showReplyInput && (
+                    <div className="comment-reply-input-area">
+                        <textarea
+                            className="comment-input"
+                            maxLength={POST_LIMITS.COMMENT_MAX}
+                            placeholder={`${comment.author}님에게 답글...`}
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            style={{ minHeight: '36px', fontSize: '0.85rem' }}
+                        />
+                        <div className="comment-reply-actions">
+                            <button
+                                className="comment-reply-cancel-btn"
+                                onClick={() => { setShowReplyInput(false); setReplyText(''); }}
+                            >
+                                취소
+                            </button>
+                            <button
+                                className="comment-submit-btn"
+                                disabled={!replyText.trim() || submitting}
+                                onClick={handleReplySubmit}
+                                style={{ padding: '4px 12px', fontSize: '0.8rem' }}
+                            >
+                                {submitting ? '등록 중...' : '등록'}
+                            </button>
+                        </div>
+                    </div>
                 )}
             </div>
-            <div className="comment-content">{comment.content}</div>
-        </div>
+
+            {/* 대댓글 렌더링 */}
+            {replies.map((reply) => (
+                <CommentItem
+                    key={reply.id}
+                    comment={reply}
+                    user={user}
+                    onDelete={onDelete}
+                    onReply={onReply}
+                    replies={[]}
+                    depth={depth + 1}
+                />
+            ))}
+        </>
     );
 };
 
