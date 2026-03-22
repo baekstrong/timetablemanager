@@ -75,6 +75,22 @@
     color: #999;
 }
 
+/* ===== New Badge ===== */
+.post-new-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    background: #ef4444;
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 800;
+    border-radius: 3px;
+    padding: 0 3px;
+    flex-shrink: 0;
+}
+
 /* ===== Category Badges ===== */
 .post-category-badge {
     padding: 1px 6px;

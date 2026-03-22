@@ -110,6 +110,11 @@ const PostList = ({
             {!loading && !error && pagedPosts.map((post) => {
                 const isPinned = post.pinned && post.category === 'notice';
                 const categoryInfo = CATEGORY_MAP[post.category];
+                const postDate = post.createdAt?.toDate?.() ?? new Date(post.createdAt);
+                const today = new Date();
+                const isToday = postDate.getFullYear() === today.getFullYear()
+                    && postDate.getMonth() === today.getMonth()
+                    && postDate.getDate() === today.getDate();
 
                 return (
                     <div
@@ -132,6 +137,7 @@ const PostList = ({
                             >
                                 {post.title}
                             </span>
+                            {isToday && <span className="post-new-badge">N</span>}
                         </div>
                         <div className="post-card-meta">
                             <span>
