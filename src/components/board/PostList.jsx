@@ -135,9 +135,8 @@ const PostList = ({
                                 className="post-card-title"
                                 style={{ fontWeight: 600, fontSize: '0.9rem' }}
                             >
-                                {post.title}
+                                {post.title}{isToday && <span className="post-new-badge" style={{ marginLeft: '4px', verticalAlign: 'middle' }}>N</span>}
                             </span>
-                            {isToday && <span className="post-new-badge">N</span>}
                         </div>
                         <div className="post-card-meta">
                             <span>
