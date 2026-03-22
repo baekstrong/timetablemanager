@@ -13,7 +13,7 @@ import NewStudentRegistration from './components/NewStudentRegistration';
 import CoachNewStudents from './components/CoachNewStudents';
 import ContractView from './components/ContractView';
 import BottomNav from './components/BottomNav';
-import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent } from './services/firebaseService';
+import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent, subscribePosts } from './services/firebaseService';
 import './App.css';
 
 function AppContent() {
@@ -31,6 +31,7 @@ function AppContent() {
   const [hasNewStudentNotification, setHasNewStudentNotification] = useState(false);
   const [hasWaitlistNotification, setHasWaitlistNotification] = useState(false);
   const [hasContractNotification, setHasContractNotification] = useState(false);
+  const [hasNewPostNotification, setHasNewPostNotification] = useState(false);
   const { getStudentByName, findStudentAcrossSheets } = useGoogleSheets();
 
   // Poll for pending registrations (coach only)
@@ -71,6 +72,20 @@ function AppContent() {
     checkStudentNotifications();
     const interval = setInterval(checkStudentNotifications, 30000);
     return () => clearInterval(interval);
+  }, [user]);
+
+  // 새 게시글 알림
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = subscribePosts(null, 100, (posts) => {
+      const lastSeen = parseInt(localStorage.getItem('board_last_seen') || '0');
+      const hasNew = posts.some(p => {
+        const postTime = p.createdAt?.toMillis?.() || 0;
+        return postTime > lastSeen;
+      });
+      setHasNewPostNotification(hasNew);
+    });
+    return () => unsubscribe();
   }, [user]);
 
   const handleLogin = async (userData) => {
@@ -139,6 +154,10 @@ function AppContent() {
   };
 
   const handleNavigate = (page) => {
+    if (page === 'dashboard') {
+      localStorage.setItem('board_last_seen', String(Date.now()));
+      setHasNewPostNotification(false);
+    }
     setCurrentPage(page);
   };
 
@@ -204,6 +223,7 @@ function AppContent() {
           hasNewStudentNotification={hasNewStudentNotification}
           hasWaitlistNotification={hasWaitlistNotification}
           hasContractNotification={hasContractNotification}
+          hasNewPostNotification={hasNewPostNotification}
         />
       )}
     </div>
