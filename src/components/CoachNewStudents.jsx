@@ -84,7 +84,28 @@ const CoachNewStudents = ({ user, onBack }) => {
         setLoading(true);
         try {
             const data = await getNewStudentRegistrations(regFilter || null);
-            setRegistrations(data);
+
+            // 승인된 건 중 입학반 날짜가 지난 건 자동 완료 처리
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const expiredApproved = data.filter(r => {
+                if (r.status !== 'approved') return false;
+                const eDate = r.entranceDate || r.entranceClassDate;
+                if (!eDate) return false;
+                const entranceDate = new Date(eDate + 'T23:59:59');
+                return entranceDate < today;
+            });
+            if (expiredApproved.length > 0) {
+                await Promise.all(
+                    expiredApproved.map(r => updateNewStudentRegistration(r.id, { status: 'completed' }))
+                );
+                console.log(`✅ ${expiredApproved.length}명 신규 수강생 자동 완료 처리`);
+                // 완료 처리된 건 목록에서 제외
+                const completedIds = new Set(expiredApproved.map(r => r.id));
+                setRegistrations(data.filter(r => !completedIds.has(r.id)));
+            } else {
+                setRegistrations(data);
+            }
         } catch (err) {
             console.error('등록 목록 조회 실패:', err);
         }
