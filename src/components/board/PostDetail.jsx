@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getPost, toggleLike, updatePost, deletePost, getComments, createComment, updateComment, deleteComment, toggleCommentLike } from '../../services/firebaseService';
+import { getPost, toggleLike, toggleDislike, updatePost, deletePost, getComments, createComment, updateComment, deleteComment, toggleCommentLike, toggleCommentDislike } from '../../services/firebaseService';
 import { CATEGORY_MAP, POST_LIMITS } from '../../data/boardConstants';
 import CommentItem from './CommentItem';
 
@@ -42,21 +42,33 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
 
     const handleToggleLike = async () => {
         if (!post || !user) return;
-
         const alreadyLiked = post.likes?.includes(user.username);
         const newLikes = alreadyLiked
             ? (post.likes || []).filter((u) => u !== user.username)
             : [...(post.likes || []), user.username];
-
-        // Optimistic UI update
-        setPost((prev) => ({ ...prev, likes: newLikes }));
-
+        const newDislikes = alreadyLiked ? (post.dislikes || []) : (post.dislikes || []).filter(u => u !== user.username);
+        setPost((prev) => ({ ...prev, likes: newLikes, dislikes: newDislikes }));
         try {
             await toggleLike(postId, user.username);
         } catch (err) {
-            // Rollback on failure
-            setPost((prev) => ({ ...prev, likes: post.likes || [] }));
+            setPost((prev) => ({ ...prev, likes: post.likes || [], dislikes: post.dislikes || [] }));
             alert('좋아요 처리 중 오류가 발생했습니다.');
+        }
+    };
+
+    const handleToggleDislike = async () => {
+        if (!post || !user) return;
+        const alreadyDisliked = post.dislikes?.includes(user.username);
+        const newDislikes = alreadyDisliked
+            ? (post.dislikes || []).filter((u) => u !== user.username)
+            : [...(post.dislikes || []), user.username];
+        const newLikes = alreadyDisliked ? (post.likes || []) : (post.likes || []).filter(u => u !== user.username);
+        setPost((prev) => ({ ...prev, dislikes: newDislikes, likes: newLikes }));
+        try {
+            await toggleDislike(postId, user.username);
+        } catch (err) {
+            setPost((prev) => ({ ...prev, likes: post.likes || [], dislikes: post.dislikes || [] }));
+            alert('싫어요 처리 중 오류가 발생했습니다.');
         }
     };
 
@@ -103,6 +115,10 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
         await toggleCommentLike(postId, commentId, user.username);
     };
 
+    const handleCommentDislike = async (commentId) => {
+        await toggleCommentDislike(postId, commentId, user.username);
+    };
+
     const handleEditComment = async (commentId, content) => {
         await updateComment(postId, commentId, content);
         const updated = await getComments(postId);
@@ -142,6 +158,7 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
     }
 
     const liked = post.likes?.includes(user?.username);
+    const disliked = post.dislikes?.includes(user?.username);
     const isAuthor = user?.username === post.author;
     const canDelete = isAuthor || user?.role === 'coach';
     const category = CATEGORY_MAP[post.category];
@@ -231,7 +248,14 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                     onClick={handleToggleLike}
                     style={{ fontSize: '1.08rem' }}
                 >
-                    {liked ? '❤️' : '🤍'} {(post.likes || []).length}
+                    👍 {(post.likes || []).length}
+                </button>
+                <button
+                    className={`post-action-btn${disliked ? ' disliked' : ''}`}
+                    onClick={handleToggleDislike}
+                    style={{ fontSize: '1.08rem' }}
+                >
+                    👎 {(post.dislikes || []).length}
                 </button>
                 <span style={{ fontSize: '1.08rem', color: '#666' }}>💬 {comments.length}</span>
             </div>
@@ -247,6 +271,7 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                             onDelete={handleDeleteComment}
                             onReply={handleReply}
                             onToggleLike={handleCommentLike}
+                            onToggleDislike={handleCommentDislike}
                             onEdit={handleEditComment}
                             replies={repliesByParent[c.id] || []}
                             repliesByParent={repliesByParent}

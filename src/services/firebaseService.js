@@ -940,10 +940,29 @@ export const toggleLike = async (postId, username) => {
         if (!docSnap.exists()) throw new Error('게시글을 찾을 수 없습니다.');
         const likes = docSnap.data().likes || [];
         const isLiked = likes.includes(username);
-        await updateDoc(postRef, {
+        const updates = {
             likes: isLiked ? arrayRemove(username) : arrayUnion(username),
-        });
+        };
+        // 좋아요 누르면 싫어요에서 제거
+        if (!isLiked) updates.dislikes = arrayRemove(username);
+        await updateDoc(postRef, updates);
         return !isLiked;
+    });
+};
+
+export const toggleDislike = async (postId, username) => {
+    return safeWrite(async () => {
+        const postRef = doc(db, 'posts', postId);
+        const docSnap = await getDoc(postRef);
+        if (!docSnap.exists()) throw new Error('게시글을 찾을 수 없습니다.');
+        const dislikes = docSnap.data().dislikes || [];
+        const isDisliked = dislikes.includes(username);
+        const updates = {
+            dislikes: isDisliked ? arrayRemove(username) : arrayUnion(username),
+        };
+        if (!isDisliked) updates.likes = arrayRemove(username);
+        await updateDoc(postRef, updates);
+        return !isDisliked;
     });
 };
 
@@ -1003,9 +1022,27 @@ export const toggleCommentLike = async (postId, commentId, username) => {
         if (!docSnap.exists()) throw new Error('댓글을 찾을 수 없습니다.');
         const likes = docSnap.data().likes || [];
         const isLiked = likes.includes(username);
-        await updateDoc(commentRef, {
+        const updates = {
             likes: isLiked ? arrayRemove(username) : arrayUnion(username),
-        });
+        };
+        if (!isLiked) updates.dislikes = arrayRemove(username);
+        await updateDoc(commentRef, updates);
         return !isLiked;
+    });
+};
+
+export const toggleCommentDislike = async (postId, commentId, username) => {
+    return safeWrite(async () => {
+        const commentRef = doc(db, 'posts', postId, 'comments', commentId);
+        const docSnap = await getDoc(commentRef);
+        if (!docSnap.exists()) throw new Error('댓글을 찾을 수 없습니다.');
+        const dislikes = docSnap.data().dislikes || [];
+        const isDisliked = dislikes.includes(username);
+        const updates = {
+            dislikes: isDisliked ? arrayRemove(username) : arrayUnion(username),
+        };
+        if (!isDisliked) updates.likes = arrayRemove(username);
+        await updateDoc(commentRef, updates);
+        return !isDisliked;
     });
 };

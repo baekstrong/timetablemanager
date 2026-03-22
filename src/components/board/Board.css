@@ -178,7 +178,11 @@
 }
 
 .post-action-btn.liked {
-    color: #ef4444;
+    color: #2563eb;
+}
+
+.post-action-btn.disliked {
+    color: #dc2626;
 }
 
 /* ===== Comments ===== */
@@ -237,6 +241,8 @@
 
 .comment-like-row {
     margin-top: 4px;
+    display: flex;
+    gap: 8px;
 }
 
 .comment-like-btn {
@@ -249,7 +255,11 @@
 }
 
 .comment-like-btn.liked {
-    color: #ef4444;
+    color: #2563eb;
+}
+
+.comment-like-btn.disliked {
+    color: #dc2626;
 }
 
 .comment-reply-btn {

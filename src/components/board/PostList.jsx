@@ -147,8 +147,10 @@ const PostList = ({
                                 {formatDate(post.createdAt)}
                             </span>
                             <span>
-                                {post.likes?.length > 0 && `❤️ ${post.likes.length}`}
-                                {post.likes?.length > 0 && post.commentCount > 0 && ' · '}
+                                {post.likes?.length > 0 && `👍 ${post.likes.length}`}
+                                {post.likes?.length > 0 && (post.dislikes?.length > 0 || post.commentCount > 0) && ' · '}
+                                {post.dislikes?.length > 0 && `👎 ${post.dislikes.length}`}
+                                {post.dislikes?.length > 0 && post.commentCount > 0 && ' · '}
                                 {post.commentCount > 0 && `💬 ${post.commentCount}`}
                             </span>
                         </div>

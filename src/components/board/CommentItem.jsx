@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { POST_LIMITS } from '../../data/boardConstants';
 
-const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, replies = [], repliesByParent = {}, depth = 0 }) => {
+const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onToggleDislike, onEdit, replies = [], repliesByParent = {}, depth = 0 }) => {
     if (!comment) return null;
 
     const [showReplyInput, setShowReplyInput] = useState(false);
     const [replyText, setReplyText] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [localLikes, setLocalLikes] = useState(comment.likes || []);
+    const [localDislikes, setLocalDislikes] = useState(comment.dislikes || []);
     const [isEditing, setIsEditing] = useState(false);
     const [editText, setEditText] = useState(comment.content);
 
@@ -60,17 +61,38 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
         const newLikes = alreadyLiked
             ? localLikes.filter(u => u !== user.username)
             : [...localLikes, user.username];
+        const newDislikes = alreadyLiked ? localDislikes : localDislikes.filter(u => u !== user.username);
         setLocalLikes(newLikes);
+        setLocalDislikes(newDislikes);
         try {
             await onToggleLike(comment.id);
         } catch (err) {
             setLocalLikes(comment.likes || []);
+            setLocalDislikes(comment.dislikes || []);
+        }
+    };
+
+    const handleDislike = async () => {
+        if (!user || !onToggleDislike) return;
+        const alreadyDisliked = localDislikes.includes(user.username);
+        const newDislikes = alreadyDisliked
+            ? localDislikes.filter(u => u !== user.username)
+            : [...localDislikes, user.username];
+        const newLikes = alreadyDisliked ? localLikes : localLikes.filter(u => u !== user.username);
+        setLocalDislikes(newDislikes);
+        setLocalLikes(newLikes);
+        try {
+            await onToggleDislike(comment.id);
+        } catch (err) {
+            setLocalLikes(comment.likes || []);
+            setLocalDislikes(comment.dislikes || []);
         }
     };
 
     const isAuthor = user && user.username === comment.author;
     const canDelete = user && (isAuthor || user.role === 'coach');
     const liked = user && localLikes.includes(user.username);
+    const disliked = user && localDislikes.includes(user.username);
     const commentDate = comment.createdAt?.toDate ? comment.createdAt.toDate() : new Date(comment.createdAt);
     const today = new Date();
     const isToday = commentDate.getFullYear() === today.getFullYear()
@@ -148,7 +170,13 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                         className={`comment-like-btn${liked ? ' liked' : ''}`}
                         onClick={handleLike}
                     >
-                        {liked ? '❤️' : '🤍'} {localLikes.length > 0 ? localLikes.length : ''}
+                        👍 {localLikes.length > 0 ? localLikes.length : ''}
+                    </button>
+                    <button
+                        className={`comment-like-btn${disliked ? ' disliked' : ''}`}
+                        onClick={handleDislike}
+                    >
+                        👎 {localDislikes.length > 0 ? localDislikes.length : ''}
                     </button>
                 </div>
 
@@ -191,6 +219,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                     onDelete={onDelete}
                     onReply={onReply}
                     onToggleLike={onToggleLike}
+                    onToggleDislike={onToggleDislike}
                     onEdit={onEdit}
                     replies={repliesByParent[reply.id] || []}
                     repliesByParent={repliesByParent}
