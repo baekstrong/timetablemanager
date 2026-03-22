@@ -194,12 +194,13 @@ export function getThisWeekRange() {
     const today = new Date();
     const dayOfWeek = today.getDay();
     const monday = new Date(today);
-    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    // 일요일(0)에는 다음 월요일 기준 (시간표 표시와 동일하게)
+    const diff = dayOfWeek === 0 ? 1 : 1 - dayOfWeek;
     monday.setDate(today.getDate() + diff);
     monday.setHours(0, 0, 0, 0);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    return { start: formatDateISO(monday), end: formatDateISO(sunday) };
+    const friday = new Date(monday);
+    friday.setDate(monday.getDate() + 4);
+    return { start: formatDateISO(monday), end: formatDateISO(friday) };
 }
 
 /**

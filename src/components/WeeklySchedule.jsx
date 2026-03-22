@@ -443,9 +443,11 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 }
 
                 const thisWeekMakeups = makeups.filter(m => {
-                    if (m.status === 'active') return true;
                     const makeupDate = m.makeupClass?.date;
-                    return makeupDate >= start && makeupDate <= end;
+                    const originalDate = m.originalClass?.date;
+                    // 보강 날짜 또는 원래 수업 날짜가 이번 주 범위에 포함되는 경우만 표시
+                    return (makeupDate >= start && makeupDate <= end) ||
+                           (originalDate >= start && originalDate <= end);
                 });
                 setActiveMakeupRequests(thisWeekMakeups);
             } catch (error) {
@@ -515,9 +517,10 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         const makeups = await getActiveMakeupRequests(user.username);
         const { start, end } = getThisWeekRange();
         const thisWeekMakeups = makeups.filter(m => {
-            if (m.status === 'active') return true;
             const makeupDate = m.makeupClass?.date;
-            return makeupDate >= start && makeupDate <= end;
+            const originalDate = m.originalClass?.date;
+            return (makeupDate >= start && makeupDate <= end) ||
+                   (originalDate >= start && originalDate <= end);
         });
         setActiveMakeupRequests(thisWeekMakeups);
     }
