@@ -71,6 +71,11 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
     const isAuthor = user && user.username === comment.author;
     const canDelete = user && (isAuthor || user.role === 'coach');
     const liked = user && localLikes.includes(user.username);
+    const commentDate = comment.createdAt?.toDate ? comment.createdAt.toDate() : new Date(comment.createdAt);
+    const today = new Date();
+    const isToday = commentDate.getFullYear() === today.getFullYear()
+        && commentDate.getMonth() === today.getMonth()
+        && commentDate.getDate() === today.getDate();
 
     return (
         <>
@@ -79,6 +84,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                     <span className={`comment-author ${comment.isCoach ? 'comment-author-coach' : ''}`}>
                         {depth > 0 && <span style={{ color: '#9ca3af', marginRight: '4px' }}>↳</span>}
                         {comment.author}
+                        {isToday && <span className="post-new-badge" style={{ marginLeft: '4px' }}>N</span>}
                     </span>
                     <div className="comment-header-right">
                         <span className="comment-date">
