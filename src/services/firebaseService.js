@@ -989,6 +989,13 @@ export const deleteComment = async (postId, commentId) => {
     });
 };
 
+export const updateComment = async (postId, commentId, content) => {
+    return safeWrite(async () => {
+        const commentRef = doc(db, 'posts', postId, 'comments', commentId);
+        await updateDoc(commentRef, { content, updatedAt: serverTimestamp() });
+    });
+};
+
 export const toggleCommentLike = async (postId, commentId, username) => {
     return safeWrite(async () => {
         const commentRef = doc(db, 'posts', postId, 'comments', commentId);

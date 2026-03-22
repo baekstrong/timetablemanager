@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { POST_LIMITS } from '../../data/boardConstants';
 
-const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, replies = [], repliesByParent = {}, depth = 0 }) => {
+const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, replies = [], repliesByParent = {}, depth = 0 }) => {
     if (!comment) return null;
 
     const [showReplyInput, setShowReplyInput] = useState(false);
     const [replyText, setReplyText] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [localLikes, setLocalLikes] = useState(comment.likes || []);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editText, setEditText] = useState(comment.content);
 
     const getFormattedDate = (createdAt) => {
         if (!createdAt) return '-';
@@ -39,6 +41,19 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, replies =
         }
     };
 
+    const handleEditSubmit = async () => {
+        if (!editText.trim() || submitting) return;
+        setSubmitting(true);
+        try {
+            await onEdit(comment.id, editText.trim());
+            setIsEditing(false);
+        } catch (err) {
+            alert('댓글 수정 중 오류가 발생했습니다.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const handleLike = async () => {
         if (!user || !onToggleLike) return;
         const alreadyLiked = localLikes.includes(user.username);
@@ -53,7 +68,8 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, replies =
         }
     };
 
-    const canDelete = user && (user.username === comment.author || user.role === 'coach');
+    const isAuthor = user && user.username === comment.author;
+    const canDelete = user && (isAuthor || user.role === 'coach');
     const liked = user && localLikes.includes(user.username);
 
     return (
@@ -65,13 +81,24 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, replies =
                         {comment.author}
                     </span>
                     <div className="comment-header-right">
-                        <span className="comment-date">{getFormattedDate(comment.createdAt)}</span>
+                        <span className="comment-date">
+                            {getFormattedDate(comment.createdAt)}
+                            {comment.updatedAt && <span style={{ color: '#b0b0b0', marginLeft: '2px' }}>(수정됨)</span>}
+                        </span>
                         <button
                             className="comment-reply-btn"
                             onClick={() => setShowReplyInput(!showReplyInput)}
                         >
                             답글
                         </button>
+                        {isAuthor && (
+                            <button
+                                className="comment-reply-btn"
+                                onClick={() => { setIsEditing(!isEditing); setEditText(comment.content); }}
+                            >
+                                수정
+                            </button>
+                        )}
                         {canDelete && (
                             <button className="comment-delete-btn" onClick={handleDelete}>
                                 삭제
@@ -79,7 +106,37 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, replies =
                         )}
                     </div>
                 </div>
-                <div className="comment-content">{comment.content}</div>
+
+                {isEditing ? (
+                    <div className="comment-reply-input-area">
+                        <textarea
+                            className="comment-input"
+                            maxLength={POST_LIMITS.COMMENT_MAX}
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            style={{ minHeight: '36px', fontSize: '0.85rem' }}
+                        />
+                        <div className="comment-reply-actions">
+                            <button
+                                className="comment-reply-cancel-btn"
+                                onClick={() => setIsEditing(false)}
+                            >
+                                취소
+                            </button>
+                            <button
+                                className="comment-submit-btn"
+                                disabled={!editText.trim() || submitting}
+                                onClick={handleEditSubmit}
+                                style={{ padding: '4px 12px', fontSize: '0.8rem' }}
+                            >
+                                {submitting ? '수정 중...' : '수정'}
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="comment-content">{comment.content}</div>
+                )}
+
                 <div className="comment-like-row">
                     <button
                         className={`comment-like-btn${liked ? ' liked' : ''}`}
@@ -128,6 +185,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, replies =
                     onDelete={onDelete}
                     onReply={onReply}
                     onToggleLike={onToggleLike}
+                    onEdit={onEdit}
                     replies={repliesByParent[reply.id] || []}
                     repliesByParent={repliesByParent}
                     depth={depth + 1}

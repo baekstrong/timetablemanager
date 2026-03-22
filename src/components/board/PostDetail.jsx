@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getPost, toggleLike, updatePost, deletePost, getComments, createComment, deleteComment, toggleCommentLike } from '../../services/firebaseService';
+import { getPost, toggleLike, updatePost, deletePost, getComments, createComment, updateComment, deleteComment, toggleCommentLike } from '../../services/firebaseService';
 import { CATEGORY_MAP, POST_LIMITS } from '../../data/boardConstants';
 import CommentItem from './CommentItem';
 
@@ -101,6 +101,12 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
 
     const handleCommentLike = async (commentId) => {
         await toggleCommentLike(postId, commentId, user.username);
+    };
+
+    const handleEditComment = async (commentId, content) => {
+        await updateComment(postId, commentId, content);
+        const updated = await getComments(postId);
+        setComments(updated);
     };
 
     const handleReply = async (parentId, content) => {
@@ -241,6 +247,7 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                             onDelete={handleDeleteComment}
                             onReply={handleReply}
                             onToggleLike={handleCommentLike}
+                            onEdit={handleEditComment}
                             replies={repliesByParent[c.id] || []}
                             repliesByParent={repliesByParent}
                         />
