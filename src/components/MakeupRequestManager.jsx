@@ -180,6 +180,20 @@ const MakeupRequestManager = ({ user, studentData, onBack }) => {
     const handleCancel = async () => {
         if (!activeMakeup) return;
 
+        // 원본 수업 시작 10분 전까지만 취소 가능
+        const originalDate = new Date(activeMakeup.originalClass.date);
+        const periodInfo = PERIODS.find(p => p.id === activeMakeup.originalClass.period);
+        if (periodInfo) {
+            const now = new Date();
+            const classStart = new Date(originalDate);
+            classStart.setHours(periodInfo.startHour, periodInfo.startMinute, 0, 0);
+            const deadline = new Date(classStart.getTime() - 10 * 60 * 1000);
+            if (now >= deadline) {
+                alert('수업 시작 10분 전부터는 보강 취소가 불가합니다.');
+                return;
+            }
+        }
+
         if (!confirm('보강 신청을 취소하시겠습니까?')) return;
 
         try {
