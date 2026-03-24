@@ -394,7 +394,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         return now < oneHourBefore;
     };
 
-    // 결석 신청 가능 여부 확인 (수업 시작 30분 전까지)
+    // 결석 신청 가능 여부 확인 (수업 시작 10분 전까지)
     const canRequestAbsence = (date) => {
         if (!date) return false;
 
@@ -407,10 +407,10 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         const classDateTime = new Date(date);
         classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
 
-        const thirtyMinBefore = new Date(classDateTime.getTime() - 30 * 60 * 1000);
+        const tenMinBefore = new Date(classDateTime.getTime() - 10 * 60 * 1000);
 
         const now = new Date();
-        return now < thirtyMinBefore;
+        return now < tenMinBefore;
     };
 
     // 이미 홀딩 신청한 날짜인지 확인 (정규 수업일 + 홀딩 기간 범위 모두 체크)
@@ -437,7 +437,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         const canRequest = requestType === 'absence' ? canRequestAbsence(date) : canRequestHolding(date);
         if (!canRequest) {
             if (requestType === 'absence') {
-                alert('결석 신청은 수업 시작 30분 전까지만 가능합니다.');
+                alert('결석 신청은 수업 시작 10분 전까지만 가능합니다.');
             } else {
                 alert('홀딩 신청은 수업 시작 1시간 전까지만 가능합니다.');
             }
