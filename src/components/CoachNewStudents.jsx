@@ -1202,23 +1202,35 @@ const CoachNewStudents = ({ user, onBack }) => {
                                     </div>
                                     <div className="cns-form-field">
                                         <label>시작 시간</label>
-                                        <input
-                                            type="text"
+                                        <select
                                             value={entranceForm.time}
                                             onChange={(e) => setEntranceForm({ ...entranceForm, time: e.target.value })}
-                                            placeholder="예: 14:00"
                                             className="cns-form-input"
-                                        />
+                                        >
+                                            <option value="">선택</option>
+                                            {Array.from({ length: 28 }, (_, i) => {
+                                                const h = Math.floor(i / 2) + 7;
+                                                const m = i % 2 === 0 ? '00' : '30';
+                                                const val = `${String(h).padStart(2, '0')}:${m}`;
+                                                return <option key={val} value={val}>{val}</option>;
+                                            })}
+                                        </select>
                                     </div>
                                     <div className="cns-form-field">
                                         <label>종료 시간</label>
-                                        <input
-                                            type="text"
+                                        <select
                                             value={entranceForm.endTime || ''}
                                             onChange={(e) => setEntranceForm({ ...entranceForm, endTime: e.target.value })}
-                                            placeholder="예: 15:00"
                                             className="cns-form-input"
-                                        />
+                                        >
+                                            <option value="">선택</option>
+                                            {Array.from({ length: 28 }, (_, i) => {
+                                                const h = Math.floor(i / 2) + 7;
+                                                const m = i % 2 === 0 ? '00' : '30';
+                                                const val = `${String(h).padStart(2, '0')}:${m}`;
+                                                return <option key={val} value={val}>{val}</option>;
+                                            })}
+                                        </select>
                                     </div>
                                     <div className="cns-form-field">
                                         <label>설명 (선택)</label>
