@@ -245,12 +245,32 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         if (!name) return endDate;
 
         const endDateStr = formatDateISO(endDate);
+
+        // 종료일 이후로 보강이 잡힌 경우 찾기 (원래 수업이 종료일 이전이어도)
+        const makeupsAfterEnd = weekMakeupRequests.filter(m =>
+            m.studentName === name &&
+            (m.status === 'active' || m.status === 'completed') &&
+            m.makeupClass.date > endDateStr
+        );
+
+        // 종료일 당일 수업을 보강으로 옮긴 경우
         const makeupFromEndDate = weekMakeupRequests.find(m =>
             m.studentName === name &&
             m.originalClass.date === endDateStr &&
             (m.status === 'active' || m.status === 'completed')
         );
 
+        // 종료일 이후 보강이 있으면, 가장 늦은 보강일을 effective end로
+        if (makeupsAfterEnd.length > 0) {
+            let latestDate = new Date(endDate);
+            for (const m of makeupsAfterEnd) {
+                const makeupDate = new Date(m.makeupClass.date + 'T00:00:00');
+                if (makeupDate > latestDate) latestDate = makeupDate;
+            }
+            return latestDate;
+        }
+
+        // 종료일 당일 수업만 옮긴 경우 (보강일이 종료일 이전)
         if (makeupFromEndDate) {
             const makeupDate = new Date(makeupFromEndDate.makeupClass.date + 'T00:00:00');
 
@@ -323,16 +343,33 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 );
                 if (hasMakeupFromToday) return false;
 
-                // 오늘 이후 ~ effectiveEnd 전에 정규 수업일이 있는지 확인
+                // 오늘 이후 ~ effectiveEnd 이하에 정규 수업일 또는 보강 수업이 있는지 확인
                 const dayNamesArr = ['일', '월', '화', '수', '목', '금', '토'];
                 const checkDate = new Date(today);
                 for (let i = 0; i < 7; i++) {
                     checkDate.setDate(checkDate.getDate() + 1);
-                    if (checkDate.getTime() >= effectiveEnd.getTime()) break;
+                    if (checkDate.getTime() > effectiveEnd.getTime()) break;
+                    const checkDateStr = formatDateISO(checkDate);
                     const dayName = dayNamesArr[checkDate.getDay()];
-                    if (scheduleDays.includes(dayName)) return false; // 아직 정규 수업이 남아있음
+
+                    // 정규 수업이 있는지 (보강으로 옮기지 않은)
+                    const hasRegularClass = scheduleDays.includes(dayName) &&
+                        !(weekMakeupRequests && weekMakeupRequests.some(m =>
+                            m.studentName === name &&
+                            m.originalClass.date === checkDateStr &&
+                            (m.status === 'active' || m.status === 'completed')
+                        ));
+                    if (hasRegularClass) return false;
+
+                    // 보강 수업이 있는지
+                    const hasMakeupClass = weekMakeupRequests && weekMakeupRequests.some(m =>
+                        m.studentName === name &&
+                        m.makeupClass.date === checkDateStr &&
+                        (m.status === 'active' || m.status === 'completed')
+                    );
+                    if (hasMakeupClass) return false;
                 }
-                return true; // 오늘이 마지막 정규 수업일
+                return true; // 오늘이 마지막 수업일 (정규 또는 보강 포함)
             }
 
             return false;
