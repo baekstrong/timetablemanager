@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, subscribePosts, updatePost, deletePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent } from '../services/firebaseService';
+import { createPost, subscribePosts, updatePost, deletePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, writeSheetData } from '../services/googleSheetsService';
 import GoogleSheetsSync from './GoogleSheetsSync';
 import { POST_LIMITS } from '../data/boardConstants';
@@ -74,8 +74,35 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                             const today = new Date();
                             today.setHours(0, 0, 0, 0);
                             endDate.setHours(0, 0, 0, 0);
-                            setIsMyLastDay(endDate.getTime() === today.getTime());
-                            setIsCourseExpired(today.getTime() > endDate.getTime());
+
+                            // 보강으로 인한 effective end date 계산
+                            let effectiveEnd = new Date(endDate);
+                            try {
+                                const endDateISO = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+                                // 종료일 전후 1주일 범위의 보강 조회
+                                const weekBefore = new Date(endDate);
+                                weekBefore.setDate(weekBefore.getDate() - 7);
+                                const weekAfter = new Date(endDate);
+                                weekAfter.setDate(weekAfter.getDate() + 14);
+                                const wbStr = `${weekBefore.getFullYear()}-${String(weekBefore.getMonth() + 1).padStart(2, '0')}-${String(weekBefore.getDate()).padStart(2, '0')}`;
+                                const waStr = `${weekAfter.getFullYear()}-${String(weekAfter.getMonth() + 1).padStart(2, '0')}-${String(weekAfter.getDate()).padStart(2, '0')}`;
+                                const makeups = await getMakeupRequestsByWeek(wbStr, waStr);
+                                const myMakeups = makeups.filter(m =>
+                                    m.studentName === user.username &&
+                                    (m.status === 'active' || m.status === 'completed') &&
+                                    m.makeupClass.date > endDateISO
+                                );
+                                for (const m of myMakeups) {
+                                    const makeupDate = new Date(m.makeupClass.date + 'T00:00:00');
+                                    if (makeupDate > effectiveEnd) effectiveEnd = makeupDate;
+                                }
+                            } catch (makeupErr) {
+                                console.warn('보강 데이터 조회 실패:', makeupErr);
+                            }
+                            effectiveEnd.setHours(0, 0, 0, 0);
+
+                            setIsMyLastDay(effectiveEnd.getTime() === today.getTime());
+                            setIsCourseExpired(today.getTime() > effectiveEnd.getTime());
                         }
                     }
                 }
