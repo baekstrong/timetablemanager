@@ -24,6 +24,7 @@ import {
     calculateEndDateWithHolidays
 } from '../services/googleSheetsService';
 import { sendApprovalNotifications, sendWaitlistAvailableSMS, cancelScheduledSMS } from '../services/smsService';
+import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../services/calendarService';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { formatEntranceDate, convertToYYMMDD, calculateStartEndDates } from '../utils/dateUtils';
 import { PRICING, PERIODS, MAX_CAPACITY } from '../data/mockData';
@@ -281,7 +282,12 @@ const CoachNewStudents = ({ user, onBack }) => {
                     });
                     const newECId = ecResult.id;
                     // 인원 1로 설정
-                    await updateEntranceClass(newECId, { currentCount: 1 });
+                    const eventId = await createCalendarEvent(reg.entranceInquiry, '10:00', '13:00');
+                    if (eventId) {
+                        await updateEntranceClass(newECId, { currentCount: 1, calendarEventId: eventId });
+                    } else {
+                        await updateEntranceClass(newECId, { currentCount: 1 });
+                    }
                     // Firestore 등록 문서에 입학반 연결
                     finalEntranceDate = reg.entranceInquiry;
                     finalEntranceClassDate = `${formatEntranceDate(reg.entranceInquiry)} 10:00 ~ 13:00`;
@@ -692,8 +698,22 @@ const CoachNewStudents = ({ user, onBack }) => {
         try {
             if (editingEntrance) {
                 await updateEntranceClass(editingEntrance.id, entranceForm);
+                updateCalendarEvent(
+                    editingEntrance.calendarEventId,
+                    entranceForm.date,
+                    entranceForm.time,
+                    entranceForm.endTime
+                );
             } else {
-                await createEntranceClass(entranceForm);
+                const result = await createEntranceClass(entranceForm);
+                const eventId = await createCalendarEvent(
+                    entranceForm.date,
+                    entranceForm.time,
+                    entranceForm.endTime
+                );
+                if (eventId && result?.id) {
+                    await updateEntranceClass(result.id, { calendarEventId: eventId });
+                }
             }
             setShowEntranceForm(false);
             setEditingEntrance(null);
@@ -708,6 +728,7 @@ const CoachNewStudents = ({ user, onBack }) => {
         if (!confirm('이 입학반 일정을 삭제하시겠습니까?')) return;
         try {
             await deleteEntranceClass(ec.id);
+            deleteCalendarEvent(ec.calendarEventId);
             await loadEntranceClasses();
         } catch (err) {
             alert('삭제 실패: ' + err.message);
