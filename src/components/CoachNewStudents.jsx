@@ -988,6 +988,8 @@ const CoachNewStudents = ({ user, onBack }) => {
                                 const groups = {};
                                 registrations.forEach(reg => {
                                     const key = reg.entranceDate || 'none';
+                                    // 입학반 미지정 그룹: 코치 직접 등록(재등록 포함) 제외, 신규 신청만 표시
+                                    if (key === 'none' && reg.registeredByCoach) return;
                                     if (!groups[key]) groups[key] = [];
                                     groups[key].push(reg);
                                 });
