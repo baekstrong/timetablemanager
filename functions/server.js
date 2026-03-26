@@ -33,6 +33,16 @@ const getGoogleSheetsClient = async () => {
   return google.sheets({ version: 'v4', auth: authClient });
 };
 
+// Google Calendar API 클라이언트 생성
+const getGoogleCalendarClient = async () => {
+  const auth = new google.auth.GoogleAuth({
+    keyFile: SERVICE_ACCOUNT_PATH,
+    scopes: ['https://www.googleapis.com/auth/calendar'],
+  });
+  const authClient = await auth.getClient();
+  return google.calendar({ version: 'v3', auth: authClient });
+};
+
 /**
  * GET /readSheet
  * 구글 시트 데이터 읽기
@@ -416,6 +426,88 @@ app.post('/sms/settings', (req, res) => {
   });
 });
 
+// ============================================
+// Google Calendar API 엔드포인트
+// ============================================
+
+const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID;
+
+/**
+ * POST /calendar/create
+ * Google Calendar 이벤트 생성
+ */
+app.post('/calendar/create', async (req, res) => {
+  try {
+    if (!CALENDAR_ID) {
+      return res.status(500).json({ success: false, error: 'GOOGLE_CALENDAR_ID가 설정되지 않았습니다.' });
+    }
+    const { title, date, startTime, endTime } = req.body;
+    if (!title || !date || !startTime) {
+      return res.status(400).json({ error: 'title, date, startTime은 필수입니다.' });
+    }
+    const calendar = await getGoogleCalendarClient();
+    const event = {
+      summary: title,
+      start: { dateTime: `${date}T${startTime}:00`, timeZone: 'Asia/Seoul' },
+      end: { dateTime: `${date}T${endTime || '13:00'}:00`, timeZone: 'Asia/Seoul' },
+    };
+    const result = await calendar.events.insert({ calendarId: CALENDAR_ID, requestBody: event });
+    res.json({ success: true, eventId: result.data.id });
+  } catch (error) {
+    console.error('Calendar 이벤트 생성 실패:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /calendar/update
+ * Google Calendar 이벤트 수정
+ */
+app.post('/calendar/update', async (req, res) => {
+  try {
+    if (!CALENDAR_ID) {
+      return res.status(500).json({ success: false, error: 'GOOGLE_CALENDAR_ID가 설정되지 않았습니다.' });
+    }
+    const { eventId, title, date, startTime, endTime } = req.body;
+    if (!eventId) {
+      return res.status(400).json({ error: 'eventId는 필수입니다.' });
+    }
+    const calendar = await getGoogleCalendarClient();
+    const event = {
+      summary: title,
+      start: { dateTime: `${date}T${startTime}:00`, timeZone: 'Asia/Seoul' },
+      end: { dateTime: `${date}T${endTime || '13:00'}:00`, timeZone: 'Asia/Seoul' },
+    };
+    await calendar.events.update({ calendarId: CALENDAR_ID, eventId, requestBody: event });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Calendar 이벤트 수정 실패:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /calendar/delete
+ * Google Calendar 이벤트 삭제
+ */
+app.post('/calendar/delete', async (req, res) => {
+  try {
+    if (!CALENDAR_ID) {
+      return res.status(500).json({ success: false, error: 'GOOGLE_CALENDAR_ID가 설정되지 않았습니다.' });
+    }
+    const { eventId } = req.body;
+    if (!eventId) {
+      return res.status(400).json({ error: 'eventId는 필수입니다.' });
+    }
+    const calendar = await getGoogleCalendarClient();
+    await calendar.events.delete({ calendarId: CALENDAR_ID, eventId });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Calendar 이벤트 삭제 실패:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 헬스 체크 엔드포인트
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
@@ -437,6 +529,9 @@ app.listen(PORT, () => {
   console.log(`   POST http://localhost:${PORT}/sms/send`);
   console.log(`   POST http://localhost:${PORT}/sms/send-batch`);
   console.log(`   POST http://localhost:${PORT}/sms/settings`);
+  console.log(`   POST http://localhost:${PORT}/calendar/create`);
+  console.log(`   POST http://localhost:${PORT}/calendar/update`);
+  console.log(`   POST http://localhost:${PORT}/calendar/delete`);
   console.log(`   GET  http://localhost:${PORT}/health`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('');
