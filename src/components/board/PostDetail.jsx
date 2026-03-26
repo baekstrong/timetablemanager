@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPost, toggleLike, updatePost, deletePost, getComments, createComment, updateComment, deleteComment, toggleCommentLike } from '../../services/firebaseService';
 import { CATEGORY_MAP, POST_LIMITS } from '../../data/boardConstants';
 import CommentItem from './CommentItem';
@@ -20,6 +20,28 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
     const [loading, setLoading] = useState(true);
     const [commentText, setCommentText] = useState('');
     const [submittingComment, setSubmittingComment] = useState(false);
+
+    // 스와이프 뒤로가기
+    const touchStartX = useRef(null);
+    const touchStartY = useRef(null);
+    const containerRef = useRef(null);
+
+    const handleTouchStart = useCallback((e) => {
+        touchStartX.current = e.touches[0].clientX;
+        touchStartY.current = e.touches[0].clientY;
+    }, []);
+
+    const handleTouchEnd = useCallback((e) => {
+        if (touchStartX.current === null) return;
+        const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+        const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+        // 오른쪽으로 80px 이상 스와이프 & 수평 이동이 수직보다 클 때
+        if (deltaX > 80 && deltaX > deltaY) {
+            onBack();
+        }
+        touchStartX.current = null;
+        touchStartY.current = null;
+    }, [onBack]);
 
     const loadData = async () => {
         try {
@@ -147,7 +169,12 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
     const category = CATEGORY_MAP[post.category];
 
     return (
-        <div className="post-detail">
+        <div
+            className="post-detail"
+            ref={containerRef}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+        >
             <button className="back-btn" onClick={onBack}>← 뒤로</button>
 
             <div className="post-detail-content-section">
