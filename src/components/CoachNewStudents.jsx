@@ -856,6 +856,10 @@ const CoachNewStudents = ({ user, onBack }) => {
                                         <div className="cns-reg-detail">
                                             <div className="cns-detail-grid">
                                                 <div className="cns-detail-item">
+                                                    <span className="cns-detail-label">시간표</span>
+                                                    <span className="cns-detail-value">{formatScheduleDisplay(reg)}</span>
+                                                </div>
+                                                <div className="cns-detail-item">
                                                     <span className="cns-detail-label">연락처</span>
                                                     <span className="cns-detail-value">{reg.phone}</span>
                                                 </div>
