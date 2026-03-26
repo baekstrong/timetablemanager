@@ -171,8 +171,13 @@ const CoachNewStudents = ({ user, onBack }) => {
                 createdAt: serverTimestamp()
             });
 
-            // 2. Google Sheets 행 추가
-            const targetSheet = getCurrentSheetName();
+            // 2. Google Sheets 행 추가 (시작일 기준 시트 결정)
+            const entranceDateForCalc = reg.entranceInquiry || reg.entranceDate;
+            const { startDate: calcStartDate } = calculateStartEndDates(
+                entranceDateForCalc,
+                reg.requestedSlots
+            );
+            const targetSheet = getCurrentSheetName(new Date(calcStartDate + 'T00:00:00'));
             const rows = await readSheetData(`${targetSheet}!A:R`);
             let lastDataRowIndex = 1;
             for (let i = rows.length - 1; i >= 2; i--) {
@@ -195,12 +200,7 @@ const CoachNewStudents = ({ user, onBack }) => {
             }
             const newNumber = maxNumber + 1;
 
-            // 입학반 다음주 기준 시작일 계산 + 공휴일 반영 종료일 계산
-            const entranceDateForCalc = reg.entranceInquiry || reg.entranceDate;
-            const { startDate: calcStartDate } = calculateStartEndDates(
-                entranceDateForCalc,
-                reg.requestedSlots
-            );
+            // 시작일/종료일 계산 (entranceDateForCalc, calcStartDate는 위에서 이미 계산됨)
             const startDateYYMMDD = convertToYYMMDD(calcStartDate);
 
             // 공휴일 반영하여 종료일 재계산
