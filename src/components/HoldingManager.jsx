@@ -528,6 +528,15 @@ const HoldingManager = ({ user, studentData, onBack }) => {
 
                 await createHoldingRequest(user.username, startDate, endDate, sortedDates);
 
+                // 보강 날짜를 홀딩한 횟수 계산 (비정규 요일의 보강)
+                const dayMap = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금' };
+                const makeupHoldingCount = sortedDates.filter(dateStr => {
+                    const dateObj = new Date(dateStr + 'T00:00:00');
+                    const dayName = dayMap[dateObj.getDay()];
+                    const isRegularDay = schedule.some(s => s.day === dayName);
+                    return !isRegularDay && getMakeupForDate(dateObj);
+                }).length;
+
                 // Google Sheets에도 저장 (기존 시스템 호환)
                 const parseLocalDate = (dateStr) => {
                     const [year, month, day] = dateStr.split('-').map(Number);
@@ -537,7 +546,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                 const endDateObj = parseLocalDate(endDate);
                 // 기존 홀딩 목록을 전달하여 종료일 계산에 포함
                 const holidaysArray = Object.entries(coachHolidays).map(([date, reason]) => ({ date, reason }));
-                await requestHolding(user.username, startDateObj, endDateObj, allHoldings, holidaysArray);
+                await requestHolding(user.username, startDateObj, endDateObj, allHoldings, holidaysArray, makeupHoldingCount);
 
                 alert(`홀딩 신청이 완료되었습니다.\n기간: ${startDate} ~ ${endDate}`);
 

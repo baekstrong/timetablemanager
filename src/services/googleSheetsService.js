@@ -1066,7 +1066,7 @@ export const updateStudentData = async (rowIndex, studentData, year = null, mont
  * @param {Array} existingHoldings - [{startDate, endDate}, ...]
  * @returns {Promise<Object>}
  */
-export const requestHolding = async (studentName, holdingStartDate, holdingEndDate = null, year = null, month = null, existingHoldings = [], firebaseHolidays = []) => {
+export const requestHolding = async (studentName, holdingStartDate, holdingEndDate = null, year = null, month = null, existingHoldings = [], firebaseHolidays = [], makeupHoldingCount = 0) => {
   const endDate = holdingEndDate || holdingStartDate;
 
   console.log(`🔍 홀딩 신청 시작: ${studentName}, ${holdingStartDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}`);
@@ -1122,10 +1122,29 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
   allHoldingRanges.push({ start: holdingStartDate, end: endDate });
   console.log(`📊 총 ${allHoldingRanges.length}개 홀딩 기간으로 종료일 계산`);
 
-  const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allHoldingRanges, firebaseHolidays);
+  let newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allHoldingRanges, firebaseHolidays);
 
   if (!newEndDate) {
     throw new Error('종료일 계산에 실패했습니다.');
+  }
+
+  // 보강 날짜(비정규 요일)를 홀딩한 경우 추가 연장
+  if (makeupHoldingCount > 0) {
+    const classDays = getClassDays(scheduleStr);
+    let extraDays = 0;
+    const cursor = new Date(newEndDate);
+    cursor.setDate(cursor.getDate() + 1);
+    while (extraDays < makeupHoldingCount) {
+      if (classDays.includes(cursor.getDay()) && !isHolidayDate(cursor, firebaseHolidays)) {
+        extraDays++;
+        if (extraDays === makeupHoldingCount) {
+          newEndDate = new Date(cursor);
+          break;
+        }
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    console.log(`📅 보강 홀딩 ${makeupHoldingCount}건 → 종료일 추가 연장`);
   }
 
   const startDateStr = formatDateToYYMMDD(holdingStartDate);
