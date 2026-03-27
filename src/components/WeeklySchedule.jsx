@@ -200,10 +200,16 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
     }, [studentData]);
 
     // Check if a makeup request's target date is within the student's holding period
+    // 단, 원래 수업도 홀딩 기간 내라면 홀딩 중 놓치는 수업을 옮긴 것이므로 보강 활성
     const isMakeupHeld = (makeup) => {
         if (!studentHoldingRange) return false;
         const makeupDate = makeup.makeupClass?.date;
-        return makeupDate >= studentHoldingRange.start && makeupDate <= studentHoldingRange.end;
+        const originalDate = makeup.originalClass?.date;
+        const isMakeupInHolding = makeupDate >= studentHoldingRange.start && makeupDate <= studentHoldingRange.end;
+        const isOriginalInHolding = originalDate >= studentHoldingRange.start && originalDate <= studentHoldingRange.end;
+        // 원래 수업이 홀딩 기간 내면 보강은 활성 (홀딩 아님)
+        if (isOriginalInHolding) return false;
+        return isMakeupInHolding;
     };
 
     // ── Derived data ──
@@ -794,31 +800,42 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             const slotDate = weekDateToISO(dateStr);
 
             // 보강 목적지 슬롯: 홀딩되지 않은 보강만 표시
-            makeupStudents = weekMakeupRequests
+            // 단, 원래 수업이 홀딩 기간 내면 보강은 활성 처리 (홀딩 중 놓치는 수업을 옮긴 것)
+            const makeupTargetRequests = weekMakeupRequests
                 .filter(m =>
                     m.makeupClass.day === day &&
                     m.makeupClass.period === periodObj.id &&
                     m.makeupClass.date === slotDate
-                )
-                .map(m => m.studentName)
-                .filter(name => !weekHoldings.some(h =>
-                    h.studentName === name &&
-                    h.startDate <= slotDate &&
-                    h.endDate >= slotDate
-                ));
+                );
 
-            // 보강 목적지가 홀딩된 학생 (보강홀딩 표시용)
-            makeupHeldStudents = weekMakeupRequests
-                .filter(m =>
-                    m.makeupClass.day === day &&
-                    m.makeupClass.period === periodObj.id &&
-                    m.makeupClass.date === slotDate &&
-                    weekHoldings.some(h =>
+            makeupStudents = makeupTargetRequests
+                .filter(m => {
+                    const holding = weekHoldings.find(h =>
                         h.studentName === m.studentName &&
                         h.startDate <= slotDate &&
                         h.endDate >= slotDate
-                    )
-                )
+                    );
+                    if (!holding) return true; // 홀딩 아님 → 보강 활성
+                    // 원래 수업이 홀딩 기간 내면 보강 활성
+                    const originalDate = m.originalClass?.date;
+                    return originalDate >= holding.startDate && originalDate <= holding.endDate;
+                })
+                .map(m => m.studentName);
+
+            // 보강 목적지가 홀딩된 학생 (보강홀딩 표시용)
+            // 원래 수업이 홀딩 기간 내인 경우는 제외 (위에서 보강 활성으로 처리)
+            makeupHeldStudents = makeupTargetRequests
+                .filter(m => {
+                    const holding = weekHoldings.find(h =>
+                        h.studentName === m.studentName &&
+                        h.startDate <= slotDate &&
+                        h.endDate >= slotDate
+                    );
+                    if (!holding) return false; // 홀딩 아님 → 보강홀딩 아님
+                    // 원래 수업도 홀딩 기간 내면 보강 활성이므로 여기서 제외
+                    const originalDate = m.originalClass?.date;
+                    return !(originalDate >= holding.startDate && originalDate <= holding.endDate);
+                })
                 .map(m => m.studentName);
 
             // 보강 원래 자리: 홀딩된 보강도 포함 (보강결석 표시)
