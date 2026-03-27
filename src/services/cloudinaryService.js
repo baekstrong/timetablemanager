@@ -37,11 +37,12 @@ export const uploadToCloudinary = async (file) => {
         { method: 'POST', body: formData }
     );
 
-    if (!response.ok) {
-        throw new Error('이미지 업로드에 실패했습니다.');
-    }
-
     const data = await response.json();
+
+    if (!response.ok) {
+        console.error('Cloudinary 업로드 실패:', data);
+        throw new Error(data?.error?.message || '이미지 업로드에 실패했습니다.');
+    }
     return {
         url: data.secure_url,
         publicId: data.public_id,

@@ -145,6 +145,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                     title: formData.title,
                     content: formData.content,
                     pinned: formData.pinned || false,
+                    images: formData.images || [],
                 });
             } else {
                 await createPost(formData);
