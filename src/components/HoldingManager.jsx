@@ -94,7 +94,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         return result;
     }, [studentData]);
 
-    // 수강 기간 파싱
+    // 수강 기간 파싱 (보강으로 연장된 실질적 종료일 반영)
     const membershipPeriod = useMemo(() => {
         if (!studentData) return { start: null, end: null };
 
@@ -125,11 +125,30 @@ const HoldingManager = ({ user, studentData, onBack }) => {
 
         console.log('📅 수강 기간 파싱:', { startDateStr, endDateStr });
 
+        let end = parseDate(endDateStr);
+
+        // 활성 보강이 종료일 이후에 있으면 실질적 종료일을 확장
+        if (end && activeMakeups.length > 0) {
+            const endOnly = new Date(end);
+            endOnly.setHours(0, 0, 0, 0);
+
+            activeMakeups.forEach(m => {
+                if (m.makeupClass && m.makeupClass.date) {
+                    const makeupDate = new Date(m.makeupClass.date + 'T00:00:00');
+                    if (makeupDate > endOnly) {
+                        end = makeupDate;
+                        endOnly.setTime(makeupDate.getTime());
+                        console.log('📅 보강으로 실질적 종료일 확장:', m.makeupClass.date);
+                    }
+                }
+            });
+        }
+
         return {
             start: parseDate(startDateStr),
-            end: parseDate(endDateStr)
+            end: end
         };
-    }, [studentData]);
+    }, [studentData, activeMakeups]);
 
     // 주 횟수 (홀딩 가능 횟수 제한용)
     const weeklyFrequency = useMemo(() => {
