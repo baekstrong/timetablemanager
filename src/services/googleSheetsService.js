@@ -1134,7 +1134,9 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
     let extraDays = 0;
     const cursor = new Date(newEndDate);
     cursor.setDate(cursor.getDate() + 1);
-    while (extraDays < makeupHoldingCount) {
+    let maxIter = 365;
+    while (extraDays < makeupHoldingCount && maxIter > 0) {
+      maxIter--;
       if (classDays.includes(cursor.getDay()) && !isHolidayDate(cursor, firebaseHolidays)) {
         extraDays++;
         if (extraDays === makeupHoldingCount) {
