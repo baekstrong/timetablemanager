@@ -199,17 +199,11 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         return { start: formatDateISO(start), end: formatDateISO(end) };
     }, [studentData]);
 
-    // Check if a makeup request's target date is within the student's holding period
-    // 보강 목적지가 정규 수업 요일이 아니면 홀딩과 무관 (예: 화목 학생의 금요일 보강)
+    // Check if a makeup request's target date is within the student's holding period (Google Sheets 기준)
     const isMakeupHeld = (makeup) => {
         if (!studentHoldingRange) return false;
         const makeupDate = makeup.makeupClass?.date;
-        const isMakeupInHolding = makeupDate >= studentHoldingRange.start && makeupDate <= studentHoldingRange.end;
-        if (!isMakeupInHolding) return false;
-        // 보강 목적지가 정규 수업 요일이 아니면 홀딩 영향 없음
-        const makeupDay = makeup.makeupClass?.day;
-        if (!studentSchedule.some(s => s.day === makeupDay)) return false;
-        return true;
+        return makeupDate >= studentHoldingRange.start && makeupDate <= studentHoldingRange.end;
     };
 
     // ── Derived data ──
@@ -799,50 +793,32 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         if (dateStr) {
             const slotDate = weekDateToISO(dateStr);
 
-            // 보강 목적지 슬롯: 홀딩되지 않은 보강만 표시
-            // 보강 목적지가 정규 수업 요일이 아니면 홀딩과 무관
-            const makeupTargetRequests = weekMakeupRequests
+            // 보강 목적지 슬롯: Google Sheets 홀딩 기준으로 판별
+            makeupStudents = weekMakeupRequests
                 .filter(m =>
                     m.makeupClass.day === day &&
                     m.makeupClass.period === periodObj.id &&
                     m.makeupClass.date === slotDate
-                );
-
-            // 보강 목적지가 해당 학생의 정규 수업 요일인지 확인
-            const isMakeupOnRegularDay = (m) => {
-                const student = students.find(s => s['이름'] === m.studentName);
-                if (!student) return false;
-                const scheduleStr = getStudentField(student, '요일 및 시간');
-                const parsed = parseScheduleString(scheduleStr);
-                return parsed.some(s => s.day === m.makeupClass.day);
-            };
-
-            makeupStudents = makeupTargetRequests
-                .filter(m => {
-                    const holding = weekHoldings.find(h =>
-                        h.studentName === m.studentName &&
-                        h.startDate <= slotDate &&
-                        h.endDate >= slotDate
-                    );
-                    if (!holding) return true; // 홀딩 아님 → 보강 활성
-                    // 보강 목적지가 정규 수업 요일이 아니면 홀딩 영향 없음
-                    return !isMakeupOnRegularDay(m);
-                })
-                .map(m => m.studentName);
+                )
+                .map(m => m.studentName)
+                .filter(name => !weekHoldings.some(h =>
+                    h.studentName === name &&
+                    h.startDate <= slotDate &&
+                    h.endDate >= slotDate
+                ));
 
             // 보강 목적지가 홀딩된 학생 (보강홀딩 표시용)
-            // 보강 목적지가 정규 수업 요일이 아니면 제외
-            makeupHeldStudents = makeupTargetRequests
-                .filter(m => {
-                    const holding = weekHoldings.find(h =>
+            makeupHeldStudents = weekMakeupRequests
+                .filter(m =>
+                    m.makeupClass.day === day &&
+                    m.makeupClass.period === periodObj.id &&
+                    m.makeupClass.date === slotDate &&
+                    weekHoldings.some(h =>
                         h.studentName === m.studentName &&
                         h.startDate <= slotDate &&
                         h.endDate >= slotDate
-                    );
-                    if (!holding) return false; // 홀딩 아님 → 보강홀딩 아님
-                    // 정규 수업 요일이 아니면 보강홀딩 아님
-                    return isMakeupOnRegularDay(m);
-                })
+                    )
+                )
                 .map(m => m.studentName);
 
             // 보강 원래 자리: 홀딩된 보강도 포함 (보강결석 표시)
