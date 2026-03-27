@@ -4,10 +4,9 @@ const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
 const COMPRESSION_OPTIONS = {
-    maxSizeMB: 0.3,          // 최대 300KB
-    maxWidthOrHeight: 1200,   // 최대 1200px
+    maxSizeMB: 1,             // 최대 1MB
+    maxWidthOrHeight: 1920,   // 최대 1920px
     useWebWorker: true,
-    fileType: 'image/webp',   // webp로 변환 (더 작은 용량)
 };
 
 export const compressImage = async (file) => {
