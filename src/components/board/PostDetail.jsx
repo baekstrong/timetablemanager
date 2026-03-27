@@ -250,6 +250,21 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                 >
                     {post.content}
                 </div>
+
+                {/* 이미지 표시 */}
+                {post.images?.length > 0 && (
+                    <div className="post-detail-images">
+                        {post.images.map((img, i) => (
+                            <img
+                                key={i}
+                                src={img.url}
+                                alt=""
+                                className="post-detail-image"
+                                onClick={() => window.open(img.url, '_blank')}
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
 
             <div className="post-actions" style={{ justifyContent: 'flex-start', gap: '16px' }}>
