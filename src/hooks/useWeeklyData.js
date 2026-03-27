@@ -102,8 +102,7 @@ export function useWeeklyData({ user, students, mode, refresh }) {
             }
 
             // Google Sheets 홀딩에 Firebase holdingDates 병합
-            // holdingDates 없는 기존 데이터는 학생 스케줄에서 자동 계산
-            const dayNameMap = { 0: '일', 1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토' };
+            // holdingDates 없는 기존 데이터는 범위 비교로 폴백 (isDateHeld에서 처리)
             holdings.forEach(h => {
                 const fbMatch = firebaseHoldings.find(fh =>
                     fh.studentName === h.studentName &&
@@ -113,30 +112,6 @@ export function useWeeklyData({ user, students, mode, refresh }) {
                 );
                 if (fbMatch) {
                     h.holdingDates = fbMatch.holdingDates;
-                } else {
-                    // holdingDates 없으면 학생 스케줄 기반으로 수업 날짜 계산
-                    const student = students.find(s => s['이름'] === h.studentName);
-                    if (student) {
-                        const scheduleStr = getStudentField(student, '요일 및 시간') || '';
-                        const scheduleDays = [];
-                        for (const ch of scheduleStr.replace(/\s/g, '')) {
-                            if ('월화수목금'.includes(ch)) scheduleDays.push(ch);
-                        }
-                        const uniqueDays = [...new Set(scheduleDays)];
-                        const classDates = [];
-                        const cur = new Date(h.startDate + 'T00:00:00');
-                        const end = new Date(h.endDate + 'T00:00:00');
-                        while (cur <= end) {
-                            const dayName = dayNameMap[cur.getDay()];
-                            if (uniqueDays.includes(dayName)) {
-                                classDates.push(formatDateISO(cur));
-                            }
-                            cur.setDate(cur.getDate() + 1);
-                        }
-                        if (classDates.length > 0) {
-                            h.holdingDates = classDates;
-                        }
-                    }
                 }
             });
 
