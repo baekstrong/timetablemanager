@@ -157,8 +157,10 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
     if (!post) {
         return (
             <div style={{ padding: '24px', textAlign: 'center' }}>
-                <button className="back-btn" onClick={onBack}>← 뒤로</button>
                 <p>게시글을 찾을 수 없습니다.</p>
+                <div className="back-btn-fixed">
+                    <button onClick={onBack}>← 뒤로</button>
+                </div>
             </div>
         );
     }
@@ -175,8 +177,6 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
         >
-            <button className="back-btn" onClick={onBack}>← 뒤로</button>
-
             <div className="post-detail-content-section">
                 <div className="post-detail-meta">
                     {category && (
@@ -312,6 +312,10 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                         {submittingComment ? '등록 중...' : '등록'}
                     </button>
                 </div>
+            </div>
+
+            <div className="back-btn-fixed">
+                <button onClick={onBack}>← 뒤로</button>
             </div>
         </div>
     );

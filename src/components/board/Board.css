@@ -626,24 +626,30 @@
     opacity: 0.8;
 }
 
-/* ===== Back Button ===== */
-.back-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 0.9rem;
-    color: #667eea;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 0;
-    margin-bottom: 8px;
-    font-family: inherit;
-    transition: opacity 0.2s ease;
+/* ===== Back Button (Fixed) ===== */
+.back-btn-fixed {
+    position: fixed;
+    bottom: 90px;
+    left: 20px;
+    z-index: 100;
 }
 
-.back-btn:hover {
-    opacity: 0.7;
+.back-btn-fixed button {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 24px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.back-btn-fixed button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
 }
 
 /* ===== Error / Empty States ===== */
