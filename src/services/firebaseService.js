@@ -226,20 +226,29 @@ export const completeMakeupRequest = async (requestId) => {
 // HOLDING REQUEST FUNCTIONS (홀딩)
 // ============================================
 
-export const createHoldingRequest = async (studentName, startDate, endDate) => {
+export const createHoldingRequest = async (studentName, startDate, endDate, holdingDates) => {
     return safeWrite(async () => {
-        console.log('홀딩 신청 생성:', { studentName, startDate, endDate });
+        console.log('홀딩 신청 생성:', { studentName, startDate, endDate, holdingDates });
 
         const result = await createDoc('holdingRequests', {
             studentName,
             startDate,
             endDate,
+            holdingDates: holdingDates || [],
             status: 'active',
             updatedAt: serverTimestamp()
         });
 
         console.log('홀딩 신청 생성 완료:', result.id);
         return result;
+    });
+};
+
+export const getAllActiveHoldings = async () => {
+    return safeRead([], async () => {
+        return await queryDocs('holdingRequests',
+            where('status', '==', 'active')
+        );
     });
 };
 

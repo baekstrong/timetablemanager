@@ -526,7 +526,7 @@ const HoldingManager = ({ user, studentData, onBack }) => {
                     }
                 }
 
-                await createHoldingRequest(user.username, startDate, endDate);
+                await createHoldingRequest(user.username, startDate, endDate, sortedDates);
 
                 // Google Sheets에도 저장 (기존 시스템 호환)
                 const parseLocalDate = (dateStr) => {

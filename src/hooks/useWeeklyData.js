@@ -6,6 +6,7 @@ import {
     getAbsencesByDate,
     getHolidays,
     getAllActiveWaitlist,
+    getAllActiveHoldings,
 } from '../services/firebaseService';
 import {
     parseSheetDate,
@@ -77,11 +78,12 @@ export function useWeeklyData({ user, students, mode, refresh }) {
                 dates.push(formatDateISO(date));
             }
 
-            const [makeups, absenceArrays, holidays, waitlist] = await Promise.all([
+            const [makeups, absenceArrays, holidays, waitlist, firebaseHoldings] = await Promise.all([
                 getMakeupRequestsByWeek(startDate, endDate).catch(() => []),
                 Promise.all(dates.map(date => getAbsencesByDate(date).catch(() => []))),
                 getHolidays().catch(() => []),
-                getAllActiveWaitlist().catch(() => [])
+                getAllActiveWaitlist().catch(() => []),
+                getAllActiveHoldings().catch(() => [])
             ]);
 
             const allAbsences = absenceArrays.flat();
@@ -98,6 +100,19 @@ export function useWeeklyData({ user, students, mode, refresh }) {
                     console.error('보강 자동 완료 실패:', makeup.id, err);
                 }
             }
+
+            // Google Sheets 홀딩에 Firebase holdingDates 병합
+            holdings.forEach(h => {
+                const fbMatch = firebaseHoldings.find(fh =>
+                    fh.studentName === h.studentName &&
+                    fh.startDate === h.startDate &&
+                    fh.endDate === h.endDate &&
+                    fh.holdingDates && fh.holdingDates.length > 0
+                );
+                if (fbMatch) {
+                    h.holdingDates = fbMatch.holdingDates;
+                }
+            });
 
             setWeekMakeupRequests(makeups || []);
             setWeekHoldings(holdings || []);

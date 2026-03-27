@@ -199,10 +199,23 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         return { start: formatDateISO(start), end: formatDateISO(end) };
     }, [studentData]);
 
-    // Check if a makeup request's target date is within the student's holding period (Google Sheets 기준)
+    // 홀딩 날짜 체크: holdingDates 배열이 있으면 개별 날짜 비교, 없으면 범위 폴백
+    const isDateHeld = (holding, date) => {
+        if (holding.holdingDates && holding.holdingDates.length > 0) {
+            return holding.holdingDates.includes(date);
+        }
+        return holding.startDate <= date && holding.endDate >= date;
+    };
+
+    // Check if a makeup request's target date is within the student's holding period
     const isMakeupHeld = (makeup) => {
-        if (!studentHoldingRange) return false;
         const makeupDate = makeup.makeupClass?.date;
+        if (!makeupDate) return false;
+        // weekHoldings에서 해당 학생의 홀딩 체크 (holdingDates 우선)
+        const myHolding = weekHoldings.find(h => h.studentName === user?.username);
+        if (myHolding) return isDateHeld(myHolding, makeupDate);
+        // 폴백: studentHoldingRange (Google Sheets 기반)
+        if (!studentHoldingRange) return false;
         return makeupDate >= studentHoldingRange.start && makeupDate <= studentHoldingRange.end;
     };
 
@@ -793,7 +806,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         if (dateStr) {
             const slotDate = weekDateToISO(dateStr);
 
-            // 보강 목적지 슬롯: Google Sheets 홀딩 기준으로 판별
+            // 보강 목적지 슬롯: holdingDates 기반 홀딩 판별
             makeupStudents = weekMakeupRequests
                 .filter(m =>
                     m.makeupClass.day === day &&
@@ -803,8 +816,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 .map(m => m.studentName)
                 .filter(name => !weekHoldings.some(h =>
                     h.studentName === name &&
-                    h.startDate <= slotDate &&
-                    h.endDate >= slotDate
+                    isDateHeld(h, slotDate)
                 ));
 
             // 보강 목적지가 홀딩된 학생 (보강홀딩 표시용)
@@ -815,8 +827,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     m.makeupClass.date === slotDate &&
                     weekHoldings.some(h =>
                         h.studentName === m.studentName &&
-                        h.startDate <= slotDate &&
-                        h.endDate >= slotDate
+                        isDateHeld(h, slotDate)
                     )
                 )
                 .map(m => m.studentName);
@@ -831,7 +842,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 .map(m => m.studentName);
 
             holdingStudents = weekHoldings
-                .filter(h => h.startDate <= slotDate && h.endDate >= slotDate)
+                .filter(h => isDateHeld(h, slotDate))
                 .map(h => h.studentName)
                 .filter(name => studentNames.includes(name));
 
