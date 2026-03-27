@@ -200,15 +200,15 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
     }, [studentData]);
 
     // Check if a makeup request's target date is within the student's holding period
-    // 단, 홀딩 시작 이후 생성된 보강은 학생이 의도적으로 신청한 것이므로 활성 처리
+    // 보강 목적지가 정규 수업 요일이 아니면 홀딩과 무관 (예: 화목 학생의 금요일 보강)
     const isMakeupHeld = (makeup) => {
         if (!studentHoldingRange) return false;
         const makeupDate = makeup.makeupClass?.date;
         const isMakeupInHolding = makeupDate >= studentHoldingRange.start && makeupDate <= studentHoldingRange.end;
         if (!isMakeupInHolding) return false;
-        // 보강이 홀딩 시작일 이후에 생성되었으면 의도적 보강 → 활성
-        const createdDate = makeup.createdAt?.toDate ? formatDateISO(makeup.createdAt.toDate()) : null;
-        if (createdDate && createdDate >= studentHoldingRange.start) return false;
+        // 보강 목적지가 정규 수업 요일이 아니면 홀딩 영향 없음
+        const makeupDay = makeup.makeupClass?.day;
+        if (!studentSchedule.some(s => s.day === makeupDay)) return false;
         return true;
     };
 
@@ -800,7 +800,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             const slotDate = weekDateToISO(dateStr);
 
             // 보강 목적지 슬롯: 홀딩되지 않은 보강만 표시
-            // 단, 홀딩 시작 이후 생성된 보강은 의도적 신청이므로 활성 처리
+            // 보강 목적지가 정규 수업 요일이 아니면 홀딩과 무관
             const makeupTargetRequests = weekMakeupRequests
                 .filter(m =>
                     m.makeupClass.day === day &&
@@ -808,10 +808,13 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     m.makeupClass.date === slotDate
                 );
 
-            // 보강이 홀딩 중 의도적으로 생성되었는지 판별
-            const isMakeupIntentionalDuringHolding = (m, holding) => {
-                const createdDate = m.createdAt?.toDate ? formatDateISO(m.createdAt.toDate()) : null;
-                return createdDate && createdDate >= holding.startDate;
+            // 보강 목적지가 해당 학생의 정규 수업 요일인지 확인
+            const isMakeupOnRegularDay = (m) => {
+                const student = students.find(s => s['이름'] === m.studentName);
+                if (!student) return false;
+                const scheduleStr = getStudentField(student, '요일 및 시간');
+                const parsed = parseScheduleString(scheduleStr);
+                return parsed.some(s => s.day === m.makeupClass.day);
             };
 
             makeupStudents = makeupTargetRequests
@@ -822,13 +825,13 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                         h.endDate >= slotDate
                     );
                     if (!holding) return true; // 홀딩 아님 → 보강 활성
-                    // 홀딩 시작 이후 생성된 보강이면 의도적 → 활성
-                    return isMakeupIntentionalDuringHolding(m, holding);
+                    // 보강 목적지가 정규 수업 요일이 아니면 홀딩 영향 없음
+                    return !isMakeupOnRegularDay(m);
                 })
                 .map(m => m.studentName);
 
             // 보강 목적지가 홀딩된 학생 (보강홀딩 표시용)
-            // 홀딩 시작 이후 생성된 보강은 제외 (위에서 보강 활성으로 처리)
+            // 보강 목적지가 정규 수업 요일이 아니면 제외
             makeupHeldStudents = makeupTargetRequests
                 .filter(m => {
                     const holding = weekHoldings.find(h =>
@@ -837,8 +840,8 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                         h.endDate >= slotDate
                     );
                     if (!holding) return false; // 홀딩 아님 → 보강홀딩 아님
-                    // 홀딩 시작 이후 생성이면 의도적이므로 보강홀딩 아님
-                    return !isMakeupIntentionalDuringHolding(m, holding);
+                    // 정규 수업 요일이 아니면 보강홀딩 아님
+                    return isMakeupOnRegularDay(m);
                 })
                 .map(m => m.studentName);
 
