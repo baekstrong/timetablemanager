@@ -1104,7 +1104,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                             style={{ background: '#6366f1', color: '#fff', fontSize: '0.8rem' }}
                                                             onClick={() => handleEditSlotsOpen(reg)}
                                                         >
-                                                            시간표 편집
+                                                            대기 시간표 편집
                                                         </button>
                                                         <button
                                                             className="cns-action-btn"

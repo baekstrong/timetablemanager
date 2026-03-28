@@ -594,8 +594,7 @@ const NewStudentRegistration = () => {
                                 }}>
                                     <p style={{ margin: '0 0 4px', fontWeight: '600' }}>대기 신청 모드</p>
                                     <p style={{ margin: 0 }}>
-                                        ��능한 시간을 <strong>모두</strong> 선택해주세요. 마감된 시간도 선택할 수 있습니다.
-                                        이 중 주{weeklyFrequency}회 자리가 나면 코치가 연락드립니다.
+                                        가능한 시간을 <strong>모두</strong> 선택해주세요. 마감된 시간도 선택할 수 있습니다. 이 중 주{weeklyFrequency}회 자리가 나면 코치가 연락드립니다.
                                     </p>
                                     <button
                                         type="button"
