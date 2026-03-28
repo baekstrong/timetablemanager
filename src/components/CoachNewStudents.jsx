@@ -427,13 +427,35 @@ const CoachNewStudents = ({ user, onBack }) => {
             // 승인된 등록이면 Google Sheets 행 클리어 + 음영 초기화
             if (isApproved) {
                 try {
-                    const targetSheet = getCurrentSheetName();
+                    // 시작일 기준으로 시트 결정 (승인 시와 동일한 로직)
+                    const entranceDateForCalc = reg.entranceInquiry || reg.entranceDate;
+                    let targetSheet;
+                    if (entranceDateForCalc && reg.requestedSlots) {
+                        const { startDate: calcStartDate } = calculateStartEndDates(entranceDateForCalc, reg.requestedSlots);
+                        targetSheet = getCurrentSheetName(new Date(calcStartDate + 'T00:00:00'));
+                    } else {
+                        targetSheet = getCurrentSheetName();
+                    }
                     const rows = await readSheetData(`${targetSheet}!A:R`);
                     let targetRow = -1;
                     for (let i = rows.length - 1; i >= 2; i--) {
                         if (rows[i] && rows[i][1] === reg.name) {
                             targetRow = i + 1;
                             break;
+                        }
+                    }
+                    // 현재 시트에서 못 찾으면 현재 월 시트에서도 검색
+                    if (targetRow < 0) {
+                        const fallbackSheet = getCurrentSheetName();
+                        if (fallbackSheet !== targetSheet) {
+                            const fallbackRows = await readSheetData(`${fallbackSheet}!A:R`);
+                            for (let i = fallbackRows.length - 1; i >= 2; i--) {
+                                if (fallbackRows[i] && fallbackRows[i][1] === reg.name) {
+                                    targetRow = i + 1;
+                                    targetSheet = fallbackSheet;
+                                    break;
+                                }
+                            }
                         }
                     }
                     if (targetRow > 0) {
@@ -446,6 +468,8 @@ const CoachNewStudents = ({ user, onBack }) => {
                         } catch (fmtErr) {
                             console.warn('음영 초기화 실패:', fmtErr);
                         }
+                    } else {
+                        console.warn('Google Sheets에서 수강생을 찾지 못함:', reg.name);
                     }
                 } catch (sheetErr) {
                     console.warn('Google Sheets 삭제 실패:', sheetErr);
@@ -662,7 +686,15 @@ const CoachNewStudents = ({ user, onBack }) => {
             // 승인된 등록이었으면 Google Sheets에서도 해당 행 삭제
             if (isApproved) {
                 try {
-                    const targetSheet = getCurrentSheetName();
+                    // 시작일 기준으로 시트 결정 (승인 시와 동일한 로직)
+                    const entranceDateForCalc = reg.entranceInquiry || reg.entranceDate;
+                    let targetSheet;
+                    if (entranceDateForCalc && reg.requestedSlots) {
+                        const { startDate: calcStartDate } = calculateStartEndDates(entranceDateForCalc, reg.requestedSlots);
+                        targetSheet = getCurrentSheetName(new Date(calcStartDate + 'T00:00:00'));
+                    } else {
+                        targetSheet = getCurrentSheetName();
+                    }
                     const rows = await readSheetData(`${targetSheet}!A:R`);
                     // B열(이름)으로 해당 수강생 행 찾기
                     let targetRow = -1;
@@ -670,6 +702,20 @@ const CoachNewStudents = ({ user, onBack }) => {
                         if (rows[i] && rows[i][1] === reg.name) {
                             targetRow = i + 1; // 배열 인덱스 → 시트 행번호
                             break;
+                        }
+                    }
+                    // 현재 시트에서 못 찾으면 현재 월 시트에서도 검색
+                    if (targetRow < 0) {
+                        const fallbackSheet = getCurrentSheetName();
+                        if (fallbackSheet !== targetSheet) {
+                            const fallbackRows = await readSheetData(`${fallbackSheet}!A:R`);
+                            for (let i = fallbackRows.length - 1; i >= 2; i--) {
+                                if (fallbackRows[i] && fallbackRows[i][1] === reg.name) {
+                                    targetRow = i + 1;
+                                    targetSheet = fallbackSheet;
+                                    break;
+                                }
+                            }
                         }
                     }
                     if (targetRow > 0) {
@@ -685,6 +731,8 @@ const CoachNewStudents = ({ user, onBack }) => {
                             console.warn('음영 초기화 실패:', fmtErr);
                         }
                         console.log(`✅ Google Sheets ${targetSheet} ${targetRow}행 삭제 완료: ${reg.name}`);
+                    } else {
+                        console.warn('Google Sheets에서 수강생을 찾지 못함:', reg.name);
                     }
                 } catch (sheetErr) {
                     console.warn('Google Sheets 삭제 실패:', sheetErr);
