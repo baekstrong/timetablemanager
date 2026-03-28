@@ -366,6 +366,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                     const smsResults = await sendApprovalNotifications(reg.phone, reg.name, {
                         paymentMethod: reg.paymentMethod,
                         weeklyFrequency: reg.weeklyFrequency,
+                        scheduleString: reg.scheduleString || '',
                         entranceDate: finalEntranceDate,
                         entranceClassDate: finalEntranceClassDate
                     });
