@@ -13,7 +13,7 @@ import NewStudentRegistration from './components/NewStudentRegistration';
 import CoachNewStudents from './components/CoachNewStudents';
 import ContractView from './components/ContractView';
 import BottomNav from './components/BottomNav';
-import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent, subscribePosts } from './services/firebaseService';
+import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent, subscribePosts, getNewStudentRegistrations } from './services/firebaseService';
 import './App.css';
 
 function AppContent() {
@@ -41,7 +41,10 @@ function AppContent() {
     const checkPending = async () => {
       try {
         const count = await getPendingRegistrationCount();
-        setHasNewStudentNotification(count > 0);
+        // 대기(만석) 건 중 여석 발생한 건도 체크
+        const waitlistRegs = await getNewStudentRegistrations('waitlist');
+        const hasAvailable = waitlistRegs.some(r => r.hasAvailableSlots);
+        setHasNewStudentNotification(count > 0 || hasAvailable);
       } catch (err) {
         // ignore polling errors
       }

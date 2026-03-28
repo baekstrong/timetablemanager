@@ -13,7 +13,9 @@ import {
     getFAQs,
     updateFAQ,
     deleteFAQ,
-    getHolidays
+    getHolidays,
+    updateWaitlistRequestedSlots,
+    getDisabledClasses
 } from '../services/firebaseService';
 import {
     getCurrentSheetName,
@@ -23,11 +25,11 @@ import {
     getStudentField,
     calculateEndDateWithHolidays
 } from '../services/googleSheetsService';
-import { sendApprovalNotifications, sendWaitlistAvailableSMS, cancelScheduledSMS } from '../services/smsService';
+import { sendApprovalNotifications, sendWaitlistAvailableSMS, cancelScheduledSMS, sendWaitlistCancelledSMS } from '../services/smsService';
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../services/calendarService';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { formatEntranceDate, convertToYYMMDD, calculateStartEndDates } from '../utils/dateUtils';
-import { PRICING, PERIODS, MAX_CAPACITY } from '../data/mockData';
+import { PRICING, PERIODS, DAYS, MAX_CAPACITY } from '../data/mockData';
 import './CoachNewStudents.css';
 
 const CoachNewStudents = ({ user, onBack }) => {
@@ -43,6 +45,13 @@ const CoachNewStudents = ({ user, onBack }) => {
     const [regCounts, setRegCounts] = useState({});
     const [waitlistApproveReg, setWaitlistApproveReg] = useState(null);
     const [waitlistEntranceId, setWaitlistEntranceId] = useState('');
+    const [waitlistSelectedSlots, setWaitlistSelectedSlots] = useState([]);
+
+    // === 시간표 편집 모달 ===
+    const [editSlotsReg, setEditSlotsReg] = useState(null);
+    const [editSlots, setEditSlots] = useState([]);
+    const [disabledClasses, setDisabledClasses] = useState([]);
+    const [slotOccupancy, setSlotOccupancy] = useState({});
 
     // === 입학반 관리 ===
     const [entranceClasses, setEntranceClassesList] = useState([]);
@@ -66,6 +75,40 @@ const CoachNewStudents = ({ user, onBack }) => {
         if (activeTab === 'entrance') loadEntranceClasses();
         if (activeTab === 'faq') loadFAQs();
     }, [activeTab, regFilter]);
+
+    // 비활성 슬롯 + 슬롯 점유율 로드 (시간표 편집/승인 모달용)
+    useEffect(() => {
+        getDisabledClasses().then(setDisabledClasses).catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        if (!allStudents || allStudents.length === 0) return;
+        const occ = {};
+        const namesPerSlot = {};
+        allStudents.forEach(student => {
+            const name = student['이름'];
+            const scheduleStr = student['요일 및 시간'];
+            if (!name || !scheduleStr) return;
+            const chars = scheduleStr.replace(/\s/g, '');
+            let i = 0;
+            while (i < chars.length) {
+                const ch = chars[i];
+                if ('월화수목금'.includes(ch)) {
+                    const day = ch;
+                    i++;
+                    let ps = '';
+                    while (i < chars.length && /\d/.test(chars[i])) { ps += chars[i]; i++; }
+                    if (ps) {
+                        const key = `${day}-${parseInt(ps)}`;
+                        if (!namesPerSlot[key]) namesPerSlot[key] = new Set();
+                        namesPerSlot[key].add(name);
+                    }
+                } else { i++; }
+            }
+        });
+        Object.keys(namesPerSlot).forEach(k => { occ[k] = namesPerSlot[k].size; });
+        setSlotOccupancy(occ);
+    }, [allStudents]);
 
     // ─── Data loading ─────────────────────
     const loadRegCounts = async () => {
@@ -468,6 +511,64 @@ const CoachNewStudents = ({ user, onBack }) => {
         }
     };
 
+    // 시간표 편집 모달 열기
+    const handleEditSlotsOpen = (reg) => {
+        setEditSlotsReg(reg);
+        setEditSlots(reg.requestedSlots ? [...reg.requestedSlots] : []);
+    };
+
+    // 시간표 편집 저장
+    const handleEditSlotsSave = async () => {
+        if (!editSlotsReg) return;
+        if (editSlots.length < (editSlotsReg.weeklyFrequency || 2)) {
+            alert(`최소 ${editSlotsReg.weeklyFrequency}개 이상의 슬롯을 선택해주세요.`);
+            return;
+        }
+        const schedStr = editSlots
+            .sort((a, b) => {
+                const dayOrder = DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
+                return dayOrder !== 0 ? dayOrder : a.period - b.period;
+            })
+            .map(s => `${s.day}${s.period}`)
+            .join('');
+        try {
+            await updateWaitlistRequestedSlots(editSlotsReg.id, editSlots, schedStr);
+            alert('시간표가 수정되었습니다.');
+            setEditSlotsReg(null);
+            await loadRegistrations();
+        } catch (err) {
+            alert('시간표 수정 실패: ' + err.message);
+        }
+    };
+
+    const handleEditSlotToggle = (day, period) => {
+        const exists = editSlots.find(s => s.day === day && s.period === period);
+        if (exists) {
+            setEditSlots(editSlots.filter(s => !(s.day === day && s.period === period)));
+        } else {
+            setEditSlots([...editSlots, { day, period }]);
+        }
+    };
+
+    // 대기 삭제 + 취소 SMS
+    const handleWaitlistDelete = async (reg) => {
+        if (!confirm(`"${reg.name}" 수강생의 대기 신청을 삭제하시겠습니까?\n\n수강생에게 취소 안내 문자가 발송됩니다.`)) return;
+        try {
+            await deleteNewStudentRegistration(reg.id);
+            // 취소 SMS 발송
+            if (reg.phone) {
+                try {
+                    await sendWaitlistCancelledSMS(reg.phone, reg.name);
+                } catch (smsErr) {
+                    console.warn('취소 SMS 발송 실패:', smsErr);
+                }
+            }
+            await loadRegistrations();
+        } catch (err) {
+            alert('삭제 실패: ' + err.message);
+        }
+    };
+
     const handleWaitlistApproveOpen = async (reg) => {
         // 대기(만석) 수강생은 코치가 여석 확인 후 직접 승인하는 것이므로 만석 체크 생략
 
@@ -481,6 +582,10 @@ const CoachNewStudents = ({ user, onBack }) => {
             }
         }
         setWaitlistEntranceId(reg.entranceClassId || '');
+        // 여석 있는 슬롯 중에서 미리 선택 (availableSlots가 있으면 사용)
+        const avail = reg.availableSlots || [];
+        const freq = reg.weeklyFrequency || 2;
+        setWaitlistSelectedSlots(avail.slice(0, freq));
         setWaitlistApproveReg(reg);
     };
 
@@ -490,6 +595,11 @@ const CoachNewStudents = ({ user, onBack }) => {
             alert('입학반을 선택해주세요.');
             return;
         }
+        const freq = waitlistApproveReg.weeklyFrequency || 2;
+        if (waitlistSelectedSlots.length !== freq) {
+            alert(`시간표를 정확히 ${freq}개 선택해주세요. (현재 ${waitlistSelectedSlots.length}개)`);
+            return;
+        }
 
         const selectedEC = entranceClasses.find(ec => ec.id === waitlistEntranceId);
         if (!selectedEC) {
@@ -497,31 +607,43 @@ const CoachNewStudents = ({ user, onBack }) => {
             return;
         }
 
-        // 만석 체크
         if ((selectedEC.currentCount || 0) >= (selectedEC.maxCapacity || 0)) {
             alert('선택한 입학반이 만석입니다. 다른 입학반을 선택해주세요.');
             return;
         }
 
-        // 입학반 정보 업데이트 후 승인 진행
+        // 코치가 선택한 슬롯으로 시간표 생성
+        const schedStr = waitlistSelectedSlots
+            .sort((a, b) => {
+                const dayOrder = DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
+                return dayOrder !== 0 ? dayOrder : a.period - b.period;
+            })
+            .map(s => `${s.day}${s.period}`)
+            .join('');
+
         try {
             await updateNewStudentRegistration(waitlistApproveReg.id, {
                 entranceClassId: selectedEC.id,
                 entranceDate: selectedEC.date,
                 entranceClassDate: selectedEC.date,
-                isWaitlist: false
+                isWaitlist: false,
+                coachSelectedSlots: waitlistSelectedSlots,
+                requestedSlots: waitlistSelectedSlots,
+                scheduleString: schedStr
             });
 
-            // 로컬 reg 객체도 업데이트하여 handleApprove에 전달
             const updatedReg = {
                 ...waitlistApproveReg,
                 entranceClassId: selectedEC.id,
                 entranceDate: selectedEC.date,
                 entranceClassDate: selectedEC.date,
-                isWaitlist: false
+                isWaitlist: false,
+                requestedSlots: waitlistSelectedSlots,
+                scheduleString: schedStr
             };
 
             setWaitlistApproveReg(null);
+            setWaitlistSelectedSlots([]);
             await handleApprove(updatedReg);
         } catch (err) {
             alert('승인 실패: ' + err.message);
@@ -867,6 +989,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                             <span className="cns-reg-schedule">{formatScheduleDisplay(reg)}</span>
                                         </div>
                                         <div className="cns-reg-badges">
+                                            {reg.hasAvailableSlots && <span className="cns-badge" style={{ background: '#f59e0b', color: '#fff', fontWeight: 700 }}>여석 발생!</span>}
                                             {reg.wantsConsultation && <span className="cns-badge consult">상담</span>}
                                             {reg.question && <span className="cns-badge question">질문</span>}
                                             <span className="cns-expand-arrow">{collapsedRegs.has(reg.id) ? '▼' : '▲'}</span>
@@ -978,6 +1101,13 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                     <>
                                                         <button
                                                             className="cns-action-btn"
+                                                            style={{ background: '#6366f1', color: '#fff', fontSize: '0.8rem' }}
+                                                            onClick={() => handleEditSlotsOpen(reg)}
+                                                        >
+                                                            시간표 편집
+                                                        </button>
+                                                        <button
+                                                            className="cns-action-btn"
                                                             style={{ background: '#f59e0b', color: '#fff' }}
                                                             onClick={() => handleSendWaitlistSMS(reg)}
                                                         >
@@ -994,7 +1124,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                 )}
                                                 <button
                                                     className="cns-action-btn delete"
-                                                    onClick={() => handleDelete(reg)}
+                                                    onClick={() => regFilter === 'waitlist' ? handleWaitlistDelete(reg) : handleDelete(reg)}
                                                 >
                                                     삭제
                                                 </button>
@@ -1411,31 +1541,152 @@ const CoachNewStudents = ({ user, onBack }) => {
             </div>
 
             {/* === 대기(만석) 수강 승인 모달 === */}
-            {waitlistApproveReg && (
-                <div className="cns-modal-overlay" onClick={() => setWaitlistApproveReg(null)}>
-                    <div className="cns-modal" onClick={(e) => e.stopPropagation()}>
-                        <h3>수강 승인 - 입학반 선택</h3>
-                        <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '12px' }}>
-                            "{waitlistApproveReg.name}" 수강생의 입학반 날짜를 선택해주세요.
-                        </p>
-                        <div className="cns-form-field">
-                            <label>입학반</label>
-                            <select
-                                value={waitlistEntranceId}
-                                onChange={(e) => setWaitlistEntranceId(e.target.value)}
-                                className="cns-form-input"
-                            >
-                                <option value="">입학반을 선택하세요</option>
-                                {entranceClasses.filter(ec => ec.isActive).map(ec => (
-                                    <option key={ec.id} value={ec.id}>
-                                        {formatEntranceDate(ec.date)} {ec.time}{ec.endTime ? ` ~ ${ec.endTime}` : ''} ({ec.currentCount || 0}/{ec.maxCapacity}명)
-                                    </option>
-                                ))}
-                            </select>
+            {waitlistApproveReg && (() => {
+                const freq = waitlistApproveReg.weeklyFrequency || 2;
+                const reqSlots = waitlistApproveReg.requestedSlots || [];
+                return (
+                    <div className="cns-modal-overlay" onClick={() => setWaitlistApproveReg(null)}>
+                        <div className="cns-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                            <h3>수강 승인</h3>
+                            <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '12px' }}>
+                                "{waitlistApproveReg.name}" - 주{freq}회 중 {waitlistSelectedSlots.length}개 선택됨
+                            </p>
+
+                            {/* 시간표 선택 그리드 */}
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '8px', display: 'block' }}>
+                                    최종 시간표 선택 ({waitlistSelectedSlots.length}/{freq})
+                                </label>
+                                <div style={{ display: 'grid', gridTemplateColumns: `60px repeat(${DAYS.length}, 1fr)`, gap: '2px', fontSize: '0.75rem' }}>
+                                    <div></div>
+                                    {DAYS.map(d => <div key={d} style={{ textAlign: 'center', fontWeight: 600, padding: '4px' }}>{d}</div>)}
+                                    {PERIODS.filter(p => p.type !== 'free').map(period => (
+                                        <div key={period.id} style={{ display: 'contents' }}>
+                                            <div style={{ fontSize: '0.7rem', padding: '4px 2px', color: '#666' }}>{period.name}</div>
+                                            {DAYS.map(day => {
+                                                const key = `${day}-${period.id}`;
+                                                const isDisabled = disabledClasses.includes(key);
+                                                const occ = slotOccupancy[key] || 0;
+                                                const isFull = occ >= MAX_CAPACITY;
+                                                const isRequested = reqSlots.some(s => s.day === day && s.period === period.id);
+                                                const isSelected = waitlistSelectedSlots.some(s => s.day === day && s.period === period.id);
+                                                const canSelect = !isDisabled && isRequested && (isSelected || waitlistSelectedSlots.length < freq);
+
+                                                return (
+                                                    <div
+                                                        key={key}
+                                                        onClick={() => {
+                                                            if (!canSelect && !isSelected) return;
+                                                            if (isSelected) {
+                                                                setWaitlistSelectedSlots(prev => prev.filter(s => !(s.day === day && s.period === period.id)));
+                                                            } else if (waitlistSelectedSlots.length < freq) {
+                                                                setWaitlistSelectedSlots(prev => [...prev, { day, period: period.id }]);
+                                                            }
+                                                        }}
+                                                        style={{
+                                                            padding: '6px 2px',
+                                                            textAlign: 'center',
+                                                            borderRadius: '4px',
+                                                            cursor: canSelect || isSelected ? 'pointer' : 'default',
+                                                            border: isSelected ? '2px solid #16a34a' : isRequested ? '1px solid #d97706' : '1px solid #e5e7eb',
+                                                            backgroundColor: isDisabled ? '#f3f4f6' : isSelected ? '#dcfce7' : isRequested ? (isFull ? '#fef3c7' : '#fffbeb') : '#fff',
+                                                            color: isDisabled ? '#9ca3af' : isSelected ? '#16a34a' : '#333',
+                                                            fontWeight: isSelected ? 700 : 400,
+                                                            opacity: !isRequested && !isDisabled ? 0.4 : 1
+                                                        }}
+                                                    >
+                                                        {isDisabled ? '-' : isFull ? (isSelected ? '✓' : '만석') : (isSelected ? '✓' : `${MAX_CAPACITY - occ}`)}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ))}
+                                </div>
+                                <p style={{ fontSize: '0.75rem', color: '#92400e', marginTop: '6px' }}>
+                                    테두리 표시된 셀 = 학생이 선택한 가능 시간
+                                </p>
+                            </div>
+
+                            <div className="cns-form-field">
+                                <label>입학반</label>
+                                <select
+                                    value={waitlistEntranceId}
+                                    onChange={(e) => setWaitlistEntranceId(e.target.value)}
+                                    className="cns-form-input"
+                                >
+                                    <option value="">입학반을 선택하세요</option>
+                                    {entranceClasses.filter(ec => ec.isActive).map(ec => (
+                                        <option key={ec.id} value={ec.id}>
+                                            {formatEntranceDate(ec.date)} {ec.time}{ec.endTime ? ` ~ ${ec.endTime}` : ''} ({ec.currentCount || 0}/{ec.maxCapacity}명)
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="cns-modal-actions">
+                                <button className="cns-modal-btn cancel" onClick={() => { setWaitlistApproveReg(null); setWaitlistSelectedSlots([]); }}>취소</button>
+                                <button
+                                    className="cns-modal-btn save"
+                                    onClick={handleWaitlistApproveConfirm}
+                                    disabled={waitlistSelectedSlots.length !== freq}
+                                >
+                                    승인 ({waitlistSelectedSlots.length}/{freq})
+                                </button>
+                            </div>
                         </div>
-                        <div className="cns-modal-actions">
-                            <button className="cns-modal-btn cancel" onClick={() => setWaitlistApproveReg(null)}>취소</button>
-                            <button className="cns-modal-btn save" onClick={handleWaitlistApproveConfirm}>승인</button>
+                    </div>
+                );
+            })()}
+
+            {/* === 시간표 편집 모달 === */}
+            {editSlotsReg && (
+                <div className="cns-modal-overlay" onClick={() => setEditSlotsReg(null)}>
+                    <div className="cns-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                        <h3>시간표 편집</h3>
+                        <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '12px' }}>
+                            "{editSlotsReg.name}" - 주{editSlotsReg.weeklyFrequency}회 | {editSlots.length}개 선택됨
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: `60px repeat(${DAYS.length}, 1fr)`, gap: '2px', fontSize: '0.75rem' }}>
+                            <div></div>
+                            {DAYS.map(d => <div key={d} style={{ textAlign: 'center', fontWeight: 600, padding: '4px' }}>{d}</div>)}
+                            {PERIODS.filter(p => p.type !== 'free').map(period => (
+                                <div key={period.id} style={{ display: 'contents' }}>
+                                    <div style={{ fontSize: '0.7rem', padding: '4px 2px', color: '#666' }}>{period.name}</div>
+                                    {DAYS.map(day => {
+                                        const key = `${day}-${period.id}`;
+                                        const isDisabled = disabledClasses.includes(key);
+                                        const occ = slotOccupancy[key] || 0;
+                                        const remaining = MAX_CAPACITY - occ;
+                                        const isFull = remaining <= 0;
+                                        const isSelected = editSlots.some(s => s.day === day && s.period === period.id);
+
+                                        return (
+                                            <div
+                                                key={key}
+                                                onClick={() => { if (!isDisabled) handleEditSlotToggle(day, period.id); }}
+                                                style={{
+                                                    padding: '6px 2px',
+                                                    textAlign: 'center',
+                                                    borderRadius: '4px',
+                                                    cursor: isDisabled ? 'default' : 'pointer',
+                                                    border: isSelected ? '2px solid #4f46e5' : '1px solid #e5e7eb',
+                                                    backgroundColor: isDisabled ? '#f3f4f6' : isSelected ? '#e0e7ff' : isFull ? '#fef3c7' : '#fff',
+                                                    color: isDisabled ? '#9ca3af' : isSelected ? '#4f46e5' : isFull ? '#92400e' : '#333',
+                                                    fontWeight: isSelected ? 700 : 400
+                                                }}
+                                            >
+                                                {isDisabled ? '-' : isSelected ? '✓' : isFull ? '마감' : remaining}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+                        <p style={{ fontSize: '0.75rem', color: '#6366f1', marginTop: '8px' }}>
+                            마감된 시간도 선택 가능합니다. 자유롭게 편집하세요.
+                        </p>
+                        <div className="cns-modal-actions" style={{ marginTop: '16px' }}>
+                            <button className="cns-modal-btn cancel" onClick={() => setEditSlotsReg(null)}>취소</button>
+                            <button className="cns-modal-btn save" onClick={handleEditSlotsSave}>저장</button>
                         </div>
                     </div>
                 </div>

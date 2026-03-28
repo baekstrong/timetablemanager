@@ -13,6 +13,8 @@ import {
     getNewStudentRegistrations,
     createWaitlistRequest,
     cancelWaitlistRequest,
+    checkWaitlistAvailability,
+    updateWaitlistAvailability,
 } from '../services/firebaseService';
 import { writeSheetData } from '../services/googleSheetsService';
 import { useWeeklyData } from '../hooks/useWeeklyData';
@@ -471,6 +473,42 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             getNewStudentRegistrations('waitlist').then(setNewStudentWaitlist).catch(() => {});
         }
     }, [user]);
+
+    // 대기(만석) 건의 여석 자동 감지
+    useEffect(() => {
+        if (user?.role !== 'coach' || newStudentWaitlist.length === 0 || !scheduleData) return;
+
+        // scheduleData.regularEnrollments에서 슬롯 점유율 계산
+        const slotOccupancy = {};
+        (scheduleData.regularEnrollments || []).forEach(({ day, period, names }) => {
+            slotOccupancy[`${day}-${period}`] = names.length;
+        });
+        // pending 등록 슬롯도 반영
+        (pendingRegistrations || []).forEach(reg => {
+            (reg.requestedSlots || []).forEach(({ day, period }) => {
+                const key = `${day}-${period}`;
+                slotOccupancy[key] = (slotOccupancy[key] || 0) + 1;
+            });
+        });
+
+        const updates = checkWaitlistAvailability(
+            newStudentWaitlist, slotOccupancy, disabledClasses, MAX_CAPACITY
+        );
+
+        if (updates.length > 0) {
+            updates.forEach(({ regId, hasAvailableSlots, availableSlots }) => {
+                updateWaitlistAvailability(regId, { hasAvailableSlots, availableSlots }).catch(err => {
+                    console.error('대기 여석 업데이트 실패:', err);
+                });
+            });
+            // 로컬 상태에도 반영
+            setNewStudentWaitlist(prev => prev.map(reg => {
+                const update = updates.find(u => u.regId === reg.id);
+                if (update) return { ...reg, hasAvailableSlots: update.hasAvailableSlots, availableSlots: update.availableSlots };
+                return reg;
+            }));
+        }
+    }, [user, newStudentWaitlist.length, scheduleData, disabledClasses, pendingRegistrations]);
 
     // Load student makeup data
     useEffect(() => {

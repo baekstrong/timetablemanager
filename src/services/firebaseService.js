@@ -798,6 +798,72 @@ export const acceptWaitlistRequest = async (waitlistId) => {
 };
 
 // ============================================
+// WAITLIST AVAILABILITY FUNCTIONS (대기 여석 감지)
+// ============================================
+
+/**
+ * 대기 건의 여석 정보 업데이트
+ */
+export const updateWaitlistAvailability = async (regId, availabilityData) => {
+    return safeWrite(async () => {
+        await updateDocStatus('newStudentRegistrations', regId, availabilityData);
+        console.log('대기 여석 정보 업데이트:', regId, availabilityData.hasAvailableSlots);
+    });
+};
+
+/**
+ * 코치가 대기 건의 시간표(requestedSlots) 수동 수정
+ */
+export const updateWaitlistRequestedSlots = async (regId, newSlots, newScheduleString) => {
+    return safeWrite(async () => {
+        await updateDocStatus('newStudentRegistrations', regId, {
+            requestedSlots: newSlots,
+            scheduleString: newScheduleString
+        });
+        console.log('대기 시간표 수정 완료:', regId, newScheduleString);
+    });
+};
+
+/**
+ * 대기 건들의 여석 체크 (슬롯 점유율 기반)
+ * @param {Array} waitlistRegs - status === 'waitlist'인 등록 목록
+ * @param {Object} slotOccupancy - { "월-1": 5, "화-2": 7, ... }
+ * @param {Array} disabledClasses - ["월-3", ...] 비활성 슬롯
+ * @param {number} maxCapacity - 슬롯당 최대 인원
+ * @returns {Array} 업데이트가 필요한 건 목록 [{ regId, hasAvailableSlots, availableSlots }]
+ */
+export const checkWaitlistAvailability = (waitlistRegs, slotOccupancy, disabledClasses, maxCapacity) => {
+    const updates = [];
+
+    for (const reg of waitlistRegs) {
+        const requestedSlots = reg.requestedSlots || [];
+        const weeklyFrequency = reg.weeklyFrequency || 2;
+
+        // requestedSlots 중 현재 여석이 있는 슬롯
+        const availableSlots = requestedSlots.filter(slot => {
+            const key = `${slot.day}-${slot.period}`;
+            if (disabledClasses.includes(key)) return false;
+            const occ = slotOccupancy[key] || 0;
+            return occ < maxCapacity;
+        });
+
+        const hasAvailableSlots = availableSlots.length >= weeklyFrequency;
+        const prevHas = reg.hasAvailableSlots || false;
+
+        // 상태가 변경된 경우만 업데이트
+        if (hasAvailableSlots !== prevHas) {
+            updates.push({
+                regId: reg.id,
+                hasAvailableSlots,
+                availableSlots
+            });
+        }
+    }
+
+    return updates;
+};
+
+// ============================================
 // RENEWAL CONTRACT FUNCTIONS (재등록 계약)
 // ============================================
 

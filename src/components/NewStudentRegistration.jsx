@@ -207,7 +207,8 @@ const NewStudentRegistration = () => {
         if (exists) {
             setSelectedSlots(selectedSlots.filter(s => !(s.day === day && s.period === period)));
         } else {
-            if (selectedSlots.length >= weeklyFrequency) return;
+            // 대기 모드에서는 슬롯 개수 제한 없음 (가능한 시간 전부 선택)
+            if (!isWaitlistMode && selectedSlots.length >= weeklyFrequency) return;
             setSelectedSlots([...selectedSlots, { day, period }]);
         }
     };
@@ -229,7 +230,7 @@ const NewStudentRegistration = () => {
         switch (step) {
             case 0: return name.trim() && password.trim() && phone1.trim() && phone2.trim() && phone3.trim();
             case 1: return weeklyFrequency !== null;
-            case 2: return selectedSlots.length === weeklyFrequency || isWaitlistMode;
+            case 2: return isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency;
             case 3: return selectedEntrance !== null || entranceInquiry !== '';
             case 4: return paymentMethod !== '';
             case 5: return true;
@@ -312,7 +313,7 @@ const NewStudentRegistration = () => {
                         <div className="reg-success-icon">✓</div>
                         <h2>{isWaitlistMode ? '대기 신청이 완료되었습니다!' : '등록이 완료되었습니다!'}</h2>
                         <p>{isWaitlistMode
-                            ? '선택하신 시간표에 여석이 생기면 코치가 연락드리겠습니다.'
+                            ? `선택하신 ${selectedSlots.length}개 시간 중 주${weeklyFrequency}회 자리가 나면 코치가 연락드리겠습니다.`
                             : '코치의 승인 후 안내 문자가 발송될 예정입니다.'}</p>
                         <p className="reg-success-info">
                             아이디: <strong>{name}</strong>
@@ -490,7 +491,12 @@ const NewStudentRegistration = () => {
                         <div className="reg-step-content">
                             <p className="reg-description">
                                 {isWaitlistMode ? (
-                                    <>원하는 시간을 선택하세요 (대기 신청)</>
+                                    <>
+                                        가능한 시간을 모두 선택해주세요
+                                        <span className="reg-slot-count">
+                                            ({selectedSlots.length}개 선택, 최소 {weeklyFrequency}개)
+                                        </span>
+                                    </>
                                 ) : (
                                     <>
                                         원하는 시간을 {weeklyFrequency}개 선택하세요
@@ -522,9 +528,9 @@ const NewStudentRegistration = () => {
                                             const isSelected = selectedSlots.some(
                                                 s => s.day === day && s.period === period.id
                                             );
-                                            // 대기 모드에서는 만석 셀도 선택 가능
+                                            // 대기 모드에서는 만석 셀도 선택 가능 + 개수 제한 없음
                                             const canSelect = isWaitlistMode
-                                                ? !isDisabled && (isSelected || selectedSlots.length < weeklyFrequency)
+                                                ? !isDisabled && (isSelected || true)
                                                 : !isDisabled && !isFull && (isSelected || selectedSlots.length < weeklyFrequency);
 
                                             return (
@@ -588,8 +594,8 @@ const NewStudentRegistration = () => {
                                 }}>
                                     <p style={{ margin: '0 0 4px', fontWeight: '600' }}>대기 신청 모드</p>
                                     <p style={{ margin: 0 }}>
-                                        원하는 시간을 {weeklyFrequency}개 선택해주세요. 마감된 시간도 선택할 수 있습니다.
-                                        여석이 생기면 코치가 연락드립니다.
+                                        ��능한 시간을 <strong>모두</strong> 선택해주세요. 마감된 시간도 선택할 수 있습니다.
+                                        이 중 주{weeklyFrequency}회 자리가 나면 코치가 연락드립니다.
                                     </p>
                                     <button
                                         type="button"

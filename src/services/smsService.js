@@ -449,6 +449,25 @@ export const sendWaitlistAvailableSMS = async (studentPhone, studentName, reques
 };
 
 // ============================================
+// 대기(만석) 수강 취소/삭제 안내 SMS
+// ============================================
+/**
+ * 대기 수강생에게 대기 취소 안내 SMS 발송
+ */
+export const sendWaitlistCancelledSMS = async (studentPhone, studentName) => {
+  const text = `[근력학교] ${studentName}님, 신규 수강 대기 신청이 취소되었습니다.\n추후 수강을 원하시면 다시 신청해 주세요.\n문의사항은 코치에게 연락 부탁드립니다.`;
+
+  try {
+    await sendSMS(studentPhone, text);
+    console.log('대기 취소 안내 SMS 발송 완료:', studentName);
+    return true;
+  } catch (error) {
+    console.error('대기 취소 안내 SMS 발송 실패:', studentName, '-', error.message);
+    return false;
+  }
+};
+
+// ============================================
 // 승인 시 일괄 발송 (수강생 SMS 2 + 수강생 SMS 3 예약)
 // ============================================
 /**
