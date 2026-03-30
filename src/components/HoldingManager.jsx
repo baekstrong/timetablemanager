@@ -331,7 +331,6 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         } else {
             setCalendarMonth(calendarMonth - 1);
         }
-        setSelectedDates([]); // 선택된 날짜 초기화
     };
 
     // 다음 달로 이동
@@ -342,7 +341,6 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         } else {
             setCalendarMonth(calendarMonth + 1);
         }
-        setSelectedDates([]); // 선택된 날짜 초기화
     };
 
     // 특정 날짜에 보강으로 출석하는지 확인
