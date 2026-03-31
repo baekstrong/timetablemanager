@@ -377,25 +377,38 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos) {
         `;
     }
 
-    // 2. 수강생 고정 메모
+    // 2. 수강생 고정 메모 (하이라이트 메모 상단 정렬)
     if (studentPinnedMemos.length > 0) {
+        // 원본 인덱스 보존하면서 하이라이트 상단 정렬
+        const indexedMemos = studentPinnedMemos.map((pinned, idx) => ({ pinned, idx }));
+        indexedMemos.sort((a, b) => {
+            const aH = a.pinned.highlighted ? 1 : 0;
+            const bH = b.pinned.highlighted ? 1 : 0;
+            return bH - aH;
+        });
+
         html += `
             <div class="bg-blue-50 border-2 border-blue-400 rounded-lg p-4 shadow-sm">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-sm font-bold text-blue-800">📌 운동 메모 (${studentPinnedMemos.length}개)</h3>
                 </div>
                 <div class="space-y-4">
-                     ${studentPinnedMemos.map((pinned, idx) => `
-                        <div class="bg-white rounded-lg p-4 border border-blue-200 relative">
+                     ${indexedMemos.map(({ pinned, idx }) => {
+                        const isHighlighted = pinned.highlighted === true;
+                        const borderClass = isHighlighted ? 'border-yellow-400 bg-yellow-50 ring-1 ring-yellow-200' : 'border-blue-200';
+                        return `
+                        <div class="bg-white rounded-lg p-4 ${borderClass} relative">
                             <div class="flex items-start justify-between">
                                 <div class="flex-1">
                                     <div class="flex items-center gap-2 mb-1">
+                                        ${isHighlighted ? '<span class="text-yellow-400 text-lg leading-none">★</span>' : ''}
                                         <div class="text-base font-bold text-gray-800">${pinned.exercise}</div>
                                         ${pinned.pain ? '<span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-semibold">⚠️ 통증</span>' : ''}
+                                        ${isHighlighted ? '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-semibold">중요</span>' : ''}
                                     </div>
                                     ${pinned.memo ? `<div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">${pinned.memo}</div>` : '<div class="text-sm text-gray-400 italic">메모 없음</div>'}
                                 </div>
-                                
+
                                 <div class="flex flex-col gap-1 ml-2 w-16">
                                      <div class="flex gap-1 mb-1">
                                         <button onclick="movePinnedMemo(${idx}, -1)" class="flex-1 bg-gray-100 hover:bg-gray-200 text-xs py-1 rounded text-center">▲</button>
@@ -433,7 +446,7 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos) {
                                 </div>
                             ` : ''}
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>
             </div>
         `;

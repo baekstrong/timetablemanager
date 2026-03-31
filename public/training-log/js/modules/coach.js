@@ -421,33 +421,49 @@ export async function renderPinnedMemosForCoach() {
             html += `</div></div>`;
         }
 
-        // 2. Student Memos
+        // 2. Student Memos (하이라이트 메모 상단 정렬)
         if (filteredStudentMemos.length > 0) {
+            // 원본 인덱스를 보존하면서 하이라이트 메모를 상단으로 정렬
+            const indexedMemos = filteredStudentMemos.map((memo, i) => ({ memo, originalIdx: studentMemos.indexOf(memo) }));
+            indexedMemos.sort((a, b) => {
+                const aH = a.memo.highlighted ? 1 : 0;
+                const bH = b.memo.highlighted ? 1 : 0;
+                return bH - aH; // highlighted가 true인 것이 위로
+            });
+
             html += `<div>
                 <h4 class="text-xs font-bold text-gray-600 mb-2 uppercase tracking-wider opacity-70">Student Memos</h4>
                 <div class="space-y-3">`;
 
-            filteredStudentMemos.forEach((memo, idx) => {
+            indexedMemos.forEach(({ memo, originalIdx }) => {
                 const comment = memo.coachComment || '';
+                const isHighlighted = memo.highlighted === true;
+                const borderColor = isHighlighted ? 'border-yellow-400' : 'border-gray-400';
+                const bgColor = isHighlighted ? 'bg-yellow-50' : 'bg-white';
+                const starBtn = isHighlighted
+                    ? `<button onclick="toggleMemoHighlight('${studentName}', ${originalIdx})" class="text-yellow-400 hover:text-yellow-500 text-lg leading-none" title="중요 해제">★</button>`
+                    : `<button onclick="toggleMemoHighlight('${studentName}', ${originalIdx})" class="text-gray-300 hover:text-yellow-400 text-lg leading-none" title="중요 표시">☆</button>`;
                 html += `
-                    <div class="bg-white rounded-lg p-3 border-l-4 border-gray-400 shadow-sm">
+                    <div class="${bgColor} rounded-lg p-3 border-l-4 ${borderColor} shadow-sm ${isHighlighted ? 'ring-1 ring-yellow-200' : ''}">
                         <div class="flex justify-between items-start">
                             <div class="flex items-center gap-2 mb-1">
+                                ${starBtn}
                                 <div class="font-bold text-gray-800 text-base">${memo.exercise}</div>
                                 ${memo.pain ? '<span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold">⚠️ 통증</span>' : ''}
+                                ${isHighlighted ? '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-semibold">중요</span>' : ''}
                             </div>
                         </div>
                         ${memo.memo ? `<div class="text-gray-700 whitespace-pre-wrap mb-3 text-sm">${memo.memo}</div>` : '<div class="text-gray-400 italic mb-3 text-xs">메모 없음</div>'}
-                        
+
                         <!-- Coach Comment (Legacy / Reply) -->
                         <div class="pt-2 border-t border-gray-100 bg-gray-50 -mx-3 -mb-3 px-3 py-2 rounded-b">
                             <label class="text-xs font-bold text-gray-500 block mb-1">💬 코멘트</label>
                             <div class="flex gap-2">
-                                <textarea id="coach-comment-${studentName}-${idx}" 
-                                    class="flex-1 px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:border-blue-500" 
-                                    rows="1" 
+                                <textarea id="coach-comment-${studentName}-${originalIdx}"
+                                    class="flex-1 px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:border-blue-500"
+                                    rows="1"
                                     placeholder="코멘트...">${comment}</textarea>
-                                <button onclick="saveCoachCommentToStudentMemo('${studentName}', ${idx})" 
+                                <button onclick="saveCoachCommentToStudentMemo('${studentName}', ${originalIdx})"
                                     class="bg-gray-600 text-white text-xs px-3 py-1 rounded hover:bg-gray-700 font-semibold shadow-sm h-fit self-end pb-1.5 pt-1.5">
                                     저장
                                 </button>
@@ -587,6 +603,35 @@ export async function saveCoachCommentToStudentMemo(studentName, memoIndex) {
     }
 }
 window.saveCoachCommentToStudentMemo = saveCoachCommentToStudentMemo;
+
+export async function toggleMemoHighlight(studentName, memoIndex) {
+    if (!firebaseInitialized || !db) return;
+
+    try {
+        const docRef = db.collection('pinnedMemos').doc(studentName);
+        const doc = await docRef.get();
+
+        if (doc.exists) {
+            const memos = doc.data().memos || [];
+            if (memos[memoIndex]) {
+                memos[memoIndex].highlighted = !memos[memoIndex].highlighted;
+
+                await docRef.update({
+                    memos: memos,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // 캐시도 업데이트
+                studentPinnedMemosCache[studentName] = memos;
+                renderPinnedMemosForCoach();
+            }
+        }
+    } catch (error) {
+        console.error('Error toggling highlight:', error);
+        alert('하이라이트 변경 실패: ' + error.message);
+    }
+}
+window.toggleMemoHighlight = toggleMemoHighlight;
 
 export function toggleSelectAll() {
     if (state.selectedStudents.length === state.allStudents.length) {
