@@ -396,12 +396,15 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos) {
                      ${indexedMemos.map(({ pinned, idx }) => {
                         const isHighlighted = pinned.highlighted === true;
                         const borderClass = isHighlighted ? 'border-yellow-400 bg-yellow-50 ring-1 ring-yellow-200' : 'border-blue-200';
+                        const starBtn = isHighlighted
+                            ? `<button onclick="toggleStudentMemoHighlight(${idx})" class="text-yellow-400 hover:text-yellow-500 text-lg leading-none" title="중요 해제">★</button>`
+                            : `<button onclick="toggleStudentMemoHighlight(${idx})" class="text-gray-300 hover:text-yellow-400 text-lg leading-none" title="중요 표시">☆</button>`;
                         return `
                         <div class="bg-white rounded-lg p-4 ${borderClass} relative">
                             <div class="flex items-start justify-between">
                                 <div class="flex-1">
                                     <div class="flex items-center gap-2 mb-1">
-                                        ${isHighlighted ? '<span class="text-yellow-400 text-lg leading-none">★</span>' : ''}
+                                        ${starBtn}
                                         <div class="text-base font-bold text-gray-800">${pinned.exercise}</div>
                                         ${pinned.pain ? '<span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-semibold">⚠️ 통증</span>' : ''}
                                         ${isHighlighted ? '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-semibold">중요</span>' : ''}

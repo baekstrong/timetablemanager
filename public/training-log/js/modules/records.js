@@ -600,6 +600,14 @@ export function togglePinExercise() {
     saveWorkoutMemo(exercise, memo, true, pain);
 }
 
+export function toggleStudentMemoHighlight(idx) {
+    if (idx < 0 || idx >= state.pinnedExercises.length) return;
+    state.pinnedExercises[idx].highlighted = !state.pinnedExercises[idx].highlighted;
+    savePinnedExercisesToStorage();
+    updatePinnedDisplay();
+}
+window.toggleStudentMemoHighlight = toggleStudentMemoHighlight;
+
 // ... storage functions ...
 export function savePinnedExercisesToStorage() {
     if (!state.currentUser) return;
