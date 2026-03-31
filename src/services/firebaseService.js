@@ -1064,10 +1064,14 @@ export const deleteComment = async (postId, commentId) => {
     });
 };
 
-export const updateComment = async (postId, commentId, content) => {
+export const updateComment = async (postId, commentId, content, image) => {
     return safeWrite(async () => {
         const commentRef = doc(db, 'posts', postId, 'comments', commentId);
-        await updateDoc(commentRef, { content, updatedAt: serverTimestamp() });
+        const updateData = { content, updatedAt: serverTimestamp() };
+        if (image !== undefined) {
+            updateData.image = image;
+        }
+        await updateDoc(commentRef, updateData);
     });
 };
 

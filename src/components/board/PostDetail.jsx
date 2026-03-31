@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPost, toggleLike, updatePost, deletePost, getComments, createComment, updateComment, deleteComment, toggleCommentLike } from '../../services/firebaseService';
 import { CATEGORY_MAP, POST_LIMITS } from '../../data/boardConstants';
+import { uploadToCloudinary } from '../../services/cloudinaryService';
 import CommentItem from './CommentItem';
 
 const formatDate = (timestamp) => {
@@ -20,6 +21,11 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
     const [loading, setLoading] = useState(true);
     const [commentText, setCommentText] = useState('');
     const [submittingComment, setSubmittingComment] = useState(false);
+
+    // 댓글 이미지
+    const [commentImageFile, setCommentImageFile] = useState(null);
+    const [commentImagePreview, setCommentImagePreview] = useState(null);
+    const commentFileInputRef = useRef(null);
 
     // 스와이프 뒤로가기
     const touchStartX = useRef(null);
@@ -102,16 +108,38 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
         }
     };
 
+    // 메인 댓글 이미지 선택
+    const handleCommentImageSelect = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (commentImagePreview) URL.revokeObjectURL(commentImagePreview);
+        setCommentImageFile(file);
+        setCommentImagePreview(URL.createObjectURL(file));
+        e.target.value = '';
+    };
+
+    const removeCommentImage = () => {
+        if (commentImagePreview) URL.revokeObjectURL(commentImagePreview);
+        setCommentImageFile(null);
+        setCommentImagePreview(null);
+    };
+
     const handleSubmitComment = async () => {
-        if (!commentText.trim() || submittingComment) return;
+        if ((!commentText.trim() && !commentImageFile) || submittingComment) return;
         setSubmittingComment(true);
         try {
+            let image = null;
+            if (commentImageFile) {
+                image = await uploadToCloudinary(commentImageFile);
+            }
             await createComment(postId, {
                 content: commentText,
                 author: user.username,
                 isCoach: user.role === 'coach',
+                ...(image && { image }),
             });
             setCommentText('');
+            removeCommentImage();
             const updated = await getComments(postId);
             setComments(updated);
         } catch (err) {
@@ -125,18 +153,19 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
         await toggleCommentLike(postId, commentId, user.username);
     };
 
-    const handleEditComment = async (commentId, content) => {
-        await updateComment(postId, commentId, content);
+    const handleEditComment = async (commentId, content, image) => {
+        await updateComment(postId, commentId, content, image);
         const updated = await getComments(postId);
         setComments(updated);
     };
 
-    const handleReply = async (parentId, content) => {
+    const handleReply = async (parentId, content, image) => {
         await createComment(postId, {
             content,
             author: user.username,
             isCoach: user.role === 'coach',
             parentId,
+            ...(image && { image }),
         });
         const updated = await getComments(postId);
         setComments(updated);
@@ -297,16 +326,39 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                 </div>
 
                 <div className="comment-input-area">
-                    <textarea
-                        className="comment-input"
-                        maxLength={POST_LIMITS.COMMENT_MAX}
-                        placeholder="댓글을 입력하세요..."
-                        value={commentText}
-                        onChange={(e) => setCommentText(e.target.value)}
-                    />
+                    <div className="comment-input-wrap">
+                        <textarea
+                            className="comment-input"
+                            maxLength={POST_LIMITS.COMMENT_MAX}
+                            placeholder="댓글을 입력하세요..."
+                            value={commentText}
+                            onChange={(e) => setCommentText(e.target.value)}
+                        />
+                        <input
+                            ref={commentFileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleCommentImageSelect}
+                            style={{ display: 'none' }}
+                        />
+                        {commentImagePreview ? (
+                            <div className="comment-image-preview-wrap">
+                                <img src={commentImagePreview} alt="" className="comment-image-preview" />
+                                <button className="comment-image-remove" onClick={removeCommentImage}>&times;</button>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                className="comment-image-btn"
+                                onClick={() => commentFileInputRef.current?.click()}
+                            >
+                                📷
+                            </button>
+                        )}
+                    </div>
                     <button
                         className="comment-submit-btn"
-                        disabled={!commentText.trim() || submittingComment}
+                        disabled={(!commentText.trim() && !commentImageFile) || submittingComment}
                         onClick={handleSubmitComment}
                     >
                         {submittingComment ? '등록 중...' : '등록'}

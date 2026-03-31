@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { POST_LIMITS } from '../../data/boardConstants';
+import { uploadToCloudinary } from '../../services/cloudinaryService';
 
 const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, replies = [], repliesByParent = {}, depth = 0 }) => {
     if (!comment) return null;
@@ -10,6 +11,17 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
     const [localLikes, setLocalLikes] = useState(comment.likes || []);
     const [isEditing, setIsEditing] = useState(false);
     const [editText, setEditText] = useState(comment.content);
+
+    // 답글 이미지
+    const [replyImageFile, setReplyImageFile] = useState(null);
+    const [replyImagePreview, setReplyImagePreview] = useState(null);
+    const replyFileInputRef = useRef(null);
+
+    // 수정 이미지
+    const [editImage, setEditImage] = useState(comment.image || null); // 기존 이미지
+    const [editImageFile, setEditImageFile] = useState(null); // 새 파일
+    const [editImagePreview, setEditImagePreview] = useState(null);
+    const editFileInputRef = useRef(null);
 
     const getFormattedDate = (createdAt) => {
         if (!createdAt) return '-';
@@ -27,12 +39,51 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
         }
     };
 
+    // 답글 이미지 선택
+    const handleReplyImageSelect = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (replyImagePreview) URL.revokeObjectURL(replyImagePreview);
+        setReplyImageFile(file);
+        setReplyImagePreview(URL.createObjectURL(file));
+        e.target.value = '';
+    };
+
+    const removeReplyImage = () => {
+        if (replyImagePreview) URL.revokeObjectURL(replyImagePreview);
+        setReplyImageFile(null);
+        setReplyImagePreview(null);
+    };
+
+    // 수정 이미지 선택
+    const handleEditImageSelect = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (editImagePreview) URL.revokeObjectURL(editImagePreview);
+        setEditImageFile(file);
+        setEditImagePreview(URL.createObjectURL(file));
+        setEditImage(null); // 기존 이미지 제거
+        e.target.value = '';
+    };
+
+    const removeEditImage = () => {
+        if (editImagePreview) URL.revokeObjectURL(editImagePreview);
+        setEditImageFile(null);
+        setEditImagePreview(null);
+        setEditImage(null);
+    };
+
     const handleReplySubmit = async () => {
-        if (!replyText.trim() || submitting) return;
+        if ((!replyText.trim() && !replyImageFile) || submitting) return;
         setSubmitting(true);
         try {
-            await onReply(comment.id, replyText.trim());
+            let image = null;
+            if (replyImageFile) {
+                image = await uploadToCloudinary(replyImageFile);
+            }
+            await onReply(comment.id, replyText.trim(), image);
             setReplyText('');
+            removeReplyImage();
             setShowReplyInput(false);
         } catch (err) {
             alert('답글 등록 중 오류가 발생했습니다.');
@@ -42,10 +93,17 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
     };
 
     const handleEditSubmit = async () => {
-        if (!editText.trim() || submitting) return;
+        if ((!editText.trim() && !editImage && !editImageFile) || submitting) return;
         setSubmitting(true);
         try {
-            await onEdit(comment.id, editText.trim());
+            let image = editImage; // 기존 이미지 유지
+            if (editImageFile) {
+                image = await uploadToCloudinary(editImageFile);
+            }
+            await onEdit(comment.id, editText.trim(), image);
+            if (editImagePreview) URL.revokeObjectURL(editImagePreview);
+            setEditImageFile(null);
+            setEditImagePreview(null);
             setIsEditing(false);
         } catch (err) {
             alert('댓글 수정 중 오류가 발생했습니다.');
@@ -77,6 +135,8 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
         && commentDate.getMonth() === today.getMonth()
         && commentDate.getDate() === today.getDate();
 
+    const hasEditImage = editImage || editImagePreview;
+
     return (
         <>
             <div className={`comment-item ${depth > 0 ? 'comment-reply' : ''}`}>
@@ -100,7 +160,14 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                         {isAuthor && (
                             <button
                                 className="comment-reply-btn"
-                                onClick={() => { setIsEditing(!isEditing); setEditText(comment.content); }}
+                                onClick={() => {
+                                    setIsEditing(!isEditing);
+                                    setEditText(comment.content);
+                                    setEditImage(comment.image || null);
+                                    setEditImageFile(null);
+                                    if (editImagePreview) URL.revokeObjectURL(editImagePreview);
+                                    setEditImagePreview(null);
+                                }}
                             >
                                 수정
                             </button>
@@ -122,6 +189,32 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                             onChange={(e) => setEditText(e.target.value)}
                             style={{ minHeight: '36px', fontSize: '0.85rem' }}
                         />
+                        {/* 수정 시 이미지 */}
+                        <input
+                            ref={editFileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleEditImageSelect}
+                            style={{ display: 'none' }}
+                        />
+                        {hasEditImage ? (
+                            <div className="comment-image-preview-wrap">
+                                <img
+                                    src={editImagePreview || editImage?.url}
+                                    alt=""
+                                    className="comment-image-preview"
+                                />
+                                <button className="comment-image-remove" onClick={removeEditImage}>&times;</button>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                className="comment-image-btn"
+                                onClick={() => editFileInputRef.current?.click()}
+                            >
+                                📷 사진
+                            </button>
+                        )}
                         <div className="comment-reply-actions">
                             <button
                                 className="comment-reply-cancel-btn"
@@ -131,7 +224,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                             </button>
                             <button
                                 className="comment-submit-btn"
-                                disabled={!editText.trim() || submitting}
+                                disabled={(!editText.trim() && !hasEditImage) || submitting}
                                 onClick={handleEditSubmit}
                                 style={{ padding: '4px 12px', fontSize: '0.8rem' }}
                             >
@@ -140,7 +233,17 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                         </div>
                     </div>
                 ) : (
-                    <div className="comment-content">{comment.content}</div>
+                    <>
+                        <div className="comment-content">{comment.content}</div>
+                        {comment.image && (
+                            <img
+                                src={comment.image.url}
+                                alt=""
+                                className="comment-image"
+                                onClick={() => window.open(comment.image.url, '_blank')}
+                            />
+                        )}
+                    </>
                 )}
 
                 <div className="comment-like-row">
@@ -162,16 +265,38 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                             onChange={(e) => setReplyText(e.target.value)}
                             style={{ minHeight: '36px', fontSize: '0.85rem' }}
                         />
+                        {/* 답글 이미지 */}
+                        <input
+                            ref={replyFileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleReplyImageSelect}
+                            style={{ display: 'none' }}
+                        />
+                        {replyImagePreview ? (
+                            <div className="comment-image-preview-wrap">
+                                <img src={replyImagePreview} alt="" className="comment-image-preview" />
+                                <button className="comment-image-remove" onClick={removeReplyImage}>&times;</button>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                className="comment-image-btn"
+                                onClick={() => replyFileInputRef.current?.click()}
+                            >
+                                📷 사진
+                            </button>
+                        )}
                         <div className="comment-reply-actions">
                             <button
                                 className="comment-reply-cancel-btn"
-                                onClick={() => { setShowReplyInput(false); setReplyText(''); }}
+                                onClick={() => { setShowReplyInput(false); setReplyText(''); removeReplyImage(); }}
                             >
                                 취소
                             </button>
                             <button
                                 className="comment-submit-btn"
-                                disabled={!replyText.trim() || submitting}
+                                disabled={(!replyText.trim() && !replyImageFile) || submitting}
                                 onClick={handleReplySubmit}
                                 style={{ padding: '4px 12px', fontSize: '0.8rem' }}
                             >

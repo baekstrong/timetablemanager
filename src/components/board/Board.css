@@ -627,6 +627,79 @@
     opacity: 0.8;
 }
 
+/* ===== Comment Image ===== */
+.comment-image {
+    max-width: 240px;
+    width: 100%;
+    border-radius: 8px;
+    margin-top: 6px;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.comment-image:active {
+    opacity: 0.8;
+}
+
+.comment-image-btn {
+    background: none;
+    border: 1px dashed #d1d5db;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.comment-image-btn:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+.comment-image-preview-wrap {
+    position: relative;
+    display: inline-block;
+    margin-top: 4px;
+}
+
+.comment-image-preview {
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.comment-image-remove {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 20px;
+    height: 20px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.comment-input-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.comment-input-wrap .comment-input {
+    width: 100%;
+}
+
 /* ===== Back Button (Fixed) ===== */
 .back-btn-fixed {
     position: fixed;
