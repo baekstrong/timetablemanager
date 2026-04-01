@@ -164,25 +164,89 @@ function findStudentRowIndex(rows, headers, studentName) {
 }
 
 /**
+ * 같은 시트에서 동일 이름의 모든 행 인덱스 찾기
+ */
+function findAllStudentRowIndices(rows, headers, studentName) {
+  const nameColIndex = headers.indexOf('이름');
+  if (nameColIndex === -1) return [];
+  const indices = [];
+  rows.forEach((row, idx) => {
+    if (idx >= 2 && row[nameColIndex] === studentName) {
+      indices.push(idx);
+    }
+  });
+  return indices;
+}
+
+/**
+ * 여러 행 중 현재 활성 등록의 행 인덱스 선택 (오늘 기준 수강 기간 내)
+ */
+function pickActiveRowIndex(rows, headers, indices) {
+  if (indices.length === 1) return { activeIndex: indices[0], nextIndex: -1 };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const endDateCol = findColumnIndex(headers, '종료날짜');
+  const startDateCol = findColumnIndex(headers, '시작날짜');
+
+  // 시작날짜 기준 정렬
+  const sorted = [...indices].sort((a, b) => {
+    const startA = startDateCol !== -1 ? parseSheetDate(rows[a][startDateCol]) : null;
+    const startB = startDateCol !== -1 ? parseSheetDate(rows[b][startDateCol]) : null;
+    if (!startA) return 1;
+    if (!startB) return -1;
+    return startA - startB;
+  });
+
+  // 오늘이 수강 기간 내인 행 찾기
+  let activeIdx = -1;
+  for (let i = 0; i < sorted.length; i++) {
+    const start = startDateCol !== -1 ? parseSheetDate(rows[sorted[i]][startDateCol]) : null;
+    const end = endDateCol !== -1 ? parseSheetDate(rows[sorted[i]][endDateCol]) : null;
+    if (start && end) {
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+      if (today >= start && today <= end) {
+        activeIdx = i;
+        break;
+      }
+    }
+  }
+
+  if (activeIdx === -1) activeIdx = 0; // 못 찾으면 첫 번째
+
+  const nextIdx = activeIdx < sorted.length - 1 ? sorted[activeIdx + 1] : -1;
+  return { activeIndex: sorted[activeIdx], nextIndex: nextIdx };
+}
+
+/**
  * 현재 월 시트 우선, 못 찾으면 모든 시트에서 학생 검색
+ * 같은 시트에 동일 이름이 여러 행이면 활성 등록 행 반환
  * @param {string} studentName
  * @param {string} [primarySheetName] - 우선 검색할 시트명 (기본: 현재 월)
- * @returns {Promise<{foundSheetName, rows, headers, studentIndex}>}
+ * @returns {Promise<{foundSheetName, rows, headers, studentIndex, nextRegistrationIndex}>}
  */
 async function findStudentInSheets(studentName, primarySheetName = null) {
   const primary = primarySheetName || getCurrentSheetName();
 
+  // 시트에서 검색하는 내부 헬퍼
+  const searchInSheet = async (sheetName) => {
+    const rows = await readSheetData(`${sheetName}!A:Z`);
+    if (!rows || rows.length < 2) return null;
+    const headers = rows[1];
+    const indices = findAllStudentRowIndices(rows, headers, studentName);
+    if (indices.length === 0) return null;
+
+    const { activeIndex, nextIndex } = pickActiveRowIndex(rows, headers, indices);
+    console.log(`✅ 학생 찾음 (${sheetName}): 행 ${activeIndex + 1}${indices.length > 1 ? ` (${indices.length}개 등록 중 활성)` : ''}`);
+    return { foundSheetName: sheetName, rows, headers, studentIndex: activeIndex, nextRegistrationIndex: nextIndex };
+  };
+
   // 1차: 우선 시트에서 검색
   try {
-    const rows = await readSheetData(`${primary}!A:Z`);
-    if (rows && rows.length >= 2) {
-      const headers = rows[1];
-      const studentIndex = findStudentRowIndex(rows, headers, studentName);
-      if (studentIndex !== -1) {
-        console.log(`✅ 학생 찾음 (${primary}): 행 ${studentIndex + 1}`);
-        return { foundSheetName: primary, rows, headers, studentIndex };
-      }
-    }
+    const result = await searchInSheet(primary);
+    if (result) return result;
   } catch (e) {
     console.warn(`⚠️ ${primary} 시트 읽기 실패:`, e.message);
   }
@@ -195,15 +259,8 @@ async function findStudentInSheets(studentName, primarySheetName = null) {
   for (const sheetName of studentSheets) {
     if (sheetName === primary) continue;
     try {
-      const rows = await readSheetData(`${sheetName}!A:Z`);
-      if (rows && rows.length >= 2) {
-        const headers = rows[1];
-        const studentIndex = findStudentRowIndex(rows, headers, studentName);
-        if (studentIndex !== -1) {
-          console.log(`✅ 학생을 다음 시트에서 찾음: ${sheetName}, 행 ${studentIndex + 1}`);
-          return { foundSheetName: sheetName, rows, headers, studentIndex };
-        }
-      }
+      const result = await searchInSheet(sheetName);
+      if (result) return result;
     } catch (sheetError) {
       console.warn(`⚠️ ${sheetName} 시트 읽기 실패:`, sheetError.message);
     }
@@ -664,19 +721,93 @@ function getTotalSessions(weeklyFrequency, holdingInfo) {
  */
 export const getStudentByName = async (studentName, year = null, month = null) => {
   const students = await getAllStudents(year, month);
-  const student = students.find(s => s['이름'] === studentName);
+  const allMatches = students.filter(s => s['이름'] === studentName);
 
-  if (!student) {
+  if (allMatches.length === 0) {
     console.warn(`Student "${studentName}" not found in Google Sheets`);
     return null;
   }
 
-  console.log(`✅ Found student: ${studentName}`, student);
-  return student;
+  // 같은 시트에 동일 이름이 여러 행 있으면, 오늘 기준 활성 등록을 우선 반환
+  if (allMatches.length > 1) {
+    const result = pickActiveRegistration(allMatches);
+    console.log(`✅ Found student (multiple registrations): ${studentName}`, result);
+    return result;
+  }
+
+  console.log(`✅ Found student: ${studentName}`, allMatches[0]);
+  return allMatches[0];
 };
 
 /**
- * 여러 시트에서 학생 찾기 (현재 월부터 과거 6개월까지 검색)
+ * 동일 이름의 여러 등록 중 현재 활성 등록을 선택하고 다음 등록 정보를 _nextRegistration으로 첨부
+ * @param {Array} registrations - 같은 이름의 등록 배열
+ * @returns {Object} - 현재 활성 등록 (+ _nextRegistration)
+ */
+function pickActiveRegistration(registrations) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // 시작날짜 기준 정렬
+  const sorted = [...registrations].sort((a, b) => {
+    const startA = parseSheetDate(getStudentField(a, '시작날짜'));
+    const startB = parseSheetDate(getStudentField(b, '시작날짜'));
+    if (!startA) return 1;
+    if (!startB) return -1;
+    return startA - startB;
+  });
+
+  // 오늘이 수강 기간 내인 등록 찾기
+  let activeIdx = -1;
+  for (let i = 0; i < sorted.length; i++) {
+    const start = parseSheetDate(getStudentField(sorted[i], '시작날짜'));
+    const end = parseSheetDate(getStudentField(sorted[i], '종료날짜'));
+    if (start && end) {
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+      if (today >= start && today <= end) {
+        activeIdx = i;
+        break;
+      }
+    }
+  }
+
+  // 활성 등록이 없으면, 가장 최근 시작하는 등록 (아직 시작 전 포함)
+  if (activeIdx === -1) {
+    // 아직 시작 전인 등록 중 가장 가까운 것
+    for (let i = 0; i < sorted.length; i++) {
+      const start = parseSheetDate(getStudentField(sorted[i], '시작날짜'));
+      if (start && start > today) {
+        activeIdx = i;
+        break;
+      }
+    }
+    // 그것도 없으면 마지막(가장 최근) 등록
+    if (activeIdx === -1) activeIdx = sorted.length - 1;
+  }
+
+  const active = { ...sorted[activeIdx] };
+
+  // 다음 등록(미리 등록)이 있으면 첨부
+  if (activeIdx < sorted.length - 1) {
+    const next = sorted[activeIdx + 1];
+    active._nextRegistration = {
+      시작날짜: getStudentField(next, '시작날짜'),
+      종료날짜: getStudentField(next, '종료날짜'),
+      _rowIndex: next._rowIndex,
+      _foundSheetName: next._foundSheetName,
+      '요일 및 시간': getStudentField(next, '요일 및 시간'),
+      주횟수: getStudentField(next, '주횟수'),
+      '홀딩 사용여부': getStudentField(next, '홀딩 사용여부'),
+    };
+  }
+
+  console.log(`📅 pickActiveRegistration: ${sorted.length}개 등록 중 #${activeIdx} 선택 (시작: ${getStudentField(active, '시작날짜')})`);
+  return active;
+}
+
+/**
+ * 여러 시트에서 학생 찾기 (모든 시트에서 검색하여 활성 등록 반환)
  * @param {string} studentName
  * @returns {Promise<Object|null>} - { student, year, month, foundSheetName }
  */
@@ -685,28 +816,50 @@ export const findStudentAcrossSheets = async (studentName) => {
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth() + 1;
 
-  for (let i = 0; i <= 6; i++) {
+  const allMatches = [];
+
+  // 과거 6개월 + 미래 3개월까지 검색 (미리 등록 대비)
+  for (let i = -3; i <= 6; i++) {
     const searchDate = new Date(currentYear, currentMonth - 1 - i, 1);
     const year = searchDate.getFullYear();
     const month = searchDate.getMonth() + 1;
 
     try {
-      console.log(`🔍 Searching in ${year}년 ${month}월...`);
       const students = await getAllStudents(year, month);
-      const student = students.find(s => s['이름'] === studentName);
+      const matches = students.filter(s => s['이름'] === studentName);
+      const foundSheetName = getSheetNameByYearMonth(year, month);
 
-      if (student) {
-        const foundSheetName = getSheetNameByYearMonth(year, month);
-        console.log(`✅ Found student "${studentName}" in ${foundSheetName}`);
-        return { student, year, month, foundSheetName };
-      }
+      matches.forEach(student => {
+        student._foundSheetName = foundSheetName;
+        allMatches.push({ student, year, month, foundSheetName });
+      });
     } catch (err) {
-      console.log(`⏭️  Sheet for ${year}년 ${month}월 not found, continuing...`);
+      // 시트 없으면 무시
     }
   }
 
-  console.warn(`❌ Student "${studentName}" not found in any sheet (searched 6 months)`);
-  return null;
+  if (allMatches.length === 0) {
+    console.warn(`❌ Student "${studentName}" not found in any sheet`);
+    return null;
+  }
+
+  if (allMatches.length === 1) {
+    console.log(`✅ Found student "${studentName}" in ${allMatches[0].foundSheetName}`);
+    return allMatches[0];
+  }
+
+  // 여러 등록 중 활성 등록 선택
+  const allStudents = allMatches.map(m => m.student);
+  const activeStudent = pickActiveRegistration(allStudents);
+
+  // 활성 학생의 시트 정보 찾기
+  const matchInfo = allMatches.find(m =>
+    m.student._rowIndex === activeStudent._rowIndex &&
+    m.student._foundSheetName === (activeStudent._foundSheetName || m.foundSheetName)
+  ) || allMatches[0];
+
+  console.log(`✅ Found student "${studentName}" (active registration) in ${matchInfo.foundSheetName}`);
+  return { student: activeStudent, year: matchInfo.year, month: matchInfo.month, foundSheetName: matchInfo.foundSheetName };
 };
 
 /**
@@ -768,8 +921,8 @@ export const getAllStudentsFromAllSheets = async () => {
   const allStudents = studentsArrays.flat();
   console.log(`✨ Total students loaded from all sheets: ${allStudents.length}`);
 
-  // 같은 이름의 수강생이 여러 시트에 있으면 최신 시트의 데이터만 유지
-  // 단, 이전 등록의 종료날짜를 _prevEndDate로 보존 (시작지연 판단용)
+  // 같은 이름의 수강생이 여러 시트/행에 있으면 현재 활성 등록을 우선 유지
+  // 이전 등록의 종료날짜를 _prevEndDate로 보존 (시작지연 판단용)
   const parseSheetMonth = (sheetName) => {
     const match = sheetName.match(/등록생 목록\((\d+)년(\d+)월\)/);
     if (!match) return 0;
@@ -778,31 +931,70 @@ export const getAllStudentsFromAllSheets = async () => {
     return year * 100 + month; // e.g., 202603
   };
 
-  const latestByName = {};
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // 이름별로 모든 등록을 모음
+  const byName = {};
   allStudents.forEach(student => {
     const name = student['이름'];
     if (!name) return;
-    const sheetOrder = parseSheetMonth(student._foundSheetName || '');
-    const existing = latestByName[name];
-    if (!existing) {
-      latestByName[name] = { ...student, _sheetOrder: sheetOrder, _prevSheetOrder: 0 };
-    } else if (sheetOrder > existing._sheetOrder) {
-      // 최신 레코드로 교체하되, 직전 등록의 종료날짜와 시간표 보존
-      latestByName[name] = {
-        ...student,
-        _sheetOrder: sheetOrder,
-        _prevEndDate: getStudentField(existing, '종료날짜'),
-        _prevSchedule: getStudentField(existing, '요일 및 시간'),
-        _prevSheetOrder: existing._sheetOrder,
-      };
-    } else if (sheetOrder < existing._sheetOrder) {
-      // 현재가 더 오래된 레코드 → 직전(가장 최근 이전) 등록만 보존
-      if (sheetOrder > (existing._prevSheetOrder || 0)) {
-        existing._prevEndDate = getStudentField(student, '종료날짜');
-        existing._prevSchedule = getStudentField(student, '요일 및 시간');
-        existing._prevSheetOrder = sheetOrder;
+    if (!byName[name]) byName[name] = [];
+    byName[name].push({ ...student, _sheetOrder: parseSheetMonth(student._foundSheetName || '') });
+  });
+
+  const latestByName = {};
+  Object.entries(byName).forEach(([name, registrations]) => {
+    if (registrations.length === 1) {
+      latestByName[name] = registrations[0];
+      return;
+    }
+
+    // 시작날짜 기준 정렬
+    registrations.sort((a, b) => {
+      const startA = parseSheetDate(getStudentField(a, '시작날짜'));
+      const startB = parseSheetDate(getStudentField(b, '시작날짜'));
+      if (!startA) return 1;
+      if (!startB) return -1;
+      return startA - startB;
+    });
+
+    // 오늘이 수강 기간 내인 등록 찾기
+    let activeIdx = -1;
+    for (let i = 0; i < registrations.length; i++) {
+      const start = parseSheetDate(getStudentField(registrations[i], '시작날짜'));
+      const end = parseSheetDate(getStudentField(registrations[i], '종료날짜'));
+      if (start && end) {
+        start.setHours(0, 0, 0, 0);
+        end.setHours(0, 0, 0, 0);
+        if (today >= start && today <= end) {
+          activeIdx = i;
+          break;
+        }
       }
     }
+
+    // 활성 등록이 없으면 가장 최근 시트의 등록
+    if (activeIdx === -1) {
+      let maxOrder = -1;
+      registrations.forEach((r, i) => {
+        if (r._sheetOrder > maxOrder) {
+          maxOrder = r._sheetOrder;
+          activeIdx = i;
+        }
+      });
+    }
+
+    const active = registrations[activeIdx];
+
+    // 이전 등록(직전)의 종료날짜 보존
+    if (activeIdx > 0) {
+      const prev = registrations[activeIdx - 1];
+      active._prevEndDate = getStudentField(prev, '종료날짜');
+      active._prevSchedule = getStudentField(prev, '요일 및 시간');
+    }
+
+    latestByName[name] = active;
   });
 
   const deduplicatedStudents = Object.values(latestByName).map(({ _sheetOrder, _prevSheetOrder, ...student }) => student);
@@ -1072,7 +1264,7 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
   console.log(`🔍 홀딩 신청 시작: ${studentName}, ${holdingStartDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}`);
 
   const primarySheetName = getCurrentSheetName(holdingStartDate);
-  const { foundSheetName, rows, headers, studentIndex } =
+  const { foundSheetName, rows, headers, studentIndex, nextRegistrationIndex } =
     await findStudentInSheets(studentName, primarySheetName);
 
   console.log(`📄 최종 선택 시트: ${foundSheetName}`);
@@ -1184,8 +1376,88 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
 
   console.log(`✅ 홀딩 신청 완료: ${studentName}, ${startDateStr} ~ ${endDateStr}`);
   console.log(`📅 종료일 연장: ${newEndDateStr}`);
+
+  // 다음 등록(미리 등록)이 있으면 시작일/종료일 자동 조정
+  if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
+    try {
+      await adjustNextRegistration(foundSheetName, rows, headers, nextRegistrationIndex, newEndDate, firebaseHolidays);
+    } catch (adjustError) {
+      console.warn('⚠️ 다음 등록 자동 조정 실패 (홀딩은 정상 처리됨):', adjustError);
+    }
+  }
+
   return { success: true, newEndDate: newEndDateStr };
 };
+
+/**
+ * 다음 등록(미리 등록)의 시작일/종료일을 현재 등록 종료일 기준으로 자동 조정
+ * @param {string} sheetName - 시트 이름
+ * @param {Array} rows - 시트 데이터
+ * @param {Array} headers - 헤더
+ * @param {number} nextRowIndex - 다음 등록의 행 인덱스
+ * @param {Date} currentEndDate - 현재 등록의 새 종료일
+ * @param {Array} firebaseHolidays - 커스텀 공휴일
+ */
+async function adjustNextRegistration(sheetName, rows, headers, nextRowIndex, currentEndDate, firebaseHolidays = []) {
+  const nextRow = rows[nextRowIndex];
+  const nextData = buildStudentObject(headers, nextRow);
+
+  const nextScheduleStr = getStudentField(nextData, '요일 및 시간');
+  const nextWeeklyFreq = parseInt(getStudentField(nextData, '주횟수')) || 2;
+  const nextHoldingStatus = parseHoldingStatus(getStudentField(nextData, '홀딩 사용여부'));
+  const nextTotalSessions = getTotalSessions(nextWeeklyFreq, nextHoldingStatus);
+
+  // 다음 등록의 새 시작일 = 현재 등록 종료일 다음 수업일
+  const classDays = getClassDays(nextScheduleStr);
+  let newNextStart = new Date(currentEndDate);
+  newNextStart.setDate(newNextStart.getDate() + 1);
+  let maxIter = 30;
+  while (maxIter > 0) {
+    if (classDays.includes(newNextStart.getDay()) && !isHolidayDate(newNextStart, firebaseHolidays)) {
+      break;
+    }
+    newNextStart.setDate(newNextStart.getDate() + 1);
+    maxIter--;
+  }
+
+  // 다음 등록의 새 종료일 계산
+  const newNextEnd = calculateEndDate(newNextStart, nextTotalSessions, nextScheduleStr, null, firebaseHolidays);
+
+  if (!newNextEnd) {
+    console.warn('⚠️ 다음 등록 종료일 계산 실패');
+    return;
+  }
+
+  const startDateCol = findColumnIndex(headers, '시작날짜');
+  const endDateCol = findColumnIndex(headers, '종료날짜');
+
+  const newNextStartStr = formatDateToYYMMDD(newNextStart);
+  const newNextEndStr = formatDateToYYMMDD(newNextEnd);
+
+  const nextUpdates = [];
+  if (startDateCol !== -1) {
+    nextUpdates.push({
+      range: `${sheetName}!${getColumnLetter(startDateCol)}${nextRowIndex + 1}`,
+      values: [[newNextStartStr]]
+    });
+  }
+  if (endDateCol !== -1) {
+    nextUpdates.push({
+      range: `${sheetName}!${getColumnLetter(endDateCol)}${nextRowIndex + 1}`,
+      values: [[newNextEndStr]]
+    });
+  }
+
+  if (nextUpdates.length > 0) {
+    await batchUpdateSheet(nextUpdates);
+    // 하이라이트
+    try {
+      const cells = nextUpdates.map(u => u.range.split('!')[1]);
+      await highlightCells(cells, sheetName);
+    } catch (e) { /* 무시 */ }
+    console.log(`📅 다음 등록 자동 조정: 시작일 ${newNextStartStr}, 종료일 ${newNextEndStr}`);
+  }
+}
 
 /**
  * 홀딩 취소 (Google Sheets에서 홀딩 정보 초기화 + 종료날짜 재계산)
@@ -1196,17 +1468,12 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
 export const cancelHoldingInSheets = async (studentName, remainingHoldings = [], firebaseHolidays = []) => {
   console.log(`🔄 홀딩 취소 시작 (Google Sheets): ${studentName}`);
 
-  const result = await findStudentAcrossSheets(studentName);
-  if (!result) {
-    throw new Error(`학생 정보를 찾을 수 없습니다: ${studentName}`);
-  }
+  const { foundSheetName, rows, headers, studentIndex: activeIndex, nextRegistrationIndex } =
+    await findStudentInSheets(studentName);
 
-  const { student, foundSheetName } = result;
-  const actualRow = student._rowIndex + 3;
-
-  // 시트 헤더 읽기
-  const rows = await readSheetData(`${foundSheetName}!A:Z`);
-  const headers = rows[1];
+  const student = buildStudentObject(headers, rows[activeIndex]);
+  student._rowIndex = activeIndex - 2; // parseStudentData 호환
+  const actualRow = activeIndex + 1; // 시트 행번호 (1-based)
 
   const holdingUsedCol = findColumnIndex(headers, '홀딩 사용여부');
   const holdingStartCol = findColumnIndex(headers, '홀딩 시작일');
@@ -1271,6 +1538,18 @@ export const cancelHoldingInSheets = async (studentName, remainingHoldings = [],
   }
 
   await batchUpdateSheet(updates);
+
+  // 다음 등록(미리 등록)이 있으면 시작일/종료일 자동 조정
+  if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined && newEndDateStr) {
+    try {
+      const newEndDate = parseSheetDate(newEndDateStr);
+      if (newEndDate) {
+        await adjustNextRegistration(foundSheetName, rows, headers, nextRegistrationIndex, newEndDate, firebaseHolidays);
+      }
+    } catch (adjustError) {
+      console.warn('⚠️ 다음 등록 자동 조정 실패 (홀딩 취소는 정상 처리됨):', adjustError);
+    }
+  }
 
   console.log(`✅ 홀딩 취소 완료 (Google Sheets): ${studentName}`);
   return { success: true, newEndDate: newEndDateStr };
@@ -1445,4 +1724,112 @@ export const processStudentAbsence = async (studentName, absenceDates, firebaseH
 
   console.log(`✅ 결석 처리 완료: ${studentName}, 특이사항="${newNotes}", 새 종료일=${newEndDateStr}`);
   return { success: true, newEndDate: newEndDateStr, notesText: newNotes, validAbsenceCount: validAbsenceDates.length };
+};
+
+/**
+ * 코치모드에서 수강생 홀딩 처리 (Google Sheets + Firebase 동시 기록)
+ * @param {string} studentName - 수강생 이름
+ * @param {Array<string>} holdingDates - 홀딩 날짜 배열 (YYYY-MM-DD)
+ * @param {Array} firebaseHolidays - 커스텀 공휴일
+ * @returns {Promise<Object>}
+ */
+export const processCoachHolding = async (studentName, holdingDates, firebaseHolidays = []) => {
+  if (!holdingDates || holdingDates.length === 0) {
+    throw new Error('홀딩 날짜를 선택해주세요.');
+  }
+
+  const sortedDates = [...holdingDates].sort();
+  const startDate = sortedDates[0];
+  const endDate = sortedDates[sortedDates.length - 1];
+
+  console.log(`🔄 코치 홀딩 처리 시작: ${studentName}, ${startDate} ~ ${endDate}`);
+
+  // 1. 시트에서 학생 찾기
+  const { foundSheetName, rows, headers, studentIndex, nextRegistrationIndex } =
+    await findStudentInSheets(studentName);
+
+  const studentRow = rows[studentIndex];
+  const studentData = buildStudentObject(headers, studentRow);
+
+  const holdingUsedCol = findColumnIndex(headers, '홀딩 사용여부');
+  const holdingStartCol = findColumnIndex(headers, '홀딩 시작일');
+  const holdingEndCol = findColumnIndex(headers, '홀딩 종료일');
+  const endDateCol = findColumnIndex(headers, '종료날짜');
+  const startDateFieldCol = findColumnIndex(headers, '시작날짜');
+
+  if (holdingUsedCol === -1) {
+    throw new Error('홀딩 사용여부 필드를 찾을 수 없습니다.');
+  }
+
+  const membershipStartDate = parseSheetDate(getStudentField(studentData, '시작날짜'));
+  const scheduleStr = getStudentField(studentData, '요일 및 시간');
+  const weeklyFrequency = parseInt(getStudentField(studentData, '주횟수')) || 2;
+  const currentHoldingStatusStr = getStudentField(studentData, '홀딩 사용여부');
+  const holdingInfo = parseHoldingStatus(currentHoldingStatusStr);
+  const totalSessions = getTotalSessions(weeklyFrequency, holdingInfo);
+
+  // 2. 기존 Firebase 홀딩 조회 (동적 import 방지를 위해 외부에서 전달받지 않고 직접 계산)
+  const holdingStartDate = new Date(startDate + 'T00:00:00');
+  const holdingEndDate = new Date(endDate + 'T00:00:00');
+
+  // 3. 종료일 계산 (새 홀딩 포함)
+  const allHoldingRanges = [{ start: holdingStartDate, end: holdingEndDate }];
+
+  // 기존 시트의 홀딩 정보도 포함
+  const existHoldStart = parseSheetDate(getStudentField(studentData, '홀딩 시작일'));
+  const existHoldEnd = parseSheetDate(getStudentField(studentData, '홀딩 종료일'));
+  if (holdingInfo.isCurrentlyUsed && existHoldStart && existHoldEnd) {
+    allHoldingRanges.push({ start: existHoldStart, end: existHoldEnd });
+  }
+
+  const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allHoldingRanges, firebaseHolidays);
+  if (!newEndDate) {
+    throw new Error('종료일 계산에 실패했습니다.');
+  }
+
+  // 4. 시트 업데이트
+  const newUsedCount = holdingInfo.used + 1;
+  const newHoldingStatus = formatHoldingStatus(true, newUsedCount, holdingInfo.total);
+  const startDateStr = formatDateToYYMMDD(holdingStartDate);
+  const endDateStr = formatDateToYYMMDD(holdingEndDate);
+  const newEndDateStr = formatDateToYYMMDD(newEndDate);
+
+  const updates = [
+    { range: `${foundSheetName}!${getColumnLetter(holdingUsedCol)}${studentIndex + 1}`, values: [[newHoldingStatus]] },
+  ];
+  if (holdingStartCol !== -1) {
+    updates.push({ range: `${foundSheetName}!${getColumnLetter(holdingStartCol)}${studentIndex + 1}`, values: [[startDateStr]] });
+  }
+  if (holdingEndCol !== -1) {
+    updates.push({ range: `${foundSheetName}!${getColumnLetter(holdingEndCol)}${studentIndex + 1}`, values: [[endDateStr]] });
+  }
+  if (endDateCol !== -1) {
+    updates.push({ range: `${foundSheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`, values: [[newEndDateStr]] });
+  }
+
+  await batchUpdateSheet(updates);
+
+  // 하이라이트
+  try {
+    const cells = updates.map(u => u.range.split('!')[1]);
+    await highlightCells(cells, foundSheetName);
+  } catch (e) { /* 무시 */ }
+
+  // 5. 다음 등록 자동 조정
+  if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
+    try {
+      await adjustNextRegistration(foundSheetName, rows, headers, nextRegistrationIndex, newEndDate, firebaseHolidays);
+    } catch (adjustError) {
+      console.warn('⚠️ 다음 등록 자동 조정 실패:', adjustError);
+    }
+  }
+
+  console.log(`✅ 코치 홀딩 처리 완료: ${studentName}, ${startDate} ~ ${endDate}, 새 종료일=${newEndDateStr}`);
+  return {
+    success: true,
+    startDate,
+    endDate,
+    newEndDate: newEndDateStr,
+    holdingStatus: newHoldingStatus
+  };
 };

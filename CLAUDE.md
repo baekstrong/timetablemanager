@@ -251,9 +251,18 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 1. 학생이 날짜 선택 후 신청 → Firebase `holdingRequests` 생성
 2. Google Sheets M/N/O열 업데이트
 3. 홀딩 기간 포함하여 종료일(H열) 재계산
-4. 변경 셀 노란색 하이라이트
+4. **미리 등록(다음 등록)이 있으면 시작일/종료일 자동 조정**
+5. 변경 셀 노란색 하이라이트
 
 - 데드라인: 수업 시작 **1시간** 전
+- 코치모드에서도 수강생 관리 페이지의 '홀딩' 버튼으로 직접 처리 가능 (Firebase + Sheets 동시 기록)
+
+### 중복 등록 처리 (미리 등록)
+
+- 같은 이름의 수강생이 같은 시트에 여러 행(현재 등록 + 미리 등록)으로 존재 가능
+- `pickActiveRegistration()`, `pickActiveRowIndex()`: 오늘 기준 수강 기간 내인 등록을 우선 선택
+- `_nextRegistration` 필드: 미리 등록된 다음 수강 정보를 보존
+- `adjustNextRegistration()`: 홀딩/취소로 현재 종료일이 변경되면 다음 등록의 시작일/종료일도 자동 조정
 
 ### 결석 처리
 

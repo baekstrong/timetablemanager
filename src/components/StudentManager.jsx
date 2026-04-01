@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getStudentField, clearStudentScheduleAllSheets, parseSheetDate, processStudentAbsence } from '../services/googleSheetsService';
-import { getHolidays } from '../services/firebaseService';
+import { getStudentField, clearStudentScheduleAllSheets, parseSheetDate, processStudentAbsence, processCoachHolding } from '../services/googleSheetsService';
+import { getHolidays, createHoldingRequest } from '../services/firebaseService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
@@ -27,6 +27,10 @@ const StudentManager = ({ onBack }) => {
     const [absenceProcessing, setAbsenceProcessing] = useState(false);
     const [holidays, setHolidays] = useState([]);
     const [contractHistoryTarget, setContractHistoryTarget] = useState(null);
+    const [holdingTarget, setHoldingTarget] = useState(null); // 홀딩 대상 수강생
+    const [holdingDates, setHoldingDates] = useState([]); // 홀딩 날짜 목록
+    const [holdingDateInput, setHoldingDateInput] = useState(''); // 날짜 입력
+    const [holdingProcessing, setHoldingProcessing] = useState(false);
 
     // 공휴일 로드
     useEffect(() => {
@@ -156,6 +160,72 @@ const StudentManager = ({ onBack }) => {
     const handleRegistrationSuccess = () => {
         setShowRegistrationModal(false);
         if (refresh) refresh();
+    };
+
+    // 홀딩 모달 열기
+    const handleOpenHolding = (student) => {
+        setHoldingTarget(student);
+        setHoldingDates([]);
+        setHoldingDateInput('');
+    };
+
+    // 홀딩 날짜 추가
+    const handleAddHoldingDate = () => {
+        if (!holdingDateInput) return;
+        if (holdingDates.includes(holdingDateInput)) {
+            alert('이미 추가된 날짜입니다.');
+            return;
+        }
+        setHoldingDates(prev => [...prev, holdingDateInput].sort());
+        setHoldingDateInput('');
+    };
+
+    // 홀딩 날짜 삭제
+    const handleRemoveHoldingDate = (dateToRemove) => {
+        setHoldingDates(prev => prev.filter(d => d !== dateToRemove));
+    };
+
+    // 홀딩 처리 실행
+    const handleSubmitHolding = async () => {
+        if (!holdingTarget || holdingDates.length === 0) {
+            alert('홀딩 날짜를 최소 1개 이상 선택해주세요.');
+            return;
+        }
+
+        const sortedDates = [...holdingDates].sort();
+        const dateTexts = sortedDates.map(d => {
+            const date = new Date(d + 'T00:00:00');
+            return `${date.getMonth() + 1}/${date.getDate()}`;
+        }).join(', ');
+
+        if (!confirm(`${holdingTarget['이름']} 수강생의 홀딩을 처리하시겠습니까?\n\n홀딩일: ${dateTexts}\n\n- Google Sheets + Firebase에 모두 기록됩니다.\n- 종료날짜가 자동으로 연장됩니다.\n- 미리 등록이 있으면 일정이 자동 조정됩니다.`)) {
+            return;
+        }
+
+        setHoldingProcessing(true);
+        try {
+            const startDate = sortedDates[0];
+            const endDate = sortedDates[sortedDates.length - 1];
+
+            // 1. Firebase에 홀딩 기록
+            await createHoldingRequest(holdingTarget['이름'], startDate, endDate, sortedDates);
+
+            // 2. Google Sheets 업데이트 (종료일 재계산 + 다음 등록 조정)
+            const result = await processCoachHolding(
+                holdingTarget['이름'],
+                sortedDates,
+                holidays
+            );
+
+            alert(`홀딩 처리 완료!\n\n홀딩 기간: ${startDate} ~ ${endDate}\n새 종료날짜: ${result.newEndDate}\n홀딩 상태: ${result.holdingStatus}`);
+            setHoldingTarget(null);
+            setHoldingDates([]);
+            if (refresh) refresh();
+        } catch (err) {
+            console.error('홀딩 처리 실패:', err);
+            alert('홀딩 처리에 실패했습니다: ' + err.message);
+        }
+        setHoldingProcessing(false);
     };
 
     // 종료날짜가 지난 수강생 필터링 (활성 수강생만 표시)
@@ -346,6 +416,9 @@ const StudentManager = ({ onBack }) => {
                                                         <button onClick={() => handleEdit(student, index)} className="edit-btn">
                                                             수정
                                                         </button>
+                                                        <button onClick={() => handleOpenHolding(student)} className="holding-btn" title="홀딩 처리">
+                                                            홀딩
+                                                        </button>
                                                         <button onClick={() => handleOpenAbsence(student)} className="absence-btn" title="결석 처리">
                                                             결석
                                                         </button>
@@ -437,6 +510,71 @@ const StudentManager = ({ onBack }) => {
                                 disabled={absenceProcessing || absenceDates.length === 0}
                             >
                                 {absenceProcessing ? '처리 중...' : `결석 처리 (${absenceDates.length}일)`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 홀딩 처리 모달 */}
+            {holdingTarget && (
+                <div className="absence-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setHoldingTarget(null); }}>
+                    <div className="absence-modal-content">
+                        <h2 className="absence-modal-title">홀딩 처리</h2>
+                        <p className="absence-modal-student">{holdingTarget['이름']} ({holdingTarget['요일 및 시간'] || '-'})</p>
+                        <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px' }}>
+                            수강기간: {holdingTarget['시작날짜'] || '-'} ~ {holdingTarget['종료날짜'] || '-'}
+                            {' | '}홀딩: {getStudentField(holdingTarget, '홀딩 사용여부') || 'X'}
+                        </p>
+
+                        <div className="absence-date-input-row">
+                            <input
+                                type="date"
+                                value={holdingDateInput}
+                                onChange={(e) => setHoldingDateInput(e.target.value)}
+                                className="absence-date-input"
+                            />
+                            <button onClick={handleAddHoldingDate} className="absence-add-btn">
+                                추가
+                            </button>
+                        </div>
+
+                        {holdingDates.length > 0 && (
+                            <div className="absence-date-list">
+                                {holdingDates.map(date => {
+                                    const d = new Date(date + 'T00:00:00');
+                                    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+                                    return (
+                                        <div key={date} className="absence-date-item">
+                                            <span>{date} ({dayNames[d.getDay()]})</span>
+                                            <button onClick={() => handleRemoveHoldingDate(date)} className="absence-remove-btn">X</button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        <div className="absence-info-box">
+                            <p>- Google Sheets + Firebase에 모두 기록됩니다.</p>
+                            <p>- 홀딩 기간만큼 종료날짜가 자동 연장됩니다.</p>
+                            <p>- 미리 등록이 있으면 시작일/종료일이 자동 조정됩니다.</p>
+                        </div>
+
+                        <div className="absence-modal-actions">
+                            <button
+                                className="absence-cancel-btn"
+                                onClick={() => setHoldingTarget(null)}
+                                disabled={holdingProcessing}
+                            >
+                                취소
+                            </button>
+                            <button
+                                className="absence-submit-btn"
+                                onClick={handleSubmitHolding}
+                                disabled={holdingProcessing || holdingDates.length === 0}
+                                style={{ background: '#667eea' }}
+                            >
+                                {holdingProcessing ? '처리 중...' : `홀딩 처리 (${holdingDates.length}일)`}
                             </button>
                         </div>
                     </div>
