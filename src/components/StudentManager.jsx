@@ -169,10 +169,19 @@ const StudentManager = ({ onBack }) => {
         setHoldingTarget(student);
         setHoldingDates([]);
         setHoldingDateInput('');
-        // 기존 활성 홀딩 목록 조회
+        // 기존 활성 홀딩 목록 조회 (현재 등록 기간 내 홀딩만)
         try {
             const holdings = await getHoldingsByStudent(student['이름']);
-            setExistingHoldings(holdings);
+            const regStart = student['시작날짜'] || '';
+            const regEnd = student['종료날짜'] || '';
+            const filtered = holdings.filter(h => {
+                if (!regStart || !regEnd) return true;
+                // 시작날짜/종료날짜는 YYMMDD 형식, 홀딩의 startDate/endDate는 YYYY-MM-DD 형식
+                const regStartISO = `20${regStart.substring(0,2)}-${regStart.substring(2,4)}-${regStart.substring(4,6)}`;
+                const regEndISO = `20${regEnd.substring(0,2)}-${regEnd.substring(2,4)}-${regEnd.substring(4,6)}`;
+                return h.startDate >= regStartISO && h.startDate <= regEndISO;
+            });
+            setExistingHoldings(filtered);
         } catch (err) {
             console.error('홀딩 목록 조회 실패:', err);
             setExistingHoldings([]);
