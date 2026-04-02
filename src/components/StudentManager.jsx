@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getStudentField, clearStudentScheduleAllSheets, parseSheetDate, processStudentAbsence, processCoachHolding } from '../services/googleSheetsService';
-import { getHolidays, createHoldingRequest } from '../services/firebaseService';
+import { getStudentField, clearStudentScheduleAllSheets, parseSheetDate, processStudentAbsence, processCoachHolding, cancelHoldingInSheets } from '../services/googleSheetsService';
+import { getHolidays, createHoldingRequest, getHoldingsByStudent, cancelHolding } from '../services/firebaseService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
@@ -28,6 +28,8 @@ const StudentManager = ({ onBack }) => {
     const [holidays, setHolidays] = useState([]);
     const [contractHistoryTarget, setContractHistoryTarget] = useState(null);
     const [holdingTarget, setHoldingTarget] = useState(null); // 홀딩 대상 수강생
+    const [existingHoldings, setExistingHoldings] = useState([]); // 기존 활성 홀딩 목록
+    const [holdingCancelling, setHoldingCancelling] = useState(false); // 홀딩 취소 처리 중
     const [holdingDates, setHoldingDates] = useState([]); // 홀딩 날짜 목록
     const [holdingDateInput, setHoldingDateInput] = useState(''); // 날짜 입력
     const [holdingProcessing, setHoldingProcessing] = useState(false);
@@ -163,10 +165,43 @@ const StudentManager = ({ onBack }) => {
     };
 
     // 홀딩 모달 열기
-    const handleOpenHolding = (student) => {
+    const handleOpenHolding = async (student) => {
         setHoldingTarget(student);
         setHoldingDates([]);
         setHoldingDateInput('');
+        // 기존 활성 홀딩 목록 조회
+        try {
+            const holdings = await getHoldingsByStudent(student['이름']);
+            setExistingHoldings(holdings);
+        } catch (err) {
+            console.error('홀딩 목록 조회 실패:', err);
+            setExistingHoldings([]);
+        }
+    };
+
+    // 홀딩 취소 처리
+    const handleCancelHolding = async (holdingData) => {
+        if (!confirm(`홀딩을 취소하시겠습니까?\n기간: ${holdingData.startDate} ~ ${holdingData.endDate}`)) {
+            return;
+        }
+        setHoldingCancelling(true);
+        try {
+            // Firebase 홀딩 취소
+            await cancelHolding(holdingData.id);
+            // 남은 홀딩 목록 계산
+            const remainingHoldingsList = existingHoldings.filter(h => h.id !== holdingData.id);
+            // Google Sheets 홀딩 정보 업데이트 (종료일 재계산)
+            const holidaysArray = holidays.map(h => typeof h === 'string' ? { date: h } : h);
+            await cancelHoldingInSheets(holdingTarget['이름'], remainingHoldingsList, holidaysArray);
+            // 상태 업데이트
+            setExistingHoldings(remainingHoldingsList);
+            if (refresh) await refresh();
+            alert('홀딩이 취소되었습니다.');
+        } catch (err) {
+            console.error('홀딩 취소 실패:', err);
+            alert('홀딩 취소에 실패했습니다: ' + err.message);
+        }
+        setHoldingCancelling(false);
     };
 
     // 홀딩 날짜 추가
@@ -527,6 +562,43 @@ const StudentManager = ({ onBack }) => {
                             {' | '}홀딩: {getStudentField(holdingTarget, '홀딩 사용여부') || 'X'}
                         </p>
 
+                        {/* 기존 활성 홀딩 목록 */}
+                        {existingHoldings.length > 0 && (
+                            <div style={{ marginBottom: '16px' }}>
+                                <p style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>활성 홀딩 목록</p>
+                                {existingHoldings.map(h => (
+                                    <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f0f4ff', borderRadius: '8px', border: '1px solid #667eea', marginBottom: '6px' }}>
+                                        <div>
+                                            <span style={{ fontSize: '14px', color: '#374151' }}>
+                                                {h.startDate} ~ {h.endDate}
+                                            </span>
+                                            <span style={{ marginLeft: '8px', color: '#6b7280', fontSize: '12px' }}>
+                                                ({h.dates ? h.dates.length : '?'}일)
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() => handleCancelHolding(h)}
+                                            disabled={holdingCancelling}
+                                            style={{
+                                                padding: '5px 12px',
+                                                background: '#dc2626',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                cursor: holdingCancelling ? 'not-allowed' : 'pointer',
+                                                fontSize: '13px',
+                                                opacity: holdingCancelling ? 0.6 : 1
+                                            }}
+                                        >
+                                            {holdingCancelling ? '처리 중...' : '취소'}
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* 새 홀딩 추가 */}
+                        <p style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>새 홀딩 추가</p>
                         <div className="absence-date-input-row">
                             <input
                                 type="date"
