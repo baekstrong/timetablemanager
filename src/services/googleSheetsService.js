@@ -221,8 +221,8 @@ function pickActiveRowIndex(rows, headers, indices) {
 }
 
 /**
- * 현재 월 시트 우선, 못 찾으면 모든 시트에서 학생 검색
- * 같은 시트에 동일 이름이 여러 행이면 활성 등록 행 반환
+ * 모든 시트에서 학생을 검색하여 현재 활성 등록 행을 반환
+ * 같은 이름이 여러 시트/행에 있을 때 오늘 기준 수강 기간 내 등록을 우선 선택
  * @param {string} studentName
  * @param {string} [primarySheetName] - 우선 검색할 시트명 (기본: 현재 월)
  * @returns {Promise<{foundSheetName, rows, headers, studentIndex, nextRegistrationIndex}>}
@@ -230,43 +230,105 @@ function pickActiveRowIndex(rows, headers, indices) {
 async function findStudentInSheets(studentName, primarySheetName = null) {
   const primary = primarySheetName || getCurrentSheetName();
 
-  // 시트에서 검색하는 내부 헬퍼
-  const searchInSheet = async (sheetName) => {
-    const rows = await readSheetData(`${sheetName}!A:Z`);
-    if (!rows || rows.length < 2) return null;
-    const headers = rows[1];
-    const indices = findAllStudentRowIndices(rows, headers, studentName);
-    if (indices.length === 0) return null;
+  // 모든 시트에서 매치 수집
+  const allCandidates = []; // { sheetName, rows, headers, rowIndex, startDate, endDate }
 
-    const { activeIndex, nextIndex } = pickActiveRowIndex(rows, headers, indices);
-    console.log(`✅ 학생 찾음 (${sheetName}): 행 ${activeIndex + 1}${indices.length > 1 ? ` (${indices.length}개 등록 중 활성)` : ''}`);
-    return { foundSheetName: sheetName, rows, headers, studentIndex: activeIndex, nextRegistrationIndex: nextIndex };
+  const collectFromSheet = async (sheetName) => {
+    try {
+      const rows = await readSheetData(`${sheetName}!A:Z`);
+      if (!rows || rows.length < 2) return;
+      const headers = rows[1];
+      const indices = findAllStudentRowIndices(rows, headers, studentName);
+      if (indices.length === 0) return;
+
+      const startDateCol = findColumnIndex(headers, '시작날짜');
+      const endDateCol = findColumnIndex(headers, '종료날짜');
+
+      indices.forEach(idx => {
+        const startDate = startDateCol !== -1 ? parseSheetDate(rows[idx][startDateCol]) : null;
+        const endDate = endDateCol !== -1 ? parseSheetDate(rows[idx][endDateCol]) : null;
+        allCandidates.push({ sheetName, rows, headers, rowIndex: idx, startDate, endDate });
+      });
+    } catch (e) {
+      console.warn(`⚠️ ${sheetName} 시트 읽기 실패:`, e.message);
+    }
   };
 
-  // 1차: 우선 시트에서 검색
-  try {
-    const result = await searchInSheet(primary);
-    if (result) return result;
-  } catch (e) {
-    console.warn(`⚠️ ${primary} 시트 읽기 실패:`, e.message);
-  }
+  // 우선 시트 먼저 검색
+  await collectFromSheet(primary);
 
-  // 2차: 모든 시트에서 검색
-  console.log(`🔄 ${primary}에서 못 찾음. 다른 시트 검색 시작...`);
+  // 나머지 시트도 검색
   const allSheets = await getAllSheetNames();
   const studentSheets = allSheets.filter(name => name.startsWith('등록생 목록'));
 
   for (const sheetName of studentSheets) {
     if (sheetName === primary) continue;
-    try {
-      const result = await searchInSheet(sheetName);
-      if (result) return result;
-    } catch (sheetError) {
-      console.warn(`⚠️ ${sheetName} 시트 읽기 실패:`, sheetError.message);
+    await collectFromSheet(sheetName);
+  }
+
+  if (allCandidates.length === 0) {
+    throw new Error(`학생 정보를 찾을 수 없습니다: ${studentName}`);
+  }
+
+  // 시작날짜 기준 정렬
+  allCandidates.sort((a, b) => {
+    if (!a.startDate) return 1;
+    if (!b.startDate) return -1;
+    return a.startDate - b.startDate;
+  });
+
+  // 오늘 기준 활성 등록 찾기
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let activeIdx = -1;
+  for (let i = 0; i < allCandidates.length; i++) {
+    const { startDate, endDate } = allCandidates[i];
+    if (startDate && endDate) {
+      const s = new Date(startDate); s.setHours(0, 0, 0, 0);
+      const e = new Date(endDate); e.setHours(0, 0, 0, 0);
+      if (today >= s && today <= e) {
+        activeIdx = i;
+        break;
+      }
     }
   }
 
-  throw new Error(`학생 정보를 찾을 수 없습니다: ${studentName}`);
+  if (activeIdx === -1) activeIdx = 0; // 못 찾으면 첫 번째 (가장 이른 시작일)
+
+  const active = allCandidates[activeIdx];
+
+  // 다음 등록 찾기 (활성 등록 바로 다음)
+  let nextRegistrationIndex = -1;
+  let nextSheetName = null;
+  let nextRows = null;
+  let nextHeaders = null;
+  if (activeIdx < allCandidates.length - 1) {
+    const next = allCandidates[activeIdx + 1];
+    if (next.sheetName === active.sheetName) {
+      // 같은 시트 → 기존 방식
+      nextRegistrationIndex = next.rowIndex;
+    } else {
+      // 다른 시트 → 별도 저장
+      nextRegistrationIndex = next.rowIndex;
+      nextSheetName = next.sheetName;
+      nextRows = next.rows;
+      nextHeaders = next.headers;
+    }
+  }
+
+  console.log(`✅ 학생 찾음 (${active.sheetName}): 행 ${active.rowIndex + 1} (전체 ${allCandidates.length}개 등록 중 활성, 시작: ${active.startDate ? formatDateToISO(active.startDate) : '?'})`);
+
+  return {
+    foundSheetName: active.sheetName,
+    rows: active.rows,
+    headers: active.headers,
+    studentIndex: active.rowIndex,
+    nextRegistrationIndex,
+    nextSheetName,
+    nextRows,
+    nextHeaders,
+  };
 }
 
 /**
@@ -1264,7 +1326,7 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
   console.log(`🔍 홀딩 신청 시작: ${studentName}, ${holdingStartDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}`);
 
   const primarySheetName = getCurrentSheetName(holdingStartDate);
-  const { foundSheetName, rows, headers, studentIndex, nextRegistrationIndex } =
+  const { foundSheetName, rows, headers, studentIndex, nextRegistrationIndex, nextSheetName, nextRows, nextHeaders } =
     await findStudentInSheets(studentName, primarySheetName);
 
   console.log(`📄 최종 선택 시트: ${foundSheetName}`);
@@ -1380,7 +1442,10 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
   // 다음 등록(미리 등록)이 있으면 시작일/종료일 자동 조정
   if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
     try {
-      await adjustNextRegistration(foundSheetName, rows, headers, nextRegistrationIndex, newEndDate, firebaseHolidays);
+      const nSheet = nextSheetName || foundSheetName;
+      const nRows = nextRows || rows;
+      const nHeaders = nextHeaders || headers;
+      await adjustNextRegistration(nSheet, nRows, nHeaders, nextRegistrationIndex, newEndDate, firebaseHolidays);
     } catch (adjustError) {
       console.warn('⚠️ 다음 등록 자동 조정 실패 (홀딩은 정상 처리됨):', adjustError);
     }
@@ -1468,7 +1533,7 @@ async function adjustNextRegistration(sheetName, rows, headers, nextRowIndex, cu
 export const cancelHoldingInSheets = async (studentName, remainingHoldings = [], firebaseHolidays = []) => {
   console.log(`🔄 홀딩 취소 시작 (Google Sheets): ${studentName}`);
 
-  const { foundSheetName, rows, headers, studentIndex: activeIndex, nextRegistrationIndex } =
+  const { foundSheetName, rows, headers, studentIndex: activeIndex, nextRegistrationIndex, nextSheetName, nextRows, nextHeaders } =
     await findStudentInSheets(studentName);
 
   const student = buildStudentObject(headers, rows[activeIndex]);
@@ -1544,7 +1609,10 @@ export const cancelHoldingInSheets = async (studentName, remainingHoldings = [],
     try {
       const newEndDate = parseSheetDate(newEndDateStr);
       if (newEndDate) {
-        await adjustNextRegistration(foundSheetName, rows, headers, nextRegistrationIndex, newEndDate, firebaseHolidays);
+        const nSheet = nextSheetName || foundSheetName;
+        const nRows = nextRows || rows;
+        const nHeaders = nextHeaders || headers;
+        await adjustNextRegistration(nSheet, nRows, nHeaders, nextRegistrationIndex, newEndDate, firebaseHolidays);
       }
     } catch (adjustError) {
       console.warn('⚠️ 다음 등록 자동 조정 실패 (홀딩 취소는 정상 처리됨):', adjustError);
@@ -1745,7 +1813,7 @@ export const processCoachHolding = async (studentName, holdingDates, firebaseHol
   console.log(`🔄 코치 홀딩 처리 시작: ${studentName}, ${startDate} ~ ${endDate}`);
 
   // 1. 시트에서 학생 찾기
-  const { foundSheetName, rows, headers, studentIndex, nextRegistrationIndex } =
+  const { foundSheetName, rows, headers, studentIndex, nextRegistrationIndex, nextSheetName, nextRows, nextHeaders } =
     await findStudentInSheets(studentName);
 
   const studentRow = rows[studentIndex];
@@ -1818,7 +1886,10 @@ export const processCoachHolding = async (studentName, holdingDates, firebaseHol
   // 5. 다음 등록 자동 조정
   if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
     try {
-      await adjustNextRegistration(foundSheetName, rows, headers, nextRegistrationIndex, newEndDate, firebaseHolidays);
+      const nSheet = nextSheetName || foundSheetName;
+      const nRows = nextRows || rows;
+      const nHeaders = nextHeaders || headers;
+      await adjustNextRegistration(nSheet, nRows, nHeaders, nextRegistrationIndex, newEndDate, firebaseHolidays);
     } catch (adjustError) {
       console.warn('⚠️ 다음 등록 자동 조정 실패:', adjustError);
     }
