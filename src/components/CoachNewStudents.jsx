@@ -989,11 +989,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                             FAQ 관리
                         </button>
                     </div>
-                </header>
-
-                {/* === 등록 목록 탭 === */}
-                {activeTab === 'registrations' && (
-                    <div className="cns-section">
+                    {activeTab === 'registrations' && (
                         <div className="cns-filter-row">
                             {['pending', 'waitlist', 'approved', 'rejected'].map(f => (
                                 <button
@@ -1008,6 +1004,12 @@ const CoachNewStudents = ({ user, onBack }) => {
                                 </button>
                             ))}
                         </div>
+                    )}
+                </header>
+
+                {/* === 등록 목록 탭 === */}
+                {activeTab === 'registrations' && (
+                    <div className="cns-section">
 
                         {loading ? (
                             <div className="cns-loading">불러오는 중...</div>
