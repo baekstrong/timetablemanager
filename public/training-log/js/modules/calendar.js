@@ -15,8 +15,8 @@ export async function renderCalendar() {
     const firstDay = new Date(state.calendarYear, state.calendarMonth, 1);
     const lastDay = new Date(state.calendarYear, state.calendarMonth + 1, 0);
 
-    const startDate = firstDay.toISOString().split('T')[0];
-    const endDate = lastDay.toISOString().split('T')[0];
+    const startDate = `${state.calendarYear}-${String(state.calendarMonth + 1).padStart(2, '0')}-01`;
+    const endDate = `${state.calendarYear}-${String(state.calendarMonth + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
 
     try {
         const snapshot = await db.collection('records')
@@ -61,7 +61,8 @@ export async function renderCalendar() {
         const daysInMonth = lastDay.getDate();
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${state.calendarYear}-${String(state.calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const isToday = dateStr === today.toISOString().split('T')[0];
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            const isToday = dateStr === todayStr;
             const isSelected = dateStr === state.selectedDate;
             const hasWorkout = workoutDates.has(dateStr);
             const hasFeedback = feedbackDates.has(dateStr);
