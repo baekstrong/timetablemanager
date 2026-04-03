@@ -162,10 +162,12 @@ function AppContent() {
       setHasNewPostNotification(false);
     }
     setCurrentPage(page);
+    window.scrollTo(0, 0);
   };
 
   const handleBackToDashboard = () => {
     setCurrentPage('dashboard');
+    window.scrollTo(0, 0);
   };
 
   // Render current page
