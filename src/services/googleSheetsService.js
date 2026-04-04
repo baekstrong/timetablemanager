@@ -1036,15 +1036,20 @@ export const getAllStudentsFromAllSheets = async () => {
       }
     }
 
-    // 활성 등록이 없으면 가장 최근 시트의 등록
+    // 활성 등록이 없으면: 미래 등록 우선, 없으면 가장 최근 등록
     if (activeIdx === -1) {
-      let maxOrder = -1;
-      registrations.forEach((r, i) => {
-        if (r._sheetOrder > maxOrder) {
-          maxOrder = r._sheetOrder;
-          activeIdx = i;
-        }
+      // registrations는 시작날짜 오름차순 정렬 → 첫 미래 등록이 가장 가까운 것
+      const futureIdx = registrations.findIndex(r => {
+        const start = parseSheetDate(getStudentField(r, '시작날짜'));
+        return start && start > today;
       });
+
+      if (futureIdx !== -1) {
+        activeIdx = futureIdx;
+      } else {
+        // 모든 등록 종료 → 가장 마지막(최근) 등록 선택
+        activeIdx = registrations.length - 1;
+      }
     }
 
     const active = registrations[activeIdx];
