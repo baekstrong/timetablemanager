@@ -1339,25 +1339,23 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 <h1 className="schedule-page-title">
                     {mode === 'coach' ? '코치 시간표' : '수강생 시간표'}
                 </h1>
-                {user?.role === 'coach' && (
-                    <button
-                        onClick={handleManualRefresh}
-                        disabled={isRefreshing}
-                        style={{
-                            marginLeft: 'auto',
-                            padding: '4px 12px',
-                            fontSize: '0.85rem',
-                            border: '1px solid #ddd',
-                            borderRadius: '4px',
-                            backgroundColor: isRefreshing ? '#f3f4f6' : '#fff',
-                            cursor: isRefreshing ? 'not-allowed' : 'pointer',
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0
-                        }}
-                    >
-                        {isRefreshing ? '새로고침 중...' : '🔄 새로고침'}
-                    </button>
-                )}
+                <button
+                    onClick={handleManualRefresh}
+                    disabled={isRefreshing}
+                    style={{
+                        marginLeft: 'auto',
+                        padding: '4px 12px',
+                        fontSize: '0.85rem',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px',
+                        backgroundColor: isRefreshing ? '#f3f4f6' : '#fff',
+                        cursor: isRefreshing ? 'not-allowed' : 'pointer',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0
+                    }}
+                >
+                    {isRefreshing ? '새로고침 중...' : '🔄 새로고침'}
+                </button>
             </div>
 
             {/* Mode toggle (coach only) */}
