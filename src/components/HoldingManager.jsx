@@ -48,7 +48,7 @@ const isHoliday = (date) => {
     return KOREAN_HOLIDAYS_2026[dateStr];
 };
 
-const HoldingManager = ({ user, studentData, onBack }) => {
+const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
     const { requestHolding, refresh } = useGoogleSheets();
     const [requestType, setRequestType] = useState('holding'); // 'holding' | 'absence'
     const [selectedDates, setSelectedDates] = useState([]);
@@ -646,6 +646,24 @@ const HoldingManager = ({ user, studentData, onBack }) => {
 
     return (
         <div className="holding-container">
+            {isLoading && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(255,255,255,0.85)', zIndex: 9999,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    backdropFilter: 'blur(2px)'
+                }}>
+                    <div style={{
+                        width: '40px', height: '40px', border: '4px solid #e5e7eb',
+                        borderTop: '4px solid #667eea', borderRadius: '50%',
+                        animation: 'spin 1s linear infinite'
+                    }} />
+                    <p style={{ marginTop: '16px', color: '#4b5563', fontSize: '15px', fontWeight: 500 }}>
+                        정보를 받아오고 있습니다...
+                    </p>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+            )}
             <div className="holding-header">
                 <h1 className="holding-title">홀딩 신청</h1>
             </div>

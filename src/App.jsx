@@ -32,6 +32,7 @@ function AppContent() {
   const [hasWaitlistNotification, setHasWaitlistNotification] = useState(false);
   const [hasContractNotification, setHasContractNotification] = useState(false);
   const [hasNewPostNotification, setHasNewPostNotification] = useState(false);
+  const [isStudentDataLoading, setIsStudentDataLoading] = useState(false);
   const { getStudentByName, findStudentAcrossSheets } = useGoogleSheets();
 
   // Poll for pending registrations (coach only)
@@ -105,6 +106,7 @@ function AppContent() {
 
     // If student role, fetch their data from Google Sheets in background
     if (userData.role === 'student') {
+      setIsStudentDataLoading(true);
       // Don't await - let it load in background
       (async () => {
         try {
@@ -130,6 +132,8 @@ function AppContent() {
         } catch (error) {
           console.error('Failed to load student data:', error);
           // Continue even if data fetch fails
+        } finally {
+          setIsStudentDataLoading(false);
         }
       })();
     }
@@ -183,7 +187,7 @@ function AppContent() {
         return <WeeklySchedule user={user} studentData={studentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} />;
 
       case 'holding':
-        return <HoldingManager user={user} studentData={studentData} onBack={handleBackToDashboard} />;
+        return <HoldingManager user={user} studentData={studentData} isLoading={isStudentDataLoading} onBack={handleBackToDashboard} />;
 
       case 'myinfo':
         return <StudentInfo user={user} studentData={studentData} onBack={handleBackToDashboard} />;
