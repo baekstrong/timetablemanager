@@ -326,7 +326,33 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         return { year, month, dates };
     }, [calendarYear, calendarMonth]);
 
-    // 특정 날짜가 수강 기간 내인지 확인 (보강 날짜도 허용)
+    // 이전/다음 등록 기간도 파싱 (미리 등록 대응)
+    const prevNextPeriod = useMemo(() => {
+        if (!studentData) return { prevStart: null, prevEnd: null, nextStart: null, nextEnd: null };
+
+        const parseDate = (dateStr) => {
+            if (!dateStr) return null;
+            const cleaned = String(dateStr).replace(/\D/g, '');
+            if (cleaned.length === 6) {
+                return new Date(parseInt('20' + cleaned.substring(0, 2)), parseInt(cleaned.substring(2, 4)) - 1, parseInt(cleaned.substring(4, 6)));
+            } else if (cleaned.length === 8) {
+                return new Date(parseInt(cleaned.substring(0, 4)), parseInt(cleaned.substring(4, 6)) - 1, parseInt(cleaned.substring(6, 8)));
+            }
+            if (String(dateStr).includes('-')) return new Date(dateStr);
+            return null;
+        };
+
+        const prev = studentData._prevRegistration;
+        const next = studentData._nextRegistration;
+        return {
+            prevStart: prev ? parseDate(prev['시작날짜']) : null,
+            prevEnd: prev ? parseDate(prev['종료날짜']) : null,
+            nextStart: next ? parseDate(next['시작날짜']) : null,
+            nextEnd: next ? parseDate(next['종료날짜']) : null,
+        };
+    }, [studentData]);
+
+    // 특정 날짜가 수강 기간 내인지 확인 (보강 날짜도 허용, 이전/다음 등록 기간도 허용)
     const isWithinMembershipPeriod = (date) => {
         if (!date || !membershipPeriod.start || !membershipPeriod.end) return true;
 
@@ -336,13 +362,33 @@ const HoldingManager = ({ user, studentData, onBack }) => {
         const dateOnly = new Date(date);
         dateOnly.setHours(0, 0, 0, 0);
 
+        // 현재 등록 기간 체크
         const startOnly = new Date(membershipPeriod.start);
         startOnly.setHours(0, 0, 0, 0);
-
         const endOnly = new Date(membershipPeriod.end);
         endOnly.setHours(0, 0, 0, 0);
 
-        return dateOnly >= startOnly && dateOnly <= endOnly;
+        if (dateOnly >= startOnly && dateOnly <= endOnly) return true;
+
+        // 이전 등록 기간 체크 (미리 등록으로 다음 계약이 선택된 경우)
+        if (prevNextPeriod.prevStart && prevNextPeriod.prevEnd) {
+            const prevStart = new Date(prevNextPeriod.prevStart);
+            prevStart.setHours(0, 0, 0, 0);
+            const prevEnd = new Date(prevNextPeriod.prevEnd);
+            prevEnd.setHours(0, 0, 0, 0);
+            if (dateOnly >= prevStart && dateOnly <= prevEnd) return true;
+        }
+
+        // 다음 등록 기간 체크 (현재 계약이 선택된 경우)
+        if (prevNextPeriod.nextStart && prevNextPeriod.nextEnd) {
+            const nextStart = new Date(prevNextPeriod.nextStart);
+            nextStart.setHours(0, 0, 0, 0);
+            const nextEnd = new Date(prevNextPeriod.nextEnd);
+            nextEnd.setHours(0, 0, 0, 0);
+            if (dateOnly >= nextStart && dateOnly <= nextEnd) return true;
+        }
+
+        return false;
     };
 
     // 이전 달로 이동
