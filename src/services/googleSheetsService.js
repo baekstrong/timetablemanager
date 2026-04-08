@@ -1041,45 +1041,44 @@ export const getAllStudentsFromAllSheets = async () => {
       return;
     }
 
+    // 날짜를 한 번만 파싱하여 캐싱
+    registrations.forEach(r => {
+      r._parsedStart = parseSheetDate(getStudentField(r, '시작날짜'));
+      r._parsedEnd = parseSheetDate(getStudentField(r, '종료날짜'));
+      if (r._parsedStart) r._parsedStart.setHours(0, 0, 0, 0);
+      if (r._parsedEnd) r._parsedEnd.setHours(0, 0, 0, 0);
+    });
+
     // 시작날짜 기준 정렬
     registrations.sort((a, b) => {
-      const startA = parseSheetDate(getStudentField(a, '시작날짜'));
-      const startB = parseSheetDate(getStudentField(b, '시작날짜'));
-      if (!startA) return 1;
-      if (!startB) return -1;
-      return startA - startB;
+      if (!a._parsedStart) return 1;
+      if (!b._parsedStart) return -1;
+      return a._parsedStart - b._parsedStart;
     });
 
     // 오늘이 수강 기간 내인 등록 찾기
     let activeIdx = -1;
     for (let i = 0; i < registrations.length; i++) {
-      const start = parseSheetDate(getStudentField(registrations[i], '시작날짜'));
-      const end = parseSheetDate(getStudentField(registrations[i], '종료날짜'));
-      if (start && end) {
-        start.setHours(0, 0, 0, 0);
-        end.setHours(0, 0, 0, 0);
-        if (today >= start && today <= end) {
-          activeIdx = i;
-          break;
-        }
+      const { _parsedStart: start, _parsedEnd: end } = registrations[i];
+      if (start && end && today >= start && today <= end) {
+        activeIdx = i;
+        break;
       }
     }
 
     // 활성 등록이 없으면: 미래 등록 우선, 없으면 가장 최근 등록
     if (activeIdx === -1) {
-      // registrations는 시작날짜 오름차순 정렬 → 첫 미래 등록이 가장 가까운 것
-      const futureIdx = registrations.findIndex(r => {
-        const start = parseSheetDate(getStudentField(r, '시작날짜'));
-        return start && start > today;
-      });
+      const futureIdx = registrations.findIndex(r => r._parsedStart && r._parsedStart > today);
 
       if (futureIdx !== -1) {
         activeIdx = futureIdx;
       } else {
-        // 모든 등록 종료 → 가장 마지막(최근) 등록 선택
         activeIdx = registrations.length - 1;
       }
     }
+
+    // 캐싱된 파싱 결과 정리
+    registrations.forEach(r => { delete r._parsedStart; delete r._parsedEnd; });
 
     const active = registrations[activeIdx];
 

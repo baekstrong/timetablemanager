@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, clearStudentScheduleAllSheets, parseSheetDate, processStudentAbsence, processCoachHolding, cancelHoldingInSheets } from '../services/googleSheetsService';
-import { getHolidays, createHoldingRequest, getHoldingsByStudent, cancelHolding } from '../services/firebaseService';
+import { createHoldingRequest, getHoldingsByStudent, cancelHolding } from '../services/firebaseService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
@@ -14,7 +14,8 @@ const StudentManager = ({ onBack }) => {
         updateStudent,
         loading,
         error,
-        refresh
+        refresh,
+        holidays
     } = useGoogleSheets();
     const [editingStudent, setEditingStudent] = useState(null);
     const [editForm, setEditForm] = useState({});
@@ -25,7 +26,6 @@ const StudentManager = ({ onBack }) => {
     const [absenceDates, setAbsenceDates] = useState([]); // 결석 날짜 목록
     const [absenceDateInput, setAbsenceDateInput] = useState(''); // 날짜 입력
     const [absenceProcessing, setAbsenceProcessing] = useState(false);
-    const [holidays, setHolidays] = useState([]);
     const [contractHistoryTarget, setContractHistoryTarget] = useState(null);
     const [holdingTarget, setHoldingTarget] = useState(null); // 홀딩 대상 수강생
     const [existingHoldings, setExistingHoldings] = useState([]); // 기존 활성 홀딩 목록
@@ -33,11 +33,6 @@ const StudentManager = ({ onBack }) => {
     const [holdingDates, setHoldingDates] = useState([]); // 홀딩 날짜 목록
     const [holdingDateInput, setHoldingDateInput] = useState(''); // 날짜 입력
     const [holdingProcessing, setHoldingProcessing] = useState(false);
-
-    // 공휴일 로드
-    useEffect(() => {
-        getHolidays().then(setHolidays).catch(err => console.error('공휴일 로드 실패:', err));
-    }, []);
 
     // 시간표 배너에서 재등록 모달 자동 열기
     useEffect(() => {
@@ -273,15 +268,17 @@ const StudentManager = ({ onBack }) => {
     };
 
     // 종료날짜가 지난 수강생 필터링 (활성 수강생만 표시)
-    const activeStudents = students.filter(student => {
-        const endDateStr = student['종료날짜'];
-        if (!endDateStr) return true; // 종료날짜 없으면 표시
-        const endDate = parseSheetDate(endDateStr);
-        if (!endDate) return true; // 파싱 실패 시 표시
+    const activeStudents = useMemo(() => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        return endDate >= today; // 오늘이 종료일이면 아직 표시
-    });
+        return students.filter(student => {
+            const endDateStr = student['종료날짜'];
+            if (!endDateStr) return true; // 종료날짜 없으면 표시
+            const endDate = parseSheetDate(endDateStr);
+            if (!endDate) return true; // 파싱 실패 시 표시
+            return endDate >= today; // 오늘이 종료일이면 아직 표시
+        });
+    }, [students]);
 
     // 시트 임베드 모드인 경우
     if (viewMode === 'sheet') {

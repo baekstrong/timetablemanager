@@ -17,6 +17,7 @@ import {
     generateAttendanceHistory,
     requestHolding
 } from '../services/googleSheetsService';
+import { getHolidays as fetchHolidaysFromFirebase } from '../services/firebaseService';
 
 const GoogleSheetsContext = createContext();
 
@@ -35,6 +36,7 @@ export const GoogleSheetsProvider = ({ children }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [availableSheets, setAvailableSheets] = useState([]);
+    const [holidays, setHolidays] = useState([]);
 
     // Current selected year and month (defaults to current date)
     const now = new Date();
@@ -54,7 +56,7 @@ export const GoogleSheetsProvider = ({ children }) => {
                 console.log('✅ Firebase Functions 연결 준비 완료');
 
                 // 초기 데이터 로드 (병렬)
-                await Promise.all([fetchAvailableSheets(), fetchStudents()]);
+                await Promise.all([fetchAvailableSheets(), fetchStudents(), fetchHolidays()]);
             } catch (err) {
                 console.error('Failed to initialize:', err);
                 setError('초기화 실패');
@@ -164,6 +166,21 @@ export const GoogleSheetsProvider = ({ children }) => {
         }
     };
 
+    // Fetch holidays from Firebase (cached globally)
+    const fetchHolidays = async () => {
+        try {
+            const data = await fetchHolidaysFromFirebase();
+            setHolidays(data);
+        } catch (err) {
+            console.error('공휴일 로드 실패:', err);
+        }
+    };
+
+    // Refresh holidays (for HolidayManager after add/delete)
+    const refreshHolidays = async () => {
+        await fetchHolidays();
+    };
+
     // Refresh data from Google Sheets
     const refresh = async () => {
         await fetchStudents();
@@ -184,6 +201,8 @@ export const GoogleSheetsProvider = ({ children }) => {
         updateStudent,
         refresh,
         fetchStudents,
+        holidays,
+        refreshHolidays,
         changeMonth,
 
         currentSheetName: getCurrentSheetName(new Date(selectedYear, selectedMonth - 1)),
