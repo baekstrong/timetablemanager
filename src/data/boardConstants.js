@@ -4,6 +4,7 @@ export const BOARD_CATEGORIES = [
     { key: 'free', label: '자유', icon: '💬' },
     { key: 'food', label: '맛집', icon: '🍽️' },
     { key: 'question', label: '질문', icon: '❓' },
+    { key: 'bug', label: '버그', icon: '🐛' },
 ];
 
 export const CATEGORY_MAP = Object.fromEntries(
