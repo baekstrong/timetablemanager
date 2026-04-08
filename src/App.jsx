@@ -108,24 +108,24 @@ function AppContent() {
       // Don't await - let it load in background
       (async () => {
         try {
-          // 먼저 현재 월에서 빠르게 검색
+          // 먼저 현재 월에서 빠르게 검색 (빠른 초기 로딩)
           console.log('🔍 Searching for student in current month...');
           const data = await getStudentByName(userData.username);
 
           if (data) {
             setStudentData(data);
             console.log('📊 Loaded student data from current month:', data);
-          } else {
-            // 현재 월에 없으면 여러 시트에서 검색 (더 느림)
-            console.log('⚠️ Student not found in current month, searching across multiple sheets...');
-            const result = await findStudentAcrossSheets(userData.username);
+          }
 
-            if (result) {
-              setStudentData(result.student);
-              console.log(`📊 Loaded student data from ${result.sheetName}:`, result.student);
-            } else {
-              console.warn('❌ Student not found in any sheet');
-            }
+          // 여러 시트에서 검색하여 이전/다음 등록 정보도 포함된 데이터로 갱신
+          console.log('🔍 Searching across multiple sheets for complete registration info...');
+          const result = await findStudentAcrossSheets(userData.username);
+
+          if (result) {
+            setStudentData(result.student);
+            console.log(`📊 Updated student data from ${result.foundSheetName}:`, result.student);
+          } else if (!data) {
+            console.warn('❌ Student not found in any sheet');
           }
         } catch (error) {
           console.error('Failed to load student data:', error);
