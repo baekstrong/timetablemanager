@@ -209,7 +209,7 @@ function setupStudentPinnedMemosListener() {
         });
 }
 
-window.render = function () {
+window.render = async function () {
     const app = document.getElementById('app');
     if (!app) return;
 
@@ -237,14 +237,19 @@ window.render = function () {
         Admin.loadExercisesList();
     } else {
         app.innerHTML = renderStudentScreen(); // Datalist already added in ui.js
-        Records.loadMyRecords();
-        Calendar.renderCalendar();
-        Calendar.renderCalendar();
+        // 리스너는 즉시 설정 (Promise 아님)
         setupCoachMemosListener();
         setupStudentPinnedMemosListener(); // 실시간 내 메모(코멘트 포함) 리스너
+
+        // Firestore 쿼리 병렬 실행
+        await Promise.all([
+            Records.loadMyRecords(),
+            Calendar.renderCalendar(),
+            Admin.loadExercisesList(), // Load exercises for Datalist
+        ]);
+
         Records.updatePinnedDisplay();
         setTimeout(loadAutoSavedData, 100);
-        Admin.loadExercisesList(); // Load exercises for Datalist
     }
 }
 

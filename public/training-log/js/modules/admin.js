@@ -5,6 +5,18 @@ import { state, db, firebaseInitialized } from '../state.js';
 // ============================================
 
 export async function loadExercisesList() {
+    const CACHE_KEY = 'exercisesListCache';
+
+    // 캐시에서 즉시 로드 (UI 빠르게 표시)
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+        try {
+            const names = JSON.parse(cached);
+            exercisesCache = names;
+            updateExerciseDatalistFromNames(names);
+        } catch (e) { /* 캐시 파싱 실패 시 무시 */ }
+    }
+
     try {
         const snapshot = await db.collection('exercises').orderBy('name').get();
 
@@ -31,8 +43,11 @@ export async function loadExercisesList() {
             }
         }
 
-        // 2. Update Datalist (Always)
+        // 2. Update Datalist (Always) + 캐시 갱신
         updateExerciseDatalist(snapshot);
+        const names = [];
+        snapshot.forEach(doc => names.push(doc.data().name));
+        localStorage.setItem(CACHE_KEY, JSON.stringify(names));
 
     } catch (error) {
         console.error('Error loading exercises:', error);
@@ -93,20 +108,19 @@ let exercisesCache = [];
 // Called when exercises are loaded from Firestore
 // Called when exercises are loaded from Firestore
 export function updateExerciseDatalist(snapshot) {
-    exercisesCache = [];
+    const names = [];
+    snapshot.forEach(doc => names.push(doc.data().name));
+    updateExerciseDatalistFromNames(names);
+}
+
+function updateExerciseDatalistFromNames(names) {
+    exercisesCache = names;
     const coachSelect = document.getElementById('coachExerciseFilter');
-    let coachOptions = '<option value="">🏋️ 운동 종목별 모아보기 (전체)</option>';
-
-    snapshot.forEach(doc => {
-        const name = doc.data().name;
-        exercisesCache.push(name);
-
-        if (coachSelect) {
-            coachOptions += `<option value="${name}">${name}</option>`;
-        }
-    });
-
     if (coachSelect) {
+        let coachOptions = '<option value="">🏋️ 운동 종목별 모아보기 (전체)</option>';
+        names.forEach(name => {
+            coachOptions += `<option value="${name}">${name}</option>`;
+        });
         coachSelect.innerHTML = coachOptions;
     }
 }
