@@ -394,9 +394,19 @@ export const getSheetNameByYearMonth = (year, month) => {
  * Get all available sheet names from the spreadsheet
  * @returns {Promise<Array<string>>}
  */
+let _cachedSheetNames = null;
+let _sheetNamesCacheTime = 0;
+const SHEET_NAMES_CACHE_TTL = 60 * 1000; // 1분 캐시
+
 export const getAllSheetNames = async () => {
+  const now = Date.now();
+  if (_cachedSheetNames && (now - _sheetNamesCacheTime) < SHEET_NAMES_CACHE_TTL) {
+    return _cachedSheetNames;
+  }
   const data = await apiGet('/info', 'get sheet names');
-  return data.sheets;
+  _cachedSheetNames = data.sheets;
+  _sheetNamesCacheTime = now;
+  return _cachedSheetNames;
 };
 
 /**
@@ -952,7 +962,7 @@ export const getAllStudents = async (year = null, month = null) => {
   const foundSheetName = resolveSheetName(year, month);
 
   console.log(`📖 Reading data from sheet: "${foundSheetName}"`);
-  const range = `${foundSheetName}!A:Z`;
+  const range = `${foundSheetName}!A:R`;
   console.log(`📍 Full range: ${range}`);
 
   const rows = await readSheetData(range);
@@ -985,7 +995,7 @@ export const getAllStudentsFromAllSheets = async () => {
   const studentsArrays = await Promise.all(
     studentSheets.map(async (foundSheetName) => {
       try {
-        const rows = await readSheetData(`${foundSheetName}!A:Z`);
+        const rows = await readSheetData(`${foundSheetName}!A:R`);
         const parsedData = parseStudentData(rows);
         parsedData.forEach(student => {
           student._foundSheetName = foundSheetName;

@@ -469,8 +469,13 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
     useEffect(() => {
         if (user?.role === 'coach') {
-            getNewStudentRegistrations('pending').then(setPendingRegistrations).catch(() => {});
-            getNewStudentRegistrations('waitlist').then(setNewStudentWaitlist).catch(() => {});
+            Promise.all([
+                getNewStudentRegistrations('pending').catch(() => []),
+                getNewStudentRegistrations('waitlist').catch(() => [])
+            ]).then(([pending, waitlist]) => {
+                setPendingRegistrations(pending);
+                setNewStudentWaitlist(waitlist);
+            });
         }
     }, [user]);
 

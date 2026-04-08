@@ -88,31 +88,30 @@ export function useWeeklyData({ user, students, mode, refresh }) {
 
             const allAbsences = absenceArrays.flat();
 
-            // Auto-complete passed active makeups
+            // Auto-complete passed active makeups (병렬 처리)
             const passedActiveMakeups = (makeups || []).filter(m =>
                 m.status === 'active' && isClassWithinMinutes(m.makeupClass.date, m.makeupClass.period, 0)
             );
-            for (const makeup of passedActiveMakeups) {
+            await Promise.all(passedActiveMakeups.map(async (makeup) => {
                 try {
                     await completeMakeupRequest(makeup.id);
                     makeup.status = 'completed';
                 } catch (err) {
                     console.error('보강 자동 완료 실패:', makeup.id, err);
                 }
-            }
+            }));
 
-            // Google Sheets 홀딩에 Firebase holdingDates 병합
-            // holdingDates 없는 기존 데이터는 범위 비교로 폴백 (isDateHeld에서 처리)
-            holdings.forEach(h => {
-                const fbMatch = firebaseHoldings.find(fh =>
-                    fh.studentName === h.studentName &&
-                    fh.startDate === h.startDate &&
-                    fh.endDate === h.endDate &&
-                    fh.holdingDates && fh.holdingDates.length > 0
-                );
-                if (fbMatch) {
-                    h.holdingDates = fbMatch.holdingDates;
+            // Google Sheets 홀딩에 Firebase holdingDates 병합 (Map으로 O(n) 처리)
+            const fbHoldingMap = new Map();
+            firebaseHoldings.forEach(fh => {
+                if (fh.holdingDates && fh.holdingDates.length > 0) {
+                    fbHoldingMap.set(`${fh.studentName}|${fh.startDate}|${fh.endDate}`, fh.holdingDates);
                 }
+            });
+            holdings.forEach(h => {
+                const key = `${h.studentName}|${h.startDate}|${h.endDate}`;
+                const holdingDates = fbHoldingMap.get(key);
+                if (holdingDates) h.holdingDates = holdingDates;
             });
 
             setWeekMakeupRequests(makeups || []);
@@ -140,8 +139,7 @@ export function useWeeklyData({ user, students, mode, refresh }) {
         const REFRESH_INTERVAL = 30 * 60 * 1000;
         const intervalId = setInterval(async () => {
             try {
-                await refresh();
-                await loadWeeklyData();
+                await Promise.all([refresh(), loadWeeklyData()]);
             } catch (error) {
                 console.error('자동 리프레시 실패:', error);
             }

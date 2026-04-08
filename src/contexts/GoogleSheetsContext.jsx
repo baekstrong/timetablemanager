@@ -53,9 +53,8 @@ export const GoogleSheetsProvider = ({ children }) => {
 
                 console.log('✅ Firebase Functions 연결 준비 완료');
 
-                // 초기 데이터 로드
-                await fetchAvailableSheets();
-                await fetchStudents();
+                // 초기 데이터 로드 (병렬)
+                await Promise.all([fetchAvailableSheets(), fetchStudents()]);
             } catch (err) {
                 console.error('Failed to initialize:', err);
                 setError('초기화 실패');
