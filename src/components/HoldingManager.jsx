@@ -795,10 +795,21 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
                                 </div>
                             )}
 
-                            {absences.length > 0 && (
+                            {absences.filter(a => {
+                                // 현재 등록 기간 내 결석만 표시
+                                if (!membershipPeriod.start) return true;
+                                const cutoff = new Date(membershipPeriod.start);
+                                cutoff.setDate(cutoff.getDate() - 7);
+                                return a.date >= formatLocalDate(cutoff);
+                            }).length > 0 && (
                                 <div style={{ marginTop: '12px' }}>
                                     <strong style={{ color: '#764ba2' }}>❌ 결석</strong>
-                                    {absences.map(absence => {
+                                    {absences.filter(a => {
+                                        if (!membershipPeriod.start) return true;
+                                        const cutoff = new Date(membershipPeriod.start);
+                                        cutoff.setDate(cutoff.getDate() - 7);
+                                        return a.date >= formatLocalDate(cutoff);
+                                    }).map(absence => {
                                         // 결석 날짜의 수업 시간이 지났는지 확인
                                         const absenceDate = new Date(absence.date + 'T00:00:00');
                                         const dayOfWeek = absenceDate.getDay();
