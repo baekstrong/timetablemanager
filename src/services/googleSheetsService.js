@@ -894,25 +894,30 @@ export const findStudentAcrossSheets = async (studentName) => {
 
   const allMatches = [];
 
-  // 과거 6개월 + 미래 3개월까지 검색 (미리 등록 대비)
-  for (let i = -3; i <= 6; i++) {
-    const searchDate = new Date(currentYear, currentMonth - 1 - i, 1);
-    const year = searchDate.getFullYear();
-    const month = searchDate.getMonth() + 1;
+  // 현재 월 ±2개월만 병렬 검색 (미리 등록은 인접 월에 있음)
+  const searchMonths = [];
+  for (let i = -2; i <= 2; i++) {
+    const searchDate = new Date(currentYear, currentMonth - 1 + i, 1);
+    searchMonths.push({ year: searchDate.getFullYear(), month: searchDate.getMonth() + 1 });
+  }
 
-    try {
+  const results = await Promise.allSettled(
+    searchMonths.map(async ({ year, month }) => {
       const students = await getAllStudents(year, month);
       const matches = students.filter(s => s['이름'] === studentName);
       const foundSheetName = getSheetNameByYearMonth(year, month);
-
-      matches.forEach(student => {
+      return matches.map(student => {
         student._foundSheetName = foundSheetName;
-        allMatches.push({ student, year, month, foundSheetName });
+        return { student, year, month, foundSheetName };
       });
-    } catch (err) {
-      // 시트 없으면 무시
+    })
+  );
+
+  results.forEach(result => {
+    if (result.status === 'fulfilled') {
+      allMatches.push(...result.value);
     }
-  }
+  });
 
   if (allMatches.length === 0) {
     console.warn(`❌ Student "${studentName}" not found in any sheet`);
