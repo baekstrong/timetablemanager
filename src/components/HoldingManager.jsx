@@ -119,11 +119,33 @@ const HoldingManager = ({ user, studentData, onBack }) => {
             return null;
         };
 
-        const startDateStr = studentData['시작날짜'];
+        let startDateStr = studentData['시작날짜'];
         // 종료날짜 필드명 확인 (여러 가지 이름 지원)
-        const endDateStr = studentData['종료날짜'] || studentData['종료일'] || studentData['endDate'];
+        let endDateStr = studentData['종료날짜'] || studentData['종료일'] || studentData['endDate'];
 
         console.log('📅 수강 기간 파싱:', { startDateStr, endDateStr });
+
+        // 이전 등록이 있으면 이전 등록의 시작일부터 포함 (미리 등록으로 다음 계약이 선택된 경우)
+        if (studentData._prevRegistration) {
+            const prevStartStr = studentData._prevRegistration['시작날짜'];
+            const prevStart = parseDate(prevStartStr);
+            const currentStart = parseDate(startDateStr);
+            if (prevStart && (!currentStart || prevStart < currentStart)) {
+                startDateStr = prevStartStr;
+                console.log('📅 이전 등록으로 시작일 확장:', prevStartStr);
+            }
+        }
+
+        // 미리 등록(다음 등록)이 있으면 다음 등록의 종료일까지 기간 확장
+        if (studentData._nextRegistration) {
+            const nextEndStr = studentData._nextRegistration['종료날짜'];
+            const nextEnd = parseDate(nextEndStr);
+            const currentEnd = parseDate(endDateStr);
+            if (nextEnd && (!currentEnd || nextEnd > currentEnd)) {
+                endDateStr = nextEndStr;
+                console.log('📅 미리 등록으로 종료일 확장:', nextEndStr);
+            }
+        }
 
         let end = parseDate(endDateStr);
 

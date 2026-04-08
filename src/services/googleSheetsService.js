@@ -850,6 +850,20 @@ function pickActiveRegistration(registrations) {
 
   const active = { ...sorted[activeIdx] };
 
+  // 이전 등록이 있으면 첨부 (미리 등록으로 다음 계약이 선택된 경우, 이전 등록의 기간도 필요)
+  if (activeIdx > 0) {
+    const prev = sorted[activeIdx - 1];
+    active._prevRegistration = {
+      시작날짜: getStudentField(prev, '시작날짜'),
+      종료날짜: getStudentField(prev, '종료날짜'),
+      _rowIndex: prev._rowIndex,
+      _foundSheetName: prev._foundSheetName,
+      '요일 및 시간': getStudentField(prev, '요일 및 시간'),
+      주횟수: getStudentField(prev, '주횟수'),
+      '홀딩 사용여부': getStudentField(prev, '홀딩 사용여부'),
+    };
+  }
+
   // 다음 등록(미리 등록)이 있으면 첨부
   if (activeIdx < sorted.length - 1) {
     const next = sorted[activeIdx + 1];
