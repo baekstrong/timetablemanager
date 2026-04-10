@@ -838,6 +838,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
         let makeupStudents = [];
         let makeupHeldStudents = [];
+        let makeupAbsentOnMakeupSlot = [];
         let makeupAbsentStudents = [];
         let absenceStudents = [];
         let agreedAbsenceStudents = [];
@@ -849,31 +850,33 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         if (dateStr) {
             const slotDate = weekDateToISO(dateStr);
 
-            // 보강 목적지 슬롯: holdingDates 기반 홀딩 판별
-            makeupStudents = weekMakeupRequests
-                .filter(m =>
-                    m.makeupClass.day === day &&
-                    m.makeupClass.period === periodObj.id &&
-                    m.makeupClass.date === slotDate
-                )
-                .map(m => m.studentName)
-                .filter(name => !weekHoldings.some(h =>
-                    h.studentName === name &&
-                    isDateHeld(h, slotDate)
-                ));
-
-            // 보강 목적지가 홀딩된 학생 (보강홀딩 표시용)
-            makeupHeldStudents = weekMakeupRequests
-                .filter(m =>
-                    m.makeupClass.day === day &&
-                    m.makeupClass.period === periodObj.id &&
-                    m.makeupClass.date === slotDate &&
-                    weekHoldings.some(h =>
-                        h.studentName === m.studentName &&
-                        isDateHeld(h, slotDate)
-                    )
-                )
-                .map(m => m.studentName);
+            // 보강 목적지 슬롯: 결석/홀딩 여부에 따라 분류
+            // - 결석 신청함 → makeupAbsentOnMakeupSlot (보강결석 표시)
+            // - 홀딩 기간 중 → makeupHeldStudents (보강홀딩 표시)
+            // - 그 외 → makeupStudents (정상 보강 출석)
+            const makeupRequestsForSlot = weekMakeupRequests.filter(m =>
+                m.makeupClass.day === day &&
+                m.makeupClass.period === periodObj.id &&
+                m.makeupClass.date === slotDate
+            );
+            for (const m of makeupRequestsForSlot) {
+                const name = m.studentName;
+                const isAbsent = weekAbsences.some(a =>
+                    a.studentName === name && a.date === slotDate
+                );
+                if (isAbsent) {
+                    makeupAbsentOnMakeupSlot.push(name);
+                    continue;
+                }
+                const isHeld = weekHoldings.some(h =>
+                    h.studentName === name && isDateHeld(h, slotDate)
+                );
+                if (isHeld) {
+                    makeupHeldStudents.push(name);
+                } else {
+                    makeupStudents.push(name);
+                }
+            }
 
             // 보강 원래 자리: 홀딩된 보강도 포함 (보강결석 표시)
             makeupAbsentStudents = weekMakeupRequests
@@ -983,6 +986,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             activeStudents,
             makeupStudents,
             makeupHeldStudents,
+            makeupAbsentOnMakeupSlot,
             makeupAbsentStudents,
             absenceStudents,
             agreedAbsenceStudents,
@@ -1027,6 +1031,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         let isMakeupFrom = false;
         let isMakeupTo = false;
         let isMakeupToHeld = false;
+        let isMakeupToAbsent = false;
         let isMakeupFromHeld = false;
         if (activeMakeupRequests.length > 0 && weekDates[day]) {
             const cellDate = weekDateToISO(weekDates[day]);
@@ -1042,7 +1047,12 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             );
             isMakeupFrom = !!makeupFrom;
             isMakeupTo = !!makeupTo;
-            if (makeupTo) isMakeupToHeld = isMakeupHeld(makeupTo);
+            if (makeupTo) {
+                isMakeupToHeld = isMakeupHeld(makeupTo);
+                isMakeupToAbsent = weekAbsences.some(a =>
+                    a.studentName === user?.username && a.date === cellDate
+                );
+            }
             if (makeupFrom) isMakeupFromHeld = isMakeupHeld(makeupFrom);
         }
 
@@ -1069,6 +1079,21 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
         // Makeup TO cell
         if (isMakeupTo) {
+            // 보강일에 결석 신청한 경우 → 보강결석 표시
+            if (isMakeupToAbsent) {
+                return (
+                    <div
+                        className="schedule-cell cell-available makeup-absent"
+                        onClick={cellClick}
+                        style={{ borderColor: '#f59e0b', borderWidth: '2px' }}
+                    >
+                        <div className="cell-content">
+                            <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
+                            <span className="my-class-badge" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>보강결석</span>
+                        </div>
+                    </div>
+                );
+            }
             // 보강이 홀딩된 경우
             if (isMakeupToHeld) {
                 return (
@@ -1164,6 +1189,8 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         const hasAnyStudents = data.currentCount > 0 ||
             data.holdingStudents.length > 0 ||
             data.makeupAbsentStudents.length > 0 ||
+            data.makeupAbsentOnMakeupSlot.length > 0 ||
+            data.makeupHeldStudents.length > 0 ||
             data.agreedAbsenceStudents.length > 0 ||
             data.delayedStartStudents.length > 0 ||
             data.newStudents.length > 0;
@@ -1274,6 +1301,9 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     ))}
                     {data.makeupHeldStudents.map(name => (
                         <StudentTag key={`makeup-held-${name}`} name={name} status="holding" label="보강홀딩" />
+                    ))}
+                    {data.makeupAbsentOnMakeupSlot.map(name => (
+                        <StudentTag key={`makeup-absent-slot-${name}`} name={name} status="makeupAbsent" label="보강결석" />
                     ))}
                     {data.holdingStudents.map(name => (
                         <StudentTag key={`holding-${name}`} name={name} status="holding" label="홀딩" />
