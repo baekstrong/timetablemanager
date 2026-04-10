@@ -45,7 +45,10 @@ import './WeeklySchedule.css';
 // ──────────────────────────────────────────────
 
 const TAG_STYLES = {
-    makeupAbsent: { backgroundColor: '#fef3c7', color: '#92400e', textDecoration: 'line-through' },
+    // 보강이동: 원래 자리에서 다른 시간으로 이동 (노란 계열, 출석은 함)
+    makeupMoved: { backgroundColor: '#fef3c7', color: '#92400e', textDecoration: 'line-through' },
+    // 보강결석: 보강 자리에 오기로 했다가 결석 (붉은 계열, 완전히 빠짐)
+    makeupAbsent: { backgroundColor: '#fecaca', color: '#991b1b', textDecoration: 'line-through' },
     agreedAbsent: { backgroundColor: '#fce7f3', color: '#be185d', textDecoration: 'line-through' },
     absent: { backgroundColor: '#fecaca', color: '#991b1b', textDecoration: 'line-through' },
     holding: { backgroundColor: '#fee2e2', color: '#991b1b', textDecoration: 'line-through' },
@@ -349,7 +352,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 // 오늘이 정규 수업 요일인지 확인
                 if (!scheduleDays.includes(todayDay)) return false;
 
-                // 오늘 수업을 보강으로 옮긴 경우 제외 (보강결석 상태)
+                // 오늘 수업을 보강으로 옮긴 경우 제외 (보강이동 상태)
                 const name = student['이름'];
                 const hasMakeupFromToday = weekMakeupRequests && weekMakeupRequests.some(m =>
                     m.studentName === name &&
@@ -839,7 +842,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         let makeupStudents = [];
         let makeupHeldStudents = [];
         let makeupAbsentOnMakeupSlot = [];
-        let makeupAbsentStudents = [];
+        let makeupMovedStudents = [];
         let absenceStudents = [];
         let agreedAbsenceStudents = [];
         let holdingStudents = [];
@@ -878,8 +881,10 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 }
             }
 
-            // 보강 원래 자리: 홀딩된 보강도 포함 (보강결석 표시)
-            makeupAbsentStudents = weekMakeupRequests
+            // 보강 원래 자리: 다른 시간으로 이동한 학생 (보강이동 표시)
+            // - 홀딩된 보강도 포함
+            // - makeupAbsentOnMakeupSlot(보강결석: 보강 자리에서 결석)과는 다름
+            makeupMovedStudents = weekMakeupRequests
                 .filter(m =>
                     m.originalClass.day === day &&
                     m.originalClass.period === periodObj.id &&
@@ -931,13 +936,13 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             absenceStudents = weekAbsences
                 .filter(a => a.date === slotDate && studentNames.includes(a.studentName))
                 .map(a => a.studentName)
-                .filter(name => !makeupAbsentStudents.includes(name));
+                .filter(name => !makeupMovedStudents.includes(name));
 
             agreedAbsenceStudents = students
                 .filter(s => {
                     const name = s['이름'];
                     if (!name || !studentNames.includes(name)) return false;
-                    if (makeupAbsentStudents.includes(name) || absenceStudents.includes(name)) return false;
+                    if (makeupMovedStudents.includes(name) || absenceStudents.includes(name)) return false;
                     const notes = s['특이사항'] || getStudentField(s, '특이사항') || '';
                     return parseAgreedAbsenceDates(notes).includes(slotDate);
                 })
@@ -945,7 +950,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         }
 
         // Calculate counts
-        const allAbsentStudents = [...new Set([...makeupAbsentStudents, ...absenceStudents, ...agreedAbsenceStudents])];
+        const allAbsentStudents = [...new Set([...makeupMovedStudents, ...absenceStudents, ...agreedAbsenceStudents])];
         const activeStudents = studentNames.filter(name =>
             !allAbsentStudents.includes(name) &&
             !holdingStudents.includes(name) &&
@@ -987,7 +992,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             makeupStudents,
             makeupHeldStudents,
             makeupAbsentOnMakeupSlot,
-            makeupAbsentStudents,
+            makeupMovedStudents,
             absenceStudents,
             agreedAbsenceStudents,
             holdingStudents,
@@ -1056,19 +1061,19 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             if (makeupFrom) isMakeupFromHeld = isMakeupHeld(makeupFrom);
         }
 
-        // My class (with or without makeup-absent)
+        // My class (with or without makeup-moved)
         if (myClass) {
-            // 보강이 홀딩된 경우: 원래 수업은 다시 정상 (보강결석이 아님)
-            const showMakeupAbsent = isMakeupFrom && !isMakeupFromHeld;
+            // 보강이 홀딩된 경우: 원래 수업은 다시 정상 (보강이동이 아님)
+            const showMakeupMoved = isMakeupFrom && !isMakeupFromHeld;
             return (
                 <div
-                    className={`schedule-cell cell-available my-class ${showMakeupAbsent ? 'makeup-absent' : ''}`}
+                    className={`schedule-cell cell-available my-class ${showMakeupMoved ? 'makeup-moved' : ''}`}
                     onClick={cellClick}
                 >
                     <div className="cell-content">
                         <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
-                        {showMakeupAbsent ? (
-                            <span className="my-class-badge" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>보강결석</span>
+                        {showMakeupMoved ? (
+                            <span className="my-class-badge" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>보강이동</span>
                         ) : (
                             <span className="my-class-badge">MY</span>
                         )}
@@ -1079,17 +1084,17 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
         // Makeup TO cell
         if (isMakeupTo) {
-            // 보강일에 결석 신청한 경우 → 보강결석 표시
+            // 보강일에 결석 신청한 경우 → 보강결석 (붉은색) 표시
             if (isMakeupToAbsent) {
                 return (
                     <div
                         className="schedule-cell cell-available makeup-absent"
                         onClick={cellClick}
-                        style={{ borderColor: '#f59e0b', borderWidth: '2px' }}
+                        style={{ borderColor: '#dc2626', borderWidth: '2px' }}
                     >
                         <div className="cell-content">
                             <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
-                            <span className="my-class-badge" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>보강결석</span>
+                            <span className="my-class-badge" style={{ backgroundColor: '#fecaca', color: '#991b1b' }}>보강결석</span>
                         </div>
                     </div>
                 );
@@ -1188,7 +1193,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         // Empty cell (no students at all)
         const hasAnyStudents = data.currentCount > 0 ||
             data.holdingStudents.length > 0 ||
-            data.makeupAbsentStudents.length > 0 ||
+            data.makeupMovedStudents.length > 0 ||
             data.makeupAbsentOnMakeupSlot.length > 0 ||
             data.makeupHeldStudents.length > 0 ||
             data.agreedAbsenceStudents.length > 0 ||
@@ -1285,8 +1290,8 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 {/* Student list */}
                 <div className="student-list">
                     {data.regularStudentsPresent.map(name => {
-                        if (data.makeupAbsentStudents.includes(name)) {
-                            return <StudentTag key={name} name={name} status="makeupAbsent" label="보강결석" />;
+                        if (data.makeupMovedStudents.includes(name)) {
+                            return <StudentTag key={name} name={name} status="makeupMoved" label="보강이동" />;
                         }
                         if (data.agreedAbsenceStudents.includes(name)) {
                             return <StudentTag key={name} name={name} status="agreedAbsent" label="합의결석" />;
