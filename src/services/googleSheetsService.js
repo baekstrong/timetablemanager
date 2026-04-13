@@ -1353,31 +1353,48 @@ export const updateStudentData = async (rowIndex, studentData, year = null, mont
  * @param {Array} existingHoldings - [{startDate, endDate}, ...]
  * @returns {Promise<Object>}
  */
-export const requestHolding = async (studentName, holdingStartDate, holdingEndDate = null, year = null, month = null, existingHoldings = [], firebaseHolidays = [], makeupHoldingCount = 0) => {
+export const requestHolding = async (studentName, holdingStartDate, holdingEndDate = null, year = null, month = null, existingHoldings = [], firebaseHolidays = [], makeupHoldingCount = 0, targetRegistration = 'current') => {
   const endDate = holdingEndDate || holdingStartDate;
 
-  console.log(`🔍 홀딩 신청 시작: ${studentName}, ${holdingStartDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}`);
+  console.log(`🔍 홀딩 신청 시작: ${studentName}, ${holdingStartDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]} (대상: ${targetRegistration})`);
 
   const primarySheetName = getCurrentSheetName(holdingStartDate);
   const { foundSheetName, rows, headers, studentIndex, nextRegistrationIndex, nextSheetName, nextRows, nextHeaders } =
     await findStudentInSheets(studentName, primarySheetName);
 
-  console.log(`📄 최종 선택 시트: ${foundSheetName}`);
+  // 대상 등록 결정: 'next'면 미리 등록 행, 아니면 현재 활성 행
+  let targetSheetName, targetRows, targetHeaders, targetRowIndex;
+  if (targetRegistration === 'next') {
+    if (nextRegistrationIndex === -1 || nextRegistrationIndex === undefined) {
+      throw new Error('다음 등록 정보를 찾을 수 없습니다.');
+    }
+    targetSheetName = nextSheetName || foundSheetName;
+    targetRows = nextRows || rows;
+    targetHeaders = nextHeaders || headers;
+    targetRowIndex = nextRegistrationIndex;
+  } else {
+    targetSheetName = foundSheetName;
+    targetRows = rows;
+    targetHeaders = headers;
+    targetRowIndex = studentIndex;
+  }
 
-  const holdingUsedCol = findColumnIndex(headers, '홀딩 사용여부');
-  const holdingStartCol = findColumnIndex(headers, '홀딩 시작일');
-  const holdingEndCol = findColumnIndex(headers, '홀딩 종료일');
-  const endDateCol = findColumnIndex(headers, '종료날짜');
+  console.log(`📄 최종 선택 시트: ${targetSheetName}, 행: ${targetRowIndex + 1}`);
+
+  const holdingUsedCol = findColumnIndex(targetHeaders, '홀딩 사용여부');
+  const holdingStartCol = findColumnIndex(targetHeaders, '홀딩 시작일');
+  const holdingEndCol = findColumnIndex(targetHeaders, '홀딩 종료일');
+  const endDateCol = findColumnIndex(targetHeaders, '종료날짜');
 
   console.log(`📍 필드 위치: 사용여부=${holdingUsedCol}, 시작일=${holdingStartCol}, 종료일=${holdingEndCol}, 종료날짜=${endDateCol}`);
 
   if (holdingUsedCol === -1 || holdingStartCol === -1 || holdingEndCol === -1) {
-    console.error('헤더:', headers);
+    console.error('헤더:', targetHeaders);
     throw new Error('홀딩 관련 필드를 찾을 수 없습니다. (홀딩 사용여부, 홀딩 시작일, 홀딩 종료일)');
   }
 
-  const studentRow = rows[studentIndex];
-  const studentData = buildStudentObject(headers, studentRow);
+  const studentRow = targetRows[targetRowIndex];
+  const studentData = buildStudentObject(targetHeaders, studentRow);
 
   const startDateField = getStudentField(studentData, '시작날짜');
   const scheduleStr = getStudentField(studentData, '요일 및 시간');
@@ -1446,14 +1463,14 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
   console.log(`📝 업데이트할 데이터: 사용여부=${newHoldingStatus}, 시작일=${startDateStr}, 종료일=${endDateStr}, 새 종료날짜=${newEndDateStr}`);
 
   const updates = [
-    { range: `${foundSheetName}!${getColumnLetter(holdingUsedCol)}${studentIndex + 1}`, values: [[newHoldingStatus]] },
-    { range: `${foundSheetName}!${getColumnLetter(holdingStartCol)}${studentIndex + 1}`, values: [[startDateStr]] },
-    { range: `${foundSheetName}!${getColumnLetter(holdingEndCol)}${studentIndex + 1}`, values: [[endDateStr]] },
+    { range: `${targetSheetName}!${getColumnLetter(holdingUsedCol)}${targetRowIndex + 1}`, values: [[newHoldingStatus]] },
+    { range: `${targetSheetName}!${getColumnLetter(holdingStartCol)}${targetRowIndex + 1}`, values: [[startDateStr]] },
+    { range: `${targetSheetName}!${getColumnLetter(holdingEndCol)}${targetRowIndex + 1}`, values: [[endDateStr]] },
   ];
 
   if (endDateCol !== -1) {
     updates.push({
-      range: `${foundSheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`,
+      range: `${targetSheetName}!${getColumnLetter(endDateCol)}${targetRowIndex + 1}`,
       values: [[newEndDateStr]]
     });
   }
@@ -1463,7 +1480,7 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
   // 하이라이트 적용 (실패해도 홀딩 신청은 성공)
   const cellsToHighlight = updates.map(u => u.range.split('!')[1]);
   try {
-    await highlightCells(cellsToHighlight, foundSheetName);
+    await highlightCells(cellsToHighlight, targetSheetName);
     console.log(`🎨 셀 하이라이트 완료: ${cellsToHighlight.join(', ')}`);
   } catch (highlightError) {
     console.warn('⚠️ 셀 하이라이트 실패 (홀딩 신청은 완료됨):', highlightError);
@@ -1472,8 +1489,9 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
   console.log(`✅ 홀딩 신청 완료: ${studentName}, ${startDateStr} ~ ${endDateStr}`);
   console.log(`📅 종료일 연장: ${newEndDateStr}`);
 
-  // 다음 등록(미리 등록)이 있으면 시작일/종료일 자동 조정
-  if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
+  // 현재 등록에 홀딩을 적용한 경우에만 다음 등록(미리 등록) 자동 조정
+  // (다음 등록에 직접 적용한 경우에는 현재 등록이 영향받지 않으므로 조정 불필요)
+  if (targetRegistration === 'current' && nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
     try {
       const nSheet = nextSheetName || foundSheetName;
       const nRows = nextRows || rows;

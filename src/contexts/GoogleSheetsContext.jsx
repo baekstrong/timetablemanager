@@ -216,8 +216,8 @@ export const GoogleSheetsProvider = ({ children }) => {
         },
         calculateMembershipStats,
         generateAttendanceHistory,
-        requestHolding: async (studentName, holdingStartDate, holdingEndDate, existingHoldings = [], firebaseHolidays = [], makeupHoldingCount = 0) => {
-            return await requestHolding(studentName, holdingStartDate, holdingEndDate, selectedYear, selectedMonth, existingHoldings, firebaseHolidays, makeupHoldingCount);
+        requestHolding: async (studentName, holdingStartDate, holdingEndDate, existingHoldings = [], firebaseHolidays = [], makeupHoldingCount = 0, targetRegistration = 'current') => {
+            return await requestHolding(studentName, holdingStartDate, holdingEndDate, selectedYear, selectedMonth, existingHoldings, firebaseHolidays, makeupHoldingCount, targetRegistration);
         }
     };
 

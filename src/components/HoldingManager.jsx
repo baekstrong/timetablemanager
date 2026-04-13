@@ -179,18 +179,28 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
         return freq;
     }, [studentData]);
 
-    // 홀딩 정보 파싱 (여러달 수강권 지원)
+    // 홀딩 정보 파싱 (여러달 수강권 지원) - 현재 등록
     const holdingInfo = useMemo(() => {
         if (!studentData) return { months: 1, used: 0, total: 1, isCurrentlyUsed: false };
         const holdingStatusStr = getStudentField(studentData, '홀딩 사용여부');
         return parseHoldingStatus(holdingStatusStr);
     }, [studentData]);
 
+    // 홀딩 정보 파싱 - 다음 등록(미리 등록)이 있으면
+    const nextHoldingInfo = useMemo(() => {
+        if (!studentData?._nextRegistration) return null;
+        const str = studentData._nextRegistration['홀딩 사용여부'];
+        return parseHoldingStatus(str);
+    }, [studentData]);
+
     // 남은 홀딩 횟수
     const remainingHoldings = holdingInfo.total - holdingInfo.used;
+    const nextRemainingHoldings = nextHoldingInfo
+        ? nextHoldingInfo.total - nextHoldingInfo.used
+        : 0;
 
-    // 홀딩 사용 완료 여부 (남은 횟수가 0인 경우)
-    const hasUsedAllHoldings = remainingHoldings <= 0;
+    // 홀딩 사용 완료 여부 (현재+다음 모두 남은 횟수가 0인 경우)
+    const hasUsedAllHoldings = remainingHoldings <= 0 && (!nextHoldingInfo || nextRemainingHoldings <= 0);
 
     // 홀딩 내역 조회 (Firebase 데이터 기반 - 현재 등록 기간만 표시)
     const holdingHistory = useMemo(() => {
@@ -352,6 +362,44 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
         };
     }, [studentData]);
 
+    // 날짜가 속한 대상 등록 결정 ('current' | 'next' | null)
+    // 현재 등록 기간과 다음 등록 기간(미리 등록)을 각각 검사
+    const getTargetRegistrationForDate = (date) => {
+        if (!date) return null;
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+
+        // 현재 등록의 raw 기간 (membershipPeriod는 확장되므로 직접 파싱)
+        const parseField = (s) => {
+            if (!s) return null;
+            const cleaned = String(s).replace(/\D/g, '');
+            if (cleaned.length === 6) {
+                return new Date(parseInt('20' + cleaned.substring(0, 2)), parseInt(cleaned.substring(2, 4)) - 1, parseInt(cleaned.substring(4, 6)));
+            }
+            if (cleaned.length === 8) {
+                return new Date(parseInt(cleaned.substring(0, 4)), parseInt(cleaned.substring(4, 6)) - 1, parseInt(cleaned.substring(6, 8)));
+            }
+            if (String(s).includes('-')) return new Date(s);
+            return null;
+        };
+
+        const curStart = parseField(studentData?.['시작날짜']);
+        const curEnd = parseField(studentData?.['종료날짜']);
+        if (curStart && curEnd) {
+            const s = new Date(curStart); s.setHours(0, 0, 0, 0);
+            const e = new Date(curEnd); e.setHours(0, 0, 0, 0);
+            if (d >= s && d <= e) return 'current';
+        }
+
+        if (prevNextPeriod.nextStart && prevNextPeriod.nextEnd) {
+            const s = new Date(prevNextPeriod.nextStart); s.setHours(0, 0, 0, 0);
+            const e = new Date(prevNextPeriod.nextEnd); e.setHours(0, 0, 0, 0);
+            if (d >= s && d <= e) return 'next';
+        }
+
+        return null;
+    };
+
     // 특정 날짜가 수강 기간 내인지 확인 (보강 날짜도 허용, 이전/다음 등록 기간도 허용)
     const isWithinMembershipPeriod = (date) => {
         if (!date || !membershipPeriod.start || !membershipPeriod.end) return true;
@@ -509,12 +557,6 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
 
     // 날짜 선택 핸들러
     const handleDateClick = (date) => {
-        // 홀딩 사용 여부 확인 (남은 횟수 체크)
-        if (hasUsedAllHoldings && requestType === 'holding') {
-            alert(`홀딩을 모두 사용하셨습니다.\n(${holdingInfo.used}/${holdingInfo.total}회 사용)`);
-            return;
-        }
-
         if (!date || !isClassDay(date) || isHoldingDate(date)) {
             return;
         }
@@ -543,6 +585,31 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
             return;
         }
 
+        // 홀딩 신청 시: 날짜가 속한 등록 기간 기준으로 남은 횟수 확인
+        if (requestType === 'holding') {
+            const target = getTargetRegistrationForDate(date);
+            if (target === 'next') {
+                if (!nextHoldingInfo || nextRemainingHoldings <= 0) {
+                    alert(`다음 등록의 홀딩을 모두 사용하셨습니다.\n(${nextHoldingInfo?.used || 0}/${nextHoldingInfo?.total || 0}회 사용)`);
+                    return;
+                }
+            } else {
+                if (remainingHoldings <= 0) {
+                    alert(`홀딩을 모두 사용하셨습니다.\n(${holdingInfo.used}/${holdingInfo.total}회 사용)`);
+                    return;
+                }
+            }
+
+            // 이미 선택된 날짜들과 다른 등록 기간이면 차단
+            if (selectedDates.length > 0) {
+                const existingTarget = getTargetRegistrationForDate(new Date(selectedDates[0] + 'T00:00:00'));
+                if (existingTarget && target && existingTarget !== target) {
+                    alert('하나의 홀딩 신청에는 같은 등록 기간의 날짜만 선택할 수 있습니다.');
+                    return;
+                }
+            }
+        }
+
         // 새로운 날짜 추가
         const newDates = [...selectedDates, dateStr].sort();
 
@@ -565,10 +632,19 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
     const handleSubmit = async () => {
         if (selectedDates.length === 0 || !user) return;
 
-        // 홀딩 사용 여부 재확인 (남은 횟수 체크)
-        if (hasUsedAllHoldings && requestType === 'holding') {
-            alert(`홀딩을 모두 사용하셨습니다.\n(${holdingInfo.used}/${holdingInfo.total}회 사용)`);
-            return;
+        // 홀딩 신청 시: 대상 등록 결정 + 해당 등록의 남은 횟수 재확인
+        let targetRegistration = 'current';
+        if (requestType === 'holding') {
+            const sorted = [...selectedDates].sort();
+            targetRegistration = getTargetRegistrationForDate(new Date(sorted[0] + 'T00:00:00')) || 'current';
+
+            const targetInfo = targetRegistration === 'next' ? nextHoldingInfo : holdingInfo;
+            const targetRemaining = targetInfo ? targetInfo.total - targetInfo.used : 0;
+            if (targetRemaining <= 0) {
+                const label = targetRegistration === 'next' ? '다음 등록의 홀딩' : '홀딩';
+                alert(`${label}을 모두 사용하셨습니다.\n(${targetInfo?.used || 0}/${targetInfo?.total || 0}회 사용)`);
+                return;
+            }
         }
 
         setIsSubmitting(true);
@@ -612,7 +688,7 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
                 const endDateObj = parseLocalDate(endDate);
                 // 기존 홀딩 목록을 전달하여 종료일 계산에 포함
                 const holidaysArray = Object.entries(coachHolidays).map(([date, reason]) => ({ date, reason }));
-                await requestHolding(user.username, startDateObj, endDateObj, allHoldings, holidaysArray, makeupHoldingCount);
+                await requestHolding(user.username, startDateObj, endDateObj, allHoldings, holidaysArray, makeupHoldingCount, targetRegistration);
 
                 alert(`홀딩 신청이 완료되었습니다.\n기간: ${startDate} ~ ${endDate}`);
 
@@ -680,22 +756,32 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
                             <li>홀딩은 최소 1시간 전에 신청 가능합니다.</li>
                             <li>홀딩은 주 {weeklyFrequency}회 수업 기준 최대 <strong>{weeklyFrequency}회</strong>까지 가능합니다.</li>
                             <li>
-                                {holdingInfo.total === 1
-                                    ? '홀딩은 등록 기간 중 1회만 사용 가능합니다.'
-                                    : `${holdingInfo.months}개월 등록: 총 ${holdingInfo.total}회 홀딩 가능 (남은 횟수: ${remainingHoldings}회)`}
+                                {nextHoldingInfo
+                                    ? `현재 등록: 총 ${holdingInfo.total}회 홀딩 가능 (남은 횟수: ${remainingHoldings}회)`
+                                    : (holdingInfo.total === 1
+                                        ? '홀딩은 등록 기간 중 1회만 사용 가능합니다.'
+                                        : `${holdingInfo.months}개월 등록: 총 ${holdingInfo.total}회 홀딩 가능 (남은 횟수: ${remainingHoldings}회)`)}
                             </li>
+                            {nextHoldingInfo && (
+                                <li>
+                                    다음 등록: 총 {nextHoldingInfo.total}회 홀딩 가능 (남은 횟수: {nextRemainingHoldings}회)
+                                </li>
+                            )}
                         </ul>
                     </div>
                 </div>
 
-                {/* 홀딩 사용 완료 알림 */}
+                {/* 홀딩 사용 완료 알림 (현재 + 다음 등록 모두 소진된 경우) */}
                 {hasUsedAllHoldings && (
                     <div className="info-card" style={{ background: '#fee2e2', borderColor: '#ef4444' }}>
                         <div className="info-icon">⚠️</div>
                         <div className="info-content">
                             <h3 style={{ color: '#dc2626' }}>홀딩 사용 완료</h3>
                             <p style={{ margin: 0, color: '#7f1d1d' }}>
-                                홀딩을 모두 사용하셨습니다. ({holdingInfo.used}/{holdingInfo.total}회 사용)
+                                홀딩을 모두 사용하셨습니다.
+                                {nextHoldingInfo
+                                    ? ` (현재 등록 ${holdingInfo.used}/${holdingInfo.total}, 다음 등록 ${nextHoldingInfo.used}/${nextHoldingInfo.total})`
+                                    : ` (${holdingInfo.used}/${holdingInfo.total}회 사용)`}
                             </p>
                         </div>
                     </div>
