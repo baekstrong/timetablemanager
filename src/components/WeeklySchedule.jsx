@@ -691,6 +691,11 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             return;
         }
 
+        if (isClassWithinMinutes(selectedOriginalClass.date, selectedOriginalClass.period, 30)) {
+            alert(`${selectedOriginalClass.day}요일 ${selectedOriginalClass.periodName} 수업이 이미 시작되었거나 곧 시작됩니다.\n원래 수업 시작 30분 전까지만 보강 신청이 가능합니다.`);
+            return;
+        }
+
         // 다른 요일 수업을 본인 정규 수업 요일로 옮기는 것 차단 (같은 요일 내 교시 변경은 허용)
         if (selectedOriginalClass.day !== selectedMakeupSlot.day) {
             const isTargetMyScheduleDay = studentSchedule.some(s => s.day === selectedMakeupSlot.day);
