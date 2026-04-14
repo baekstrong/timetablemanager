@@ -15,5 +15,5 @@ export const POST_LIMITS = {
     TITLE_MAX: 100,
     CONTENT_MAX: 5000,
     COMMENT_MAX: 1000,
-    PAGE_SIZE: 20,
+    FETCH_LIMIT: 200,
 };

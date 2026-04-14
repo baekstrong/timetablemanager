@@ -117,7 +117,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     useEffect(() => {
         setPostsLoading(true);
         setPostsError(null);
-        const unsubscribe = subscribePosts(selectedCategory, POST_LIMITS.PAGE_SIZE, (data) => {
+        const unsubscribe = subscribePosts(selectedCategory, POST_LIMITS.FETCH_LIMIT, (data) => {
             setPosts(data);
             setPostsLoading(false);
         });
