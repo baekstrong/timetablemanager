@@ -423,7 +423,7 @@ export function renderEditSets() {
                                 id="edit-intensity-value-${index}"
                                 value="${normalized.intensity.value}"
                                 placeholder="${isFreeform ? '자유 입력' : '80'}"
-                                onchange="updateEditSetIntensity(${index}, this.value)"
+                                oninput="updateEditSetIntensity(${index}, this.value)"
                                 class="intensity-input px-3 py-2 border rounded-lg text-sm"
                             >
                         `}
@@ -444,32 +444,32 @@ export function renderEditSets() {
                     <label class="text-xs text-gray-600 mb-1 block">반복</label>
                     <div class="flex gap-1 items-center">
                         ${isSecXReps ? `
-                            <input 
-                                type="text" 
-                                id="edit-reps-value-${index}" 
+                            <input
+                                type="text"
+                                id="edit-reps-value-${index}"
                                 value="${normalized.reps.value}"
                                 placeholder="30"
-                                onchange="updateEditSetRepsValue(${index}, this.value)"
+                                oninput="updateEditSetRepsValue(${index}, this.value)"
                                 class="w-16 px-2 py-2 border rounded-lg text-sm"
                             >
                             <span class="text-xs text-gray-600">초</span>
                             <span class="text-gray-400">×</span>
-                            <input 
-                                type="text" 
-                                id="edit-reps-count-${index}" 
+                            <input
+                                type="text"
+                                id="edit-reps-count-${index}"
                                 value="${normalized.reps.count || ''}"
                                 placeholder="3"
-                                onchange="updateEditSetRepsCount(${index}, this.value)"
+                                oninput="updateEditSetRepsCount(${index}, this.value)"
                                 class="w-16 px-2 py-2 border rounded-lg text-sm"
                             >
                             <span class="text-xs text-gray-600">회</span>
                         ` : `
-                            <input 
-                                type="text" 
-                                id="edit-reps-value-${index}" 
+                            <input
+                                type="text"
+                                id="edit-reps-value-${index}"
                                 value="${normalized.reps.value}"
                                 placeholder="10"
-                                onchange="updateEditSetRepsValue(${index}, this.value)"
+                                oninput="updateEditSetRepsValue(${index}, this.value)"
                                 class="intensity-input px-3 py-2 border rounded-lg text-sm"
                             >
                         `}

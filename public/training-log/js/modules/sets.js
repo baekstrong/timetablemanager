@@ -48,7 +48,7 @@ export function renderSets() {
                                 id="intensity-value-${index}"
                                 value="${set.intensity.value}"
                                 placeholder="${isFreeform ? '자유 입력' : '80'}"
-                                onchange="updateSetIntensity(${index}, this.value)"
+                                oninput="updateSetIntensity(${index}, this.value)"
                                 class="intensity-input px-3 py-2 border rounded-lg text-sm"
                             >
                         `}
@@ -70,32 +70,32 @@ export function renderSets() {
                     <label class="text-xs text-gray-600 mb-1 block">반복</label>
                     <div class="flex gap-1 items-center">
                         ${isSecXReps ? `
-                            <input 
-                                type="text" 
-                                id="reps-value-${index}" 
+                            <input
+                                type="text"
+                                id="reps-value-${index}"
                                 value="${set.reps.value}"
                                 placeholder="30"
-                                onchange="updateSetRepsValue(${index}, this.value)"
+                                oninput="updateSetRepsValue(${index}, this.value)"
                                 class="w-16 px-2 py-2 border rounded-lg text-sm"
                             >
                             <span class="text-xs text-gray-600">초</span>
                             <span class="text-gray-400">×</span>
-                            <input 
-                                type="text" 
-                                id="reps-count-${index}" 
+                            <input
+                                type="text"
+                                id="reps-count-${index}"
                                 value="${set.reps.count || ''}"
                                 placeholder="3"
-                                onchange="updateSetRepsCount(${index}, this.value)"
+                                oninput="updateSetRepsCount(${index}, this.value)"
                                 class="w-16 px-2 py-2 border rounded-lg text-sm"
                             >
                             <span class="text-xs text-gray-600">회</span>
                         ` : `
-                            <input 
-                                type="text" 
-                                id="reps-value-${index}" 
+                            <input
+                                type="text"
+                                id="reps-value-${index}"
                                 value="${set.reps.value}"
                                 placeholder="10"
-                                onchange="updateSetRepsValue(${index}, this.value)"
+                                oninput="updateSetRepsValue(${index}, this.value)"
                                 class="intensity-input px-3 py-2 border rounded-lg text-sm"
                             >
                         `}
@@ -264,6 +264,7 @@ export function updateSetRepsCount(index, count) {
     if (state.currentSets[index]) {
         if (!state.currentSets[index].reps) state.currentSets[index].reps = { value: '', unit: '회' };
         state.currentSets[index].reps.count = count;
+        if (window.autoSaveFormData) window.autoSaveFormData();
     }
 }
 
