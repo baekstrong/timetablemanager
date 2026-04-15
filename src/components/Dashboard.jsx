@@ -28,6 +28,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     const [postsLoading, setPostsLoading] = useState(true);
     const [postsError, setPostsError] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState('all');
+    const [boardPage, setBoardPage] = useState(1);
     const [viewMode, setViewMode] = useState('list');
     const [selectedPostId, setSelectedPostId] = useState(null);
     const [showPostForm, setShowPostForm] = useState(false);
@@ -126,6 +127,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
 
     const handleCategoryChange = (category) => {
         setSelectedCategory(category);
+        setBoardPage(1);
     };
 
     const handlePostClick = (postId) => {
@@ -507,6 +509,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         onPostClick={handlePostClick}
                         onWriteClick={() => { setEditingPost(null); setShowPostForm(true); }}
                         onRetry={() => loadPosts()}
+                        currentPage={boardPage}
+                        onPageChange={setBoardPage}
                     />
                 ) : (
                     <PostDetail

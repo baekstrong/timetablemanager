@@ -27,15 +27,15 @@ const PostList = ({
     onRetry,
     selectedCategory,
     onCategoryChange,
+    currentPage,
+    onPageChange,
 }) => {
-    const [currentPage, setCurrentPage] = useState(1);
     const [searchMode, setSearchMode] = useState('both');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeSearch, setActiveSearch] = useState('');
 
-    // 카테고리 변경 시 리셋
+    // 카테고리 변경 시 검색 리셋 (페이지는 부모가 관리)
     useEffect(() => {
-        setCurrentPage(1);
         setSearchQuery('');
         setActiveSearch('');
     }, [selectedCategory]);
@@ -57,13 +57,13 @@ const PostList = ({
 
     const handleSearch = () => {
         setActiveSearch(searchQuery.trim());
-        setCurrentPage(1);
+        onPageChange(1);
     };
 
     const handleClearSearch = () => {
         setSearchQuery('');
         setActiveSearch('');
-        setCurrentPage(1);
+        onPageChange(1);
     };
 
     return (
@@ -164,7 +164,7 @@ const PostList = ({
                     <button
                         className="board-page-btn"
                         disabled={safePage <= 1}
-                        onClick={() => setCurrentPage(safePage - 1)}
+                        onClick={() => onPageChange(safePage - 1)}
                     >
                         ‹
                     </button>
@@ -172,7 +172,7 @@ const PostList = ({
                         <button
                             key={page}
                             className={`board-page-btn${page === safePage ? ' active' : ''}`}
-                            onClick={() => setCurrentPage(page)}
+                            onClick={() => onPageChange(page)}
                         >
                             {page}
                         </button>
@@ -180,7 +180,7 @@ const PostList = ({
                     <button
                         className="board-page-btn"
                         disabled={safePage >= totalPages}
-                        onClick={() => setCurrentPage(safePage + 1)}
+                        onClick={() => onPageChange(safePage + 1)}
                     >
                         ›
                     </button>
