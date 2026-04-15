@@ -268,7 +268,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 
 - E열(특이사항)에 `"26.2.10 결석"` 형식으로 추가
 - 결석일을 홀딩 범위에 포함 → 종료일 연장
-- 데드라인: 수업 시작 **30분** 전
+- 데드라인: 수업 시작 **10분** 전
 
 ### 보강 시스템
 
@@ -277,6 +277,8 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - 당주 최대 보강 횟수 = `weeklyFrequency`
 - 향후 14일 이내 선택 가능
 - 지난 날짜의 활성 보강 → 자동 `completed` 처리
+- 신청 데드라인: 원본 수업과 보강 대상 수업 모두 시작 **1시간** 전까지
+- 취소 데드라인: 보강 수업 시작 **30분** 전까지
 
 ### WeeklySchedule 수강생 상태
 

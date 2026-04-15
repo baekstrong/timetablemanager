@@ -658,9 +658,9 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             return;
         }
 
-        if (isClassWithinMinutes(date, periodId, 30)) {
+        if (isClassWithinMinutes(date, periodId, 60)) {
             const period = PERIODS.find(p => p.id === periodId);
-            alert(`${period?.name} 수업이 곧 시작됩니다.\n수업 시작 30분 전까지만 보강 신청이 가능합니다.`);
+            alert(`${period?.name} 수업이 곧 시작됩니다.\n수업 시작 1시간 전까지만 보강 신청이 가능합니다.`);
             return;
         }
 
@@ -691,8 +691,8 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             return;
         }
 
-        if (isClassWithinMinutes(selectedOriginalClass.date, selectedOriginalClass.period, 30)) {
-            alert(`${selectedOriginalClass.day}요일 ${selectedOriginalClass.periodName} 수업이 이미 시작되었거나 곧 시작됩니다.\n원래 수업 시작 30분 전까지만 보강 신청이 가능합니다.`);
+        if (isClassWithinMinutes(selectedOriginalClass.date, selectedOriginalClass.period, 60)) {
+            alert(`${selectedOriginalClass.day}요일 ${selectedOriginalClass.periodName} 수업이 이미 시작되었거나 곧 시작됩니다.\n원래 수업 시작 1시간 전까지만 보강 신청이 가능합니다.`);
             return;
         }
 
@@ -722,7 +722,13 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
     }
 
     async function handleMakeupCancel(makeupId) {
-        if (!makeupId || !confirm('이 보강 신청을 취소하시겠습니까?')) return;
+        if (!makeupId) return;
+        const makeup = activeMakeupRequests.find(m => m.id === makeupId);
+        if (makeup && isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 30)) {
+            alert('보강 수업 시작 30분 전부터는 보강 취소가 불가합니다.');
+            return;
+        }
+        if (!confirm('이 보강 신청을 취소하시겠습니까?')) return;
         try {
             await cancelMakeupRequest(makeupId);
             alert('보강 신청이 취소되었습니다.');
@@ -1612,7 +1618,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                                     {held && <span style={{ marginLeft: '6px', fontWeight: 700 }}>홀딩</span>}
                                     {!held && makeup.status === 'completed' && <span style={{ marginLeft: '6px', color: '#16a34a', fontWeight: 700 }}>완료</span>}
                                 </div>
-                                {!held && makeup.status === 'active' && !isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 60) && (
+                                {!held && makeup.status === 'active' && !isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 30) && (
                                     <button className="banner-cancel-btn" onClick={() => handleMakeupCancel(makeup.id)}>취소</button>
                                 )}
                             </div>
