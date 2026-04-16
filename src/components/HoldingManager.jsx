@@ -798,21 +798,17 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
                                 <div style={{ marginTop: '12px' }}>
                                     <strong style={{ color: '#667eea' }}>⏸️ 홀딩</strong>
                                     {holdingHistory.map(holdingData => {
-                                        // 홀딩 시작일의 첫 수업 시간이 지났는지 확인
+                                        // 홀딩 시작일 수업 시작 30분 전까지 취소 가능 (보강일 포함)
                                         const holdingStartDate = new Date(holdingData.startDate + 'T00:00:00');
-                                        const dayOfWeek = holdingStartDate.getDay();
-                                        const dayMap = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금' };
-                                        const dayName = dayMap[dayOfWeek];
-                                        const classInfo = schedule.find(s => s.day === dayName);
+                                        const periodId = getClassPeriod(holdingStartDate);
+                                        const period = periodId ? PERIODS.find(p => p.id === periodId) : null;
 
                                         let canCancelHolding = true;
-                                        if (classInfo) {
-                                            const period = PERIODS.find(p => p.id === classInfo.period);
-                                            if (period) {
-                                                const classDateTime = new Date(holdingStartDate);
-                                                classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
-                                                canCancelHolding = new Date() < classDateTime;
-                                            }
+                                        if (period) {
+                                            const classDateTime = new Date(holdingStartDate);
+                                            classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
+                                            const deadline = new Date(classDateTime.getTime() - 30 * 60 * 1000);
+                                            canCancelHolding = new Date() < deadline;
                                         }
 
                                         return (
