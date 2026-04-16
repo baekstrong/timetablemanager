@@ -1512,6 +1512,20 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                         · 여석이 있는 칸을 눌러 <strong>보강 신청</strong>할 수 있습니다 (1회성 수업 이동)<br/>
                         · 시간표 변경은 코치에게 문의해주세요
                     </div>
+                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #bae6fd' }}>
+                        <strong>📌 보강 신청 조건</strong>
+                        <div style={{ marginTop: '4px' }}>
+                            · 원래 수업과 보강 대상 수업 모두 시작 <strong>1시간 전</strong>까지 신청 가능<br/>
+                            · 주 {weeklyFrequency}회 수업 기준 당주 최대 {weeklyFrequency}회 (휴일 있을 시 차감)<br/>
+                            · 본인 정규 수업 요일로는 이동 불가
+                        </div>
+                    </div>
+                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #bae6fd' }}>
+                        <strong>📌 보강 취소 조건</strong>
+                        <div style={{ marginTop: '4px' }}>
+                            · 보강 수업 시작 <strong>30분 전</strong>까지 취소 가능
+                        </div>
+                    </div>
                 </div>
             )}
 

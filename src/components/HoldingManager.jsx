@@ -745,29 +745,62 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
             </div>
 
             <div className="holding-content">
-                {/* 홀딩 안내 */}
+                {/* 안내 (홀딩/결석 모드에 따라 전환) */}
                 <div className="info-card">
                     <div className="info-icon">ℹ️</div>
                     <div className="info-content">
-                        <h3>홀딩 기능 안내</h3>
-                        <ul>
-                            <li>홀딩 신청 시 해당 일수만큼 수강권 기간이 자동으로 연장됩니다.</li>
-                            <li>홀딩한 자리는 다른 수강생이 임시로 사용할 수 있습니다.</li>
-                            <li>홀딩은 최소 1시간 전에 신청 가능합니다.</li>
-                            <li>홀딩은 주 {weeklyFrequency}회 수업 기준 최대 <strong>{weeklyFrequency}회</strong>까지 가능합니다.</li>
-                            <li>
-                                {nextHoldingInfo
-                                    ? `현재 등록: 총 ${holdingInfo.total}회 홀딩 가능 (남은 횟수: ${remainingHoldings}회)`
-                                    : (holdingInfo.total === 1
-                                        ? '홀딩은 등록 기간 중 1회만 사용 가능합니다.'
-                                        : `${holdingInfo.months}개월 등록: 총 ${holdingInfo.total}회 홀딩 가능 (남은 횟수: ${remainingHoldings}회)`)}
-                            </li>
-                            {nextHoldingInfo && (
-                                <li>
-                                    다음 등록: 총 {nextHoldingInfo.total}회 홀딩 가능 (남은 횟수: {nextRemainingHoldings}회)
-                                </li>
-                            )}
-                        </ul>
+                        {requestType === 'holding' ? (
+                            <>
+                                <h3>홀딩 기능 안내</h3>
+                                <ul>
+                                    <li>홀딩 신청 시 해당 일수만큼 수강권 기간이 자동으로 연장됩니다.</li>
+                                    <li>홀딩은 주 {weeklyFrequency}회 수업 기준 최대 <strong>{weeklyFrequency}회</strong>까지 가능합니다.</li>
+                                    <li>
+                                        {nextHoldingInfo
+                                            ? `현재 등록: 총 ${holdingInfo.total}회 홀딩 가능 (남은 횟수: ${remainingHoldings}회)`
+                                            : (holdingInfo.total === 1
+                                                ? '홀딩은 등록 기간 중 1회만 사용 가능합니다.'
+                                                : `${holdingInfo.months}개월 등록: 총 ${holdingInfo.total}회 홀딩 가능 (남은 횟수: ${remainingHoldings}회)`)}
+                                    </li>
+                                    {nextHoldingInfo && (
+                                        <li>
+                                            다음 등록: 총 {nextHoldingInfo.total}회 홀딩 가능 (남은 횟수: {nextRemainingHoldings}회)
+                                        </li>
+                                    )}
+                                </ul>
+                                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
+                                    <strong>📌 홀딩 신청 조건</strong>
+                                    <ul style={{ marginTop: '4px', marginBottom: 0 }}>
+                                        <li>홀딩 시작일 수업 시작 <strong>1시간 전</strong>까지 신청 가능</li>
+                                    </ul>
+                                </div>
+                                <div style={{ marginTop: '8px' }}>
+                                    <strong>📌 홀딩 취소 조건</strong>
+                                    <ul style={{ marginTop: '4px', marginBottom: 0 }}>
+                                        <li>홀딩 시작일 수업 시작 <strong>30분 전</strong>까지 취소 가능 (보강일 포함)</li>
+                                    </ul>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <h3>결석 기능 안내</h3>
+                                <ul>
+                                    <li>결석한 날짜는 보강으로 대체할 수 없습니다.</li>
+                                </ul>
+                                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
+                                    <strong>📌 결석 신청 조건</strong>
+                                    <ul style={{ marginTop: '4px', marginBottom: 0 }}>
+                                        <li>수업 시작 <strong>10분 전</strong>까지 신청 가능</li>
+                                    </ul>
+                                </div>
+                                <div style={{ marginTop: '8px' }}>
+                                    <strong>📌 결석 취소 조건</strong>
+                                    <ul style={{ marginTop: '4px', marginBottom: 0 }}>
+                                        <li>수업 시작 전까지 취소 가능</li>
+                                    </ul>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
 
