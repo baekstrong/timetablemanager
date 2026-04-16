@@ -266,7 +266,7 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
 
                 // 활성 보강 신청 로드
                 const makeups = await getActiveMakeupRequests(user.username);
-                setActiveMakeups(makeups.filter(m => m.status === 'active'));
+                setActiveMakeups(makeups.filter(m => m.status === 'active' || m.status === 'completed'));
             } catch (error) {
                 console.error('Failed to load holding/absence data:', error);
             }
