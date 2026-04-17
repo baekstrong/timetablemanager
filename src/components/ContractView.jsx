@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getPendingContractForStudent, agreeToContract } from '../services/firebaseService';
 import { readSheetData, writeSheetData, formatCellsWithStyle } from '../services/googleSheetsService';
-import { CONTRACT_TITLE, TRAINING_RULES, GUARANTEES, RISK_NOTICE } from '../data/contractTerms';
+import { CONTRACT_TITLE, TRAINING_RULES, VALID_SESSION_COUNTS, GUARANTEES, RISK_NOTICE, SIGNATURE_STATEMENT } from '../data/contractTerms';
 import './ContractView.css';
 
 // YYMMDD → YYYY-MM-DD 표시용
@@ -193,19 +193,39 @@ const ContractView = ({ user, onBack }) => {
                     </div>
                 </div>
 
-                {/* 수강 규정 */}
+                {/* 근력학교 정규반 정책 및 규정 */}
                 <div className="contract-terms-card">
-                    <h2 className="contract-section-title">수강 규정</h2>
+                    <h2 className="contract-section-title">근력학교 정규반 정책 및 규정</h2>
                     <ol className="contract-terms-list">
                         {TRAINING_RULES.map((rule, i) => (
-                            <li key={i}>{rule}</li>
+                            <li key={i}>
+                                {rule}
+                                {i === 8 && (
+                                    <table className="contract-valid-sessions-table">
+                                        <thead>
+                                            <tr>
+                                                {VALID_SESSION_COUNTS.map((row) => (
+                                                    <th key={row.frequency}>{row.frequency}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                {VALID_SESSION_COUNTS.map((row) => (
+                                                    <td key={row.frequency}>{row.total}</td>
+                                                ))}
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                )}
+                            </li>
                         ))}
                     </ol>
                 </div>
 
-                {/* 보증/승인 사항 */}
+                {/* 회원으로부터 보증, 승인 받은 사항 */}
                 <div className="contract-terms-card">
-                    <h2 className="contract-section-title">보증 및 승인 사항</h2>
+                    <h2 className="contract-section-title">회원으로부터 보증, 승인 받은 사항</h2>
                     <ol className="contract-terms-list">
                         {GUARANTEES.map((item, i) => (
                             <li key={i}>{item}</li>
@@ -213,11 +233,13 @@ const ContractView = ({ user, onBack }) => {
                     </ol>
                 </div>
 
-                {/* 위험 고지 */}
+                {/* 위험에 대한 추정 */}
                 <div className="contract-terms-card risk">
-                    <h2 className="contract-section-title">위험에 대한 고지</h2>
+                    <h2 className="contract-section-title">위험에 대한 추정</h2>
                     <p className="contract-risk-text">{RISK_NOTICE}</p>
                 </div>
+
+                <p className="contract-signature-statement">{SIGNATURE_STATEMENT}</p>
 
                 {/* 동의 체크박스 */}
                 <div className="contract-agree-section">

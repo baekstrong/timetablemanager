@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getContractHistory, cancelContract } from '../services/firebaseService';
-import { CONTRACT_TITLE, TRAINING_RULES, GUARANTEES, RISK_NOTICE } from '../data/contractTerms';
+import { CONTRACT_TITLE, TRAINING_RULES, VALID_SESSION_COUNTS, GUARANTEES, RISK_NOTICE, SIGNATURE_STATEMENT } from '../data/contractTerms';
 import './ContractHistory.css';
 
 const formatYYMMDD = (yymmdd) => {
@@ -136,25 +136,47 @@ const ContractHistory = ({ studentName, isCoach, onClose }) => {
                                                 </div>
                                             )}
 
-                                            {/* 수강 규정 */}
-                                            <div className="ch-detail-section-title">수강 규정</div>
+                                            {/* 근력학교 정규반 정책 및 규정 */}
+                                            <div className="ch-detail-section-title">근력학교 정규반 정책 및 규정</div>
                                             <ol className="ch-terms-list">
                                                 {TRAINING_RULES.map((rule, i) => (
-                                                    <li key={i}>{rule}</li>
+                                                    <li key={i}>
+                                                        {rule}
+                                                        {i === 8 && (
+                                                            <table className="ch-valid-sessions-table">
+                                                                <thead>
+                                                                    <tr>
+                                                                        {VALID_SESSION_COUNTS.map((row) => (
+                                                                            <th key={row.frequency}>{row.frequency}</th>
+                                                                        ))}
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <tr>
+                                                                        {VALID_SESSION_COUNTS.map((row) => (
+                                                                            <td key={row.frequency}>{row.total}</td>
+                                                                        ))}
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+                                                        )}
+                                                    </li>
                                                 ))}
                                             </ol>
 
-                                            {/* 보증 및 승인 */}
-                                            <div className="ch-detail-section-title">보증 및 승인 사항</div>
+                                            {/* 회원으로부터 보증, 승인 받은 사항 */}
+                                            <div className="ch-detail-section-title">회원으로부터 보증, 승인 받은 사항</div>
                                             <ol className="ch-terms-list">
                                                 {GUARANTEES.map((item, i) => (
                                                     <li key={i}>{item}</li>
                                                 ))}
                                             </ol>
 
-                                            {/* 위험 고지 */}
-                                            <div className="ch-detail-section-title">위험에 대한 고지</div>
+                                            {/* 위험에 대한 추정 */}
+                                            <div className="ch-detail-section-title">위험에 대한 추정</div>
                                             <p className="ch-risk-text">{RISK_NOTICE}</p>
+
+                                            <p className="ch-signature-statement">{SIGNATURE_STATEMENT}</p>
 
                                             {isCoach && c.status === 'pending' && (
                                                 <button

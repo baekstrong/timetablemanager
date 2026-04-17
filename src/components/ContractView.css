@@ -133,6 +133,39 @@
     margin: 0;
 }
 
+.contract-valid-sessions-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.6rem 0 0.2rem 0;
+    font-size: 0.85rem;
+}
+
+.contract-valid-sessions-table th,
+.contract-valid-sessions-table td {
+    border: 1px solid #d1d5db;
+    padding: 0.4rem 0.3rem;
+    text-align: center;
+}
+
+.contract-valid-sessions-table th {
+    background: #f9fafb;
+    color: #374151;
+    font-weight: 600;
+}
+
+.contract-valid-sessions-table td {
+    color: #1f2937;
+    font-weight: 500;
+}
+
+.contract-signature-statement {
+    font-size: 0.9rem;
+    color: #374151;
+    font-weight: 600;
+    text-align: right;
+    margin: 1rem 0;
+}
+
 /* 동의 섹션 */
 .contract-agree-section {
     background: white;

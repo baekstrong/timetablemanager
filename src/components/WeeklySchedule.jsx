@@ -629,25 +629,9 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             return;
         }
 
-        // Calculate effective makeup limit considering holidays
-        let holidayClassCount = 0;
-        if (studentSchedule.length > 0 && weekDates) {
-            studentSchedule.forEach(schedule => {
-                const slotDateStr = weekDateToISO(weekDates[schedule.day]);
-                if (!slotDateStr) return;
-                const isFirebaseHoliday = weekHolidays.some(h => h.date === slotDateStr);
-                const isKoreanHoliday = !!KOREAN_HOLIDAYS[slotDateStr];
-                if (isFirebaseHoliday || isKoreanHoliday) holidayClassCount++;
-            });
-        }
-        const effectiveMakeupLimit = Math.max(0, weeklyFrequency - holidayClassCount);
-
-        if (activeMakeupRequests.filter(m => m.status === 'active').length >= effectiveMakeupLimit) {
-            if (effectiveMakeupLimit < weeklyFrequency) {
-                alert(`이번 주 휴일로 인해 보강 신청이 최대 ${effectiveMakeupLimit}개까지 가능합니다.\n(주 ${weeklyFrequency}회 중 ${weeklyFrequency - effectiveMakeupLimit}회 휴일)\n기존 보강을 취소 후 다시 신청해주세요.`);
-            } else {
-                alert(`주 ${weeklyFrequency}회 수업이므로 보강 신청은 최대 ${weeklyFrequency}개까지 가능합니다.\n기존 보강을 취소 후 다시 신청해주세요.`);
-            }
+        // 주횟수와 무관하게 당주 최대 1회까지 보강 신청 가능
+        if (activeMakeupRequests.filter(m => m.status === 'active').length >= 1) {
+            alert('보강 신청은 당주 최대 1회까지 가능합니다.\n기존 보강을 취소 후 다시 신청해주세요.');
             return;
         }
 
@@ -658,9 +642,9 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             return;
         }
 
-        if (isClassWithinMinutes(date, periodId, 60)) {
+        if (isClassWithinMinutes(date, periodId, 120)) {
             const period = PERIODS.find(p => p.id === periodId);
-            alert(`${period?.name} 수업이 곧 시작됩니다.\n수업 시작 1시간 전까지만 보강 신청이 가능합니다.`);
+            alert(`${period?.name} 수업이 곧 시작됩니다.\n수업 시작 2시간 전까지만 보강 신청이 가능합니다.`);
             return;
         }
 
@@ -691,8 +675,8 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             return;
         }
 
-        if (isClassWithinMinutes(selectedOriginalClass.date, selectedOriginalClass.period, 60)) {
-            alert(`${selectedOriginalClass.day}요일 ${selectedOriginalClass.periodName} 수업이 이미 시작되었거나 곧 시작됩니다.\n원래 수업 시작 1시간 전까지만 보강 신청이 가능합니다.`);
+        if (isClassWithinMinutes(selectedOriginalClass.date, selectedOriginalClass.period, 120)) {
+            alert(`${selectedOriginalClass.day}요일 ${selectedOriginalClass.periodName} 수업이 이미 시작되었거나 곧 시작됩니다.\n원래 수업 시작 2시간 전까지만 보강 신청이 가능합니다.`);
             return;
         }
 
@@ -724,8 +708,8 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
     async function handleMakeupCancel(makeupId) {
         if (!makeupId) return;
         const makeup = activeMakeupRequests.find(m => m.id === makeupId);
-        if (makeup && isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 30)) {
-            alert('보강 수업 시작 30분 전부터는 보강 취소가 불가합니다.');
+        if (makeup && isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 60)) {
+            alert('보강 수업 시작 1시간 전부터는 보강 취소가 불가합니다.');
             return;
         }
         if (!confirm('이 보강 신청을 취소하시겠습니까?')) return;
@@ -1515,15 +1499,15 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #bae6fd' }}>
                         <strong>📌 보강 신청 조건</strong>
                         <div style={{ marginTop: '4px' }}>
-                            · 원래 수업과 보강 대상 수업 모두 시작 <strong>1시간 전</strong>까지 신청 가능<br/>
-                            · 주 {weeklyFrequency}회 수업 기준 당주 최대 {weeklyFrequency}회 (휴일 있을 시 차감)<br/>
+                            · 원래 수업과 보강 대상 수업 모두 시작 <strong>2시간 전</strong>까지 신청 가능<br/>
+                            · 주횟수와 무관하게 당주 <strong>최대 1회</strong>까지 신청 가능<br/>
                             · 본인 정규 수업 요일로는 이동 불가
                         </div>
                     </div>
                     <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #bae6fd' }}>
                         <strong>📌 보강 취소 조건</strong>
                         <div style={{ marginTop: '4px' }}>
-                            · 보강 수업 시작 <strong>30분 전</strong>까지 취소 가능
+                            · 보강 수업 시작 <strong>1시간 전</strong>까지 취소 가능
                         </div>
                     </div>
                 </div>

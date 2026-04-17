@@ -507,7 +507,7 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
         return classInfo ? classInfo.period : null;
     };
 
-    // 홀딩 신청 가능 여부 확인 (수업 시작 1시간 전까지)
+    // 홀딩 신청 가능 여부 확인 (수업 시작 2시간 전까지)
     const canRequestHolding = (date) => {
         if (!date) return false;
 
@@ -520,11 +520,10 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
         const classDateTime = new Date(date);
         classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
 
-        const oneHourBefore = new Date(classDateTime);
-        oneHourBefore.setHours(oneHourBefore.getHours() - 1);
+        const twoHoursBefore = new Date(classDateTime.getTime() - 2 * 60 * 60 * 1000);
 
         const now = new Date();
-        return now < oneHourBefore;
+        return now < twoHoursBefore;
     };
 
     // 결석 신청 가능 여부 확인 (수업 시작 10분 전까지)
@@ -566,7 +565,7 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
             if (requestType === 'absence') {
                 alert('결석 신청은 수업 시작 10분 전까지만 가능합니다.');
             } else {
-                alert('홀딩 신청은 수업 시작 1시간 전까지만 가능합니다.');
+                alert('홀딩 신청은 수업 시작 2시간 전까지만 가능합니다.');
             }
             return;
         }
@@ -771,13 +770,13 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
                                 <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
                                     <strong>📌 홀딩 신청 조건</strong>
                                     <ul style={{ marginTop: '4px', marginBottom: 0 }}>
-                                        <li>홀딩 시작일 수업 시작 <strong>1시간 전</strong>까지 신청 가능</li>
+                                        <li>홀딩 시작일 수업 시작 <strong>2시간 전</strong>까지 신청 가능</li>
                                     </ul>
                                 </div>
                                 <div style={{ marginTop: '8px' }}>
                                     <strong>📌 홀딩 취소 조건</strong>
                                     <ul style={{ marginTop: '4px', marginBottom: 0 }}>
-                                        <li>홀딩 시작일 수업 시작 <strong>30분 전</strong>까지 취소 가능 (보강일 포함)</li>
+                                        <li>홀딩 시작일 수업 시작 <strong>1시간 전</strong>까지 취소 가능 (보강일 포함)</li>
                                     </ul>
                                 </div>
                             </>
@@ -831,7 +830,7 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
                                 <div style={{ marginTop: '12px' }}>
                                     <strong style={{ color: '#667eea' }}>⏸️ 홀딩</strong>
                                     {holdingHistory.map(holdingData => {
-                                        // 홀딩 시작일 수업 시작 30분 전까지 취소 가능 (보강일 포함)
+                                        // 홀딩 시작일 수업 시작 1시간 전까지 취소 가능 (보강일 포함)
                                         const holdingStartDate = new Date(holdingData.startDate + 'T00:00:00');
                                         const periodId = getClassPeriod(holdingStartDate);
                                         const period = periodId ? PERIODS.find(p => p.id === periodId) : null;
@@ -840,7 +839,7 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
                                         if (period) {
                                             const classDateTime = new Date(holdingStartDate);
                                             classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
-                                            const deadline = new Date(classDateTime.getTime() - 30 * 60 * 1000);
+                                            const deadline = new Date(classDateTime.getTime() - 60 * 60 * 1000);
                                             canCancelHolding = new Date() < deadline;
                                         }
 
