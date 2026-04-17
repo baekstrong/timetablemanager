@@ -158,6 +158,24 @@ export const getActiveMakeupRequests = async (studentName) => {
     });
 };
 
+// 주간 보강 쿼터 계산용 — 상태 무관 전체 조회 (cancelled 포함)
+// 취소된 보강도 "주 1회" 쿼터를 소진한 것으로 간주하기 위함
+export const getWeekMakeupRequests = async (studentName, startDate, endDate) => {
+    return safeRead([], async () => {
+        const allRequests = await queryDocs('makeupRequests',
+            where('studentName', '==', studentName)
+        );
+        const requests = allRequests.filter(req => {
+            const makeupDate = req.makeupClass?.date;
+            const originalDate = req.originalClass?.date;
+            return (makeupDate >= startDate && makeupDate <= endDate) ||
+                   (originalDate >= startDate && originalDate <= endDate);
+        });
+        console.log(`${studentName} 주간 보강 이력(${startDate}~${endDate}) ${requests.length}개 (전체 상태)`);
+        return requests;
+    });
+};
+
 export const getMakeupRequestsByDate = async (date) => {
     return safeRead([], async () => {
         const requests = await queryDocs('makeupRequests',

@@ -3,6 +3,7 @@ import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, parseHoldingStatus, parseSheetDate as parseSheetDateSvc } from '../services/googleSheetsService';
 import {
     getActiveMakeupRequests,
+    getWeekMakeupRequests,
     createMakeupRequest,
     cancelMakeupRequest,
     completeMakeupRequest,
@@ -150,15 +151,14 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
     const [showMakeupModal, setShowMakeupModal] = useState(false);
     const [selectedMakeupSlot, setSelectedMakeupSlot] = useState(null);
     const [selectedOriginalClass, setSelectedOriginalClass] = useState(null);
-    const [activeMakeupRequests, setActiveMakeupRequests] = useState([]);
+    // 내(학생) 이번 주 보강 이력 (active/completed/cancelled 모두 포함 — 주 1회 쿼터 계산용)
+    const [myWeekMakeupHistory, setMyWeekMakeupHistory] = useState([]);
+    // 활성/완료 보강만 — 시간표 그리드/패널 렌더링용 (취소 제외)
+    const activeMakeupRequests = useMemo(
+        () => myWeekMakeupHistory.filter(m => m.status !== 'cancelled'),
+        [myWeekMakeupHistory]
+    );
     const [isSubmittingMakeup, setIsSubmittingMakeup] = useState(false);
-
-    // Weekly frequency for current student
-    const weeklyFrequency = useMemo(() => {
-        if (!studentData) return 2;
-        const freq = parseInt(getStudentField(studentData, '주횟수'));
-        return isNaN(freq) ? 2 : freq;
-    }, [studentData]);
 
     // Weekly data from custom hook
     const {
@@ -524,10 +524,9 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
         async function loadStudentMakeupData() {
             try {
-                const makeups = await getActiveMakeupRequests(user.username);
-                const { start, end } = getThisWeekRange();
-
-                for (const m of makeups) {
+                // 1. 지난 보강 자동 완료 처리 (active → completed)
+                const activeAndCompleted = await getActiveMakeupRequests(user.username);
+                for (const m of activeAndCompleted) {
                     if (m.status === 'active' && isClassWithinMinutes(m.makeupClass.date, m.makeupClass.period, 0)) {
                         try {
                             await completeMakeupRequest(m.id);
@@ -538,14 +537,10 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     }
                 }
 
-                const thisWeekMakeups = makeups.filter(m => {
-                    const makeupDate = m.makeupClass?.date;
-                    const originalDate = m.originalClass?.date;
-                    // 보강 날짜 또는 원래 수업 날짜가 이번 주 범위에 포함되는 경우만 표시
-                    return (makeupDate >= start && makeupDate <= end) ||
-                           (originalDate >= start && originalDate <= end);
-                });
-                setActiveMakeupRequests(thisWeekMakeups);
+                // 2. 이번 주 내 보강 이력 전체(cancelled 포함)를 쿼터 계산용으로 로드
+                const { start, end } = getThisWeekRange();
+                const thisWeekMakeups = await getWeekMakeupRequests(user.username, start, end);
+                setMyWeekMakeupHistory(thisWeekMakeups);
             } catch (error) {
                 console.error('Failed to load student makeup data:', error);
             }
@@ -610,15 +605,9 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
     }
 
     async function reloadStudentMakeups() {
-        const makeups = await getActiveMakeupRequests(user.username);
         const { start, end } = getThisWeekRange();
-        const thisWeekMakeups = makeups.filter(m => {
-            const makeupDate = m.makeupClass?.date;
-            const originalDate = m.originalClass?.date;
-            return (makeupDate >= start && makeupDate <= end) ||
-                   (originalDate >= start && originalDate <= end);
-        });
-        setActiveMakeupRequests(thisWeekMakeups);
+        const thisWeekMakeups = await getWeekMakeupRequests(user.username, start, end);
+        setMyWeekMakeupHistory(thisWeekMakeups);
     }
 
     function handleAvailableSeatClick(day, periodId, date) {
@@ -629,9 +618,9 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             return;
         }
 
-        // 주횟수와 무관하게 당주 최대 1회까지 보강 신청 가능
-        if (activeMakeupRequests.filter(m => m.status === 'active').length >= 1) {
-            alert('보강 신청은 당주 최대 1회까지 가능합니다.\n기존 보강을 취소 후 다시 신청해주세요.');
+        // 주횟수와 무관하게 당주 최대 1회까지 보강 신청 가능 (취소 내역도 소진으로 간주)
+        if (myWeekMakeupHistory.length >= 1) {
+            alert('보강은 주 1회만 신청 가능합니다.\n이번 주 보강 신청 내역(취소 포함)이 있어 추가 신청이 불가합니다.');
             return;
         }
 
@@ -1507,7 +1496,8 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #bae6fd' }}>
                         <strong>📌 보강 취소 조건</strong>
                         <div style={{ marginTop: '4px' }}>
-                            · 보강 수업 시작 <strong>1시간 전</strong>까지 취소 가능
+                            · 보강 수업 시작 <strong>1시간 전</strong>까지 취소 가능<br/>
+                            · <strong>취소 시 이번 주 보강은 사용한 것으로 간주</strong>되어 재신청이 불가합니다
                         </div>
                     </div>
                 </div>
@@ -1602,7 +1592,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             {mode === 'student' && activeMakeupRequests.length > 0 && (
                 <div className="active-makeup-banner">
                     <div className="banner-header" style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#666' }}>
-                        🔄 이번 주 보강 ({activeMakeupRequests.length}/{weeklyFrequency}개)
+                        🔄 이번 주 보강 ({activeMakeupRequests.length}/1개)
                     </div>
                     {activeMakeupRequests.map((makeup, index) => {
                         const held = isMakeupHeld(makeup);
