@@ -1167,7 +1167,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     <span className="cell-full-text">Full</span>
                     <span style={{ fontSize: '0.8em' }}>(만석)</span>
                     {waitCount > 0 && user?.role === 'coach' && (
-                        <span style={{ fontSize: '0.7em', color: '#000' }}>대기 {waitCount}명</span>
+                        <span style={{ fontSize: '0.7em', color: '#fff', fontWeight: 'bold' }}>대기 {waitCount}명</span>
                     )}
                 </div>
             );
