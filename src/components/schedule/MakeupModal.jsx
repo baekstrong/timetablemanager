@@ -36,7 +36,7 @@ export default function MakeupModal({
                                     m.originalClass.day === schedule.day &&
                                     m.originalClass.period === schedule.period
                                 );
-                                isPastDeadline = isClassWithinMinutes(originalDateStr, schedule.period, 60);
+                                isPastDeadline = isClassWithinMinutes(originalDateStr, schedule.period, 120);
                             }
                             const isDisabled = isAlreadyRequested || isPastDeadline;
 
@@ -51,7 +51,7 @@ export default function MakeupModal({
                                             return;
                                         }
                                         if (isPastDeadline) {
-                                            alert('수업 시작 1시간 전 이후로는 보강 신청할 수 없습니다.');
+                                            alert('수업 시작 2시간 전 이후로는 보강 신청할 수 없습니다.');
                                             return;
                                         }
                                         setSelectedOriginalClass({
