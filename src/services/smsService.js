@@ -349,14 +349,21 @@ export const scheduleEntranceReminderSMS = async (studentPhone, studentName, det
       const month = d.getMonth() + 1;
       const day = d.getDate();
       const dayOfWeek = dayNames[d.getDay()];
-      // entranceClassDate에서 시간 부분 추출 (예: "10:00 ~ 13:00" → "10-1시")
-      const timeMatch = dateTimeStr.match(/(\d{1,2}):?\d{0,2}\s*~\s*(\d{1,2}):?\d{0,2}/);
+      // entranceClassDate에서 시간 부분 추출 → "오전 10시 ~ 오후 1시" 형태로 변환
+      const timeMatch = dateTimeStr.match(/(\d{1,2})(?::(\d{2}))?\s*~\s*(\d{1,2})(?::(\d{2}))?/);
       let timeStr = '';
       if (timeMatch) {
-        let startH = parseInt(timeMatch[1]);
-        let endH = parseInt(timeMatch[2]);
-        if (endH > 12) endH -= 12;
-        timeStr = ` ${startH}-${endH}시`;
+        const startH = parseInt(timeMatch[1]);
+        const startM = parseInt(timeMatch[2] || '0');
+        const endH = parseInt(timeMatch[3]);
+        const endM = parseInt(timeMatch[4] || '0');
+        const fmt = (h, m) => {
+          const period = h < 12 ? '오전' : '오후';
+          const displayH = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+          const minPart = m > 0 ? ` ${m}분` : '';
+          return `${period} ${displayH}시${minPart}`;
+        };
+        timeStr = ` ${fmt(startH, startM)} ~ ${fmt(endH, endM)}`;
       }
       dateTimeStr = `${month}월 ${day}일(${dayOfWeek})${timeStr}`;
     }
