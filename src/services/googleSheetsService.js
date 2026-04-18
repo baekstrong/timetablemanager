@@ -1955,3 +1955,82 @@ export const processCoachHolding = async (studentName, holdingDates, firebaseHol
     holdingStatus: newHoldingStatus
   };
 };
+
+/**
+ * 코치가 수강생의 시간표를 다른 슬롯으로 옮길 때 D열(요일 및 시간) + H열(종료날짜) 동시 업데이트.
+ * 새 스케줄에 맞춰 수업일이 달라지므로 종료일을 재계산해야 한다.
+ * @param {string} studentName
+ * @param {string} newScheduleStr - 예: "화2금4"
+ * @param {Array} firebaseHolidays - 커스텀 공휴일
+ * @returns {Promise<Object>}
+ */
+export const processScheduleTransfer = async (studentName, newScheduleStr, firebaseHolidays = []) => {
+  if (!newScheduleStr) {
+    throw new Error('새 시간표가 비어있습니다.');
+  }
+
+  console.log(`🔄 시간표 이동 처리 시작: ${studentName}, new=${newScheduleStr}`);
+
+  const { foundSheetName, rows, headers, studentIndex, nextRegistrationIndex, nextSheetName, nextRows, nextHeaders } =
+    await findStudentInSheets(studentName);
+
+  const studentRow = rows[studentIndex];
+  const studentData = buildStudentObject(headers, studentRow);
+
+  const scheduleCol = findColumnIndex(headers, '요일 및 시간');
+  const endDateCol = findColumnIndex(headers, '종료날짜');
+
+  if (scheduleCol === -1) {
+    throw new Error('요일 및 시간 필드를 찾을 수 없습니다.');
+  }
+
+  const membershipStartDate = parseSheetDate(getStudentField(studentData, '시작날짜'));
+  const weeklyFrequency = parseInt(getStudentField(studentData, '주횟수')) || 2;
+  const holdingStatusStr = getStudentField(studentData, '홀딩 사용여부');
+  const holdingInfo = parseHoldingStatus(holdingStatusStr);
+  const totalSessions = getTotalSessions(weeklyFrequency, holdingInfo);
+
+  // 기존 홀딩 범위 포함해 재계산
+  const holdingRanges = [];
+  const existHoldStart = parseSheetDate(getStudentField(studentData, '홀딩 시작일'));
+  const existHoldEnd = parseSheetDate(getStudentField(studentData, '홀딩 종료일'));
+  if (holdingInfo.isCurrentlyUsed && existHoldStart && existHoldEnd) {
+    holdingRanges.push({ start: existHoldStart, end: existHoldEnd });
+  }
+
+  const newEndDate = calculateEndDate(membershipStartDate, totalSessions, newScheduleStr, holdingRanges, firebaseHolidays);
+  if (!newEndDate) {
+    throw new Error('종료일 계산에 실패했습니다.');
+  }
+
+  const newEndDateStr = formatDateToYYMMDD(newEndDate);
+
+  const updates = [
+    { range: `${foundSheetName}!${getColumnLetter(scheduleCol)}${studentIndex + 1}`, values: [[newScheduleStr]] },
+  ];
+  if (endDateCol !== -1) {
+    updates.push({ range: `${foundSheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`, values: [[newEndDateStr]] });
+  }
+
+  await batchUpdateSheet(updates);
+
+  try {
+    const cells = updates.map(u => u.range.split('!')[1]);
+    await highlightCells(cells, foundSheetName);
+  } catch (e) { /* 무시 */ }
+
+  // 다음 등록(미리 등록) 자동 조정
+  if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
+    try {
+      const nSheet = nextSheetName || foundSheetName;
+      const nRows = nextRows || rows;
+      const nHeaders = nextHeaders || headers;
+      await adjustNextRegistration(nSheet, nRows, nHeaders, nextRegistrationIndex, newEndDate, firebaseHolidays);
+    } catch (adjustError) {
+      console.warn('⚠️ 다음 등록 자동 조정 실패:', adjustError);
+    }
+  }
+
+  console.log(`✅ 시간표 이동 처리 완료: ${studentName}, 새 종료일=${newEndDateStr}`);
+  return { success: true, newSchedule: newScheduleStr, newEndDate: newEndDateStr };
+};
