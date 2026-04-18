@@ -9,7 +9,8 @@ import {
     checkWaitlistAvailability,
     updateWaitlistAvailability,
 } from '../services/firebaseService';
-import { writeSheetData } from '../services/googleSheetsService';
+import { processScheduleTransfer } from '../services/googleSheetsService';
+import { getHolidays } from '../services/firebaseService';
 import { PERIODS, MAX_CAPACITY } from '../data/mockData';
 import CoachWaitlistModal from './schedule/CoachWaitlistModal';
 import CoachSchedule from './schedule/CoachSchedule';
@@ -170,14 +171,14 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 return;
             }
 
-            const actualRow = studentEntry._rowIndex + 3;
             const currentSchedule = studentEntry['요일 및 시간'];
             const newSchedule = buildUpdatedSchedule(currentSchedule, currentSlot, waitlistDesiredSlot);
 
-            const range = `${studentEntry._foundSheetName}!D${actualRow}`;
-            await writeSheetData(range, [[newSchedule]]);
+            // D열(요일 및 시간) + H열(종료날짜) 동시 업데이트 — 스케줄 바뀌면 수업일 달라지므로 종료일 재계산 필요
+            const firebaseHolidays = await getHolidays().catch(() => []);
+            const result = await processScheduleTransfer(studentName, newSchedule, firebaseHolidays);
 
-            alert(`시간표 이동 완료!\n${studentName}: ${currentSchedule} → ${newSchedule}`);
+            alert(`시간표 이동 완료!\n${studentName}: ${currentSchedule} → ${newSchedule}\n새 종료일: ${result.newEndDate}`);
             closeWaitlistModal();
             await refresh();
             await loadWeeklyData();
