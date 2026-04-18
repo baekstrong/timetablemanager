@@ -349,6 +349,16 @@ const CoachNewStudents = ({ user, onBack }) => {
                     const classes = await getEntranceClasses(false);
                     const ec = classes.find(c => c.id === reg.entranceClassId);
                     if (ec) {
+                        // SMS에 시간이 누락되지 않도록 입학반 원본에서 날짜+시간 재구성
+                        const rebuilt = `${formatEntranceDate(ec.date)} ${ec.time || ''}${ec.endTime ? ' ~ ' + ec.endTime : ''}`.trim();
+                        if (rebuilt && rebuilt !== finalEntranceClassDate) {
+                            finalEntranceClassDate = rebuilt;
+                            finalEntranceDate = ec.date;
+                            await updateNewStudentRegistration(reg.id, {
+                                entranceClassDate: finalEntranceClassDate,
+                                entranceDate: finalEntranceDate
+                            });
+                        }
                         await updateEntranceClass(reg.entranceClassId, {
                             currentCount: (ec.currentCount || 0) + 1
                         });
@@ -646,11 +656,13 @@ const CoachNewStudents = ({ user, onBack }) => {
             .map(s => `${s.day}${s.period}`)
             .join('');
 
+        const selectedECDate = `${formatEntranceDate(selectedEC.date)} ${selectedEC.time || ''}${selectedEC.endTime ? ' ~ ' + selectedEC.endTime : ''}`.trim();
+
         try {
             await updateNewStudentRegistration(waitlistApproveReg.id, {
                 entranceClassId: selectedEC.id,
                 entranceDate: selectedEC.date,
-                entranceClassDate: selectedEC.date,
+                entranceClassDate: selectedECDate,
                 isWaitlist: false,
                 coachSelectedSlots: waitlistSelectedSlots,
                 requestedSlots: waitlistSelectedSlots,
@@ -661,7 +673,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                 ...waitlistApproveReg,
                 entranceClassId: selectedEC.id,
                 entranceDate: selectedEC.date,
-                entranceClassDate: selectedEC.date,
+                entranceClassDate: selectedECDate,
                 isWaitlist: false,
                 requestedSlots: waitlistSelectedSlots,
                 scheduleString: schedStr
@@ -826,6 +838,8 @@ const CoachNewStudents = ({ user, onBack }) => {
         const names = selected.map(s => s.name).join(', ');
         if (!confirm(`${selected.length}명(${names})을 이 입학반에 추가하시겠습니까?`)) return;
 
+        const ecClassDate = `${formatEntranceDate(ec.date)} ${ec.time || ''}${ec.endTime ? ' ~ ' + ec.endTime : ''}`.trim();
+
         try {
             const regRef = collection(db, 'newStudentRegistrations');
             for (const student of selected) {
@@ -835,7 +849,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                     weeklyFrequency: parseInt(student.weeklyFrequency) || 0,
                     scheduleString: student.schedule,
                     entranceClassId: ec.id,
-                    entranceClassDate: ec.date,
+                    entranceClassDate: ecClassDate,
                     entranceDate: ec.date,
                     status: 'approved',
                     source: 'manual',
