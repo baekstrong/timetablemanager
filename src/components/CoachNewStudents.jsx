@@ -782,29 +782,43 @@ const CoachNewStudents = ({ user, onBack }) => {
         setAddStudentLoading(true);
         try {
             const targetSheet = getCurrentSheetName();
-            const rows = await readSheetData(`${targetSheet}!A:R`);
-            // F열(index 5)이 '신규'인 수강생 필터링
-            const newStudents = [];
+            const [rows, allRegs] = await Promise.all([
+                readSheetData(`${targetSheet}!A:R`),
+                getNewStudentRegistrations(null).catch(() => [])
+            ]);
+
+            // 이미 지난 입학반에 배정된 적 있는 신규 학생 이름 수집
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const completedEntranceNames = new Set();
+            for (const r of allRegs) {
+                if (!r.name || !r.entranceClassId || !r.entranceDate) continue;
+                const d = new Date(r.entranceDate + 'T23:59:59');
+                if (d < today) completedEntranceNames.add(r.name);
+            }
+
             // 이미 이 입학반에 등록된 수강생 이름 목록
             const existingNames = new Set(
                 entranceRegs.filter(r => r.entranceClassId === ec.id).map(r => r.name)
             );
+
+            // F열(index 5)이 '신규'인 수강생 필터링
+            const newStudents = [];
             for (let i = 2; i < rows.length; i++) {
                 const row = rows[i];
                 if (!row || !row[1]) continue; // B열(이름) 없으면 스킵
-                if (row[5] === '신규') {
-                    const name = row[1];
-                    if (!existingNames.has(name)) {
-                        newStudents.push({
-                            rowIndex: i,
-                            name,
-                            weeklyFrequency: row[2] || '',
-                            schedule: row[3] || '',
-                            startDate: row[6] || '',
-                            phone: row[15] || ''
-                        });
-                    }
-                }
+                if (row[5] !== '신규') continue;
+                const name = row[1];
+                if (existingNames.has(name)) continue;
+                if (completedEntranceNames.has(name)) continue;
+                newStudents.push({
+                    rowIndex: i,
+                    name,
+                    weeklyFrequency: row[2] || '',
+                    schedule: row[3] || '',
+                    startDate: row[6] || '',
+                    phone: row[15] || ''
+                });
             }
             setSheetNewStudents(newStudents);
         } catch (err) {
