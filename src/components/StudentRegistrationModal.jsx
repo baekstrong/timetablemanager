@@ -403,9 +403,34 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
                 console.warn('서식 적용 실패:', err);
             }
 
+            // 입학반 연결 처리 (신규 모드 전용)
+            let linkedEntrance = null;
+            let linkedEntranceClassDate = '';
+            if (registrationType === 'new' && selectedEntranceId) {
+                try {
+                    const ecs = await getEntranceClasses(false);
+                    const ec = ecs.find(c => c.id === selectedEntranceId);
+                    if (!ec) {
+                        alert('선택한 입학반이 더 이상 존재하지 않습니다. 입학반 선택을 변경해주세요.');
+                        setSubmitting(false);
+                        return;
+                    }
+                    if ((ec.currentCount || 0) >= (ec.maxCapacity || 0)) {
+                        alert('선택한 입학반이 만석입니다. 다른 입학반을 선택해주세요.');
+                        setSubmitting(false);
+                        return;
+                    }
+                    linkedEntrance = ec;
+                    linkedEntranceClassDate = `${formatEntranceDate(ec.date)} ${ec.time || ''}${ec.endTime ? ' ~ ' + ec.endTime : ''}`.trim();
+                } catch (ecErr) {
+                    console.warn('입학반 검증 실패:', ecErr);
+                }
+            }
+
             // 신규 수강생 관리 페이지에 승인 이력 남기기
+            let createdRegId = null;
             try {
-                await createNewStudentRegistration({
+                const regPayload = {
                     name: form.이름,
                     phone: form.핸드폰 || '',
                     gender: form.성별 || '',
@@ -415,12 +440,69 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
                     paymentMethod: form.결제방식 || '',
                     registeredByCoach: true,
                     approvedAt: new Date()
-                }, 'approved');
+                };
+                if (linkedEntrance) {
+                    regPayload.entranceClassId = linkedEntrance.id;
+                    regPayload.entranceDate = linkedEntrance.date;
+                    regPayload.entranceClassDate = linkedEntranceClassDate;
+                }
+                const createResult = await createNewStudentRegistration(regPayload, 'approved');
+                createdRegId = createResult?.id || null;
             } catch (regErr) {
                 console.warn('신규 수강생 이력 저장 실패 (시트 등록은 완료):', regErr);
             }
 
-            alert('수강생이 등록되었습니다.');
+            // 입학반 currentCount 증가
+            if (linkedEntrance) {
+                try {
+                    await updateEntranceClass(linkedEntrance.id, {
+                        currentCount: (linkedEntrance.currentCount || 0) + 1
+                    });
+                } catch (ecUpdateErr) {
+                    console.warn('입학반 인원 업데이트 실패:', ecUpdateErr);
+                }
+            }
+
+            // SMS 발송 (신규 모드 + 핸드폰 입력 시)
+            let smsWarning = '';
+            if (registrationType === 'new' && form.핸드폰) {
+                try {
+                    const smsResults = await sendApprovalNotifications(form.핸드폰, form.이름, {
+                        paymentMethod: PAYMENT_CODE_MAP[form.결제방식] || 'cash',
+                        weeklyFrequency: parseInt(form.주횟수) || 0,
+                        scheduleString: form['요일 및 시간'] || '',
+                        entranceDate: linkedEntrance ? linkedEntrance.date : '',
+                        entranceClassDate: linkedEntranceClassDate
+                    });
+
+                    const failed = [];
+                    if (!smsResults.approvalSMS) failed.push('승인 문자');
+                    if (linkedEntrance) {
+                        if (smsResults.reminderSMS) {
+                            const groupId = typeof smsResults.reminderSMS === 'object'
+                                ? smsResults.reminderSMS.groupId
+                                : null;
+                            if (groupId && createdRegId) {
+                                try {
+                                    await updateNewStudentRegistration(createdRegId, { reminderGroupId: groupId });
+                                } catch (idErr) {
+                                    console.warn('reminderGroupId 저장 실패:', idErr);
+                                }
+                            }
+                        } else {
+                            failed.push('입학반 리마인더');
+                        }
+                    }
+                    if (failed.length > 0) {
+                        smsWarning = `\n\n⚠ ${failed.join(', ')} 발송에 실패했습니다.`;
+                    }
+                } catch (smsError) {
+                    console.error('SMS 발송 오류:', smsError);
+                    smsWarning = '\n\n⚠ 안내 문자 발송에 실패했습니다.';
+                }
+            }
+
+            alert('수강생이 등록되었습니다.' + smsWarning);
             onSuccess();
         } catch (err) {
             console.error('등록 실패:', err);
