@@ -100,6 +100,28 @@ export function useScheduleCore({
         if (!name) return endDate;
 
         const endDateStr = formatDateISO(endDate);
+        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+        const scheduleStr = student['요일 및 시간'] || '';
+        const scheduleDays = parseScheduleString(scheduleStr).map(p => p.day);
+
+        // 종료일 당일 수업을 종료일 이후로 보강 이동한 경우 (예: 마지막 월 수업을 다음 목으로)
+        // → 종료일 다음의 첫 정규 수업일이 새 "마지막 정규 수업일". 보강일은 보강 attendance로만 취급.
+        const makeupFromEndToFuture = weekMakeupRequests.find(m =>
+            m.studentName === name &&
+            m.originalClass.date === endDateStr &&
+            m.makeupClass.date > endDateStr &&
+            (m.status === 'active' || m.status === 'completed')
+        );
+        if (makeupFromEndToFuture && scheduleDays.length > 0) {
+            const checkDate = new Date(endDate);
+            for (let i = 0; i < 14; i++) {
+                checkDate.setDate(checkDate.getDate() + 1);
+                const dayName = dayNames[checkDate.getDay()];
+                if (scheduleDays.includes(dayName)) {
+                    return new Date(checkDate);
+                }
+            }
+        }
 
         // 종료일 이후로 보강이 잡힌 경우 찾기 (원래 수업이 종료일 이전이어도)
         const makeupsAfterEnd = weekMakeupRequests.filter(m =>
