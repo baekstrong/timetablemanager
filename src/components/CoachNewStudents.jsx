@@ -30,6 +30,7 @@ import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '.
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { formatEntranceDate, convertToYYMMDD, calculateStartEndDates } from '../utils/dateUtils';
 import { PRICING, PERIODS, DAYS, MAX_CAPACITY } from '../data/mockData';
+import StudentRegistrationModal from './StudentRegistrationModal';
 import './CoachNewStudents.css';
 
 const CoachNewStudents = ({ user, onBack }) => {
@@ -64,6 +65,7 @@ const CoachNewStudents = ({ user, onBack }) => {
     const [selectedNewStudents, setSelectedNewStudents] = useState(new Set());
     const [addStudentLoading, setAddStudentLoading] = useState(false);
     const [showPastEntrance, setShowPastEntrance] = useState(false);
+    const [directRegEntrance, setDirectRegEntrance] = useState(null);
 
     // === FAQ 관리 ===
     const [faqList, setFaqList] = useState([]);
@@ -1419,7 +1421,25 @@ const CoachNewStudents = ({ user, onBack }) => {
                                         </div>
                                     )}
                                     <div className="cns-modal-actions">
-                                        <button className="cns-modal-btn cancel" onClick={() => { setShowAddStudentModal(null); setSheetNewStudents([]); setSelectedNewStudents(new Set()); }}>취소</button>
+                                        <button
+                                            className="cns-modal-btn cancel"
+                                            onClick={() => { setShowAddStudentModal(null); setSheetNewStudents([]); setSelectedNewStudents(new Set()); }}
+                                        >
+                                            취소
+                                        </button>
+                                        <button
+                                            className="cns-modal-btn"
+                                            style={{ background: '#10b981', color: '#fff' }}
+                                            onClick={() => {
+                                                const ec = showAddStudentModal;
+                                                setShowAddStudentModal(null);
+                                                setSheetNewStudents([]);
+                                                setSelectedNewStudents(new Set());
+                                                setDirectRegEntrance(ec);
+                                            }}
+                                        >
+                                            + 직접 등록
+                                        </button>
                                         <button
                                             className="cns-modal-btn save"
                                             onClick={handleAddStudentsToEntrance}
@@ -1806,6 +1826,18 @@ const CoachNewStudents = ({ user, onBack }) => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* === 입학반 컨텍스트에서 열린 직접 등록 모달 === */}
+            {directRegEntrance && (
+                <StudentRegistrationModal
+                    onClose={() => setDirectRegEntrance(null)}
+                    onSuccess={async () => {
+                        setDirectRegEntrance(null);
+                        await loadEntranceClasses();
+                    }}
+                    initialEntranceId={directRegEntrance.id}
+                />
             )}
         </div>
     );
