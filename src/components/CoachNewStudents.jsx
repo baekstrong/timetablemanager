@@ -30,6 +30,7 @@ import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '.
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { formatEntranceDate, convertToYYMMDD, calculateStartEndDates } from '../utils/dateUtils';
 import { PRICING, PERIODS, DAYS, MAX_CAPACITY } from '../data/mockData';
+import StudentRegistrationModal from './StudentRegistrationModal';
 import './CoachNewStudents.css';
 
 const CoachNewStudents = ({ user, onBack }) => {
@@ -63,6 +64,8 @@ const CoachNewStudents = ({ user, onBack }) => {
     const [sheetNewStudents, setSheetNewStudents] = useState([]);
     const [selectedNewStudents, setSelectedNewStudents] = useState(new Set());
     const [addStudentLoading, setAddStudentLoading] = useState(false);
+    const [showPastEntrance, setShowPastEntrance] = useState(false);
+    const [directRegEntrance, setDirectRegEntrance] = useState(null);
 
     // === FAQ 관리 ===
     const [faqList, setFaqList] = useState([]);
@@ -782,29 +785,43 @@ const CoachNewStudents = ({ user, onBack }) => {
         setAddStudentLoading(true);
         try {
             const targetSheet = getCurrentSheetName();
-            const rows = await readSheetData(`${targetSheet}!A:R`);
-            // F열(index 5)이 '신규'인 수강생 필터링
-            const newStudents = [];
+            const [rows, allRegs] = await Promise.all([
+                readSheetData(`${targetSheet}!A:R`),
+                getNewStudentRegistrations(null).catch(() => [])
+            ]);
+
+            // 이미 지난 입학반에 배정된 적 있는 신규 학생 이름 수집
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const completedEntranceNames = new Set();
+            for (const r of allRegs) {
+                if (!r.name || !r.entranceClassId || !r.entranceDate) continue;
+                const d = new Date(r.entranceDate + 'T23:59:59');
+                if (d < today) completedEntranceNames.add(r.name);
+            }
+
             // 이미 이 입학반에 등록된 수강생 이름 목록
             const existingNames = new Set(
                 entranceRegs.filter(r => r.entranceClassId === ec.id).map(r => r.name)
             );
+
+            // F열(index 5)이 '신규'인 수강생 필터링
+            const newStudents = [];
             for (let i = 2; i < rows.length; i++) {
                 const row = rows[i];
                 if (!row || !row[1]) continue; // B열(이름) 없으면 스킵
-                if (row[5] === '신규') {
-                    const name = row[1];
-                    if (!existingNames.has(name)) {
-                        newStudents.push({
-                            rowIndex: i,
-                            name,
-                            weeklyFrequency: row[2] || '',
-                            schedule: row[3] || '',
-                            startDate: row[6] || '',
-                            phone: row[15] || ''
-                        });
-                    }
-                }
+                if (row[5] !== '신규') continue;
+                const name = row[1];
+                if (existingNames.has(name)) continue;
+                if (completedEntranceNames.has(name)) continue;
+                newStudents.push({
+                    rowIndex: i,
+                    name,
+                    weeklyFrequency: row[2] || '',
+                    schedule: row[3] || '',
+                    startDate: row[6] || '',
+                    phone: row[15] || ''
+                });
             }
             setSheetNewStudents(newStudents);
         } catch (err) {
@@ -1265,74 +1282,110 @@ const CoachNewStudents = ({ user, onBack }) => {
                             <div className="cns-loading">불러오는 중...</div>
                         ) : entranceClasses.length === 0 ? (
                             <div className="cns-empty">등록된 입학반이 없습니다.</div>
-                        ) : (
-                            <div className="cns-entrance-list">
-                                {entranceClasses.map(ec => (
-                                    <div key={ec.id} className={`cns-entrance-card ${!ec.isActive ? 'inactive' : ''}`}>
-                                        <div className="cns-entrance-info">
-                                            <div className="cns-entrance-date">{formatEntranceDate(ec.date)}</div>
-                                            <div className="cns-entrance-time">{ec.time}{ec.endTime ? ` ~ ${ec.endTime}` : ''}</div>
-                                            {ec.description && <div className="cns-entrance-desc">{ec.description}</div>}
-                                            <div className="cns-entrance-capacity">
-                                                {ec.currentCount || 0}/{ec.maxCapacity}명
-                                                {!ec.isActive && <span className="cns-inactive-badge">비활성</span>}
-                                            </div>
-                                            {(() => {
-                                                const ecRegs = entranceRegs.filter(r => r.entranceClassId === ec.id);
-                                                if (ecRegs.length === 0) return null;
-                                                return (
-                                                    <div className="cns-entrance-students">
-                                                        {ecRegs.map(r => (
-                                                            <span key={r.id} className={`cns-entrance-student-tag ${r.status}`}>
-                                                                {r.name}
-                                                                {r.status === 'pending' && <small>(대기)</small>}
-                                                                <button
-                                                                    className="cns-entrance-student-remove"
-                                                                    onClick={() => handleDeleteFromEntrance(r, ec)}
-                                                                    title="삭제"
-                                                                >×</button>
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                );
-                                            })()}
+                        ) : (() => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const upcoming = [];
+                            const past = [];
+                            for (const ec of entranceClasses) {
+                                if (!ec.date) { upcoming.push(ec); continue; }
+                                const ecDate = new Date(ec.date + 'T23:59:59');
+                                if (ecDate < today) past.push(ec);
+                                else upcoming.push(ec);
+                            }
+                            upcoming.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+                            past.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+                            const renderEcCard = (ec) => (
+                                <div key={ec.id} className={`cns-entrance-card ${!ec.isActive ? 'inactive' : ''}`}>
+                                    <div className="cns-entrance-info">
+                                        <div className="cns-entrance-date">{formatEntranceDate(ec.date)}</div>
+                                        <div className="cns-entrance-time">{ec.time}{ec.endTime ? ` ~ ${ec.endTime}` : ''}</div>
+                                        {ec.description && <div className="cns-entrance-desc">{ec.description}</div>}
+                                        <div className="cns-entrance-capacity">
+                                            {ec.currentCount || 0}/{ec.maxCapacity}명
+                                            {!ec.isActive && <span className="cns-inactive-badge">비활성</span>}
                                         </div>
-                                        <div className="cns-entrance-actions">
-                                            <button
-                                                className="cns-icon-btn add"
-                                                onClick={() => handleOpenAddStudent(ec)}
-                                                title="수강생 추가"
-                                            >
-                                                +
-                                            </button>
-                                            <button
-                                                className="cns-icon-btn edit"
-                                                onClick={() => {
-                                                    setEditingEntrance(ec);
-                                                    setEntranceForm({
-                                                        date: ec.date,
-                                                        time: ec.time,
-                                                        endTime: ec.endTime || '',
-                                                        description: ec.description || '',
-                                                        maxCapacity: ec.maxCapacity || 10,
-                                                        currentCount: ec.currentCount || 0
-                                                    });
-                                                    setShowEntranceForm(true);
-                                                }}
-                                            >
-                                                ✏️
-                                            </button>
-                                            <button
-                                                className="cns-icon-btn delete"
-                                                onClick={() => handleEntranceDelete(ec)}
-                                            >
-                                                🗑️
-                                            </button>
-                                        </div>
+                                        {(() => {
+                                            const ecRegs = entranceRegs.filter(r => r.entranceClassId === ec.id);
+                                            if (ecRegs.length === 0) return null;
+                                            return (
+                                                <div className="cns-entrance-students">
+                                                    {ecRegs.map(r => (
+                                                        <span key={r.id} className={`cns-entrance-student-tag ${r.status}`}>
+                                                            {r.name}
+                                                            {r.status === 'pending' && <small>(대기)</small>}
+                                                            <button
+                                                                className="cns-entrance-student-remove"
+                                                                onClick={() => handleDeleteFromEntrance(r, ec)}
+                                                                title="삭제"
+                                                            >×</button>
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
-                                ))}
-                            </div>
-                        )}
+                                    <div className="cns-entrance-actions">
+                                        <button
+                                            className="cns-icon-btn add"
+                                            onClick={() => handleOpenAddStudent(ec)}
+                                            title="수강생 추가"
+                                        >
+                                            +
+                                        </button>
+                                        <button
+                                            className="cns-icon-btn edit"
+                                            onClick={() => {
+                                                setEditingEntrance(ec);
+                                                setEntranceForm({
+                                                    date: ec.date,
+                                                    time: ec.time,
+                                                    endTime: ec.endTime || '',
+                                                    description: ec.description || '',
+                                                    maxCapacity: ec.maxCapacity || 10,
+                                                    currentCount: ec.currentCount || 0
+                                                });
+                                                setShowEntranceForm(true);
+                                            }}
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            className="cns-icon-btn delete"
+                                            onClick={() => handleEntranceDelete(ec)}
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+
+                            return (
+                                <>
+                                    <div className="cns-entrance-list">
+                                        {upcoming.length === 0 ? (
+                                            <div className="cns-empty">다가오는 입학반이 없습니다.</div>
+                                        ) : upcoming.map(renderEcCard)}
+                                    </div>
+                                    {past.length > 0 && (
+                                        <div className="cns-past-entrance-section">
+                                            <button
+                                                className="cns-past-entrance-toggle"
+                                                onClick={() => setShowPastEntrance(v => !v)}
+                                            >
+                                                {showPastEntrance ? '▲' : '▼'} 지난 입학반 ({past.length})
+                                            </button>
+                                            {showPastEntrance && (
+                                                <div className="cns-entrance-list past">
+                                                    {past.map(renderEcCard)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
 
                         {/* 수강생 수동 추가 모달 */}
                         {showAddStudentModal && (
@@ -1368,7 +1421,25 @@ const CoachNewStudents = ({ user, onBack }) => {
                                         </div>
                                     )}
                                     <div className="cns-modal-actions">
-                                        <button className="cns-modal-btn cancel" onClick={() => { setShowAddStudentModal(null); setSheetNewStudents([]); setSelectedNewStudents(new Set()); }}>취소</button>
+                                        <button
+                                            className="cns-modal-btn cancel"
+                                            onClick={() => { setShowAddStudentModal(null); setSheetNewStudents([]); setSelectedNewStudents(new Set()); }}
+                                        >
+                                            취소
+                                        </button>
+                                        <button
+                                            className="cns-modal-btn"
+                                            style={{ background: '#10b981', color: '#fff' }}
+                                            onClick={() => {
+                                                const ec = showAddStudentModal;
+                                                setShowAddStudentModal(null);
+                                                setSheetNewStudents([]);
+                                                setSelectedNewStudents(new Set());
+                                                setDirectRegEntrance(ec);
+                                            }}
+                                        >
+                                            + 직접 등록
+                                        </button>
                                         <button
                                             className="cns-modal-btn save"
                                             onClick={handleAddStudentsToEntrance}
@@ -1755,6 +1826,18 @@ const CoachNewStudents = ({ user, onBack }) => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* === 입학반 컨텍스트에서 열린 직접 등록 모달 === */}
+            {directRegEntrance && (
+                <StudentRegistrationModal
+                    onClose={() => setDirectRegEntrance(null)}
+                    onSuccess={async () => {
+                        setDirectRegEntrance(null);
+                        await loadEntranceClasses();
+                    }}
+                    initialEntranceId={directRegEntrance.id}
+                />
             )}
         </div>
     );
