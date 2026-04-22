@@ -156,15 +156,6 @@ export default function StudentSchedule({
             return;
         }
 
-        // 다른 요일 수업을 본인 정규 수업 요일로 옮기는 것 차단 (같은 요일 내 교시 변경은 허용)
-        if (selectedOriginalClass.day !== selectedMakeupSlot.day) {
-            const isTargetMyScheduleDay = studentSchedule.some(s => s.day === selectedMakeupSlot.day);
-            if (isTargetMyScheduleDay) {
-                alert('다른 요일의 수업을 본인 정규 수업 요일로 옮길 수 없습니다.\n다른 요일을 선택해주세요.');
-                return;
-            }
-        }
-
         setIsSubmittingMakeup(true);
         try {
             await createMakeupRequest(user.username, selectedOriginalClass, selectedMakeupSlot);
@@ -395,8 +386,7 @@ export default function StudentSchedule({
                         <strong>📌 보강 신청 조건</strong>
                         <div style={{ marginTop: '4px' }}>
                             · 원래 수업과 보강 대상 수업 모두 시작 <strong>2시간 전</strong>까지 신청 가능<br/>
-                            · 주횟수와 무관하게 당주 <strong>최대 1회</strong>까지 신청 가능<br/>
-                            · 본인 정규 수업 요일로는 이동 불가
+                            · 주횟수와 무관하게 당주 <strong>최대 1회</strong>까지 신청 가능
                         </div>
                     </div>
                     <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #bae6fd' }}>
