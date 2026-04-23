@@ -267,17 +267,19 @@ const StudentManager = ({ onBack }) => {
         setHoldingProcessing(false);
     };
 
-    // 종료날짜가 지난 수강생 필터링 (활성 수강생만 표시)
+    // 종료날짜가 지난 수강생 필터링 (활성 수강생만 표시) + 이름순(ㄱ→ㅎ) 정렬
     const activeStudents = useMemo(() => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        return students.filter(student => {
-            const endDateStr = student['종료날짜'];
-            if (!endDateStr) return true; // 종료날짜 없으면 표시
-            const endDate = parseSheetDate(endDateStr);
-            if (!endDate) return true; // 파싱 실패 시 표시
-            return endDate >= today; // 오늘이 종료일이면 아직 표시
-        });
+        return students
+            .filter(student => {
+                const endDateStr = student['종료날짜'];
+                if (!endDateStr) return true; // 종료날짜 없으면 표시
+                const endDate = parseSheetDate(endDateStr);
+                if (!endDate) return true; // 파싱 실패 시 표시
+                return endDate >= today; // 오늘이 종료일이면 아직 표시
+            })
+            .sort((a, b) => (a['이름'] || '').localeCompare(b['이름'] || '', 'ko'));
     }, [students]);
 
     // 시트 임베드 모드인 경우
