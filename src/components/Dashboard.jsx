@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, subscribePosts, updatePost, deletePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek } from '../services/firebaseService';
-import { parseSheetDate, findStudentAcrossSheets, writeSheetData } from '../services/googleSheetsService';
+import { createPost, subscribePosts, updatePost, deletePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays } from '../services/firebaseService';
+import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
+import { buildUpdatedSchedule } from '../utils/scheduleUtils';
 import GoogleSheetsSync from './GoogleSheetsSync';
 import { POST_LIMITS } from '../data/boardConstants';
 import PostList from './board/PostList';
@@ -9,18 +10,6 @@ import PostDetail from './board/PostDetail';
 import PostForm from './board/PostForm';
 import './board/Board.css';
 import './Dashboard.css';
-
-const parseScheduleString = (scheduleStr) => {
-    if (!scheduleStr) return [];
-    const result = [];
-    const matches = scheduleStr.match(/([월화수목금토일])(\d)/g);
-    if (matches) {
-        matches.forEach(m => {
-            result.push({ day: m[0], period: parseInt(m[1]) });
-        });
-    }
-    return result;
-};
 
 const Dashboard = ({ user, onNavigate, onLogout }) => {
     const [sheetsExpanded, setSheetsExpanded] = useState(false);
@@ -195,27 +184,14 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                 return;
             }
 
-            const sheetName = studentEntry._foundSheetName;
-            const rowIndex = studentEntry._rowIndex;
-            const actualRow = rowIndex + 3;
             const currentSchedule = studentEntry['요일 및 시간'];
+            const newSchedule = buildUpdatedSchedule(currentSchedule, currentSlot, desiredSlot);
 
-            const parsed = parseScheduleString(currentSchedule);
-            const updated = parsed.map(s => {
-                if (s.day === currentSlot.day && s.period === currentSlot.period) {
-                    return { day: desiredSlot.day, period: desiredSlot.period };
-                }
-                return s;
-            });
-            const dayOrder = { '월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일': 6 };
-            updated.sort((a, b) => (dayOrder[a.day] || 0) - (dayOrder[b.day] || 0) || a.period - b.period);
-            const newSchedule = updated.map(s => `${s.day}${s.period}`).join('');
-
-            const range = `${sheetName}!D${actualRow}`;
-            await writeSheetData(range, [[newSchedule]]);
+            const firebaseHolidays = await getHolidays().catch(() => []);
+            const result = await processScheduleTransfer(user.username, newSchedule, firebaseHolidays);
             await acceptWaitlistRequest(waitlistItem.id);
 
-            alert(`시간표 변경 완료!\n${currentSchedule} → ${newSchedule}`);
+            alert(`시간표 변경 완료!\n${currentSchedule} → ${newSchedule}\n새 종료일: ${result.newEndDate}`);
             await refresh();
             const waitlist = await getActiveWaitlistRequests(user.username);
             setStudentWaitlist(waitlist);
