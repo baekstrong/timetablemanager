@@ -225,9 +225,10 @@ function pickActiveRowIndex(rows, headers, indices) {
  * 같은 이름이 여러 시트/행에 있을 때 오늘 기준 수강 기간 내 등록을 우선 선택
  * @param {string} studentName
  * @param {string} [primarySheetName] - 우선 검색할 시트명 (기본: 현재 월)
+ * @param {Date} [referenceDate] - 이 날짜가 수강 기간에 포함된 등록을 우선 선택
  * @returns {Promise<{foundSheetName, rows, headers, studentIndex, nextRegistrationIndex}>}
  */
-async function findStudentInSheets(studentName, primarySheetName = null) {
+async function findStudentInSheets(studentName, primarySheetName = null, referenceDate = new Date()) {
   const primary = primarySheetName || getCurrentSheetName();
 
   // 모든 시트에서 매치 수집
@@ -277,9 +278,9 @@ async function findStudentInSheets(studentName, primarySheetName = null) {
     return a.startDate - b.startDate;
   });
 
-  // 오늘 기준 활성 등록 찾기
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // 기준 날짜가 수강 기간에 포함된 등록 찾기
+  const targetDate = new Date(referenceDate);
+  targetDate.setHours(0, 0, 0, 0);
 
   let activeIdx = -1;
   for (let i = 0; i < allCandidates.length; i++) {
@@ -287,7 +288,7 @@ async function findStudentInSheets(studentName, primarySheetName = null) {
     if (startDate && endDate) {
       const s = new Date(startDate); s.setHours(0, 0, 0, 0);
       const e = new Date(endDate); e.setHours(0, 0, 0, 0);
-      if (today >= s && today <= e) {
+      if (targetDate >= s && targetDate <= e) {
         activeIdx = i;
         break;
       }
@@ -317,7 +318,7 @@ async function findStudentInSheets(studentName, primarySheetName = null) {
     }
   }
 
-  console.log(`✅ 학생 찾음 (${active.sheetName}): 행 ${active.rowIndex + 1} (전체 ${allCandidates.length}개 등록 중 활성, 시작: ${active.startDate ? formatDateToISO(active.startDate) : '?'})`);
+  console.log(`✅ 학생 찾음 (${active.sheetName}): 행 ${active.rowIndex + 1} (전체 ${allCandidates.length}개 등록 중 선택, 기준일: ${formatDateToISO(targetDate)}, 시작: ${active.startDate ? formatDateToISO(active.startDate) : '?'})`);
 
   return {
     foundSheetName: active.sheetName,
@@ -534,9 +535,9 @@ export const getStudentField = (student, fieldName) => {
  * @returns {Date|null}
  */
 export const parseSheetDate = (dateStr) => {
-  if (!dateStr || typeof dateStr !== 'string') return null;
+  if (!dateStr) return null;
 
-  const cleaned = dateStr.replace(/\D/g, '');
+  const cleaned = String(dateStr).replace(/\D/g, '');
 
   if (cleaned.length === 6) {
     return new Date(
@@ -1360,24 +1361,13 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
 
   const primarySheetName = getCurrentSheetName(holdingStartDate);
   const { foundSheetName, rows, headers, studentIndex, nextRegistrationIndex, nextSheetName, nextRows, nextHeaders } =
-    await findStudentInSheets(studentName, primarySheetName);
+    await findStudentInSheets(studentName, primarySheetName, holdingStartDate);
 
-  // 대상 등록 결정: 'next'면 미리 등록 행, 아니면 현재 활성 행
-  let targetSheetName, targetRows, targetHeaders, targetRowIndex;
-  if (targetRegistration === 'next') {
-    if (nextRegistrationIndex === -1 || nextRegistrationIndex === undefined) {
-      throw new Error('다음 등록 정보를 찾을 수 없습니다.');
-    }
-    targetSheetName = nextSheetName || foundSheetName;
-    targetRows = nextRows || rows;
-    targetHeaders = nextHeaders || headers;
-    targetRowIndex = nextRegistrationIndex;
-  } else {
-    targetSheetName = foundSheetName;
-    targetRows = rows;
-    targetHeaders = headers;
-    targetRowIndex = studentIndex;
-  }
+  // 홀딩은 신청 날짜가 포함된 등록 행에 반영한다. 시작 전 미리등록도 이 기준으로 정확히 선택된다.
+  const targetSheetName = foundSheetName;
+  const targetRows = rows;
+  const targetHeaders = headers;
+  const targetRowIndex = studentIndex;
 
   console.log(`📄 최종 선택 시트: ${targetSheetName}, 행: ${targetRowIndex + 1}`);
 
@@ -1409,6 +1399,13 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
 
   console.log(`📊 수강생 정보: 시작일=${startDateField}, 주횟수=${weeklyFrequency}, 등록개월=${holdingInfo.months}, 총 횟수=${totalSessions}`);
   console.log(`📊 홀딩 정보: 사용=${holdingInfo.used}/${holdingInfo.total}`);
+
+  if (!membershipStartDate) {
+    throw new Error(`시작날짜를 해석할 수 없습니다: ${startDateField || '비어 있음'}`);
+  }
+  if (!scheduleStr || getClassDays(scheduleStr).length === 0) {
+    throw new Error(`수업 요일을 해석할 수 없습니다: ${scheduleStr || '비어 있음'}`);
+  }
 
   // 모든 홀딩 기간 수집 (기존 + 새 홀딩)
   const allHoldingRanges = [];
@@ -1489,9 +1486,8 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
   console.log(`✅ 홀딩 신청 완료: ${studentName}, ${startDateStr} ~ ${endDateStr}`);
   console.log(`📅 종료일 연장: ${newEndDateStr}`);
 
-  // 현재 등록에 홀딩을 적용한 경우에만 다음 등록(미리 등록) 자동 조정
-  // (다음 등록에 직접 적용한 경우에는 현재 등록이 영향받지 않으므로 조정 불필요)
-  if (targetRegistration === 'current' && nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
+  // 선택된 등록 뒤에 미리 등록이 있으면 자동 조정
+  if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
     try {
       const nSheet = nextSheetName || foundSheetName;
       const nRows = nextRows || rows;

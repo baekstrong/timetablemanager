@@ -48,7 +48,7 @@ const isHoliday = (date) => {
     return KOREAN_HOLIDAYS_2026[dateStr];
 };
 
-const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
+const HoldingManager = ({ user, studentData, isLoading }) => {
     const { requestHolding, refresh } = useGoogleSheets();
     const [requestType, setRequestType] = useState('holding'); // 'holding' | 'absence'
     const [selectedDates, setSelectedDates] = useState([]);
@@ -647,6 +647,8 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
         }
 
         setIsSubmitting(true);
+        let createdHoldingId = null;
+        let sheetsUpdated = false;
         try {
             const sortedDates = [...selectedDates].sort();
 
@@ -667,7 +669,8 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
                     }
                 }
 
-                await createHoldingRequest(user.username, startDate, endDate, sortedDates);
+                const createdHolding = await createHoldingRequest(user.username, startDate, endDate, sortedDates);
+                createdHoldingId = createdHolding?.id || null;
 
                 // 보강 날짜를 홀딩한 횟수 계산 (비정규 요일의 보강)
                 const dayMap = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금' };
@@ -688,6 +691,7 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
                 // 기존 홀딩 목록을 전달하여 종료일 계산에 포함
                 const holidaysArray = Object.entries(coachHolidays).map(([date, reason]) => ({ date, reason }));
                 await requestHolding(user.username, startDateObj, endDateObj, allHoldings, holidaysArray, makeupHoldingCount, targetRegistration);
+                sheetsUpdated = true;
 
                 alert(`홀딩 신청이 완료되었습니다.\n기간: ${startDate} ~ ${endDate}`);
 
@@ -712,6 +716,13 @@ const HoldingManager = ({ user, studentData, isLoading, onBack }) => {
 
             setSelectedDates([]);
         } catch (error) {
+            if (createdHoldingId && !sheetsUpdated) {
+                try {
+                    await cancelHolding(createdHoldingId);
+                } catch (rollbackError) {
+                    console.error('홀딩 Firebase 롤백 실패:', rollbackError);
+                }
+            }
             alert(`홀딩 신청에 실패했습니다: ${error.message}`);
             console.error('홀딩 신청 오류:', error);
         } finally {
