@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useWeeklyData } from '../../hooks/useWeeklyData';
 import {
     getStudentField,
@@ -94,7 +94,7 @@ export function useScheduleCore({
     }, []);
 
     // ── Effective end date (considering makeup requests) ──
-    function getEffectiveEndDate(student, endDate) {
+    const getEffectiveEndDate = useCallback((student, endDate) => {
         if (!endDate || !weekMakeupRequests || weekMakeupRequests.length === 0) return endDate;
         const name = student['이름'];
         if (!name) return endDate;
@@ -103,14 +103,19 @@ export function useScheduleCore({
         const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
         const scheduleStr = student['요일 및 시간'] || '';
         const scheduleDays = parseScheduleString(scheduleStr).map(p => p.day);
+        const isActiveOrCompleted = (m) => m.status === 'active' || m.status === 'completed';
+        const isMakeupForCurrentMembership = (m) =>
+            m.studentName === name &&
+            isActiveOrCompleted(m) &&
+            m.originalClass?.date &&
+            m.originalClass.date <= endDateStr;
 
         // 종료일 당일 수업을 종료일 이후로 보강 이동한 경우 (예: 마지막 월 수업을 다음 목으로)
         // → 종료일 다음의 첫 정규 수업일이 새 "마지막 정규 수업일". 보강일은 보강 attendance로만 취급.
         const makeupFromEndToFuture = weekMakeupRequests.find(m =>
-            m.studentName === name &&
+            isMakeupForCurrentMembership(m) &&
             m.originalClass.date === endDateStr &&
-            m.makeupClass.date > endDateStr &&
-            (m.status === 'active' || m.status === 'completed')
+            m.makeupClass?.date > endDateStr
         );
         if (makeupFromEndToFuture && scheduleDays.length > 0) {
             const checkDate = new Date(endDate);
@@ -123,18 +128,18 @@ export function useScheduleCore({
             }
         }
 
-        // 종료일 이후로 보강이 잡힌 경우 찾기 (원래 수업이 종료일 이전이어도)
+        // 종료일 이후 보강 중, 기존 수강 기간 안의 수업을 옮긴 보강만 종료일 연장에 반영한다.
+        // 이미 종료된 뒤 남아 있는 정규 시간표에서 신청한 보강은 재등록 지연 판정을 가리면 안 된다.
         const makeupsAfterEnd = weekMakeupRequests.filter(m =>
-            m.studentName === name &&
-            (m.status === 'active' || m.status === 'completed') &&
-            m.makeupClass.date > endDateStr
+            isMakeupForCurrentMembership(m) &&
+            m.makeupClass?.date > endDateStr
         );
 
         // 종료일 당일 수업을 보강으로 옮긴 경우
         const makeupFromEndDate = weekMakeupRequests.find(m =>
-            m.studentName === name &&
+            isMakeupForCurrentMembership(m) &&
             m.originalClass.date === endDateStr &&
-            (m.status === 'active' || m.status === 'completed')
+            m.makeupClass?.date
         );
 
         // 종료일 이후 보강이 있으면, 가장 늦은 보강일을 effective end로
@@ -175,7 +180,7 @@ export function useScheduleCore({
             return makeupDate;
         }
         return endDate;
-    }
+    }, [weekMakeupRequests]);
 
     // ── Coach banners: last day students & delayed re-registration ──
     const lastDayStudents = useMemo(() => {
@@ -192,53 +197,8 @@ export function useScheduleCore({
             const endDate = parseSheetDate(endDateStr);
             if (!endDate) return false;
             endDate.setHours(0, 0, 0, 0);
-            const effectiveEnd = getEffectiveEndDate(student, endDate);
-            effectiveEnd.setHours(0, 0, 0, 0);
-
-            if (effectiveEnd.getTime() === today.getTime()) return true;
-
-            if (endDate.getTime() <= today.getTime() && effectiveEnd.getTime() > today.getTime()) {
-                const schedule = student['요일 및 시간'] || '';
-                const parsed = parseScheduleString(schedule);
-                const scheduleDays = parsed.map(p => p.day);
-
-                if (!scheduleDays.includes(todayDay)) return false;
-
-                const name = student['이름'];
-                const hasMakeupFromToday = weekMakeupRequests && weekMakeupRequests.some(m =>
-                    m.studentName === name &&
-                    m.originalClass.date === todayStr &&
-                    (m.status === 'active' || m.status === 'completed')
-                );
-                if (hasMakeupFromToday) return false;
-
-                const dayNamesArr = ['일', '월', '화', '수', '목', '금', '토'];
-                const checkDate = new Date(today);
-                for (let i = 0; i < 7; i++) {
-                    checkDate.setDate(checkDate.getDate() + 1);
-                    if (checkDate.getTime() > effectiveEnd.getTime()) break;
-                    const checkDateStr = formatDateISO(checkDate);
-                    const dayName = dayNamesArr[checkDate.getDay()];
-
-                    const hasRegularClass = scheduleDays.includes(dayName) &&
-                        !(weekMakeupRequests && weekMakeupRequests.some(m =>
-                            m.studentName === name &&
-                            m.originalClass.date === checkDateStr &&
-                            (m.status === 'active' || m.status === 'completed')
-                        ));
-                    if (hasRegularClass) return false;
-
-                    const hasMakeupClass = weekMakeupRequests && weekMakeupRequests.some(m =>
-                        m.studentName === name &&
-                        m.makeupClass.date === checkDateStr &&
-                        (m.status === 'active' || m.status === 'completed')
-                    );
-                    if (hasMakeupClass) return false;
-                }
-                return true;
-            }
-
-            return false;
+            // 재등록 배너의 종료 여부는 보강 출석일이 아니라 시트의 실제 종료날짜 기준이다.
+            return endDate.getTime() === today.getTime();
         }).map(s => {
             const name = s['이름'];
             if (!name) return null;
@@ -284,9 +244,7 @@ export function useScheduleCore({
         return Object.values(latestByName).filter(({ student, endDate }) => {
             const ed = new Date(endDate);
             ed.setHours(0, 0, 0, 0);
-            const effectiveEnd = getEffectiveEndDate(student, ed);
-            effectiveEnd.setHours(0, 0, 0, 0);
-            if (effectiveEnd >= today) return false;
+            if (ed >= today) return false;
             const schedule = student['요일 및 시간'];
             return schedule && schedule.trim();
         }).map(({ student, endDate }) => {
@@ -296,7 +254,7 @@ export function useScheduleCore({
             const endDateFormatted = `${endDate.getMonth() + 1}/${endDate.getDate()}`;
             return { name, schedule, payment, endDate: endDateFormatted };
         }).sort((a, b) => getScheduleSortKey(a.schedule) - getScheduleSortKey(b.schedule));
-    }, [user, students, weekMakeupRequests]);
+    }, [user, students]);
 
     // ── Cell data computation ──
     function getCellData(day, periodObj) {
