@@ -100,33 +100,12 @@ export function useScheduleCore({
         if (!name) return endDate;
 
         const endDateStr = formatDateISO(endDate);
-        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-        const scheduleStr = student['요일 및 시간'] || '';
-        const scheduleDays = parseScheduleString(scheduleStr).map(p => p.day);
         const isActiveOrCompleted = (m) => m.status === 'active' || m.status === 'completed';
         const isMakeupForCurrentMembership = (m) =>
             m.studentName === name &&
             isActiveOrCompleted(m) &&
             m.originalClass?.date &&
             m.originalClass.date <= endDateStr;
-
-        // 종료일 당일 수업을 종료일 이후로 보강 이동한 경우 (예: 마지막 월 수업을 다음 목으로)
-        // → 종료일 다음의 첫 정규 수업일이 새 "마지막 정규 수업일". 보강일은 보강 attendance로만 취급.
-        const makeupFromEndToFuture = weekMakeupRequests.find(m =>
-            isMakeupForCurrentMembership(m) &&
-            m.originalClass.date === endDateStr &&
-            m.makeupClass?.date > endDateStr
-        );
-        if (makeupFromEndToFuture && scheduleDays.length > 0) {
-            const checkDate = new Date(endDate);
-            for (let i = 0; i < 14; i++) {
-                checkDate.setDate(checkDate.getDate() + 1);
-                const dayName = dayNames[checkDate.getDay()];
-                if (scheduleDays.includes(dayName)) {
-                    return new Date(checkDate);
-                }
-            }
-        }
 
         // 종료일 이후 보강 중, 기존 수강 기간 안의 수업을 옮긴 보강만 종료일 연장에 반영한다.
         // 이미 종료된 뒤 남아 있는 정규 시간표에서 신청한 보강은 재등록 지연 판정을 가리면 안 된다.
@@ -197,8 +176,9 @@ export function useScheduleCore({
             const endDate = parseSheetDate(endDateStr);
             if (!endDate) return false;
             endDate.setHours(0, 0, 0, 0);
-            // 재등록 배너의 종료 여부는 보강 출석일이 아니라 시트의 실제 종료날짜 기준이다.
-            return endDate.getTime() === today.getTime();
+            const effectiveEnd = getEffectiveEndDate(student, endDate);
+            effectiveEnd.setHours(0, 0, 0, 0);
+            return effectiveEnd.getTime() === today.getTime();
         }).map(s => {
             const name = s['이름'];
             if (!name) return null;
@@ -221,7 +201,7 @@ export function useScheduleCore({
             }
             return { name, schedule, payment, todayPeriod };
         }).filter(Boolean).sort((a, b) => a.todayPeriod - b.todayPeriod);
-    }, [user, students, weekMakeupRequests]);
+    }, [user, students, weekMakeupRequests, getEffectiveEndDate]);
 
     const delayedReregistrationStudents = useMemo(() => {
         if (user?.role !== 'coach' || !students || students.length === 0) return [];
@@ -244,7 +224,9 @@ export function useScheduleCore({
         return Object.values(latestByName).filter(({ student, endDate }) => {
             const ed = new Date(endDate);
             ed.setHours(0, 0, 0, 0);
-            if (ed >= today) return false;
+            const effectiveEnd = getEffectiveEndDate(student, ed);
+            effectiveEnd.setHours(0, 0, 0, 0);
+            if (effectiveEnd >= today) return false;
             const schedule = student['요일 및 시간'];
             return schedule && schedule.trim();
         }).map(({ student, endDate }) => {
@@ -254,7 +236,7 @@ export function useScheduleCore({
             const endDateFormatted = `${endDate.getMonth() + 1}/${endDate.getDate()}`;
             return { name, schedule, payment, endDate: endDateFormatted };
         }).sort((a, b) => getScheduleSortKey(a.schedule) - getScheduleSortKey(b.schedule));
-    }, [user, students]);
+    }, [user, students, getEffectiveEndDate]);
 
     // ── Cell data computation ──
     function getCellData(day, periodObj) {
