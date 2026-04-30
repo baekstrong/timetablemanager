@@ -353,6 +353,7 @@ const KOREAN_HOLIDAYS_2026 = {
   '2026-02-17': '설날',
   '2026-02-18': '설날',
   '2026-03-01': '3·1절',
+  '2026-05-01': '노동절',
   '2026-05-05': '어린이날',
   '2026-05-25': '부처님 오신 날',
   '2026-06-06': '현충일',
@@ -684,13 +685,15 @@ function getClassDays(scheduleStr) {
  * @param {string} scheduleStr
  * @param {Array|Object|null} holdingRanges
  * @param {Array} firebaseHolidays
+ * @param {Array<string>} countedHolidayDates - 보강으로 소진한 휴일 원수업일(YYYY-MM-DD)
  * @returns {Date|null}
  */
-function calculateEndDate(startDate, totalSessions, scheduleStr, holdingRanges = null, firebaseHolidays = []) {
+function calculateEndDate(startDate, totalSessions, scheduleStr, holdingRanges = null, firebaseHolidays = [], countedHolidayDates = []) {
   if (!startDate || !scheduleStr || !totalSessions) return null;
 
   const classDays = getClassDays(scheduleStr);
   if (classDays.length === 0) return null;
+  const countedHolidaySet = new Set(countedHolidayDates || []);
 
   // 홀딩 기간을 배열로 정규화
   const holdingRangesArray = holdingRanges
@@ -707,11 +710,12 @@ function calculateEndDate(startDate, totalSessions, scheduleStr, holdingRanges =
 
     if (classDays.includes(current.getDay())) {
       const isHoliday = isHolidayDate(current, firebaseHolidays);
+      const isCountedHoliday = isHoliday && countedHolidaySet.has(formatDateToISO(current));
       const isInHoldingPeriod = holdingRangesArray.some(range =>
         range && isSameOrAfter(current, range.start) && isSameOrBefore(current, range.end)
       );
 
-      if (!isHoliday && !isInHoldingPeriod) {
+      if ((!isHoliday || isCountedHoliday) && !isInHoldingPeriod) {
         sessionCount++;
         if (sessionCount === totalSessions) {
           return new Date(current);
@@ -1950,6 +1954,94 @@ export const processCoachHolding = async (studentName, holdingDates, firebaseHol
     newEndDate: newEndDateStr,
     holdingStatus: newHoldingStatus
   };
+};
+
+/**
+ * 휴일 정규 수업을 보강으로 소진한 경우 H열 종료날짜를 다시 계산한다.
+ * 일반 종료일 계산은 휴일을 제외하지만, 보강 신청된 휴일 원수업일은 1회 출석으로 카운트한다.
+ * @param {string} studentName
+ * @param {Array<string>} countedHolidayDates - YYYY-MM-DD 형식
+ * @param {Array} firebaseHolidays - 커스텀 공휴일
+ * @returns {Promise<Object>}
+ */
+export const processHolidayMakeupEndDate = async (studentName, countedHolidayDates = [], firebaseHolidays = []) => {
+  const uniqueHolidayDates = [...new Set((countedHolidayDates || []).filter(Boolean))];
+  const validHolidayDates = uniqueHolidayDates.filter(dateStr =>
+    isHolidayDate(new Date(dateStr + 'T00:00:00'), firebaseHolidays)
+  );
+
+  if (validHolidayDates.length === 0) {
+    return { success: true, updated: false, reason: 'no-holiday-makeup' };
+  }
+
+  console.log(`🔄 휴일 보강 종료일 재계산 시작: ${studentName}, dates=${validHolidayDates.join(',')}`);
+
+  const { foundSheetName, rows, headers, studentIndex, nextRegistrationIndex, nextSheetName, nextRows, nextHeaders } =
+    await findStudentInSheets(studentName);
+
+  const studentRow = rows[studentIndex];
+  const studentData = buildStudentObject(headers, studentRow);
+
+  const endDateCol = findColumnIndex(headers, '종료날짜');
+  if (endDateCol === -1) {
+    throw new Error('종료날짜 필드를 찾을 수 없습니다.');
+  }
+
+  const membershipStartDate = parseSheetDate(getStudentField(studentData, '시작날짜'));
+  const scheduleStr = getStudentField(studentData, '요일 및 시간');
+  const weeklyFrequency = parseInt(getStudentField(studentData, '주횟수')) || 2;
+  const holdingInfo = parseHoldingStatus(getStudentField(studentData, '홀딩 사용여부'));
+  const totalSessions = getTotalSessions(weeklyFrequency, holdingInfo);
+
+  const holdingRanges = [];
+  const existHoldStart = parseSheetDate(getStudentField(studentData, '홀딩 시작일'));
+  const existHoldEnd = parseSheetDate(getStudentField(studentData, '홀딩 종료일'));
+  if (holdingInfo.isCurrentlyUsed && existHoldStart && existHoldEnd) {
+    holdingRanges.push({ start: existHoldStart, end: existHoldEnd });
+  }
+
+  const newEndDate = calculateEndDate(
+    membershipStartDate,
+    totalSessions,
+    scheduleStr,
+    holdingRanges,
+    firebaseHolidays,
+    validHolidayDates
+  );
+
+  if (!newEndDate) {
+    throw new Error('휴일 보강 반영 종료일 계산에 실패했습니다.');
+  }
+
+  const currentEndDateStr = getStudentField(studentData, '종료날짜');
+  const newEndDateStr = formatDateToYYMMDD(newEndDate);
+
+  if (currentEndDateStr === newEndDateStr) {
+    return { success: true, updated: false, newEndDate: newEndDateStr };
+  }
+
+  const updates = [
+    { range: `${foundSheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`, values: [[newEndDateStr]] }
+  ];
+  await batchUpdateSheet(updates);
+
+  try {
+    await highlightCells([`${getColumnLetter(endDateCol)}${studentIndex + 1}`], foundSheetName);
+  } catch { /* 무시 */ }
+
+  if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
+    try {
+      const nSheet = nextSheetName || foundSheetName;
+      const nRows = nextRows || rows;
+      const nHeaders = nextHeaders || headers;
+      await adjustNextRegistration(nSheet, nRows, nHeaders, nextRegistrationIndex, newEndDate, firebaseHolidays);
+    } catch (adjustError) {
+      console.warn('⚠️ 다음 등록 자동 조정 실패:', adjustError);
+    }
+  }
+
+  console.log(`✅ 휴일 보강 종료일 재계산 완료: ${studentName}, 새 종료일=${newEndDateStr}`);
+  return { success: true, updated: true, newEndDate: newEndDateStr };
 };
 
 /**
