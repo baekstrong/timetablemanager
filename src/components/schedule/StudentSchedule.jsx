@@ -473,6 +473,7 @@ export default function StudentSchedule({
                     weekDates={weekDates}
                     activeMakeupRequests={activeMakeupRequests}
                     isSubmittingMakeup={isSubmittingMakeup}
+                    getHolidayInfo={getHolidayInfo}
                     onSubmit={handleMakeupSubmit}
                     onClose={() => {
                         setShowMakeupModal(false);
