@@ -1998,6 +1998,13 @@ export const processHolidayMakeupEndDate = async (studentName, countedHolidayDat
   const holdingInfo = parseHoldingStatus(getStudentField(studentData, '홀딩 사용여부'));
   const totalSessions = getTotalSessions(weeklyFrequency, holdingInfo);
 
+  if (!membershipStartDate) {
+    throw new Error(`휴일 보강 종료일 조정 실패: 시작날짜를 해석할 수 없습니다. (${getStudentField(studentData, '시작날짜') || '비어 있음'})`);
+  }
+  if (!scheduleStr || getClassDays(scheduleStr).length === 0) {
+    throw new Error(`휴일 보강 종료일 조정 실패: 수업 요일을 해석할 수 없습니다. (${scheduleStr || '비어 있음'})`);
+  }
+
   const holdingRanges = [];
   const existHoldStart = parseSheetDate(getStudentField(studentData, '홀딩 시작일'));
   const existHoldEnd = parseSheetDate(getStudentField(studentData, '홀딩 종료일'));
@@ -2015,7 +2022,7 @@ export const processHolidayMakeupEndDate = async (studentName, countedHolidayDat
   );
 
   if (!newEndDate) {
-    throw new Error('휴일 보강 반영 종료일 계산에 실패했습니다.');
+    throw new Error(`휴일 보강 반영 종료일 계산에 실패했습니다. 시작일=${formatDateToYYMMDD(membershipStartDate)}, 주횟수=${weeklyFrequency}, 일정=${scheduleStr}, 휴일보강=${validHolidayDates.join(',')}`);
   }
 
   const currentEndDateStr = getStudentField(studentData, '종료날짜');
@@ -2028,7 +2035,11 @@ export const processHolidayMakeupEndDate = async (studentName, countedHolidayDat
   const updates = [
     { range: `${foundSheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`, values: [[newEndDateStr]] }
   ];
-  await batchUpdateSheet(updates);
+  try {
+    await batchUpdateSheet(updates);
+  } catch (error) {
+    throw new Error(`휴일 보강 종료일 시트 업데이트 실패: ${error.message} (시트=${foundSheetName}, 행=${studentIndex + 1}, 종료일=${newEndDateStr})`);
+  }
 
   try {
     await highlightCells([`${getColumnLetter(endDateCol)}${studentIndex + 1}`], foundSheetName);

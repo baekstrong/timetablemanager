@@ -104,7 +104,7 @@ export default function StudentSchedule({
                 setMyWeekMakeupHistory(thisWeekMakeups);
 
                 try {
-                    const endDateResult = await syncHolidayMakeupEndDate(thisWeekMakeups);
+                    const endDateResult = await syncHolidayMakeupEndDate(activeAndCompleted);
                     if (endDateResult.updated) {
                         await refreshStudents?.();
                     }
@@ -194,7 +194,8 @@ export default function StudentSchedule({
             await createMakeupRequest(user.username, selectedOriginalClass, selectedMakeupSlot);
             let endDateMessage = '';
             try {
-                const endDateResult = await syncHolidayMakeupEndDate(activeMakeupRequests, selectedOriginalClass.date);
+                const activeAndCompleted = await getActiveMakeupRequests(user.username);
+                const endDateResult = await syncHolidayMakeupEndDate(activeAndCompleted, selectedOriginalClass.date);
                 if (endDateResult.updated && endDateResult.newEndDate) {
                     endDateMessage = `\n새 종료일: ${endDateResult.newEndDate}`;
                     await refreshStudents?.();
