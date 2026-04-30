@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
-import { getStudentField, parseHoldingStatus } from '../services/googleSheetsService';
+import {
+    getStudentField,
+    parseHoldingStatus,
+    processHolidayMakeupEndDate,
+} from '../services/googleSheetsService';
 import {
     completeMakeupRequest,
     getMakeupRequestsByWeek,
@@ -100,6 +104,37 @@ export function useWeeklyData({ user, students, mode, refresh }) {
                     console.error('보강 자동 완료 실패:', makeup.id, err);
                 }
             }));
+
+            const activeHolidayMakeupsByStudent = new Map();
+            (makeups || []).forEach(makeup => {
+                if (makeup.status === 'cancelled') return;
+                const studentName = makeup.studentName;
+                const originalDate = makeup.originalClass?.date;
+                if (!studentName || !originalDate) return;
+
+                const dates = activeHolidayMakeupsByStudent.get(studentName) || [];
+                if (!dates.includes(originalDate)) dates.push(originalDate);
+                activeHolidayMakeupsByStudent.set(studentName, dates);
+            });
+
+            let holidayMakeupEndDateUpdated = false;
+            await Promise.all([...activeHolidayMakeupsByStudent.entries()].map(async ([studentName, countedHolidayDates]) => {
+                try {
+                    const result = await processHolidayMakeupEndDate(
+                        studentName,
+                        countedHolidayDates,
+                        holidays,
+                        countedHolidayDates[0]
+                    );
+                    if (result.updated) holidayMakeupEndDateUpdated = true;
+                } catch (err) {
+                    console.error('휴일 보강 종료일 보정 실패:', studentName, err);
+                }
+            }));
+
+            if (holidayMakeupEndDateUpdated) {
+                await refresh?.();
+            }
 
             // Google Sheets 홀딩에 Firebase holdingDates 병합 (Map으로 O(n) 처리)
             const fbHoldingMap = new Map();
