@@ -341,6 +341,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     getCellData={getCellData}
                     getHolidayInfo={getHolidayInfo}
                     loadWeeklyData={loadWeeklyData}
+                    refreshStudents={refresh}
                     isClassDisabled={isClassDisabled}
                     isSlotLocked={isSlotLocked}
                     newStudentWaitlist={newStudentWaitlist}

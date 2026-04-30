@@ -9,9 +9,12 @@ export default function MakeupModal({
     weekDates,
     activeMakeupRequests,
     isSubmittingMakeup,
+    getHolidayInfo,
     onSubmit,
     onClose,
 }) {
+    const hasHolidayOriginalClass = studentSchedule.some(schedule => getHolidayInfo?.(schedule.day) !== null);
+
     return (
         <div className="makeup-modal-overlay" onClick={onClose}>
             <div className="makeup-modal" onClick={(e) => e.stopPropagation()}>
@@ -22,10 +25,29 @@ export default function MakeupModal({
 
                 <div className="makeup-modal-content">
                     <h3>어느 수업을 옮기시겠습니까?</h3>
+                    {hasHolidayOriginalClass && (
+                        <div style={{
+                            margin: '0 0 12px',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            backgroundColor: '#fffbeb',
+                            border: '1px solid #fcd34d',
+                            color: '#78350f',
+                            fontSize: '0.84rem',
+                            lineHeight: '1.5'
+                        }}>
+                            <strong>휴일 수업 보강 안내</strong>
+                            <div style={{ marginTop: '4px' }}>
+                                휴일로 쉬는 정규 수업도 이번 주 보강으로 미리 수강할 수 있습니다.<br />
+                                이 경우 해당 휴일 수업을 출석한 것으로 처리하여 수강 종료일이 앞당겨질 수 있습니다.
+                            </div>
+                        </div>
+                    )}
                     <div className="original-class-list">
                         {studentSchedule.map((schedule, index) => {
                             const periodInfo = PERIODS.find(p => p.id === schedule.period);
                             const dateStr = weekDates[schedule.day];
+                            const holidayReason = getHolidayInfo?.(schedule.day);
                             let originalDateStr = '';
                             let isAlreadyRequested = false;
                             let isPastDeadline = false;
@@ -65,6 +87,7 @@ export default function MakeupModal({
                                     <span className="period-name">{schedule.day}요일 {periodInfo?.name}</span>
                                     <span style={{ fontSize: '0.8em', color: isDisabled ? '#999' : '#666', marginLeft: '8px' }}>
                                         ({dateStr})
+                                        {holidayReason !== null && holidayReason !== undefined && ` - 휴일${holidayReason ? `: ${holidayReason}` : ''}`}
                                         {isAlreadyRequested && ' - 신청됨'}
                                         {!isAlreadyRequested && isPastDeadline && ' - 마감'}
                                     </span>

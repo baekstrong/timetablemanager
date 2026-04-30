@@ -6,7 +6,9 @@ import {
     createMakeupRequest,
     cancelMakeupRequest,
     completeMakeupRequest,
+    getHolidays,
 } from '../../services/firebaseService';
+import { processHolidayMakeupEndDate } from '../../services/googleSheetsService';
 import {
     weekDateToISO,
     isClassWithinMinutes,
@@ -25,8 +27,6 @@ import { StudentTag, AvailableSeatsCell, HolidayCell } from './ScheduleCell';
  */
 export default function StudentSchedule({
     user,
-    mode,
-    students,
     // scheduleCore 파생 데이터
     weekDates,
     weekAbsences,
@@ -36,6 +36,7 @@ export default function StudentSchedule({
     getCellData,
     getHolidayInfo,
     loadWeeklyData,
+    refreshStudents,
     // 셀 상태 판정
     isClassDisabled,
     isSlotLocked,
@@ -159,7 +160,30 @@ export default function StudentSchedule({
         setIsSubmittingMakeup(true);
         try {
             await createMakeupRequest(user.username, selectedOriginalClass, selectedMakeupSlot);
-            alert(`보강 신청 완료!\n${selectedOriginalClass.day}요일 ${selectedOriginalClass.periodName} → ${selectedMakeupSlot.day}요일 ${selectedMakeupSlot.periodName}`);
+            let endDateMessage = '';
+            try {
+                const firebaseHolidays = await getHolidays().catch(() => []);
+                const countedHolidayDates = [
+                    ...activeMakeupRequests
+                        .map(m => m.originalClass?.date)
+                        .filter(Boolean),
+                    selectedOriginalClass.date,
+                ];
+                const endDateResult = await processHolidayMakeupEndDate(
+                    user.username,
+                    countedHolidayDates,
+                    firebaseHolidays
+                );
+                if (endDateResult.updated && endDateResult.newEndDate) {
+                    endDateMessage = `\n새 종료일: ${endDateResult.newEndDate}`;
+                    await refreshStudents?.();
+                }
+            } catch (endDateError) {
+                console.error('휴일 보강 종료일 재계산 실패:', endDateError);
+                endDateMessage = '\n※ 보강 신청은 완료되었지만 종료일 자동 조정에 실패했습니다. 코치에게 문의해주세요.';
+            }
+
+            alert(`보강 신청 완료!\n${selectedOriginalClass.day}요일 ${selectedOriginalClass.periodName} → ${selectedMakeupSlot.day}요일 ${selectedMakeupSlot.periodName}${endDateMessage}`);
             await reloadStudentMakeups();
             await loadWeeklyData();
             setShowMakeupModal(false);
@@ -449,6 +473,7 @@ export default function StudentSchedule({
                     weekDates={weekDates}
                     activeMakeupRequests={activeMakeupRequests}
                     isSubmittingMakeup={isSubmittingMakeup}
+                    getHolidayInfo={getHolidayInfo}
                     onSubmit={handleMakeupSubmit}
                     onClose={() => {
                         setShowMakeupModal(false);
