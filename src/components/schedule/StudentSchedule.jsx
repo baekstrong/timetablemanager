@@ -102,15 +102,6 @@ export default function StudentSchedule({
                 const { start, end } = getThisWeekRange();
                 const thisWeekMakeups = await getWeekMakeupRequests(user.username, start, end);
                 setMyWeekMakeupHistory(thisWeekMakeups);
-
-                try {
-                    const endDateResult = await syncHolidayMakeupEndDate(activeAndCompleted);
-                    if (endDateResult.updated) {
-                        await refreshStudents?.();
-                    }
-                } catch (endDateError) {
-                    console.error('휴일 보강 종료일 자동 보정 실패:', endDateError);
-                }
             } catch (error) {
                 console.error('Failed to load student makeup data:', error);
             }
