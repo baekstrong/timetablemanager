@@ -23,6 +23,11 @@ const formatLocalDate = (date) => {
     return `${year}-${month}-${day}`;
 };
 
+const getCountedHolidayMakeupDates = async (studentName) => {
+    const makeups = await getActiveMakeupRequests(studentName).catch(() => []);
+    return [...new Set(makeups.map(m => m.originalClass?.date).filter(Boolean))];
+};
+
 // 한국 공휴일 데이터 (2026년 기준)
 const KOREAN_HOLIDAYS_2026 = {
     '2026-01-01': '신정',
@@ -30,6 +35,7 @@ const KOREAN_HOLIDAYS_2026 = {
     '2026-02-17': '설날',
     '2026-02-18': '설날',
     '2026-03-01': '3·1절',
+    '2026-05-01': '노동절',
     '2026-05-05': '어린이날',
     '2026-05-25': '부처님 오신 날',
     '2026-06-06': '현충일',
@@ -690,7 +696,8 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                 const endDateObj = parseLocalDate(endDate);
                 // 기존 홀딩 목록을 전달하여 종료일 계산에 포함
                 const holidaysArray = Object.entries(coachHolidays).map(([date, reason]) => ({ date, reason }));
-                await requestHolding(user.username, startDateObj, endDateObj, allHoldings, holidaysArray, makeupHoldingCount, targetRegistration);
+                const countedHolidayDates = await getCountedHolidayMakeupDates(user.username);
+                await requestHolding(user.username, startDateObj, endDateObj, allHoldings, holidaysArray, makeupHoldingCount, targetRegistration, countedHolidayDates);
                 sheetsUpdated = true;
 
                 alert(`홀딩 신청이 완료되었습니다.\n기간: ${startDate} ~ ${endDate}`);
@@ -876,7 +883,8 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                                                                         const remainingHoldingsList = allHoldings.filter(h => h.id !== holdingData.id);
                                                                         // Google Sheets의 홀딩 정보 업데이트 (남은 홀딩 고려하여 종료일 재계산)
                                                                         const holidaysArray = Object.entries(coachHolidays).map(([date, reason]) => ({ date, reason }));
-                                                                        await cancelHoldingInSheets(user.username, remainingHoldingsList, holidaysArray);
+                                                                        const countedHolidayDates = await getCountedHolidayMakeupDates(user.username);
+                                                                        await cancelHoldingInSheets(user.username, remainingHoldingsList, holidaysArray, countedHolidayDates);
 
                                                                         // 상태 업데이트
                                                                         setAllHoldings(remainingHoldingsList);

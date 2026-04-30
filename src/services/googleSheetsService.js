@@ -1358,7 +1358,7 @@ export const updateStudentData = async (rowIndex, studentData, year = null, mont
  * @param {Array} existingHoldings - [{startDate, endDate}, ...]
  * @returns {Promise<Object>}
  */
-export const requestHolding = async (studentName, holdingStartDate, holdingEndDate = null, year = null, month = null, existingHoldings = [], firebaseHolidays = [], makeupHoldingCount = 0, targetRegistration = 'current') => {
+export const requestHolding = async (studentName, holdingStartDate, holdingEndDate = null, year = null, month = null, existingHoldings = [], firebaseHolidays = [], makeupHoldingCount = 0, targetRegistration = 'current', countedHolidayDates = []) => {
   const endDate = holdingEndDate || holdingStartDate;
 
   console.log(`🔍 홀딩 신청 시작: ${studentName}, ${holdingStartDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]} (대상: ${targetRegistration})`);
@@ -1427,7 +1427,7 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
   allHoldingRanges.push({ start: holdingStartDate, end: endDate });
   console.log(`📊 총 ${allHoldingRanges.length}개 홀딩 기간으로 종료일 계산`);
 
-  let newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allHoldingRanges, firebaseHolidays);
+  let newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allHoldingRanges, firebaseHolidays, countedHolidayDates);
 
   if (!newEndDate) {
     throw new Error('종료일 계산에 실패했습니다.');
@@ -1581,7 +1581,7 @@ async function adjustNextRegistration(sheetName, rows, headers, nextRowIndex, cu
  * @param {Array} remainingHoldings - 취소 후 남은 홀딩 목록
  * @returns {Promise<Object>}
  */
-export const cancelHoldingInSheets = async (studentName, remainingHoldings = [], firebaseHolidays = []) => {
+export const cancelHoldingInSheets = async (studentName, remainingHoldings = [], firebaseHolidays = [], countedHolidayDates = []) => {
   console.log(`🔄 홀딩 취소 시작 (Google Sheets): ${studentName}`);
 
   const { foundSheetName, rows, headers, studentIndex: activeIndex, nextRegistrationIndex, nextSheetName, nextRows, nextHeaders } =
@@ -1627,7 +1627,7 @@ export const cancelHoldingInSheets = async (studentName, remainingHoldings = [],
       console.log(`📊 남은 홀딩 없음 - 원래 종료일로 계산`);
     }
 
-    const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, holdingRanges, firebaseHolidays);
+    const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, holdingRanges, firebaseHolidays, countedHolidayDates);
     if (newEndDate) {
       newEndDateStr = formatDateToYYMMDD(newEndDate);
     }
@@ -1734,7 +1734,7 @@ export const clearStudentScheduleAllSheets = async (studentName) => {
  * @param {Array} firebaseHolidays
  * @returns {Promise<Object>} - { success, newEndDate, notesText, validAbsenceCount }
  */
-export const processStudentAbsence = async (studentName, absenceDates, firebaseHolidays = []) => {
+export const processStudentAbsence = async (studentName, absenceDates, firebaseHolidays = [], countedHolidayDates = []) => {
   console.log(`🔄 결석 처리 시작: ${studentName}, 날짜: ${absenceDates.join(', ')}`);
 
   const { foundSheetName, rows, headers, studentIndex } =
@@ -1808,7 +1808,7 @@ export const processStudentAbsence = async (studentName, absenceDates, firebaseH
     }
   }
 
-  const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allRanges, firebaseHolidays);
+  const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allRanges, firebaseHolidays, countedHolidayDates);
 
   if (!newEndDate) {
     throw new Error('종료일 계산에 실패했습니다.');
@@ -1852,7 +1852,7 @@ export const processStudentAbsence = async (studentName, absenceDates, firebaseH
  * @param {Array} firebaseHolidays - 커스텀 공휴일
  * @returns {Promise<Object>}
  */
-export const processCoachHolding = async (studentName, holdingDates, firebaseHolidays = []) => {
+export const processCoachHolding = async (studentName, holdingDates, firebaseHolidays = [], countedHolidayDates = []) => {
   if (!holdingDates || holdingDates.length === 0) {
     throw new Error('홀딩 날짜를 선택해주세요.');
   }
@@ -1901,7 +1901,7 @@ export const processCoachHolding = async (studentName, holdingDates, firebaseHol
     allHoldingRanges.push({ start: existHoldStart, end: existHoldEnd });
   }
 
-  const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allHoldingRanges, firebaseHolidays);
+  const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allHoldingRanges, firebaseHolidays, countedHolidayDates);
   if (!newEndDate) {
     throw new Error('종료일 계산에 실패했습니다.');
   }
@@ -1962,9 +1962,10 @@ export const processCoachHolding = async (studentName, holdingDates, firebaseHol
  * @param {string} studentName
  * @param {Array<string>} countedHolidayDates - YYYY-MM-DD 형식
  * @param {Array} firebaseHolidays - 커스텀 공휴일
+ * @param {string|null} referenceDateStr - 원수업 날짜(YYYY-MM-DD). 해당 등록 행 선택 기준.
  * @returns {Promise<Object>}
  */
-export const processHolidayMakeupEndDate = async (studentName, countedHolidayDates = [], firebaseHolidays = []) => {
+export const processHolidayMakeupEndDate = async (studentName, countedHolidayDates = [], firebaseHolidays = [], referenceDateStr = null) => {
   const uniqueHolidayDates = [...new Set((countedHolidayDates || []).filter(Boolean))];
   const validHolidayDates = uniqueHolidayDates.filter(dateStr =>
     isHolidayDate(new Date(dateStr + 'T00:00:00'), firebaseHolidays)
@@ -1976,8 +1977,12 @@ export const processHolidayMakeupEndDate = async (studentName, countedHolidayDat
 
   console.log(`🔄 휴일 보강 종료일 재계산 시작: ${studentName}, dates=${validHolidayDates.join(',')}`);
 
+  const referenceDate = referenceDateStr
+    ? new Date(referenceDateStr + 'T00:00:00')
+    : new Date(validHolidayDates[0] + 'T00:00:00');
+  const primarySheetName = getCurrentSheetName(referenceDate);
   const { foundSheetName, rows, headers, studentIndex, nextRegistrationIndex, nextSheetName, nextRows, nextHeaders } =
-    await findStudentInSheets(studentName);
+    await findStudentInSheets(studentName, primarySheetName, referenceDate);
 
   const studentRow = rows[studentIndex];
   const studentData = buildStudentObject(headers, studentRow);

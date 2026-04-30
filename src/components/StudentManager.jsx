@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, clearStudentScheduleAllSheets, parseSheetDate, processStudentAbsence, processCoachHolding, cancelHoldingInSheets } from '../services/googleSheetsService';
-import { createHoldingRequest, getHoldingsByStudent, cancelHolding } from '../services/firebaseService';
+import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests } from '../services/firebaseService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
@@ -33,6 +33,11 @@ const StudentManager = ({ onBack }) => {
     const [holdingDates, setHoldingDates] = useState([]); // 홀딩 날짜 목록
     const [holdingDateInput, setHoldingDateInput] = useState(''); // 날짜 입력
     const [holdingProcessing, setHoldingProcessing] = useState(false);
+
+    const getCountedHolidayMakeupDates = async (studentName) => {
+        const makeups = await getActiveMakeupRequests(studentName).catch(() => []);
+        return [...new Set(makeups.map(m => m.originalClass?.date).filter(Boolean))];
+    };
 
     // 시간표 배너에서 재등록 모달 자동 열기
     useEffect(() => {
@@ -132,7 +137,8 @@ const StudentManager = ({ onBack }) => {
             const result = await processStudentAbsence(
                 absenceTarget['이름'],
                 absenceDates,
-                holidays
+                holidays,
+                await getCountedHolidayMakeupDates(absenceTarget['이름'])
             );
             alert(`✅ 결석 처리 완료!\n\n수업일 결석: ${result.validAbsenceCount}일\n새 종료날짜: ${result.newEndDate}\n특이사항: ${result.notesText}`);
             setAbsenceTarget(null);
@@ -196,7 +202,8 @@ const StudentManager = ({ onBack }) => {
             const remainingHoldingsList = existingHoldings.filter(h => h.id !== holdingData.id);
             // Google Sheets 홀딩 정보 업데이트 (종료일 재계산)
             const holidaysArray = holidays.map(h => typeof h === 'string' ? { date: h } : h);
-            await cancelHoldingInSheets(holdingTarget['이름'], remainingHoldingsList, holidaysArray);
+            const countedHolidayDates = await getCountedHolidayMakeupDates(holdingTarget['이름']);
+            await cancelHoldingInSheets(holdingTarget['이름'], remainingHoldingsList, holidaysArray, countedHolidayDates);
             // 상태 업데이트
             setExistingHoldings(remainingHoldingsList);
             if (refresh) await refresh();
@@ -253,7 +260,8 @@ const StudentManager = ({ onBack }) => {
             const result = await processCoachHolding(
                 holdingTarget['이름'],
                 sortedDates,
-                holidays
+                holidays,
+                await getCountedHolidayMakeupDates(holdingTarget['이름'])
             );
 
             alert(`홀딩 처리 완료!\n\n홀딩 기간: ${startDate} ~ ${endDate}\n새 종료날짜: ${result.newEndDate}\n홀딩 상태: ${result.holdingStatus}`);
