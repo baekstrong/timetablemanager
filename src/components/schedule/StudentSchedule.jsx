@@ -57,6 +57,29 @@ export default function StudentSchedule({
     );
     const [isSubmittingMakeup, setIsSubmittingMakeup] = useState(false);
 
+    async function syncHolidayMakeupEndDate(makeupRequests, referenceDate = null) {
+        const countedHolidayDates = (makeupRequests || [])
+            .filter(m => m.status !== 'cancelled')
+            .map(m => m.originalClass?.date)
+            .filter(Boolean);
+
+        if (referenceDate && !countedHolidayDates.includes(referenceDate)) {
+            countedHolidayDates.push(referenceDate);
+        }
+
+        if (countedHolidayDates.length === 0) {
+            return { success: true, updated: false };
+        }
+
+        const firebaseHolidays = await getHolidays().catch(() => []);
+        return await processHolidayMakeupEndDate(
+            user.username,
+            countedHolidayDates,
+            firebaseHolidays,
+            referenceDate || countedHolidayDates[0]
+        );
+    }
+
     // ── 보강 데이터 로드 ──
     useEffect(() => {
         if (user?.role === 'coach') return;
@@ -79,6 +102,15 @@ export default function StudentSchedule({
                 const { start, end } = getThisWeekRange();
                 const thisWeekMakeups = await getWeekMakeupRequests(user.username, start, end);
                 setMyWeekMakeupHistory(thisWeekMakeups);
+
+                try {
+                    const endDateResult = await syncHolidayMakeupEndDate(thisWeekMakeups);
+                    if (endDateResult.updated) {
+                        await refreshStudents?.();
+                    }
+                } catch (endDateError) {
+                    console.error('휴일 보강 종료일 자동 보정 실패:', endDateError);
+                }
             } catch (error) {
                 console.error('Failed to load student makeup data:', error);
             }
@@ -162,25 +194,14 @@ export default function StudentSchedule({
             await createMakeupRequest(user.username, selectedOriginalClass, selectedMakeupSlot);
             let endDateMessage = '';
             try {
-                const firebaseHolidays = await getHolidays().catch(() => []);
-                const countedHolidayDates = [
-                    ...activeMakeupRequests
-                        .map(m => m.originalClass?.date)
-                        .filter(Boolean),
-                    selectedOriginalClass.date,
-                ];
-                const endDateResult = await processHolidayMakeupEndDate(
-                    user.username,
-                    countedHolidayDates,
-                    firebaseHolidays
-                );
+                const endDateResult = await syncHolidayMakeupEndDate(activeMakeupRequests, selectedOriginalClass.date);
                 if (endDateResult.updated && endDateResult.newEndDate) {
                     endDateMessage = `\n새 종료일: ${endDateResult.newEndDate}`;
                     await refreshStudents?.();
                 }
             } catch (endDateError) {
                 console.error('휴일 보강 종료일 재계산 실패:', endDateError);
-                endDateMessage = '\n※ 보강 신청은 완료되었지만 종료일 자동 조정에 실패했습니다. 코치에게 문의해주세요.';
+                endDateMessage = `\n※ 보강 신청은 완료되었지만 종료일 자동 조정에 실패했습니다. 코치에게 문의해주세요.${endDateError?.message ? `\n사유: ${endDateError.message}` : ''}`;
             }
 
             alert(`보강 신청 완료!\n${selectedOriginalClass.day}요일 ${selectedOriginalClass.periodName} → ${selectedMakeupSlot.day}요일 ${selectedMakeupSlot.periodName}${endDateMessage}`);
