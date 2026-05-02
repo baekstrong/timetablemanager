@@ -1254,16 +1254,23 @@ export const getRecordsByUserSince = async (userName, sinceDate) => {
 };
 
 /**
- * 출석/볼륨 랭킹: 최근 N일 records에서 학생별 훈련일수·총 볼륨 집계
+ * 출석/운동량 랭킹: 지정한 달(기본 = 이번 달, 1일~말일) records에서 학생별 출석일·총 운동량 집계
+ * @param yearMonth 'YYYY-MM' (생략 시 이번 달)
  */
-export const getAttendanceRanking = async (daysAgo = 30) => {
+export const getAttendanceRanking = async (yearMonth) => {
     return safeRead([], async () => {
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - daysAgo);
-        const cutoffStr = cutoff.toISOString().slice(0, 10);
+        const ym = yearMonth || (() => {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        })();
+        const [y, m] = ym.split('-').map(Number);
+        const monthStart = `${ym}-01`;
+        const next = new Date(y, m, 1); // m은 1-indexed; new Date의 month는 0-indexed → 다음 달 1일
+        const nextStart = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`;
         const records = await queryDocs(
             'records',
-            where('date', '>=', cutoffStr)
+            where('date', '>=', monthStart),
+            where('date', '<', nextStart)
         );
         const byUser = new Map();
         for (const r of records) {
@@ -1272,7 +1279,7 @@ export const getAttendanceRanking = async (daysAgo = 30) => {
             if (!byUser.has(u)) byUser.set(u, { userName: u, dates: new Set(), volume: 0 });
             const entry = byUser.get(u);
             entry.dates.add(r.date);
-            // 볼륨: kg×reps 합 (단위가 kg & 회인 세트만)
+            // 운동량: kg×reps 합 (단위가 kg & 회인 세트만)
             for (const set of (r.sets || [])) {
                 const intUnit = set.intensity?.unit;
                 const repUnit = set.reps?.unit;
@@ -1286,5 +1293,46 @@ export const getAttendanceRanking = async (daysAgo = 30) => {
             trainingDays: e.dates.size,
             volume: Math.round(e.volume)
         }));
+    });
+};
+
+/**
+ * 학생 개인의 월별 출석일·총 운동량 추이 (최근 N개월, 기본 12개월)
+ * 비어있는 달도 0으로 채워서 반환 → 그래프에서 끊김 없이 표시
+ */
+export const getMonthlyAttendanceHistory = async (userName, monthsBack = 12) => {
+    return safeRead([], async () => {
+        const today = new Date();
+        const startMonth = new Date(today.getFullYear(), today.getMonth() - (monthsBack - 1), 1);
+        const startStr = `${startMonth.getFullYear()}-${String(startMonth.getMonth() + 1).padStart(2, '0')}-01`;
+        const records = await queryDocs(
+            'records',
+            where('userName', '==', userName),
+            where('date', '>=', startStr)
+        );
+        const byMonth = new Map();
+        // 빈 달도 미리 채워둠
+        for (let i = 0; i < monthsBack; i++) {
+            const d = new Date(today.getFullYear(), today.getMonth() - (monthsBack - 1) + i, 1);
+            const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            byMonth.set(ym, { month: ym, dates: new Set(), volume: 0 });
+        }
+        for (const r of records) {
+            if (!r.date) continue;
+            const ym = r.date.slice(0, 7);
+            if (!byMonth.has(ym)) continue; // 범위 밖 무시
+            const entry = byMonth.get(ym);
+            entry.dates.add(r.date);
+            for (const set of (r.sets || [])) {
+                const intUnit = set.intensity?.unit;
+                const repUnit = set.reps?.unit;
+                if (intUnit === 'kg' && repUnit === '회') {
+                    entry.volume += numVal(set.intensity?.value) * numVal(set.reps?.value);
+                }
+            }
+        }
+        return Array.from(byMonth.values())
+            .map(e => ({ month: e.month, trainingDays: e.dates.size, volume: Math.round(e.volume) }))
+            .sort((a, b) => a.month.localeCompare(b.month));
     });
 };

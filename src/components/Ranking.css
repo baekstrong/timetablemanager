@@ -125,6 +125,16 @@
     font-size: 0.95rem;
 }
 
+.ranking-period-label {
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    background: #f9fafb;
+    border-radius: 6px;
+    border: 1px dashed #e5e7eb;
+}
+
 .ranking-exercise-select {
     width: 100%;
     padding: 0.6rem 0.75rem;
