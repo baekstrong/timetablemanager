@@ -215,7 +215,7 @@ const RankingTab = ({ allPRs, genderMap }) => {
             <div className="ranking-subtabs">
                 <button className={`ranking-subtab ${subTab === 'topn' ? 'active' : ''}`} onClick={() => setSubTab('topn')}>종목별 TOP-N</button>
                 <button className={`ranking-subtab ${subTab === 'monthly' ? 'active' : ''}`} onClick={() => setSubTab('monthly')}>이달의 PR</button>
-                <button className={`ranking-subtab ${subTab === 'attendance' ? 'active' : ''}`} onClick={() => setSubTab('attendance')}>출석·볼륨</button>
+                <button className={`ranking-subtab ${subTab === 'attendance' ? 'active' : ''}`} onClick={() => setSubTab('attendance')}>한달 출석일 수·총 운동량</button>
             </div>
 
             <div className="ranking-gender-filter">
@@ -321,8 +321,8 @@ const AttendanceSection = ({ genderMap, genderFilter }) => {
     return (
         <>
             <div className="ranking-gender-filter" style={{ marginBottom: '0.5rem' }}>
-                <button className={sortBy === 'days' ? 'active' : ''} onClick={() => setSortBy('days')}>훈련 일수</button>
-                <button className={sortBy === 'volume' ? 'active' : ''} onClick={() => setSortBy('volume')}>총 볼륨</button>
+                <button className={sortBy === 'days' ? 'active' : ''} onClick={() => setSortBy('days')}>한달 출석일 수</button>
+                <button className={sortBy === 'volume' ? 'active' : ''} onClick={() => setSortBy('volume')}>한달 총 운동량</button>
             </div>
             {filtered.length === 0 ? (
                 <div className="ranking-empty">최근 30일 훈련 기록이 없습니다.</div>
