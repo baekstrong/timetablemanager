@@ -1285,7 +1285,7 @@ export const getAttendanceRanking = async (yearMonth) => {
         for (const r of records) {
             const u = r.userName;
             if (!u) continue;
-            if (!byUser.has(u)) byUser.set(u, { userName: u, dates: new Set(), volume: 0 });
+            if (!byUser.has(u)) byUser.set(u, { userName: u, dates: new Set(), volume: 0, _sets: [] });
             const entry = byUser.get(u);
             entry.dates.add(r.date);
             // 운동량: kg×reps 합 (단위가 kg & 회인 세트만)
@@ -1293,9 +1293,26 @@ export const getAttendanceRanking = async (yearMonth) => {
                 const intUnit = set.intensity?.unit;
                 const repUnit = set.reps?.unit;
                 if (intUnit === 'kg' && repUnit === '회') {
-                    entry.volume += numVal(set.intensity?.value) * numVal(set.reps?.value);
+                    const vol = numVal(set.intensity?.value) * numVal(set.reps?.value);
+                    entry.volume += vol;
+                    entry._sets.push({
+                        date: r.date,
+                        exercise: r.exercise,
+                        weight: set.intensity?.value,
+                        reps: set.reps?.value,
+                        vol
+                    });
                 }
             }
+        }
+        // 진단 로그: 상위 5명의 큰 세트 5개씩 출력 (의심스러운 입력 검증용)
+        const ranked = Array.from(byUser.values()).sort((a, b) => b.volume - a.volume).slice(0, 5);
+        for (const u of ranked) {
+            const top = u._sets.sort((a, b) => b.vol - a.vol).slice(0, 5);
+            console.log(
+                `[운동량 진단] ${u.userName} — ${Math.round(u.volume).toLocaleString()}kg, ${u.dates.size}일, 큰 세트 TOP5:`,
+                top.map(s => `${s.date} ${s.exercise} ${s.weight}kg×${s.reps}회=${Math.round(s.vol)}kg`).join(' | ')
+            );
         }
         return Array.from(byUser.values()).map(e => ({
             userName: e.userName,
