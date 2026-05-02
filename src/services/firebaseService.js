@@ -1240,16 +1240,15 @@ export const getMonthlyPRUpdaters = async (daysAgo = 30) => {
 
 /**
  * 그래프용: 특정 학생의 일상 훈련 기록 (시계열)
+ * 복합 인덱스 회피를 위해 userName으로만 쿼리하고 date는 클라이언트에서 필터.
  * @param sinceDate 'YYYY-MM-DD'
  */
 export const getRecordsByUserSince = async (userName, sinceDate) => {
     return safeRead([], async () => {
-        return queryDocs(
-            'records',
-            where('userName', '==', userName),
-            where('date', '>=', sinceDate),
-            orderBy('date', 'asc')
-        );
+        const all = await queryDocs('records', where('userName', '==', userName));
+        return all
+            .filter(r => r.date && r.date >= sinceDate)
+            .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     });
 };
 
@@ -1305,11 +1304,9 @@ export const getMonthlyAttendanceHistory = async (userName, monthsBack = 12) => 
         const today = new Date();
         const startMonth = new Date(today.getFullYear(), today.getMonth() - (monthsBack - 1), 1);
         const startStr = `${startMonth.getFullYear()}-${String(startMonth.getMonth() + 1).padStart(2, '0')}-01`;
-        const records = await queryDocs(
-            'records',
-            where('userName', '==', userName),
-            where('date', '>=', startStr)
-        );
+        // 복합 인덱스 회피: userName으로만 쿼리하고 date는 클라이언트에서 필터
+        const all = await queryDocs('records', where('userName', '==', userName));
+        const records = all.filter(r => r.date && r.date >= startStr);
         const byMonth = new Map();
         // 빈 달도 미리 채워둠
         for (let i = 0; i < monthsBack; i++) {
