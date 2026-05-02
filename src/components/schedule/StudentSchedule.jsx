@@ -58,8 +58,9 @@ export default function StudentSchedule({
     const [isSubmittingMakeup, setIsSubmittingMakeup] = useState(false);
 
     async function syncHolidayMakeupEndDate(makeupRequests, referenceDate = null) {
+        // active 보강만 카운트 (completed는 과거에 이미 처리되었거나 레거시 데이터일 가능성 높아 재적용 시 종료일이 중복 당겨지는 것을 방지)
         const countedHolidayDates = (makeupRequests || [])
-            .filter(m => m.status !== 'cancelled')
+            .filter(m => m.status === 'active')
             .map(m => m.originalClass?.date)
             .filter(Boolean);
 
