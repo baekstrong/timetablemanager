@@ -1247,14 +1247,11 @@ export const getMonthlyPRUpdaters = async (daysAgo = 30) => {
 export const getRecordsByUserSince = async (userName, sinceDate) => {
     return safeRead([], async () => {
         const trimmed = (userName || '').trim();
-        console.log('[운동별 추세] userName:', JSON.stringify(userName), 'sinceDate:', sinceDate);
         let all = await queryDocs('records', where('userName', '==', trimmed));
-        console.log('[운동별 추세] 정확 일치:', all.length, '건');
         if (all.length === 0 && trimmed) {
             const recent = await queryDocs('records', where('date', '>=', sinceDate));
             const lower = trimmed.toLowerCase();
             all = recent.filter(r => (r.userName || '').trim().toLowerCase() === lower);
-            console.log('[운동별 추세] 폴백 결과:', all.length, '/ 기간 전체:', recent.length);
         }
         return all
             .filter(r => r.date && r.date >= sinceDate)
@@ -1285,34 +1282,18 @@ export const getAttendanceRanking = async (yearMonth) => {
         for (const r of records) {
             const u = r.userName;
             if (!u) continue;
-            if (!byUser.has(u)) byUser.set(u, { userName: u, dates: new Set(), volume: 0, _sets: [] });
+            if (!byUser.has(u)) byUser.set(u, { userName: u, dates: new Set(), volume: 0 });
             const entry = byUser.get(u);
             entry.dates.add(r.date);
-            // 운동량: kg×reps 합 (단위가 kg & 회인 세트만)
-            for (const set of (r.sets || [])) {
-                const intUnit = set.intensity?.unit;
-                const repUnit = set.reps?.unit;
+            // 운동량: kg×reps 합 (단위가 kg & 회인 세트만). sets가 배열이 아닌 손상된 record는 무시
+            const sets = Array.isArray(r.sets) ? r.sets : [];
+            for (const set of sets) {
+                const intUnit = set?.intensity?.unit;
+                const repUnit = set?.reps?.unit;
                 if (intUnit === 'kg' && repUnit === '회') {
-                    const vol = numVal(set.intensity?.value) * numVal(set.reps?.value);
-                    entry.volume += vol;
-                    entry._sets.push({
-                        date: r.date,
-                        exercise: r.exercise,
-                        weight: set.intensity?.value,
-                        reps: set.reps?.value,
-                        vol
-                    });
+                    entry.volume += numVal(set.intensity?.value) * numVal(set.reps?.value);
                 }
             }
-        }
-        // 진단 로그: 상위 5명의 큰 세트 5개씩 출력 (의심스러운 입력 검증용)
-        const ranked = Array.from(byUser.values()).sort((a, b) => b.volume - a.volume).slice(0, 5);
-        for (const u of ranked) {
-            const top = u._sets.sort((a, b) => b.vol - a.vol).slice(0, 5);
-            console.log(
-                `[운동량 진단] ${u.userName} — ${Math.round(u.volume).toLocaleString()}kg, ${u.dates.size}일, 큰 세트 TOP5:`,
-                top.map(s => `${s.date} ${s.exercise} ${s.weight}kg×${s.reps}회=${Math.round(s.vol)}kg`).join(' | ')
-            );
         }
         return Array.from(byUser.values()).map(e => ({
             userName: e.userName,
@@ -1332,22 +1313,13 @@ export const getMonthlyAttendanceHistory = async (userName, monthsBack = 12) => 
         const startMonth = new Date(today.getFullYear(), today.getMonth() - (monthsBack - 1), 1);
         const startStr = `${startMonth.getFullYear()}-${String(startMonth.getMonth() + 1).padStart(2, '0')}-01`;
         const trimmed = (userName || '').trim();
-        console.log('[월별 출석/운동량] userName:', JSON.stringify(userName), 'startStr:', startStr);
         let all = await queryDocs('records', where('userName', '==', trimmed));
-        console.log('[월별 출석/운동량] 정확 일치:', all.length, '건');
         if (all.length === 0 && trimmed) {
             const recent = await queryDocs('records', where('date', '>=', startStr));
             const lower = trimmed.toLowerCase();
             all = recent.filter(r => (r.userName || '').trim().toLowerCase() === lower);
-            console.log('[월별 출석/운동량] 폴백 결과:', all.length, '/ 기간 전체:', recent.length);
-            if (recent.length > 0 && all.length === 0) {
-                const sampleNames = Array.from(new Set(recent.map(r => r.userName).filter(Boolean))).slice(0, 10);
-                console.log('[월별 출석/운동량] 기간 내 records의 userName 샘플:', sampleNames);
-            }
         }
-        if (all.length > 0) console.log('[월별 출석/운동량] 첫 record 샘플:', all[0]);
         const records = all.filter(r => r.date && r.date >= startStr);
-        console.log('[월별 출석/운동량] 12개월 필터 후:', records.length, '건');
         const byMonth = new Map();
         // 빈 달도 미리 채워둠
         for (let i = 0; i < monthsBack; i++) {
@@ -1361,9 +1333,11 @@ export const getMonthlyAttendanceHistory = async (userName, monthsBack = 12) => 
             if (!byMonth.has(ym)) continue; // 범위 밖 무시
             const entry = byMonth.get(ym);
             entry.dates.add(r.date);
-            for (const set of (r.sets || [])) {
-                const intUnit = set.intensity?.unit;
-                const repUnit = set.reps?.unit;
+            // sets가 배열이 아닌 손상된 record는 무시
+            const sets = Array.isArray(r.sets) ? r.sets : [];
+            for (const set of sets) {
+                const intUnit = set?.intensity?.unit;
+                const repUnit = set?.reps?.unit;
                 if (intUnit === 'kg' && repUnit === '회') {
                     entry.volume += numVal(set.intensity?.value) * numVal(set.reps?.value);
                 }
