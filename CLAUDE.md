@@ -61,6 +61,8 @@ src/
 │   ├── NewStudentRegistration.jsx   # 신규 수강생 7단계 위자드 (외부 접근: ?register=true)
 │   ├── MonthSelector.jsx            # 월 선택 드롭다운 (6개월전~3개월후)
 │   ├── BottomNav.jsx                # 하단 네비게이션 (코치/학생 탭 다름)
+│   ├── Ranking.jsx                  # 랭킹·내 PR·성장 그래프 페이지 (3 탭)
+│   ├── PRSubmitModal.jsx            # 공식 PR 측정 등록 모달 (prType별 동적 폼)
 │   ├── GoogleSheetsSync.jsx         # Sheets 동기화 UI
 │   ├── GoogleSheetsEmbed.jsx        # Sheets 임베드
 │   └── GoogleSheetsTest.jsx         # Sheets 연결 테스트
@@ -102,6 +104,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `holidays` | HolidayManager | 공휴일 (코치용) |
 | `newstudents` | CoachNewStudents | 신규 승인 (코치용) |
 | `contractView` | ContractView | 재등록 계약 동의 (학생용) |
+| `ranking` | Ranking | 랭킹·내 PR·성장 그래프 (코치/학생 공용, Dashboard 카드로 진입) |
 
 - URL `?register=true` → 로그인 없이 `NewStudentRegistration` 직접 렌더링
 - 훈련일지 탭 → `window.location.href = './training-log/index.html'` (React 외부)
@@ -204,6 +207,24 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `coachPinnedMemos` | 코치가 수강생별 고정한 메모 (훈련일지) |
 | `pinnedMemos` | 수강생 자신의 고정 메모 (훈련일지) |
 | `renewalContracts` | 재등록 계약 (status: pending/agreed/cancelled) |
+| `personalBests` | 공식 PR 측정 결과 (`prType`별 비교 룰; doc id: `{userName}__{exercise}` 또는 `{userName}__{exercise}__{intensity}{unit}` for `weightThenReps`) |
+
+### `personalBests` 상세
+
+**저장 시점**: `Ranking` 페이지 → `PRSubmitModal` → `submitPersonalBest()` (firebaseService.js)
+
+**문서 ID 규칙**:
+- `oneRM`/`timeHold`/`bodyweightReps`: `{userName}__{exercise}` (운동당 1개)
+- `weightThenReps`: `{userName}__{exercise}__{intensity.value}{intensity.unit}` (중량별 분리)
+
+**필드**: `{userName, exercise, prType, intensity:{value,unit}, reps:{value,unit}, date, note, history:[…], createdAt, updatedAt}`
+
+**갱신 룰 (`isNewPRBetter`)**:
+- `oneRM`: `intensity.value` 큰 쪽
+- `weightThenReps`: 같은 도큐먼트(=같은 중량) 내 `reps.value` 큰 쪽
+- `timeHold` / `bodyweightReps`: `reps.value` 큰 쪽
+
+갱신 안 되어도 `history` 배열에는 측정 시도 기록 추가됨.
 
 ## 데이터 흐름
 

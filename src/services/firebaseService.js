@@ -13,6 +13,7 @@ import {
     orderBy,
     getCountFromServer,
     getDoc,
+    setDoc,
     arrayUnion,
     arrayRemove,
     increment,
@@ -1104,5 +1105,186 @@ export const toggleCommentLike = async (postId, commentId, username) => {
             likes: isLiked ? arrayRemove(username) : arrayUnion(username),
         });
         return !isLiked;
+    });
+};
+
+// ============================================
+// PERSONAL BEST (PR) FUNCTIONS — 공식 측정 기록
+// ============================================
+
+const PR_TYPES = ['oneRM', 'weightThenReps', 'timeHold', 'bodyweightReps'];
+
+const sanitizeIdSegment = (s) => String(s || '').replace(/[/\\.#$[\]]/g, '_').trim();
+
+const buildPRDocId = ({ userName, exercise, prType, intensity }) => {
+    const base = `${sanitizeIdSegment(userName)}__${sanitizeIdSegment(exercise)}`;
+    if (prType === 'weightThenReps') {
+        const intVal = sanitizeIdSegment(intensity?.value);
+        const intUnit = sanitizeIdSegment(intensity?.unit || 'kg');
+        return `${base}__${intVal}${intUnit}`;
+    }
+    return base;
+};
+
+const numVal = (v) => {
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+};
+
+/**
+ * 새 측정 결과가 기존 best보다 더 좋은지 판단
+ */
+const isNewPRBetter = (prType, oldData, newEntry) => {
+    if (!oldData) return true;
+    switch (prType) {
+        case 'oneRM':
+            return numVal(newEntry.intensity?.value) > numVal(oldData.intensity?.value);
+        case 'weightThenReps':
+            // 같은 중량 도큐먼트 내에서 reps 비교 (도큐먼트 분리로 중량은 이미 같음)
+            return numVal(newEntry.reps?.value) > numVal(oldData.reps?.value);
+        case 'timeHold':
+        case 'bodyweightReps':
+            return numVal(newEntry.reps?.value) > numVal(oldData.reps?.value);
+        default:
+            return false;
+    }
+};
+
+/**
+ * PR 측정 결과 등록. 갱신 룰에 따라 best를 갱신하고 history에 추가.
+ * @returns { docId, updated: boolean } — updated=true면 신기록
+ */
+export const submitPersonalBest = async ({ userName, exercise, prType, intensity, reps, date, note }) => {
+    return safeWrite(async () => {
+        if (!userName || !exercise) throw new Error('이름·운동명은 필수입니다.');
+        if (!PR_TYPES.includes(prType)) throw new Error(`잘못된 prType: ${prType}`);
+
+        const newEntry = {
+            intensity: intensity || { value: '', unit: '' },
+            reps: reps || { value: '', unit: '' },
+            date: date || new Date().toISOString().slice(0, 10),
+            note: note || '',
+            recordedAt: new Date().toISOString()
+        };
+
+        const docId = buildPRDocId({ userName, exercise, prType, intensity });
+        const docRef = doc(db, 'personalBests', docId);
+        const snap = await getDoc(docRef);
+        const existing = snap.exists() ? snap.data() : null;
+        const updated = isNewPRBetter(prType, existing, newEntry);
+
+        if (existing) {
+            // 갱신: best 덮어쓰기 + history 추가 / 갱신 안되면 history만 추가
+            const updates = {
+                history: arrayUnion(newEntry),
+                updatedAt: serverTimestamp()
+            };
+            if (updated) {
+                updates.intensity = newEntry.intensity;
+                updates.reps = newEntry.reps;
+                updates.date = newEntry.date;
+                updates.note = newEntry.note;
+            }
+            await updateDoc(docRef, updates);
+        } else {
+            await setDoc(docRef, {
+                userName,
+                exercise,
+                prType,
+                intensity: newEntry.intensity,
+                reps: newEntry.reps,
+                date: newEntry.date,
+                note: newEntry.note,
+                history: [newEntry],
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+        }
+        return { docId, updated };
+    });
+};
+
+/**
+ * 특정 학생의 PR 전체 (내 PR 탭, 그래프 PR 마커용)
+ */
+export const getPersonalBests = async (userName) => {
+    return safeRead([], async () => {
+        return queryDocs('personalBests', where('userName', '==', userName));
+    });
+};
+
+/**
+ * 전체 PR 컬렉션 (랭킹 탭)
+ */
+export const getAllPersonalBests = async () => {
+    return safeRead([], async () => {
+        return queryDocs('personalBests');
+    });
+};
+
+/**
+ * 최근 N일 내 PR 갱신/추가된 학생 목록 (이달의 PR 갱신자)
+ */
+export const getMonthlyPRUpdaters = async (daysAgo = 30) => {
+    return safeRead([], async () => {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - daysAgo);
+        const cutoffTs = Timestamp.fromDate(cutoff);
+        return queryDocs(
+            'personalBests',
+            where('updatedAt', '>=', cutoffTs),
+            orderBy('updatedAt', 'desc')
+        );
+    });
+};
+
+/**
+ * 그래프용: 특정 학생의 일상 훈련 기록 (시계열)
+ * @param sinceDate 'YYYY-MM-DD'
+ */
+export const getRecordsByUserSince = async (userName, sinceDate) => {
+    return safeRead([], async () => {
+        return queryDocs(
+            'records',
+            where('userName', '==', userName),
+            where('date', '>=', sinceDate),
+            orderBy('date', 'asc')
+        );
+    });
+};
+
+/**
+ * 출석/볼륨 랭킹: 최근 N일 records에서 학생별 훈련일수·총 볼륨 집계
+ */
+export const getAttendanceRanking = async (daysAgo = 30) => {
+    return safeRead([], async () => {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - daysAgo);
+        const cutoffStr = cutoff.toISOString().slice(0, 10);
+        const records = await queryDocs(
+            'records',
+            where('date', '>=', cutoffStr)
+        );
+        const byUser = new Map();
+        for (const r of records) {
+            const u = r.userName;
+            if (!u) continue;
+            if (!byUser.has(u)) byUser.set(u, { userName: u, dates: new Set(), volume: 0 });
+            const entry = byUser.get(u);
+            entry.dates.add(r.date);
+            // 볼륨: kg×reps 합 (단위가 kg & 회인 세트만)
+            for (const set of (r.sets || [])) {
+                const intUnit = set.intensity?.unit;
+                const repUnit = set.reps?.unit;
+                if (intUnit === 'kg' && repUnit === '회') {
+                    entry.volume += numVal(set.intensity?.value) * numVal(set.reps?.value);
+                }
+            }
+        }
+        return Array.from(byUser.values()).map(e => ({
+            userName: e.userName,
+            trainingDays: e.dates.size,
+            volume: Math.round(e.volume)
+        }));
     });
 };

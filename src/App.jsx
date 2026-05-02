@@ -12,6 +12,7 @@ import GoogleSheetsTest from './components/GoogleSheetsTest';
 import NewStudentRegistration from './components/NewStudentRegistration';
 import CoachNewStudents from './components/CoachNewStudents';
 import ContractView from './components/ContractView';
+import Ranking from './components/Ranking';
 import BottomNav from './components/BottomNav';
 import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent, subscribePosts, getNewStudentRegistrations } from './services/firebaseService';
 import './App.css';
@@ -203,6 +204,9 @@ function AppContent() {
 
       case 'contractView':
         return <ContractView user={user} onBack={handleBackToDashboard} />;
+
+      case 'ranking':
+        return <Ranking user={user} onBack={handleBackToDashboard} />;
 
       case 'training':
         return (

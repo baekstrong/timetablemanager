@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, subscribePosts, updatePost, deletePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays } from '../services/firebaseService';
+import { createPost, subscribePosts, updatePost, deletePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
 import GoogleSheetsSync from './GoogleSheetsSync';
@@ -10,6 +10,18 @@ import PostDetail from './board/PostDetail';
 import PostForm from './board/PostForm';
 import './board/Board.css';
 import './Dashboard.css';
+
+const formatPRSummary = (pr) => {
+    const i = pr.intensity || {};
+    const r = pr.reps || {};
+    switch (pr.prType) {
+        case 'oneRM': return `${i.value}${i.unit || 'kg'}`;
+        case 'weightThenReps': return `${i.value}${i.unit || 'kg'} × ${r.value}회`;
+        case 'timeHold': return `${r.value}초`;
+        case 'bodyweightReps': return `${r.value}회`;
+        default: return '';
+    }
+};
 
 const Dashboard = ({ user, onNavigate, onLogout }) => {
     const [sheetsExpanded, setSheetsExpanded] = useState(false);
@@ -29,6 +41,20 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     const [studentWaitlist, setStudentWaitlist] = useState([]);
     // 수강생 재등록 계약
     const [pendingContract, setPendingContract] = useState(null);
+    // 이달의 PR 갱신자 미리보기
+    const [recentPRs, setRecentPRs] = useState([]);
+
+    // 이달의 PR 미리보기 (코치/학생 공통)
+    useEffect(() => {
+        (async () => {
+            try {
+                const data = await getMonthlyPRUpdaters(30);
+                setRecentPRs(data.slice(0, 3));
+            } catch (err) {
+                console.error('이달의 PR 로드 실패:', err);
+            }
+        })();
+    }, [user]);
 
     useEffect(() => {
         if (user.role === 'coach') return;
@@ -472,6 +498,35 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         ))}
                     </div>
                 )}
+
+                {/* 이달의 PR 카드 (랭킹 진입점) */}
+                <div
+                    onClick={() => onNavigate('ranking')}
+                    style={{
+                        marginBottom: '1rem',
+                        padding: '12px 16px',
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #eef2ff, #e0e7ff)',
+                        border: '1px solid #c7d2fe',
+                        cursor: 'pointer'
+                    }}
+                >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: recentPRs.length ? '8px' : 0 }}>
+                        <span style={{ fontWeight: 700, color: '#3730a3', fontSize: '0.95rem' }}>🏆 이달의 PR</span>
+                        <span style={{ fontSize: '0.8rem', color: '#6366f1' }}>랭킹 보기 ›</span>
+                    </div>
+                    {recentPRs.length === 0 ? (
+                        <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>최근 30일 갱신된 PR이 없습니다.</div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {recentPRs.map((p) => (
+                                <div key={p.id} style={{ fontSize: '0.85rem', color: '#3730a3' }}>
+                                    <strong>{p.userName}</strong> — {p.exercise} {formatPRSummary(p)} <span style={{ color: '#9ca3af' }}>{p.date}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
 
                 {/* 게시판 섹션 */}
                 {viewMode === 'list' ? (
