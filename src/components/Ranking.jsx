@@ -8,12 +8,12 @@ import {
 } from '../services/firebaseService';
 import PRSubmitModal from './PRSubmitModal';
 import {
-    LineChart,
     Line,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
+    Legend,
     ResponsiveContainer,
     Scatter,
     ComposedChart
@@ -377,14 +377,19 @@ const MyPRTab = ({ user, allPRs, studentNames, onAddClick }) => {
         <div className="ranking-content">
             <div className="mypr-header">
                 {isCoach && (
-                    <select
-                        className="ranking-exercise-select"
-                        value={selectedStudent}
-                        onChange={(e) => setSelectedStudent(e.target.value)}
-                    >
-                        <option value="">학생을 선택하세요</option>
-                        {studentNames.map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
+                    <>
+                        <input
+                            className="ranking-exercise-select"
+                            type="text"
+                            list="mypr-student-list"
+                            value={selectedStudent}
+                            onChange={(e) => setSelectedStudent(e.target.value)}
+                            placeholder="학생 이름 검색"
+                        />
+                        <datalist id="mypr-student-list">
+                            {studentNames.map(n => <option key={n} value={n} />)}
+                        </datalist>
+                    </>
                 )}
                 <button className="mypr-add-btn" onClick={onAddClick}>+ 공식 측정 등록</button>
             </div>
@@ -466,25 +471,48 @@ const HistoryModal = ({ pr, onClose }) => {
 // 그래프 탭
 // ============================================
 
+const GRAPH_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
+
+const computeSetMetric = (set) => {
+    const intUnit = set.intensity?.unit;
+    const repUnit = set.reps?.unit;
+    if (intUnit === 'kg') return numVal(set.intensity?.value);
+    if (repUnit === '초' && !set.reps?.count) return numVal(set.reps?.value);
+    if (intUnit === '맨몸' && repUnit === '회') return numVal(set.reps?.value);
+    return null;
+};
+
+const computePRMetric = (pr, h) => {
+    const intUnit = h.intensity?.unit;
+    const repUnit = h.reps?.unit;
+    if (intUnit === 'kg') return numVal(h.intensity?.value);
+    if (repUnit === '초') return numVal(h.reps?.value);
+    if (intUnit === '맨몸' || pr.prType === 'bodyweightReps') return numVal(h.reps?.value);
+    return numVal(h.intensity?.value) || numVal(h.reps?.value);
+};
+
 const GraphTab = ({ user, allPRs, studentNames }) => {
     const isCoach = user?.role === 'coach';
     const [selectedStudent, setSelectedStudent] = useState(isCoach ? '' : user.username);
     const [periodMonths, setPeriodMonths] = useState(3);
-    const [selectedExercise, setSelectedExercise] = useState('');
+    const [selectedExercises, setSelectedExercises] = useState([]); // string[]
+    const [exerciseSearch, setExerciseSearch] = useState('');
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(false);
 
     const targetName = isCoach ? selectedStudent : user.username;
+    const isValidStudent = !isCoach || studentNames.includes(targetName);
+    const effectiveTarget = isValidStudent ? targetName : '';
 
     useEffect(() => {
-        if (!targetName) { setRecords([]); return; }
+        if (!effectiveTarget) { setRecords([]); return; }
         (async () => {
             setLoading(true);
             try {
                 const since = new Date();
                 since.setMonth(since.getMonth() - periodMonths);
                 const sinceStr = since.toISOString().slice(0, 10);
-                const data = await getRecordsByUserSince(targetName, sinceStr);
+                const data = await getRecordsByUserSince(effectiveTarget, sinceStr);
                 setRecords(data);
             } catch (err) {
                 console.error('records 로드 실패:', err);
@@ -492,100 +520,98 @@ const GraphTab = ({ user, allPRs, studentNames }) => {
                 setLoading(false);
             }
         })();
-    }, [targetName, periodMonths]);
+    }, [effectiveTarget, periodMonths]);
 
-    const exercises = useMemo(() => {
-        const set = new Set(records.map(r => r.exercise).filter(Boolean));
+    // 학생의 모든 운동 목록 = records에서 + 해당 학생 PR에서 (PR만 있는 경우도 표시)
+    const allExercises = useMemo(() => {
+        const set = new Set();
+        for (const r of records) if (r.exercise) set.add(r.exercise);
+        for (const pr of allPRs) {
+            if (pr.userName === effectiveTarget && pr.exercise) set.add(pr.exercise);
+        }
         return Array.from(set).sort();
-    }, [records]);
+    }, [records, allPRs, effectiveTarget]);
 
-    const effectiveExercise = selectedExercise || exercises[0] || '';
+    // 검색 필터 적용된 표시 목록
+    const filteredExercises = useMemo(() => {
+        const q = exerciseSearch.trim().toLowerCase();
+        if (!q) return allExercises;
+        return allExercises.filter(ex => ex.toLowerCase().includes(q));
+    }, [allExercises, exerciseSearch]);
 
-    // 일별 metric 시계열: 해당 운동의 그날 best 세트
-    const chartData = useMemo(() => {
+    const toggleExercise = (ex) => {
+        setSelectedExercises(prev =>
+            prev.includes(ex) ? prev.filter(e => e !== ex) : [...prev, ex]
+        );
+    };
+
+    const clearExercises = () => setSelectedExercises([]);
+    const selectAllVisible = () => {
+        setSelectedExercises(prev => Array.from(new Set([...prev, ...filteredExercises])));
+    };
+
+    // 운동별 색상 매핑 (선택 순서 기반)
+    const colorMap = useMemo(() => {
+        const m = {};
+        selectedExercises.forEach((ex, i) => { m[ex] = GRAPH_COLORS[i % GRAPH_COLORS.length]; });
+        return m;
+    }, [selectedExercises]);
+
+    // 차트 데이터: 운동별 daily/pr 컬럼 별도 생성
+    const mergedData = useMemo(() => {
+        if (selectedExercises.length === 0) return [];
         const byDate = new Map();
+        const ensure = (date) => {
+            if (!byDate.has(date)) byDate.set(date, { date });
+            return byDate.get(date);
+        };
+        // 일상 훈련
         for (const r of records) {
-            if (r.exercise !== effectiveExercise) continue;
-            const date = r.date;
+            if (!selectedExercises.includes(r.exercise)) continue;
+            const dailyKey = `${r.exercise}_daily`;
             for (const set of (r.sets || [])) {
-                const intUnit = set.intensity?.unit;
-                const repUnit = set.reps?.unit;
-                let metric;
-                let label;
-                if (intUnit === 'kg') {
-                    metric = numVal(set.intensity?.value);
-                    label = `${metric}kg × ${set.reps?.value || 0}회`;
-                } else if (repUnit === '초' && !set.reps?.count) {
-                    metric = numVal(set.reps?.value);
-                    label = `${metric}초`;
-                } else if (intUnit === '맨몸' && repUnit === '회') {
-                    metric = numVal(set.reps?.value);
-                    label = `맨몸 ${metric}회`;
-                } else {
-                    continue;
+                const metric = computeSetMetric(set);
+                if (metric === null) continue;
+                const row = ensure(r.date);
+                if (row[dailyKey] === undefined || row[dailyKey] < metric) {
+                    row[dailyKey] = metric;
                 }
-                if (!byDate.has(date) || byDate.get(date).metric < metric) {
-                    byDate.set(date, { date, metric, label });
+            }
+        }
+        // 공식 PR
+        for (const pr of allPRs) {
+            if (pr.userName !== effectiveTarget) continue;
+            if (!selectedExercises.includes(pr.exercise)) continue;
+            const prKey = `${pr.exercise}_pr`;
+            for (const h of (pr.history || [])) {
+                const metric = computePRMetric(pr, h);
+                const row = ensure(h.date);
+                if (row[prKey] === undefined || row[prKey] < metric) {
+                    row[prKey] = metric;
                 }
             }
         }
         return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
-    }, [records, effectiveExercise]);
-
-    // 공식 PR 측정점 (같은 운동, 같은 학생)
-    const prMarkers = useMemo(() => {
-        const markers = [];
-        for (const pr of allPRs) {
-            if (pr.userName !== targetName) continue;
-            if (pr.exercise !== effectiveExercise) continue;
-            for (const h of (pr.history || [])) {
-                const intUnit = h.intensity?.unit;
-                const repUnit = h.reps?.unit;
-                let metric;
-                if (intUnit === 'kg') metric = numVal(h.intensity?.value);
-                else if (repUnit === '초') metric = numVal(h.reps?.value);
-                else if (intUnit === '맨몸' || pr.prType === 'bodyweightReps') metric = numVal(h.reps?.value);
-                else metric = numVal(h.intensity?.value) || numVal(h.reps?.value);
-                markers.push({ date: h.date, metric, label: '★ 공식 측정' });
-            }
-        }
-        return markers.sort((a, b) => a.date.localeCompare(b.date));
-    }, [allPRs, targetName, effectiveExercise]);
-
-    // 두 데이터를 합쳐서 ComposedChart에 사용
-    const mergedData = useMemo(() => {
-        const map = new Map();
-        for (const d of chartData) {
-            map.set(d.date, { date: d.date, daily: d.metric });
-        }
-        for (const m of prMarkers) {
-            if (!map.has(m.date)) map.set(m.date, { date: m.date });
-            map.get(m.date).pr = m.metric;
-        }
-        return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
-    }, [chartData, prMarkers]);
+    }, [records, allPRs, effectiveTarget, selectedExercises]);
 
     return (
         <div className="ranking-content">
             <div className="graph-controls">
                 {isCoach && (
-                    <select
-                        className="ranking-exercise-select"
-                        value={selectedStudent}
-                        onChange={(e) => setSelectedStudent(e.target.value)}
-                    >
-                        <option value="">학생 선택</option>
-                        {studentNames.map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
+                    <>
+                        <input
+                            className="ranking-exercise-select"
+                            type="text"
+                            list="graph-student-list"
+                            value={selectedStudent}
+                            onChange={(e) => setSelectedStudent(e.target.value)}
+                            placeholder="학생 이름 검색"
+                        />
+                        <datalist id="graph-student-list">
+                            {studentNames.map(n => <option key={n} value={n} />)}
+                        </datalist>
+                    </>
                 )}
-                <select
-                    className="ranking-exercise-select"
-                    value={effectiveExercise}
-                    onChange={(e) => setSelectedExercise(e.target.value)}
-                >
-                    <option value="">운동 선택</option>
-                    {exercises.map(ex => <option key={ex} value={ex}>{ex}</option>)}
-                </select>
                 <div className="ranking-gender-filter">
                     {[3, 6, 12].map(m => (
                         <button
@@ -597,25 +623,90 @@ const GraphTab = ({ user, allPRs, studentNames }) => {
                 </div>
             </div>
 
-            {!targetName ? (
+            {!effectiveTarget ? (
                 <div className="ranking-empty">학생을 선택해주세요.</div>
             ) : loading ? (
                 <div className="ranking-loading">불러오는 중...</div>
-            ) : mergedData.length === 0 ? (
-                <div className="ranking-empty">선택한 기간·운동의 기록이 없습니다.</div>
             ) : (
-                <div className="graph-wrapper">
-                    <ResponsiveContainer width="100%" height={300}>
-                        <ComposedChart data={mergedData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                            <YAxis tick={{ fontSize: 11 }} />
-                            <Tooltip />
-                            <Line type="monotone" dataKey="daily" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} name="일상 훈련" connectNulls />
-                            <Scatter dataKey="pr" fill="#f59e0b" shape="star" name="공식 PR" />
-                        </ComposedChart>
-                    </ResponsiveContainer>
-                </div>
+                <>
+                    <div className="graph-exercise-picker">
+                        <div className="graph-exercise-search-row">
+                            <input
+                                type="text"
+                                className="ranking-exercise-select"
+                                value={exerciseSearch}
+                                onChange={(e) => setExerciseSearch(e.target.value)}
+                                placeholder="운동 검색"
+                            />
+                            <button className="graph-picker-btn" onClick={selectAllVisible} disabled={filteredExercises.length === 0}>전체선택</button>
+                            <button className="graph-picker-btn" onClick={clearExercises} disabled={selectedExercises.length === 0}>해제</button>
+                        </div>
+                        {allExercises.length === 0 ? (
+                            <div className="ranking-empty">표시할 운동이 없습니다.</div>
+                        ) : (
+                            <div className="graph-exercise-list">
+                                {filteredExercises.length === 0 ? (
+                                    <span className="ranking-empty-row">검색 결과가 없습니다.</span>
+                                ) : filteredExercises.map(ex => {
+                                    const checked = selectedExercises.includes(ex);
+                                    return (
+                                        <label
+                                            key={ex}
+                                            className={`graph-exercise-chip ${checked ? 'active' : ''}`}
+                                            style={checked ? { borderColor: colorMap[ex], color: colorMap[ex] } : undefined}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={() => toggleExercise(ex)}
+                                            />
+                                            <span>{ex}</span>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {selectedExercises.length === 0 ? (
+                        <div className="ranking-empty">운동을 1개 이상 선택해주세요.</div>
+                    ) : mergedData.length === 0 ? (
+                        <div className="ranking-empty">선택한 기간·운동의 기록이 없습니다.</div>
+                    ) : (
+                        <div className="graph-wrapper">
+                            <ResponsiveContainer width="100%" height={340}>
+                                <ComposedChart data={mergedData}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                                    <YAxis tick={{ fontSize: 11 }} />
+                                    <Tooltip />
+                                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                                    {selectedExercises.map(ex => (
+                                        <Line
+                                            key={`${ex}_daily`}
+                                            type="monotone"
+                                            dataKey={`${ex}_daily`}
+                                            stroke={colorMap[ex]}
+                                            strokeWidth={2}
+                                            dot={{ r: 3 }}
+                                            name={ex}
+                                            connectNulls
+                                        />
+                                    ))}
+                                    {selectedExercises.map(ex => (
+                                        <Scatter
+                                            key={`${ex}_pr`}
+                                            dataKey={`${ex}_pr`}
+                                            fill={colorMap[ex]}
+                                            shape="star"
+                                            name={`${ex} ★PR`}
+                                        />
+                                    ))}
+                                </ComposedChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
