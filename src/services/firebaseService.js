@@ -1241,11 +1241,21 @@ export const getMonthlyPRUpdaters = async (daysAgo = 30) => {
 /**
  * 그래프용: 특정 학생의 일상 훈련 기록 (시계열)
  * 복합 인덱스 회피를 위해 userName으로만 쿼리하고 date는 클라이언트에서 필터.
+ * 정확 일치 0건이면 sinceDate 이후 records를 fetch해서 trim/대소문자 무시 매칭으로 폴백.
  * @param sinceDate 'YYYY-MM-DD'
  */
 export const getRecordsByUserSince = async (userName, sinceDate) => {
     return safeRead([], async () => {
-        const all = await queryDocs('records', where('userName', '==', userName));
+        const trimmed = (userName || '').trim();
+        console.log('[운동별 추세] userName:', JSON.stringify(userName), 'sinceDate:', sinceDate);
+        let all = await queryDocs('records', where('userName', '==', trimmed));
+        console.log('[운동별 추세] 정확 일치:', all.length, '건');
+        if (all.length === 0 && trimmed) {
+            const recent = await queryDocs('records', where('date', '>=', sinceDate));
+            const lower = trimmed.toLowerCase();
+            all = recent.filter(r => (r.userName || '').trim().toLowerCase() === lower);
+            console.log('[운동별 추세] 폴백 결과:', all.length, '/ 기간 전체:', recent.length);
+        }
         return all
             .filter(r => r.date && r.date >= sinceDate)
             .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -1304,9 +1314,23 @@ export const getMonthlyAttendanceHistory = async (userName, monthsBack = 12) => 
         const today = new Date();
         const startMonth = new Date(today.getFullYear(), today.getMonth() - (monthsBack - 1), 1);
         const startStr = `${startMonth.getFullYear()}-${String(startMonth.getMonth() + 1).padStart(2, '0')}-01`;
-        // 복합 인덱스 회피: userName으로만 쿼리하고 date는 클라이언트에서 필터
-        const all = await queryDocs('records', where('userName', '==', userName));
+        const trimmed = (userName || '').trim();
+        console.log('[월별 출석/운동량] userName:', JSON.stringify(userName), 'startStr:', startStr);
+        let all = await queryDocs('records', where('userName', '==', trimmed));
+        console.log('[월별 출석/운동량] 정확 일치:', all.length, '건');
+        if (all.length === 0 && trimmed) {
+            const recent = await queryDocs('records', where('date', '>=', startStr));
+            const lower = trimmed.toLowerCase();
+            all = recent.filter(r => (r.userName || '').trim().toLowerCase() === lower);
+            console.log('[월별 출석/운동량] 폴백 결과:', all.length, '/ 기간 전체:', recent.length);
+            if (recent.length > 0 && all.length === 0) {
+                const sampleNames = Array.from(new Set(recent.map(r => r.userName).filter(Boolean))).slice(0, 10);
+                console.log('[월별 출석/운동량] 기간 내 records의 userName 샘플:', sampleNames);
+            }
+        }
+        if (all.length > 0) console.log('[월별 출석/운동량] 첫 record 샘플:', all[0]);
         const records = all.filter(r => r.date && r.date >= startStr);
+        console.log('[월별 출석/운동량] 12개월 필터 후:', records.length, '건');
         const byMonth = new Map();
         // 빈 달도 미리 채워둠
         for (let i = 0; i < monthsBack; i++) {
