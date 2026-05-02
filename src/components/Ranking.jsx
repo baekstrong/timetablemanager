@@ -4,10 +4,12 @@ import {
     getAllPersonalBests,
     getMonthlyPRUpdaters,
     getAttendanceRanking,
-    getRecordsByUserSince
+    getRecordsByUserSince,
+    getMonthlyAttendanceHistory
 } from '../services/firebaseService';
 import PRSubmitModal from './PRSubmitModal';
 import {
+    Bar,
     Line,
     XAxis,
     YAxis,
@@ -304,7 +306,7 @@ const AttendanceSection = ({ genderMap, genderFilter }) => {
         (async () => {
             setLoading(true);
             try {
-                const data = await getAttendanceRanking(30);
+                const data = await getAttendanceRanking(); // 기본: 이번 달
                 setList(data);
             } finally {
                 setLoading(false);
@@ -318,14 +320,18 @@ const AttendanceSection = ({ genderMap, genderFilter }) => {
 
     if (loading) return <div className="ranking-loading">불러오는 중...</div>;
 
+    const now = new Date();
+    const currentMonthLabel = `${now.getFullYear()}년 ${now.getMonth() + 1}월`;
+
     return (
         <>
+            <div className="ranking-period-label">{currentMonthLabel} 기준 (매달 1일 초기화)</div>
             <div className="ranking-gender-filter" style={{ marginBottom: '0.5rem' }}>
                 <button className={sortBy === 'days' ? 'active' : ''} onClick={() => setSortBy('days')}>한달 출석일 수</button>
                 <button className={sortBy === 'volume' ? 'active' : ''} onClick={() => setSortBy('volume')}>한달 총 운동량</button>
             </div>
             {filtered.length === 0 ? (
-                <div className="ranking-empty">최근 30일 훈련 기록이 없습니다.</div>
+                <div className="ranking-empty">이번 달 훈련 기록이 없습니다.</div>
             ) : (
                 <ol className="ranking-list">
                     {filtered.map((e, i) => (
@@ -494,15 +500,60 @@ const computePRMetric = (pr, h) => {
 const GraphTab = ({ user, allPRs, studentNames }) => {
     const isCoach = user?.role === 'coach';
     const [selectedStudent, setSelectedStudent] = useState(isCoach ? '' : user.username);
-    const [periodMonths, setPeriodMonths] = useState(3);
-    const [selectedExercises, setSelectedExercises] = useState([]); // string[]
-    const [exerciseSearch, setExerciseSearch] = useState('');
-    const [records, setRecords] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [graphMode, setGraphMode] = useState('exercise'); // 'exercise' | 'monthly'
 
     const targetName = isCoach ? selectedStudent : user.username;
     const isValidStudent = !isCoach || studentNames.includes(targetName);
     const effectiveTarget = isValidStudent ? targetName : '';
+
+    return (
+        <div className="ranking-content">
+            <div className="graph-controls">
+                {isCoach && (
+                    <>
+                        <input
+                            className="ranking-exercise-select"
+                            type="text"
+                            list="graph-student-list"
+                            value={selectedStudent}
+                            onChange={(e) => setSelectedStudent(e.target.value)}
+                            placeholder="학생 이름 검색"
+                        />
+                        <datalist id="graph-student-list">
+                            {studentNames.map(n => <option key={n} value={n} />)}
+                        </datalist>
+                    </>
+                )}
+            </div>
+
+            <div className="ranking-subtabs">
+                <button
+                    className={`ranking-subtab ${graphMode === 'exercise' ? 'active' : ''}`}
+                    onClick={() => setGraphMode('exercise')}
+                >운동별 추세</button>
+                <button
+                    className={`ranking-subtab ${graphMode === 'monthly' ? 'active' : ''}`}
+                    onClick={() => setGraphMode('monthly')}
+                >월별 출석·운동량</button>
+            </div>
+
+            {!effectiveTarget ? (
+                <div className="ranking-empty">학생을 선택해주세요.</div>
+            ) : graphMode === 'exercise' ? (
+                <ExerciseTrendBlock effectiveTarget={effectiveTarget} allPRs={allPRs} />
+            ) : (
+                <MonthlyStatsGraph effectiveTarget={effectiveTarget} />
+            )}
+        </div>
+    );
+};
+
+const ExerciseTrendBlock = ({ effectiveTarget, allPRs }) => {
+    const [periodMonths, setPeriodMonths] = useState(3);
+    const [selectedExercises, setSelectedExercises] = useState([]);
+    const [exerciseSearch, setExerciseSearch] = useState('');
+    const [records, setRecords] = useState([]);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (!effectiveTarget) { setRecords([]); return; }
@@ -595,23 +646,8 @@ const GraphTab = ({ user, allPRs, studentNames }) => {
     }, [records, allPRs, effectiveTarget, selectedExercises]);
 
     return (
-        <div className="ranking-content">
-            <div className="graph-controls">
-                {isCoach && (
-                    <>
-                        <input
-                            className="ranking-exercise-select"
-                            type="text"
-                            list="graph-student-list"
-                            value={selectedStudent}
-                            onChange={(e) => setSelectedStudent(e.target.value)}
-                            placeholder="학생 이름 검색"
-                        />
-                        <datalist id="graph-student-list">
-                            {studentNames.map(n => <option key={n} value={n} />)}
-                        </datalist>
-                    </>
-                )}
+        <>
+            <div className="graph-controls" style={{ marginBottom: '0.75rem' }}>
                 <div className="ranking-gender-filter">
                     {[3, 6, 12].map(m => (
                         <button
@@ -623,9 +659,7 @@ const GraphTab = ({ user, allPRs, studentNames }) => {
                 </div>
             </div>
 
-            {!effectiveTarget ? (
-                <div className="ranking-empty">학생을 선택해주세요.</div>
-            ) : loading ? (
+            {loading ? (
                 <div className="ranking-loading">불러오는 중...</div>
             ) : (
                 <>
@@ -708,6 +742,54 @@ const GraphTab = ({ user, allPRs, studentNames }) => {
                     )}
                 </>
             )}
+        </>
+    );
+};
+
+const MonthlyStatsGraph = ({ effectiveTarget }) => {
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!effectiveTarget) { setData([]); return; }
+        (async () => {
+            setLoading(true);
+            try {
+                const d = await getMonthlyAttendanceHistory(effectiveTarget, 12);
+                setData(d);
+            } catch (err) {
+                console.error('월별 출석/운동량 로드 실패:', err);
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, [effectiveTarget]);
+
+    if (loading) return <div className="ranking-loading">불러오는 중...</div>;
+    if (!data.length || data.every(d => d.trainingDays === 0 && d.volume === 0)) {
+        return <div className="ranking-empty">최근 12개월 훈련 기록이 없습니다.</div>;
+    }
+
+    return (
+        <div className="graph-wrapper">
+            <ResponsiveContainer width="100%" height={340}>
+                <ComposedChart data={data} margin={{ top: 10, right: 20, bottom: 5, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis yAxisId="left" orientation="left" tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+                    <Tooltip
+                        formatter={(value, name) => {
+                            if (name === '출석일 수') return [`${value}일`, name];
+                            if (name === '총 운동량') return [`${Number(value).toLocaleString()}kg`, name];
+                            return [value, name];
+                        }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar yAxisId="left" dataKey="trainingDays" fill="#6366f1" name="출석일 수" radius={[4, 4, 0, 0]} />
+                    <Line yAxisId="right" type="monotone" dataKey="volume" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} name="총 운동량" />
+                </ComposedChart>
+            </ResponsiveContainer>
         </div>
     );
 };
