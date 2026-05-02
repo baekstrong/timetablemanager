@@ -338,3 +338,72 @@
     width: 100%;
     margin-top: 0.5rem;
 }
+
+.graph-exercise-picker {
+    margin: 0.75rem 0;
+    padding: 0.75rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+}
+
+.graph-exercise-search-row {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 0.6rem;
+}
+
+.graph-exercise-search-row .ranking-exercise-select {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.graph-picker-btn {
+    padding: 0 0.7rem;
+    border: 1px solid #d1d5db;
+    background: white;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: #4b5563;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.graph-picker-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.graph-exercise-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.graph-exercise-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.65rem;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 16px;
+    background: white;
+    font-size: 0.85rem;
+    color: #4b5563;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.graph-exercise-chip input[type="checkbox"] {
+    margin: 0;
+    width: 14px;
+    height: 14px;
+    accent-color: currentColor;
+    cursor: pointer;
+}
+
+.graph-exercise-chip.active {
+    font-weight: 600;
+    background: white;
+}
+
+.graph-exercise-chip:hover { background: #f3f4f6; }
