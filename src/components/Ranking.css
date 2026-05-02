@@ -135,6 +135,28 @@
     border: 1px dashed #e5e7eb;
 }
 
+.ranking-period-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.ranking-month-select {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    font-size: 0.85rem;
+    color: #1f2937;
+}
+
+.ranking-period-hint {
+    font-size: 0.75rem;
+    color: #9ca3af;
+}
+
 .ranking-exercise-select {
     width: 100%;
     padding: 0.6rem 0.75rem;

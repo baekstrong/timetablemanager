@@ -298,6 +298,19 @@ const MonthlyPRSection = ({ genderMap, genderFilter }) => {
 };
 
 const AttendanceSection = ({ genderMap, genderFilter }) => {
+    const monthOptions = useMemo(() => {
+        const list = [];
+        const now = new Date();
+        for (let i = 0; i < 12; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const label = `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
+            list.push({ ym, label });
+        }
+        return list;
+    }, []);
+
+    const [selectedYM, setSelectedYM] = useState(monthOptions[0].ym);
     const [list, setList] = useState([]);
     const [sortBy, setSortBy] = useState('days'); // 'days' | 'volume'
     const [loading, setLoading] = useState(true);
@@ -306,32 +319,45 @@ const AttendanceSection = ({ genderMap, genderFilter }) => {
         (async () => {
             setLoading(true);
             try {
-                const data = await getAttendanceRanking(); // 기본: 이번 달
+                const data = await getAttendanceRanking(selectedYM);
                 setList(data);
             } finally {
                 setLoading(false);
             }
         })();
-    }, []);
+    }, [selectedYM]);
 
     const filtered = list
         .filter(e => genderFilter === 'all' || genderMap[e.userName] === genderFilter)
         .sort((a, b) => sortBy === 'days' ? b.trainingDays - a.trainingDays : b.volume - a.volume);
 
-    if (loading) return <div className="ranking-loading">불러오는 중...</div>;
-
-    const now = new Date();
-    const currentMonthLabel = `${now.getFullYear()}년 ${now.getMonth() + 1}월`;
+    const currentLabel = monthOptions.find(o => o.ym === selectedYM)?.label || selectedYM;
+    const isCurrentMonth = selectedYM === monthOptions[0].ym;
 
     return (
         <>
-            <div className="ranking-period-label">{currentMonthLabel} 기준 (매달 1일 초기화)</div>
+            <div className="ranking-period-row">
+                <select
+                    className="ranking-month-select"
+                    value={selectedYM}
+                    onChange={(e) => setSelectedYM(e.target.value)}
+                >
+                    {monthOptions.map(o => (
+                        <option key={o.ym} value={o.ym}>{o.label}</option>
+                    ))}
+                </select>
+                <span className="ranking-period-hint">
+                    {currentLabel} {isCurrentMonth ? '기준 (매달 1일 초기화)' : '기록'}
+                </span>
+            </div>
             <div className="ranking-gender-filter" style={{ marginBottom: '0.5rem' }}>
                 <button className={sortBy === 'days' ? 'active' : ''} onClick={() => setSortBy('days')}>한달 출석일 수</button>
                 <button className={sortBy === 'volume' ? 'active' : ''} onClick={() => setSortBy('volume')}>한달 총 운동량</button>
             </div>
-            {filtered.length === 0 ? (
-                <div className="ranking-empty">이번 달 훈련 기록이 없습니다.</div>
+            {loading ? (
+                <div className="ranking-loading">불러오는 중...</div>
+            ) : filtered.length === 0 ? (
+                <div className="ranking-empty">{currentLabel} 훈련 기록이 없습니다.</div>
             ) : (
                 <ol className="ranking-list">
                     {filtered.map((e, i) => (
