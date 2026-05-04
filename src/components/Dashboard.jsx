@@ -56,15 +56,33 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         })();
     }, [user]);
 
-    // 배너 인덱스 (3.5초마다 자동 전환)
+    // 이달의 PR 배너: 3명씩 보여주며 위로 한 칸씩 슬라이드 (뉴스 티커 스타일)
+    const PR_VISIBLE = 3;
+    const PR_LINE_HEIGHT = 22; // px
     const [prBannerIndex, setPrBannerIndex] = useState(0);
+    const [prBannerAnimate, setPrBannerAnimate] = useState(true);
+
     useEffect(() => {
-        if (recentPRs.length <= 1) { setPrBannerIndex(0); return; }
+        if (recentPRs.length <= PR_VISIBLE) { setPrBannerIndex(0); return; }
         const id = setInterval(() => {
-            setPrBannerIndex((i) => (i + 1) % recentPRs.length);
-        }, 3500);
+            setPrBannerIndex((i) => i + 1);
+        }, 2500);
         return () => clearInterval(id);
     }, [recentPRs.length]);
+
+    // 끝(원본 길이 만큼 진행)에 도달하면 transition 끄고 0으로 점프 → 무한 루프 효과
+    useEffect(() => {
+        if (recentPRs.length <= PR_VISIBLE) return;
+        if (prBannerIndex !== recentPRs.length) return;
+        const t = setTimeout(() => {
+            setPrBannerAnimate(false);
+            setPrBannerIndex(0);
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => setPrBannerAnimate(true));
+            });
+        }, 550);
+        return () => clearTimeout(t);
+    }, [prBannerIndex, recentPRs.length]);
 
     useEffect(() => {
         if (user.role === 'coach') return;
@@ -522,45 +540,44 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                     }}
                 >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: recentPRs.length ? '8px' : 0 }}>
-                        <span style={{ fontWeight: 700, color: '#3730a3', fontSize: '0.95rem' }}>
-                            🏆 이달의 PR
-                            {recentPRs.length > 1 && (
-                                <span style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: 500, marginLeft: '6px' }}>
-                                    {prBannerIndex + 1}/{recentPRs.length}
-                                </span>
-                            )}
-                        </span>
+                        <span style={{ fontWeight: 700, color: '#3730a3', fontSize: '0.95rem' }}>🏆 이달의 PR</span>
                         <span style={{ fontSize: '0.8rem', color: '#6366f1' }}>랭킹 보기 ›</span>
                     </div>
                     {recentPRs.length === 0 ? (
                         <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>최근 30일 갱신된 PR이 없습니다.</div>
-                    ) : (
-                        <div style={{ overflow: 'hidden', position: 'relative' }}>
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    transform: `translateX(-${prBannerIndex * 100}%)`,
-                                    transition: 'transform 0.5s ease'
-                                }}
-                            >
-                                {recentPRs.map((p) => (
-                                    <div
-                                        key={p.id}
-                                        style={{
-                                            flex: '0 0 100%',
-                                            fontSize: '0.85rem',
-                                            color: '#3730a3',
-                                            whiteSpace: 'nowrap',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis'
-                                        }}
-                                    >
-                                        <strong>{p.userName}</strong> — {p.exercise} {formatPRSummary(p)} <span style={{ color: '#9ca3af' }}>{p.date}</span>
-                                    </div>
-                                ))}
+                    ) : (() => {
+                        const visibleCount = Math.min(PR_VISIBLE, recentPRs.length);
+                        const trackItems = recentPRs.length > PR_VISIBLE
+                            ? [...recentPRs, ...recentPRs.slice(0, PR_VISIBLE)]
+                            : recentPRs;
+                        return (
+                            <div style={{ overflow: 'hidden', height: `${visibleCount * PR_LINE_HEIGHT}px` }}>
+                                <div
+                                    style={{
+                                        transform: `translateY(-${prBannerIndex * PR_LINE_HEIGHT}px)`,
+                                        transition: prBannerAnimate ? 'transform 0.5s ease' : 'none'
+                                    }}
+                                >
+                                    {trackItems.map((p, idx) => (
+                                        <div
+                                            key={`${p.id}-${idx}`}
+                                            style={{
+                                                height: `${PR_LINE_HEIGHT}px`,
+                                                lineHeight: `${PR_LINE_HEIGHT}px`,
+                                                fontSize: '0.85rem',
+                                                color: '#3730a3',
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis'
+                                            }}
+                                        >
+                                            <strong>{p.userName}</strong> — {p.exercise} {formatPRSummary(p)} <span style={{ color: '#9ca3af' }}>{p.date}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
                 </div>
 
                 {/* 게시판 섹션 */}
