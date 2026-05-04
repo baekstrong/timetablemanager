@@ -5,7 +5,8 @@ import {
     getMonthlyPRUpdaters,
     getAttendanceRanking,
     getRecordsByUserSince,
-    getMonthlyAttendanceHistory
+    getMonthlyAttendanceHistory,
+    getAllExerciseNames
 } from '../services/firebaseService';
 import PRSubmitModal from './PRSubmitModal';
 import {
@@ -80,6 +81,7 @@ const Ranking = ({ user, onBack }) => {
     const { students } = useGoogleSheets();
     const [tab, setTab] = useState('ranking'); // 'ranking' | 'mypr' | 'graph'
     const [allPRs, setAllPRs] = useState([]);
+    const [trainingLogExercises, setTrainingLogExercises] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showSubmitModal, setShowSubmitModal] = useState(false);
 
@@ -107,8 +109,12 @@ const Ranking = ({ user, onBack }) => {
     const loadAll = async () => {
         setLoading(true);
         try {
-            const data = await getAllPersonalBests();
+            const [data, exercises] = await Promise.all([
+                getAllPersonalBests(),
+                getAllExerciseNames()
+            ]);
             setAllPRs(data);
+            setTrainingLogExercises(exercises);
         } catch (err) {
             console.error('PR 로드 실패:', err);
         } finally {
@@ -118,11 +124,12 @@ const Ranking = ({ user, onBack }) => {
 
     useEffect(() => { loadAll(); }, []);
 
-    // 운동 제안 (PR 등록 폼 autocomplete용)
+    // 운동명 드롭다운 옵션: 훈련일지 운동 + 기존 PR 운동 병합 (중복 제거, 가나다 정렬)
     const exerciseSuggestions = useMemo(() => {
-        const set = new Set(allPRs.map(p => p.exercise).filter(Boolean));
-        return Array.from(set).sort();
-    }, [allPRs]);
+        const set = new Set(trainingLogExercises);
+        for (const p of allPRs) if (p.exercise) set.add(p.exercise);
+        return Array.from(set).sort((a, b) => a.localeCompare(b, 'ko'));
+    }, [allPRs, trainingLogExercises]);
 
     return (
         <div className="ranking-container">

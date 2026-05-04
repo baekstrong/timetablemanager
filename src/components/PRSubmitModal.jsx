@@ -14,9 +14,12 @@ const todayStr = () => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+const CUSTOM_EXERCISE_VALUE = '__custom__';
+
 const PRSubmitModal = ({ user, students, defaultStudent, exerciseSuggestions = [], onClose, onSubmitted }) => {
     const isCoach = user?.role === 'coach';
     const [studentName, setStudentName] = useState(defaultStudent || (isCoach ? '' : user.username));
+    const [exerciseSelect, setExerciseSelect] = useState('');
     const [exercise, setExercise] = useState('');
     const [prType, setPrType] = useState('oneRM');
     const [intensityValue, setIntensityValue] = useState('');
@@ -109,18 +112,33 @@ const PRSubmitModal = ({ user, students, defaultStudent, exerciseSuggestions = [
 
                 <div className="pr-form-row">
                     <label>운동명</label>
-                    <input
-                        type="text"
-                        value={exercise}
-                        onChange={(e) => setExercise(e.target.value)}
-                        placeholder="예: 벤치프레스"
-                        list="pr-exercise-list"
-                    />
-                    <datalist id="pr-exercise-list">
+                    <select
+                        value={exerciseSelect}
+                        onChange={(e) => {
+                            const v = e.target.value;
+                            setExerciseSelect(v);
+                            if (v === CUSTOM_EXERCISE_VALUE) {
+                                setExercise('');
+                            } else {
+                                setExercise(v);
+                            }
+                        }}
+                    >
+                        <option value="">선택하세요</option>
                         {exerciseSuggestions.map((ex) => (
-                            <option key={ex} value={ex} />
+                            <option key={ex} value={ex}>{ex}</option>
                         ))}
-                    </datalist>
+                        <option value={CUSTOM_EXERCISE_VALUE}>+ 직접 입력</option>
+                    </select>
+                    {exerciseSelect === CUSTOM_EXERCISE_VALUE && (
+                        <input
+                            type="text"
+                            value={exercise}
+                            onChange={(e) => setExercise(e.target.value)}
+                            placeholder="운동명 직접 입력"
+                            style={{ marginTop: '0.5rem' }}
+                        />
+                    )}
                 </div>
 
                 <div className="pr-form-row">
