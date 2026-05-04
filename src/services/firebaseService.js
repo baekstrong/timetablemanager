@@ -1205,6 +1205,36 @@ export const submitPersonalBest = async ({ userName, exercise, prType, intensity
 };
 
 /**
+ * PR 도큐먼트 삭제 (이력 포함 전체 제거)
+ */
+export const deletePersonalBest = async (docId) => {
+    return safeWrite(async () => {
+        if (!docId) throw new Error('docId가 필요합니다.');
+        await firestoreDeleteDoc(doc(db, 'personalBests', docId));
+        return { success: true };
+    });
+};
+
+/**
+ * PR best(최고기록) 직접 수정. history 배열은 그대로 두고 표시값과 메타만 갱신.
+ * @param fields { intensity?, reps?, date?, note? }
+ */
+export const updatePersonalBest = async (docId, fields) => {
+    return safeWrite(async () => {
+        if (!docId) throw new Error('docId가 필요합니다.');
+        const allowed = {};
+        if (fields.intensity !== undefined) allowed.intensity = fields.intensity;
+        if (fields.reps !== undefined) allowed.reps = fields.reps;
+        if (fields.date !== undefined) allowed.date = fields.date;
+        if (fields.note !== undefined) allowed.note = fields.note;
+        if (Object.keys(allowed).length === 0) return { success: true };
+        allowed.updatedAt = serverTimestamp();
+        await updateDoc(doc(db, 'personalBests', docId), allowed);
+        return { success: true };
+    });
+};
+
+/**
  * 특정 학생의 PR 전체 (내 PR 탭, 그래프 PR 마커용)
  */
 export const getPersonalBests = async (userName) => {

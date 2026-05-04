@@ -317,6 +317,16 @@
 
 .mypr-history-btn:hover { background: #f3f4f6; }
 
+.mypr-delete-btn {
+    color: #dc2626;
+    border-color: #fecaca;
+}
+
+.mypr-delete-btn:hover {
+    background: #fef2f2;
+    border-color: #fca5a5;
+}
+
 .mypr-card-note {
     margin-top: 0.5rem;
     font-size: 0.8rem;
