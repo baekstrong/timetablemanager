@@ -6,7 +6,9 @@ import {
     getAttendanceRanking,
     getRecordsByUserSince,
     getMonthlyAttendanceHistory,
-    getAllExerciseNames
+    getAllExerciseNames,
+    deletePersonalBest,
+    updatePersonalBest
 } from '../services/firebaseService';
 import PRSubmitModal from './PRSubmitModal';
 import {
@@ -87,13 +89,21 @@ const Ranking = ({ user, onBack }) => {
 
     const isCoach = user?.role === 'coach';
 
-    // 이름 → 성별 맵
+    // 이름 → 성별 맵 (Q열). 같은 학생이 여러 시트에 있을 수 있으므로 비어있지 않은 값을 우선
     const genderMap = useMemo(() => {
         const m = {};
+        const normalize = (g) => {
+            const t = (g || '').trim();
+            if (!t) return '';
+            if (t.startsWith('남')) return '남';
+            if (t.startsWith('여')) return '여';
+            return '';
+        };
         for (const s of (students || [])) {
-            const name = s['이름'];
-            const gender = s['성별'];
-            if (name) m[name] = gender || '';
+            const name = (s['이름'] || '').trim();
+            if (!name) continue;
+            const gender = normalize(s['성별']);
+            if (gender && !m[name]) m[name] = gender;
         }
         return m;
     }, [students]);
@@ -124,12 +134,8 @@ const Ranking = ({ user, onBack }) => {
 
     useEffect(() => { loadAll(); }, []);
 
-    // 운동명 드롭다운 옵션: 훈련일지 운동 + 기존 PR 운동 병합 (중복 제거, 가나다 정렬)
-    const exerciseSuggestions = useMemo(() => {
-        const set = new Set(trainingLogExercises);
-        for (const p of allPRs) if (p.exercise) set.add(p.exercise);
-        return Array.from(set).sort((a, b) => a.localeCompare(b, 'ko'));
-    }, [allPRs, trainingLogExercises]);
+    // 운동명 드롭다운 옵션: 코치가 관리하는 공식 운동 종목 목록 (이미 가나다 정렬)
+    const exerciseSuggestions = trainingLogExercises;
 
     return (
         <div className="ranking-container">
@@ -386,10 +392,21 @@ const AttendanceSection = ({ genderMap, genderFilter }) => {
 // 내 PR 탭
 // ============================================
 
-const MyPRTab = ({ user, allPRs, studentNames, onAddClick }) => {
+const MyPRTab = ({ user, allPRs, studentNames, onAddClick, onRefresh }) => {
     const isCoach = user?.role === 'coach';
     const [selectedStudent, setSelectedStudent] = useState(isCoach ? '' : user.username);
     const [historyModal, setHistoryModal] = useState(null);
+    const [editModal, setEditModal] = useState(null);
+
+    const handleDelete = async (pr) => {
+        if (!confirm(`'${pr.exercise}' (${formatPRValue(pr)}) 기록을 삭제하시겠습니까?\n이력도 모두 함께 사라집니다.`)) return;
+        try {
+            await deletePersonalBest(pr.id);
+            onRefresh?.();
+        } catch (err) {
+            alert(`삭제 실패: ${err.message}`);
+        }
+    };
 
     const targetName = isCoach ? selectedStudent : user.username;
     const myPRs = useMemo(() =>
@@ -454,6 +471,14 @@ const MyPRTab = ({ user, allPRs, studentNames, onAddClick }) => {
                                             className="mypr-history-btn"
                                             onClick={() => setHistoryModal(p)}
                                         >이력</button>
+                                        <button
+                                            className="mypr-history-btn"
+                                            onClick={() => setEditModal(p)}
+                                        >수정</button>
+                                        <button
+                                            className="mypr-history-btn mypr-delete-btn"
+                                            onClick={() => handleDelete(p)}
+                                        >삭제</button>
                                     </li>
                                 ))}
                             </ul>
@@ -468,6 +493,109 @@ const MyPRTab = ({ user, allPRs, studentNames, onAddClick }) => {
             {historyModal && (
                 <HistoryModal pr={historyModal} onClose={() => setHistoryModal(null)} />
             )}
+
+            {editModal && (
+                <PREditModal
+                    pr={editModal}
+                    onClose={() => setEditModal(null)}
+                    onSaved={() => {
+                        setEditModal(null);
+                        onRefresh?.();
+                    }}
+                />
+            )}
+        </div>
+    );
+};
+
+const PREditModal = ({ pr, onClose, onSaved }) => {
+    const [intensityValue, setIntensityValue] = useState(pr.intensity?.value ?? '');
+    const [intensityUnit] = useState(pr.intensity?.unit ?? 'kg');
+    const [repsValue, setRepsValue] = useState(pr.reps?.value ?? '');
+    const [date, setDate] = useState(pr.date || '');
+    const [note, setNote] = useState(pr.note || '');
+    const [saving, setSaving] = useState(false);
+
+    const showIntensity = pr.prType === 'oneRM' || pr.prType === 'weightThenReps';
+    const showReps = pr.prType !== 'oneRM';
+
+    const handleSave = async () => {
+        try {
+            setSaving(true);
+            const updates = {
+                intensity: showIntensity
+                    ? { value: intensityValue, unit: intensityUnit }
+                    : pr.intensity,
+                reps: showReps
+                    ? { value: repsValue, unit: pr.reps?.unit || (pr.prType === 'timeHold' ? '초' : '회') }
+                    : pr.reps,
+                date,
+                note: note.trim()
+            };
+            await updatePersonalBest(pr.id, updates);
+            onSaved?.();
+        } catch (err) {
+            alert(`수정 실패: ${err.message}`);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="pr-modal-overlay" onClick={onClose}>
+            <div className="pr-modal-content" onClick={(e) => e.stopPropagation()}>
+                <div className="pr-modal-header">
+                    <h2 className="pr-modal-title">{pr.exercise} 수정</h2>
+                    <button className="pr-modal-close" onClick={onClose}>×</button>
+                </div>
+
+                {showIntensity && (
+                    <div className="pr-form-row">
+                        <label>중량 ({intensityUnit})</label>
+                        <input
+                            type="number"
+                            value={intensityValue}
+                            onChange={(e) => setIntensityValue(e.target.value)}
+                        />
+                    </div>
+                )}
+
+                {showReps && (
+                    <div className="pr-form-row">
+                        <label>{pr.prType === 'timeHold' ? '시간 (초)' : '반복 횟수 (회)'}</label>
+                        <input
+                            type="number"
+                            value={repsValue}
+                            onChange={(e) => setRepsValue(e.target.value)}
+                        />
+                    </div>
+                )}
+
+                <div className="pr-form-row">
+                    <label>측정일</label>
+                    <input
+                        type="date"
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                    />
+                </div>
+
+                <div className="pr-form-row">
+                    <label>메모</label>
+                    <textarea
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        rows={2}
+                    />
+                </div>
+
+                <div className="pr-modal-actions">
+                    <button className="pr-btn-cancel" onClick={onClose} disabled={saving}>취소</button>
+                    <button className="pr-btn-submit" onClick={handleSave} disabled={saving}>
+                        {saving ? '저장 중…' : '저장'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

@@ -1205,6 +1205,36 @@ export const submitPersonalBest = async ({ userName, exercise, prType, intensity
 };
 
 /**
+ * PR 도큐먼트 삭제 (이력 포함 전체 제거)
+ */
+export const deletePersonalBest = async (docId) => {
+    return safeWrite(async () => {
+        if (!docId) throw new Error('docId가 필요합니다.');
+        await firestoreDeleteDoc(doc(db, 'personalBests', docId));
+        return { success: true };
+    });
+};
+
+/**
+ * PR best(최고기록) 직접 수정. history 배열은 그대로 두고 표시값과 메타만 갱신.
+ * @param fields { intensity?, reps?, date?, note? }
+ */
+export const updatePersonalBest = async (docId, fields) => {
+    return safeWrite(async () => {
+        if (!docId) throw new Error('docId가 필요합니다.');
+        const allowed = {};
+        if (fields.intensity !== undefined) allowed.intensity = fields.intensity;
+        if (fields.reps !== undefined) allowed.reps = fields.reps;
+        if (fields.date !== undefined) allowed.date = fields.date;
+        if (fields.note !== undefined) allowed.note = fields.note;
+        if (Object.keys(allowed).length === 0) return { success: true };
+        allowed.updatedAt = serverTimestamp();
+        await updateDoc(doc(db, 'personalBests', docId), allowed);
+        return { success: true };
+    });
+};
+
+/**
  * 특정 학생의 PR 전체 (내 PR 탭, 그래프 PR 마커용)
  */
 export const getPersonalBests = async (userName) => {
@@ -1239,15 +1269,15 @@ export const getMonthlyPRUpdaters = async (daysAgo = 30) => {
 };
 
 /**
- * 훈련일지 records 컬렉션에서 등장한 모든 운동 종목 이름 (중복 제거, 가나다 정렬)
- * PR 등록 폼의 운동명 드롭다운에 사용 — 사용자 입력 일관성 확보용.
+ * 코치가 훈련일지에서 관리하는 공식 운동 종목 목록 (`exercises` 컬렉션, name 가나다 정렬)
+ * PR 등록 폼의 운동명 드롭다운에 사용 — 일관된 종목명 강제용.
  */
 export const getAllExerciseNames = async () => {
     return safeRead([], async () => {
-        const records = await queryDocs('records');
+        const docs = await queryDocs('exercises');
         const set = new Set();
-        for (const r of records) {
-            const name = (r.exercise || '').trim();
+        for (const d of docs) {
+            const name = (d.name || '').trim();
             if (name) set.add(name);
         }
         return Array.from(set).sort((a, b) => a.localeCompare(b, 'ko'));

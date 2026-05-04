@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { submitPersonalBest } from '../services/firebaseService';
 import './PRSubmitModal.css';
 
@@ -14,13 +14,12 @@ const todayStr = () => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const CUSTOM_EXERCISE_VALUE = '__custom__';
-
 const PRSubmitModal = ({ user, students, defaultStudent, exerciseSuggestions = [], onClose, onSubmitted }) => {
     const isCoach = user?.role === 'coach';
     const [studentName, setStudentName] = useState(defaultStudent || (isCoach ? '' : user.username));
-    const [exerciseSelect, setExerciseSelect] = useState('');
     const [exercise, setExercise] = useState('');
+    const [exerciseFocused, setExerciseFocused] = useState(false);
+    const exerciseWrapRef = useRef(null);
     const [prType, setPrType] = useState('oneRM');
     const [intensityValue, setIntensityValue] = useState('');
     const [intensityUnit, setIntensityUnit] = useState('kg');
@@ -34,6 +33,22 @@ const PRSubmitModal = ({ user, students, defaultStudent, exerciseSuggestions = [
         else if (prType === 'bodyweightReps') setIntensityUnit('맨몸');
         else setIntensityUnit('kg');
     }, [prType]);
+
+    useEffect(() => {
+        const handler = (e) => {
+            if (exerciseWrapRef.current && !exerciseWrapRef.current.contains(e.target)) {
+                setExerciseFocused(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const filteredExerciseOptions = useMemo(() => {
+        const q = exercise.trim().toLowerCase();
+        if (!q) return exerciseSuggestions;
+        return exerciseSuggestions.filter((ex) => ex.toLowerCase().includes(q));
+    }, [exercise, exerciseSuggestions]);
 
     const handleSubmit = async () => {
         if (!studentName) { alert('학생을 선택해주세요.'); return; }
@@ -112,33 +127,36 @@ const PRSubmitModal = ({ user, students, defaultStudent, exerciseSuggestions = [
 
                 <div className="pr-form-row">
                     <label>운동명</label>
-                    <select
-                        value={exerciseSelect}
-                        onChange={(e) => {
-                            const v = e.target.value;
-                            setExerciseSelect(v);
-                            if (v === CUSTOM_EXERCISE_VALUE) {
-                                setExercise('');
-                            } else {
-                                setExercise(v);
-                            }
-                        }}
-                    >
-                        <option value="">선택하세요</option>
-                        {exerciseSuggestions.map((ex) => (
-                            <option key={ex} value={ex}>{ex}</option>
-                        ))}
-                        <option value={CUSTOM_EXERCISE_VALUE}>+ 직접 입력</option>
-                    </select>
-                    {exerciseSelect === CUSTOM_EXERCISE_VALUE && (
+                    <div className="pr-combobox" ref={exerciseWrapRef}>
                         <input
                             type="text"
                             value={exercise}
-                            onChange={(e) => setExercise(e.target.value)}
-                            placeholder="운동명 직접 입력"
-                            style={{ marginTop: '0.5rem' }}
+                            onChange={(e) => {
+                                setExercise(e.target.value);
+                                setExerciseFocused(true);
+                            }}
+                            onFocus={() => setExerciseFocused(true)}
+                            placeholder="운동명 검색 (예: 벤치프레스)"
+                            autoComplete="off"
                         />
-                    )}
+                        {exerciseFocused && filteredExerciseOptions.length > 0 && (
+                            <ul className="pr-combobox-list">
+                                {filteredExerciseOptions.map((ex) => (
+                                    <li
+                                        key={ex}
+                                        className="pr-combobox-item"
+                                        onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            setExercise(ex);
+                                            setExerciseFocused(false);
+                                        }}
+                                    >
+                                        {ex}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
                 </div>
 
                 <div className="pr-form-row">
