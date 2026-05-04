@@ -1239,6 +1239,22 @@ export const getMonthlyPRUpdaters = async (daysAgo = 30) => {
 };
 
 /**
+ * 훈련일지 records 컬렉션에서 등장한 모든 운동 종목 이름 (중복 제거, 가나다 정렬)
+ * PR 등록 폼의 운동명 드롭다운에 사용 — 사용자 입력 일관성 확보용.
+ */
+export const getAllExerciseNames = async () => {
+    return safeRead([], async () => {
+        const records = await queryDocs('records');
+        const set = new Set();
+        for (const r of records) {
+            const name = (r.exercise || '').trim();
+            if (name) set.add(name);
+        }
+        return Array.from(set).sort((a, b) => a.localeCompare(b, 'ko'));
+    });
+};
+
+/**
  * 그래프용: 특정 학생의 일상 훈련 기록 (시계열)
  * 복합 인덱스 회피를 위해 userName으로만 쿼리하고 date는 클라이언트에서 필터.
  * 정확 일치 0건이면 sinceDate 이후 records를 fetch해서 trim/대소문자 무시 매칭으로 폴백.
