@@ -124,12 +124,8 @@ const Ranking = ({ user, onBack }) => {
 
     useEffect(() => { loadAll(); }, []);
 
-    // 운동명 드롭다운 옵션: 훈련일지 운동 + 기존 PR 운동 병합 (중복 제거, 가나다 정렬)
-    const exerciseSuggestions = useMemo(() => {
-        const set = new Set(trainingLogExercises);
-        for (const p of allPRs) if (p.exercise) set.add(p.exercise);
-        return Array.from(set).sort((a, b) => a.localeCompare(b, 'ko'));
-    }, [allPRs, trainingLogExercises]);
+    // 운동명 드롭다운 옵션: 코치가 관리하는 공식 운동 종목 목록 (이미 가나다 정렬)
+    const exerciseSuggestions = trainingLogExercises;
 
     return (
         <div className="ranking-container">
