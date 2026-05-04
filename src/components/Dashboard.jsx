@@ -44,17 +44,27 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     // 이달의 PR 갱신자 미리보기
     const [recentPRs, setRecentPRs] = useState([]);
 
-    // 이달의 PR 미리보기 (코치/학생 공통)
+    // 이달의 PR 미리보기 (코치/학생 공통) — 전체 목록을 받아 배너에서 슬라이드 회전
     useEffect(() => {
         (async () => {
             try {
                 const data = await getMonthlyPRUpdaters(30);
-                setRecentPRs(data.slice(0, 3));
+                setRecentPRs(data);
             } catch (err) {
                 console.error('이달의 PR 로드 실패:', err);
             }
         })();
     }, [user]);
+
+    // 배너 인덱스 (3.5초마다 자동 전환)
+    const [prBannerIndex, setPrBannerIndex] = useState(0);
+    useEffect(() => {
+        if (recentPRs.length <= 1) { setPrBannerIndex(0); return; }
+        const id = setInterval(() => {
+            setPrBannerIndex((i) => (i + 1) % recentPRs.length);
+        }, 3500);
+        return () => clearInterval(id);
+    }, [recentPRs.length]);
 
     useEffect(() => {
         if (user.role === 'coach') return;
@@ -512,18 +522,43 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                     }}
                 >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: recentPRs.length ? '8px' : 0 }}>
-                        <span style={{ fontWeight: 700, color: '#3730a3', fontSize: '0.95rem' }}>🏆 이달의 PR</span>
+                        <span style={{ fontWeight: 700, color: '#3730a3', fontSize: '0.95rem' }}>
+                            🏆 이달의 PR
+                            {recentPRs.length > 1 && (
+                                <span style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: 500, marginLeft: '6px' }}>
+                                    {prBannerIndex + 1}/{recentPRs.length}
+                                </span>
+                            )}
+                        </span>
                         <span style={{ fontSize: '0.8rem', color: '#6366f1' }}>랭킹 보기 ›</span>
                     </div>
                     {recentPRs.length === 0 ? (
                         <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>최근 30일 갱신된 PR이 없습니다.</div>
                     ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            {recentPRs.map((p) => (
-                                <div key={p.id} style={{ fontSize: '0.85rem', color: '#3730a3' }}>
-                                    <strong>{p.userName}</strong> — {p.exercise} {formatPRSummary(p)} <span style={{ color: '#9ca3af' }}>{p.date}</span>
-                                </div>
-                            ))}
+                        <div style={{ overflow: 'hidden', position: 'relative' }}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    transform: `translateX(-${prBannerIndex * 100}%)`,
+                                    transition: 'transform 0.5s ease'
+                                }}
+                            >
+                                {recentPRs.map((p) => (
+                                    <div
+                                        key={p.id}
+                                        style={{
+                                            flex: '0 0 100%',
+                                            fontSize: '0.85rem',
+                                            color: '#3730a3',
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis'
+                                        }}
+                                    >
+                                        <strong>{p.userName}</strong> — {p.exercise} {formatPRSummary(p)} <span style={{ color: '#9ca3af' }}>{p.date}</span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>
