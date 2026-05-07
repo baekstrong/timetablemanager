@@ -228,7 +228,7 @@ function pickActiveRowIndex(rows, headers, indices) {
  * @param {Date} [referenceDate] - 이 날짜가 수강 기간에 포함된 등록을 우선 선택
  * @returns {Promise<{foundSheetName, rows, headers, studentIndex, nextRegistrationIndex}>}
  */
-async function findStudentInSheets(studentName, primarySheetName = null, referenceDate = new Date()) {
+async function findStudentInSheets(studentName, primarySheetName = null, referenceDate = new Date(), preferred = null) {
   const primary = primarySheetName || getCurrentSheetName();
 
   // 모든 시트에서 매치 수집
@@ -283,19 +283,43 @@ async function findStudentInSheets(studentName, primarySheetName = null, referen
   targetDate.setHours(0, 0, 0, 0);
 
   let activeIdx = -1;
-  for (let i = 0; i < allCandidates.length; i++) {
-    const { startDate, endDate } = allCandidates[i];
-    if (startDate && endDate) {
-      const s = new Date(startDate); s.setHours(0, 0, 0, 0);
-      const e = new Date(endDate); e.setHours(0, 0, 0, 0);
-      if (targetDate >= s && targetDate <= e) {
-        activeIdx = i;
-        break;
+
+  // 호출 측이 명시한 행이 있으면 최우선 사용 (UI가 이미 active로 보고 있는 행과 정확히 일치 보장)
+  // preferred.rowIndex는 parseStudentData의 _rowIndex 포맷 (data-relative, 0 = 첫 데이터 행)
+  // → rows 배열 인덱스로 변환하려면 +2 (헤더 2줄)
+  if (preferred && preferred.sheetName && preferred.rowIndex !== undefined && preferred.rowIndex !== null) {
+    const preferredRowsIdx = preferred.rowIndex + 2;
+    activeIdx = allCandidates.findIndex(c =>
+      c.sheetName === preferred.sheetName && c.rowIndex === preferredRowsIdx
+    );
+    if (activeIdx === -1) {
+      console.warn(`⚠️ preferred row 매칭 실패 (${preferred.sheetName} row ${preferredRowsIdx}) — 자동 선택으로 fallback`);
+    }
+  }
+
+  if (activeIdx === -1) {
+    for (let i = 0; i < allCandidates.length; i++) {
+      const { startDate, endDate } = allCandidates[i];
+      if (startDate && endDate) {
+        const s = new Date(startDate); s.setHours(0, 0, 0, 0);
+        const e = new Date(endDate); e.setHours(0, 0, 0, 0);
+        if (targetDate >= s && targetDate <= e) {
+          activeIdx = i;
+          break;
+        }
       }
     }
   }
 
-  if (activeIdx === -1) activeIdx = 0; // 못 찾으면 첫 번째 (가장 이른 시작일)
+  // 활성 등록 못 찾으면: 미래 등록 우선(가장 가까운 미래) → 그것도 없으면 가장 최근(latest)
+  // (getAllStudentsFromAllSheets의 dedup 로직과 동일하게 맞춰 UI/쓰기 행 불일치 방지)
+  if (activeIdx === -1) {
+    for (let i = 0; i < allCandidates.length; i++) {
+      const s = allCandidates[i].startDate;
+      if (s && s > targetDate) { activeIdx = i; break; }
+    }
+    if (activeIdx === -1) activeIdx = allCandidates.length - 1;
+  }
 
   const active = allCandidates[activeIdx];
 
@@ -2082,27 +2106,124 @@ export const processHolidayMakeupEndDate = async (studentName, countedHolidayDat
  * @param {Array} firebaseHolidays - 커스텀 공휴일
  * @returns {Promise<Object>}
  */
-export const processScheduleTransfer = async (studentName, newScheduleStr, firebaseHolidays = []) => {
+/**
+ * 주어진 기준일 이후(포함) 첫 수업 가능 일자 (스케줄 요일 매칭 + 공휴일 제외)
+ */
+function firstClassDayAtOrAfter(refDate, scheduleStr, firebaseHolidays = []) {
+  const classDays = getClassDays(scheduleStr);
+  if (classDays.length === 0) return null;
+  const d = new Date(refDate);
+  d.setHours(0, 0, 0, 0);
+  let max = 60;
+  while (max-- > 0) {
+    if (classDays.includes(d.getDay()) && !isHolidayDate(d, firebaseHolidays)) return new Date(d);
+    d.setDate(d.getDate() + 1);
+  }
+  return null;
+}
+
+/**
+ * 다음 등록(미리 등록)에 새 스케줄을 적용 — D/G/H열 모두 갱신
+ */
+async function applyNewScheduleToNextRegistration(sheetName, rows, headers, nextRowIndex, newScheduleStr, currentEndDate, firebaseHolidays = []) {
+  const nextRow = rows[nextRowIndex];
+  const nextData = buildStudentObject(headers, nextRow);
+
+  const nextWeeklyFreq = parseInt(getStudentField(nextData, '주횟수')) || 2;
+  const nextHoldingStatus = parseHoldingStatus(getStudentField(nextData, '홀딩 사용여부'));
+  const nextTotalSessions = getTotalSessions(nextWeeklyFreq, nextHoldingStatus);
+
+  // 새 시작일 = 현재 등록의 새 종료일 다음 날부터, 새 스케줄의 첫 수업일
+  const dayAfterEnd = new Date(currentEndDate);
+  dayAfterEnd.setDate(dayAfterEnd.getDate() + 1);
+  const newNextStart = firstClassDayAtOrAfter(dayAfterEnd, newScheduleStr, firebaseHolidays);
+  if (!newNextStart) {
+    console.warn('⚠️ 다음 등록 시작일 계산 실패 (새 스케줄)');
+    return;
+  }
+
+  const newNextEnd = calculateEndDate(newNextStart, nextTotalSessions, newScheduleStr, null, firebaseHolidays);
+  if (!newNextEnd) {
+    console.warn('⚠️ 다음 등록 종료일 계산 실패');
+    return;
+  }
+
+  const scheduleCol = findColumnIndex(headers, '요일 및 시간');
+  const startDateCol = findColumnIndex(headers, '시작날짜');
+  const endDateCol = findColumnIndex(headers, '종료날짜');
+
+  const updates = [];
+  if (scheduleCol !== -1) {
+    updates.push({
+      range: `${sheetName}!${getColumnLetter(scheduleCol)}${nextRowIndex + 1}`,
+      values: [[newScheduleStr]]
+    });
+  }
+  if (startDateCol !== -1) {
+    updates.push({
+      range: `${sheetName}!${getColumnLetter(startDateCol)}${nextRowIndex + 1}`,
+      values: [[formatDateToYYMMDD(newNextStart)]]
+    });
+  }
+  if (endDateCol !== -1) {
+    updates.push({
+      range: `${sheetName}!${getColumnLetter(endDateCol)}${nextRowIndex + 1}`,
+      values: [[formatDateToYYMMDD(newNextEnd)]]
+    });
+  }
+
+  if (updates.length > 0) {
+    await batchUpdateSheet(updates);
+    try {
+      const cells = updates.map(u => u.range.split('!')[1]);
+      await highlightCells(cells, sheetName);
+    } catch (e) { /* 무시 */ }
+    console.log(`📅 다음 등록 새 스케줄 적용: D=${newScheduleStr}, G=${formatDateToYYMMDD(newNextStart)}, H=${formatDateToYYMMDD(newNextEnd)}`);
+  }
+}
+
+/**
+ * 시간표 영구 변경 처리
+ * - 활성 등록 행: D열 + H열 갱신. 시작 전(미래) 등록이면 G열도 새 스케줄의 첫 수업일로 이동.
+ * - 다음 등록(미리 등록) 행이 있으면 D/G/H 모두 새 스케줄로 갱신.
+ *
+ * @param {string} studentName
+ * @param {string} newScheduleStr - 예: "화2금4"
+ * @param {Array} firebaseHolidays - 커스텀 공휴일
+ * @param {Object} [options]
+ * @param {string} [options.preferredSheetName] - UI가 active로 보고 있는 행의 시트명 (불일치 방지용)
+ * @param {number} [options.preferredRowIndex] - parseStudentData 기준 _rowIndex (data-relative)
+ * @returns {Promise<Object>}
+ */
+export const processScheduleTransfer = async (studentName, newScheduleStr, firebaseHolidays = [], options = {}) => {
   if (!newScheduleStr) {
     throw new Error('새 시간표가 비어있습니다.');
   }
 
   console.log(`🔄 시간표 이동 처리 시작: ${studentName}, new=${newScheduleStr}`);
 
+  const preferred = (options.preferredSheetName && options.preferredRowIndex !== undefined && options.preferredRowIndex !== null)
+    ? { sheetName: options.preferredSheetName, rowIndex: options.preferredRowIndex }
+    : null;
+
   const { foundSheetName, rows, headers, studentIndex, nextRegistrationIndex, nextSheetName, nextRows, nextHeaders } =
-    await findStudentInSheets(studentName);
+    await findStudentInSheets(studentName, null, new Date(), preferred);
 
   const studentRow = rows[studentIndex];
   const studentData = buildStudentObject(headers, studentRow);
 
   const scheduleCol = findColumnIndex(headers, '요일 및 시간');
+  const startDateCol = findColumnIndex(headers, '시작날짜');
   const endDateCol = findColumnIndex(headers, '종료날짜');
 
   if (scheduleCol === -1) {
     throw new Error('요일 및 시간 필드를 찾을 수 없습니다.');
   }
 
-  const membershipStartDate = parseSheetDate(getStudentField(studentData, '시작날짜'));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const originalStart = parseSheetDate(getStudentField(studentData, '시작날짜'));
   const weeklyFrequency = parseInt(getStudentField(studentData, '주횟수')) || 2;
   const holdingStatusStr = getStudentField(studentData, '홀딩 사용여부');
   const holdingInfo = parseHoldingStatus(holdingStatusStr);
@@ -2116,16 +2237,32 @@ export const processScheduleTransfer = async (studentName, newScheduleStr, fireb
     holdingRanges.push({ start: existHoldStart, end: existHoldEnd });
   }
 
-  const newEndDate = calculateEndDate(membershipStartDate, totalSessions, newScheduleStr, holdingRanges, firebaseHolidays);
+  // 미래 등록(시작 전)이면 시작일을 새 스케줄의 첫 수업일로 이동. 진행 중이면 시작일 유지.
+  let activeStart = originalStart;
+  if (originalStart && originalStart > today) {
+    const shifted = firstClassDayAtOrAfter(originalStart, newScheduleStr, firebaseHolidays);
+    if (shifted) activeStart = shifted;
+  }
+
+  if (!activeStart) {
+    throw new Error('시작날짜를 확인할 수 없습니다.');
+  }
+
+  const newEndDate = calculateEndDate(activeStart, totalSessions, newScheduleStr, holdingRanges, firebaseHolidays);
   if (!newEndDate) {
     throw new Error('종료일 계산에 실패했습니다.');
   }
 
   const newEndDateStr = formatDateToYYMMDD(newEndDate);
+  const newStartDateStr = formatDateToYYMMDD(activeStart);
+  const startChanged = originalStart && activeStart && originalStart.getTime() !== activeStart.getTime();
 
   const updates = [
     { range: `${foundSheetName}!${getColumnLetter(scheduleCol)}${studentIndex + 1}`, values: [[newScheduleStr]] },
   ];
+  if (startChanged && startDateCol !== -1) {
+    updates.push({ range: `${foundSheetName}!${getColumnLetter(startDateCol)}${studentIndex + 1}`, values: [[newStartDateStr]] });
+  }
   if (endDateCol !== -1) {
     updates.push({ range: `${foundSheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`, values: [[newEndDateStr]] });
   }
@@ -2137,18 +2274,18 @@ export const processScheduleTransfer = async (studentName, newScheduleStr, fireb
     await highlightCells(cells, foundSheetName);
   } catch (e) { /* 무시 */ }
 
-  // 다음 등록(미리 등록) 자동 조정
-  if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
+  // 다음 등록(미리 등록)에도 새 스케줄 적용 (D + G + H 모두)
+  if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined && nextRegistrationIndex !== null) {
     try {
       const nSheet = nextSheetName || foundSheetName;
-      const nRows = nextRows || rows;
-      const nHeaders = nextHeaders || headers;
-      await adjustNextRegistration(nSheet, nRows, nHeaders, nextRegistrationIndex, newEndDate, firebaseHolidays);
+      const nRows = nextSheetName ? nextRows : rows;
+      const nHeaders = nextSheetName ? nextHeaders : headers;
+      await applyNewScheduleToNextRegistration(nSheet, nRows, nHeaders, nextRegistrationIndex, newScheduleStr, newEndDate, firebaseHolidays);
     } catch (adjustError) {
       console.warn('⚠️ 다음 등록 자동 조정 실패:', adjustError);
     }
   }
 
-  console.log(`✅ 시간표 이동 처리 완료: ${studentName}, 새 종료일=${newEndDateStr}`);
-  return { success: true, newSchedule: newScheduleStr, newEndDate: newEndDateStr };
+  console.log(`✅ 시간표 이동 처리 완료: ${studentName}, 시작${startChanged ? '=' + newStartDateStr : ' 유지'}, 종료=${newEndDateStr}`);
+  return { success: true, newSchedule: newScheduleStr, newStartDate: newStartDateStr, newEndDate: newEndDateStr, startChanged };
 };

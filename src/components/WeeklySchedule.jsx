@@ -56,6 +56,15 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
     // Manual refresh state
     const [isRefreshing, setIsRefreshing] = useState(false);
 
+    // 시간표 변경(직접 이동) 처리 중 플래그 — 화면 이탈 방지 + 로딩 UI
+    const [isTransferring, setIsTransferring] = useState(false);
+    useEffect(() => {
+        if (!isTransferring) return;
+        const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
+    }, [isTransferring]);
+
     // ── Data loading effects ──
 
     useEffect(() => {
@@ -156,7 +165,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
     }
 
     async function handleDirectTransfer(studentName, currentSlot) {
-        if (!waitlistDesiredSlot) return;
+        if (!waitlistDesiredSlot || isTransferring) return;
         const period = PERIODS.find(p => p.id === waitlistDesiredSlot.period);
         if (!confirm(
             `시간표를 이동하시겠습니까?\n\n` +
@@ -164,6 +173,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             `※ 영구적으로 시간표가 변경됩니다.`
         )) return;
 
+        setIsTransferring(true);
         try {
             const studentEntry = students.find(s => s['이름'] === studentName && s['요일 및 시간']);
             if (!studentEntry) {
@@ -175,8 +185,12 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             const newSchedule = buildUpdatedSchedule(currentSchedule, currentSlot, waitlistDesiredSlot);
 
             // D열(요일 및 시간) + H열(종료날짜) 동시 업데이트 — 스케줄 바뀌면 수업일 달라지므로 종료일 재계산 필요
+            // 미래 등록 행이면 G열(시작날짜)도 자동 이동, 다음 등록(미리 등록)이 있으면 그쪽도 동일 적용
             const firebaseHolidays = await getHolidays().catch(() => []);
-            const result = await processScheduleTransfer(studentName, newSchedule, firebaseHolidays);
+            const result = await processScheduleTransfer(studentName, newSchedule, firebaseHolidays, {
+                preferredSheetName: studentEntry._foundSheetName,
+                preferredRowIndex: studentEntry._rowIndex,
+            });
 
             alert(`시간표 이동 완료!\n${studentName}: ${currentSchedule} → ${newSchedule}\n새 종료일: ${result.newEndDate}`);
             closeWaitlistModal();
@@ -185,6 +199,8 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         } catch (error) {
             alert(`시간표 이동 실패: ${error.message}`);
             console.error('시간표 이동 실패:', error);
+        } finally {
+            setIsTransferring(false);
         }
     }
 
@@ -263,6 +279,25 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
     return (
         <div className={`schedule-container mode-${mode}`}>
+            {isTransferring && (
+                <div style={{
+                    position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <div style={{
+                        backgroundColor: '#fff', padding: '24px 32px', borderRadius: '12px',
+                        textAlign: 'center', maxWidth: '320px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+                    }}>
+                        <div className="loading-spinner" style={{ margin: '0 auto 16px' }} />
+                        <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#111827', marginBottom: '8px' }}>
+                            시간표를 변경하고 있습니다
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: '#6b7280', lineHeight: '1.5' }}>
+                            처리가 끝날 때까지<br/>화면을 닫지 말고 잠시 기다려주세요.
+                        </div>
+                    </div>
+                </div>
+            )}
             <div className="schedule-page-header">
                 <h1 className="schedule-page-title">
                     {pageTitle}
