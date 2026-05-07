@@ -39,6 +39,19 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
 
     // 수강생 대기 신청 목록
     const [studentWaitlist, setStudentWaitlist] = useState([]);
+    // 시간표 변경 처리 중인 대기 ID (로딩 표시용)
+    const [waitlistProcessingId, setWaitlistProcessingId] = useState(null);
+
+    // 시간표 변경 처리 중 화면 이탈 방지 (탭 닫기/새로고침 경고)
+    useEffect(() => {
+        if (!waitlistProcessingId) return;
+        const handler = (e) => {
+            e.preventDefault();
+            e.returnValue = '';
+        };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
+    }, [waitlistProcessingId]);
     // 수강생 재등록 계약
     const [pendingContract, setPendingContract] = useState(null);
     // 이달의 PR 갱신자 미리보기
@@ -223,6 +236,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
 
     // 대기 수락 (시간표 영구 변경)
     const handleWaitlistAccept = async (waitlistItem) => {
+        if (waitlistProcessingId) return; // 중복 클릭 방지
         const { currentSlot, desiredSlot } = waitlistItem;
         if (!confirm(
             `${desiredSlot.day}요일 ${desiredSlot.periodName}에 자리가 났습니다!\n\n` +
@@ -231,6 +245,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             `※ 영구적으로 시간표가 변경됩니다.`
         )) return;
 
+        setWaitlistProcessingId(waitlistItem.id);
         try {
             const studentEntry = students.find(s => s['이름'] === user.username && s['요일 및 시간']);
             if (!studentEntry) {
@@ -242,7 +257,10 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             const newSchedule = buildUpdatedSchedule(currentSchedule, currentSlot, desiredSlot);
 
             const firebaseHolidays = await getHolidays().catch(() => []);
-            const result = await processScheduleTransfer(user.username, newSchedule, firebaseHolidays);
+            const result = await processScheduleTransfer(user.username, newSchedule, firebaseHolidays, {
+                preferredSheetName: studentEntry._foundSheetName,
+                preferredRowIndex: studentEntry._rowIndex,
+            });
             await acceptWaitlistRequest(waitlistItem.id);
 
             alert(`시간표 변경 완료!\n${currentSchedule} → ${newSchedule}\n새 종료일: ${result.newEndDate}`);
@@ -252,11 +270,50 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         } catch (error) {
             alert(`시간표 변경 실패: ${error.message}`);
             console.error('시간표 변경 실패:', error);
+        } finally {
+            setWaitlistProcessingId(null);
         }
     };
 
     return (
         <div className="dashboard-container">
+            {waitlistProcessingId && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    zIndex: 9999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                }}>
+                    <div style={{
+                        backgroundColor: '#fff',
+                        padding: '24px 32px',
+                        borderRadius: '12px',
+                        textAlign: 'center',
+                        maxWidth: '320px',
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+                    }}>
+                        <div style={{
+                            display: 'inline-block',
+                            width: '40px',
+                            height: '40px',
+                            border: '4px solid #e5e7eb',
+                            borderTopColor: '#22c55e',
+                            borderRadius: '50%',
+                            animation: 'spin 0.8s linear infinite',
+                            marginBottom: '16px',
+                        }} />
+                        <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#111827', marginBottom: '8px' }}>
+                            시간표를 변경하고 있습니다
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: '#6b7280', lineHeight: '1.5' }}>
+                            처리가 끝날 때까지<br/>화면을 닫지 말고 잠시 기다려주세요.
+                        </div>
+                    </div>
+                </div>
+            )}
             <div className="dashboard-background">
                 <div className="gradient-orb orb-1"></div>
                 <div className="gradient-orb orb-2"></div>
@@ -477,39 +534,62 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                     )}
                                 </div>
                                 <div style={{ display: 'flex', gap: '6px' }}>
-                                    {w.status === 'notified' && (
-                                        <>
-                                            <button
-                                                onClick={() => handleWaitlistAccept(w)}
-                                                style={{
-                                                    padding: '4px 10px',
-                                                    fontSize: '0.8rem',
-                                                    backgroundColor: '#22c55e',
-                                                    color: '#fff',
-                                                    border: 'none',
-                                                    borderRadius: '4px',
-                                                    cursor: 'pointer',
-                                                    fontWeight: 'bold'
-                                                }}
-                                            >승인</button>
-                                            <button
-                                                onClick={() => handleWaitlistCancel(w.id)}
-                                                style={{
-                                                    padding: '4px 8px',
-                                                    fontSize: '0.8rem',
-                                                    backgroundColor: '#fee2e2',
-                                                    color: '#dc2626',
-                                                    border: '1px solid #dc2626',
-                                                    borderRadius: '4px',
-                                                    cursor: 'pointer',
-                                                    fontWeight: 'bold'
-                                                }}
-                                            >거절</button>
-                                        </>
-                                    )}
+                                    {w.status === 'notified' && (() => {
+                                        const isProcessing = waitlistProcessingId === w.id;
+                                        const isAnyProcessing = waitlistProcessingId !== null;
+                                        return (
+                                            <>
+                                                <button
+                                                    onClick={() => handleWaitlistAccept(w)}
+                                                    disabled={isAnyProcessing}
+                                                    style={{
+                                                        padding: '4px 10px',
+                                                        fontSize: '0.8rem',
+                                                        backgroundColor: isProcessing ? '#86efac' : (isAnyProcessing ? '#d1d5db' : '#22c55e'),
+                                                        color: '#fff',
+                                                        border: 'none',
+                                                        borderRadius: '4px',
+                                                        cursor: isAnyProcessing ? 'not-allowed' : 'pointer',
+                                                        fontWeight: 'bold',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                    }}
+                                                >
+                                                    {isProcessing && (
+                                                        <span style={{
+                                                            display: 'inline-block',
+                                                            width: '10px',
+                                                            height: '10px',
+                                                            border: '2px solid #fff',
+                                                            borderTopColor: 'transparent',
+                                                            borderRadius: '50%',
+                                                            animation: 'spin 0.8s linear infinite'
+                                                        }} />
+                                                    )}
+                                                    {isProcessing ? '변경 중...' : '승인'}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleWaitlistCancel(w.id)}
+                                                    disabled={isAnyProcessing}
+                                                    style={{
+                                                        padding: '4px 8px',
+                                                        fontSize: '0.8rem',
+                                                        backgroundColor: '#fee2e2',
+                                                        color: isAnyProcessing ? '#9ca3af' : '#dc2626',
+                                                        border: `1px solid ${isAnyProcessing ? '#d1d5db' : '#dc2626'}`,
+                                                        borderRadius: '4px',
+                                                        cursor: isAnyProcessing ? 'not-allowed' : 'pointer',
+                                                        fontWeight: 'bold'
+                                                    }}
+                                                >거절</button>
+                                            </>
+                                        );
+                                    })()}
                                     {w.status === 'waiting' && (
                                         <button
                                             onClick={() => handleWaitlistCancel(w.id)}
+                                            disabled={waitlistProcessingId !== null}
                                             style={{
                                                 padding: '4px 8px',
                                                 fontSize: '0.8rem',
@@ -517,7 +597,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                                 color: '#b45309',
                                                 border: '1px solid #d97706',
                                                 borderRadius: '4px',
-                                                cursor: 'pointer'
+                                                cursor: waitlistProcessingId !== null ? 'not-allowed' : 'pointer',
+                                                opacity: waitlistProcessingId !== null ? 0.5 : 1
                                             }}
                                         >취소</button>
                                     )}
