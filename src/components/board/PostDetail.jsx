@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPost, toggleLike, updatePost, deletePost, getComments, createComment, updateComment, deleteComment, toggleCommentLike } from '../../services/firebaseService';
 import { CATEGORY_MAP, POST_LIMITS } from '../../data/boardConstants';
 import { uploadToCloudinary } from '../../services/cloudinaryService';
+import { linkifyText } from '../../utils/linkify';
 import CommentItem from './CommentItem';
 
 const formatDate = (timestamp) => {
@@ -277,7 +278,7 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                     className="post-detail-content"
                     style={{ whiteSpace: 'pre-wrap' }}
                 >
-                    {post.content}
+                    {linkifyText(post.content)}
                 </div>
 
                 {/* 이미지 표시 */}

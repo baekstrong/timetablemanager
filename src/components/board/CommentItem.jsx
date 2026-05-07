@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { POST_LIMITS } from '../../data/boardConstants';
 import { uploadToCloudinary } from '../../services/cloudinaryService';
+import { linkifyText } from '../../utils/linkify';
 
 const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, replies = [], repliesByParent = {}, depth = 0 }) => {
     if (!comment) return null;
@@ -234,7 +235,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                     </div>
                 ) : (
                     <>
-                        <div className="comment-content">{comment.content}</div>
+                        <div className="comment-content">{linkifyText(comment.content)}</div>
                         {comment.image && (
                             <img
                                 src={comment.image.url}
