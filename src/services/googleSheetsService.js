@@ -958,9 +958,44 @@ export const findStudentAcrossSheets = async (studentName) => {
     }
   });
 
+  // ±2개월 안에서 못 찾으면 전체 시트로 폴백 (재등록 행이 오래된 시트에 남아있는 케이스 커버)
   if (allMatches.length === 0) {
-    console.warn(`❌ Student "${studentName}" not found in any sheet`);
-    return null;
+    console.warn(`⚠️ Student "${studentName}" not in ±2 months — falling back to full-sheet scan`);
+    try {
+      const allSheets = await getAllSheetNames();
+      const studentSheets = allSheets
+        .filter(name => name.startsWith('등록생 목록('))
+        .filter(name => !searchMonths.some(({ year, month }) => getSheetNameByYearMonth(year, month) === name));
+
+      const fallbackResults = await Promise.allSettled(
+        studentSheets.map(async (foundSheetName) => {
+          const match = foundSheetName.match(/등록생 목록\((\d+)년(\d+)월\)/);
+          if (!match) return [];
+          const year = parseInt(match[1]) + 2000;
+          const month = parseInt(match[2]);
+          const students = await getAllStudents(year, month);
+          const matches = students.filter(s => s['이름'] === studentName);
+          return matches.map(student => {
+            student._foundSheetName = foundSheetName;
+            return { student, year, month, foundSheetName };
+          });
+        })
+      );
+
+      fallbackResults.forEach(result => {
+        if (result.status === 'fulfilled') {
+          allMatches.push(...result.value);
+        }
+      });
+    } catch (err) {
+      console.warn('전체 시트 폴백 검색 실패:', err);
+    }
+
+    if (allMatches.length === 0) {
+      console.warn(`❌ Student "${studentName}" not found in any sheet`);
+      return null;
+    }
+    console.log(`✅ 폴백 검색으로 "${studentName}" 찾음 (${allMatches.length}건)`);
   }
 
   if (allMatches.length === 1) {
