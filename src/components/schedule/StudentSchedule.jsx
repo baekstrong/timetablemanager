@@ -133,6 +133,12 @@ export default function StudentSchedule({
             return;
         }
 
+        // 본인이 이 날짜 홀딩 중이면 보강 관련 클릭 전부 차단 (강제 모드에선 우회)
+        if (!forceMode && isMyHoldingDate?.(date)) {
+            alert('홀딩 기간 중에는 보강 신청을 할 수 없습니다.\n홀딩이 끝난 뒤 신청해주세요.');
+            return;
+        }
+
         // 주횟수와 무관하게 당주 최대 1회까지 보강 신청 (취소 내역도 소진으로 간주)
         if (!forceMode && myWeekMakeupHistory.length >= 1) {
             alert('보강은 주 1회만 신청 가능합니다.\n이번 주 보강 신청 내역(취소 포함)이 있어 추가 신청이 불가합니다.');
@@ -445,6 +451,33 @@ export default function StudentSchedule({
                 </div>
             )}
 
+            {/* Active makeup banners (시간표 위에 노출하여 취소 버튼을 쉽게 찾도록) */}
+            {isRealStudent && activeMakeupRequests.length > 0 && (
+                <div className="active-makeup-banner">
+                    <div className="banner-header" style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#666' }}>
+                        🔄 이번 주 보강 ({activeMakeupRequests.length}/1개)
+                    </div>
+                    {activeMakeupRequests.map((makeup, index) => {
+                        const held = isMakeupHeld(makeup);
+                        return (
+                            <div key={makeup.id} className="banner-content" style={{
+                                marginBottom: index < activeMakeupRequests.length - 1 ? '8px' : '0',
+                                ...(held ? { background: 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)' } : {})
+                            }}>
+                                <div className="banner-text" style={{ whiteSpace: 'normal' }}>
+                                    {makeup.originalClass.day}요일 {makeup.originalClass.periodName} → {makeup.makeupClass.day}요일 {makeup.makeupClass.periodName}
+                                    {held && <span style={{ marginLeft: '6px', fontWeight: 700 }}>홀딩</span>}
+                                    {!held && makeup.status === 'completed' && <span style={{ marginLeft: '6px', color: '#16a34a', fontWeight: 700 }}>완료</span>}
+                                </div>
+                                {!held && makeup.status === 'active' && (forceMode || !isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 30)) && (
+                                    <button className="banner-cancel-btn" onClick={() => handleMakeupCancel(makeup.id)}>취소</button>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
             {/* Schedule grid */}
             <div className="schedule-grid">
                 <div className="grid-header"></div>
@@ -507,32 +540,6 @@ export default function StudentSchedule({
                 />
             )}
 
-            {/* Active makeup banners */}
-            {isRealStudent && activeMakeupRequests.length > 0 && (
-                <div className="active-makeup-banner">
-                    <div className="banner-header" style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#666' }}>
-                        🔄 이번 주 보강 ({activeMakeupRequests.length}/1개)
-                    </div>
-                    {activeMakeupRequests.map((makeup, index) => {
-                        const held = isMakeupHeld(makeup);
-                        return (
-                            <div key={makeup.id} className="banner-content" style={{
-                                marginBottom: index < activeMakeupRequests.length - 1 ? '8px' : '0',
-                                ...(held ? { background: 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)' } : {})
-                            }}>
-                                <div className="banner-text" style={{ whiteSpace: 'normal' }}>
-                                    {makeup.originalClass.day}요일 {makeup.originalClass.periodName} →{'\u00A0'}{makeup.makeupClass.day}요일 {makeup.makeupClass.periodName}
-                                    {held && <span style={{ marginLeft: '6px', fontWeight: 700 }}>홀딩</span>}
-                                    {!held && makeup.status === 'completed' && <span style={{ marginLeft: '6px', color: '#16a34a', fontWeight: 700 }}>완료</span>}
-                                </div>
-                                {!held && makeup.status === 'active' && (forceMode || !isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 30)) && (
-                                    <button className="banner-cancel-btn" onClick={() => handleMakeupCancel(makeup.id)}>취소</button>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
         </>
     );
 }
