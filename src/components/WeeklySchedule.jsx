@@ -325,8 +325,10 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
     // ── Main render ──
 
+    const containerModeClass = mode === 'studentForce' ? 'mode-student' : `mode-${mode}`;
+
     return (
-        <div className={`schedule-container mode-${mode}`}>
+        <div className={`schedule-container ${containerModeClass}`}>
             {isTransferring && (
                 <div style={{
                     position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999,
@@ -497,6 +499,33 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             )}
 
             {/* 수강생 전용(강제) 모드 — 코치가 빙의 대상 학생의 시간표를 렌더하고 데드라인 없이 보강 처리 */}
+            {mode === 'studentForce' && !forceModeStudent && (
+                <div style={{
+                    padding: '24px',
+                    textAlign: 'center',
+                    color: '#6b7280',
+                    backgroundColor: '#fff',
+                    border: '1px dashed #d1d5db',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem'
+                }}>
+                    위 드롭다운에서 수강생을 선택하면 시간표가 표시됩니다.
+                </div>
+            )}
+            {mode === 'studentForce' && forceModeStudent && !isForceMode && (
+                <div style={{
+                    padding: '24px',
+                    textAlign: 'center',
+                    color: '#991b1b',
+                    backgroundColor: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem'
+                }}>
+                    <strong>{forceModeStudent}</strong>님의 수강 정보를 찾을 수 없습니다.<br />
+                    Google Sheets에서 시간표(요일 및 시간) 컬럼이 비어 있거나 등록행이 누락된 상태일 수 있습니다.
+                </div>
+            )}
             {mode === 'studentForce' && isForceMode && (
                 <StudentSchedule
                     user={effectiveUser}
