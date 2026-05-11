@@ -304,6 +304,29 @@ export default function StudentSchedule({
 
         // My class
         if (myClass) {
+            const cellDateISO = weekDates[day] ? weekDateToISO(weekDates[day]) : null;
+            const isHoldingToday = cellDateISO ? (isMyHoldingDate?.(cellDateISO) ?? false) : false;
+
+            if (isHoldingToday) {
+                return (
+                    <div
+                        className="schedule-cell cell-available my-class"
+                        onClick={cellClick}
+                        style={{
+                            borderColor: '#9ca3af',
+                            borderWidth: '2px',
+                            opacity: 0.7,
+                            background: 'repeating-linear-gradient(45deg, #f3f4f6, #f3f4f6 6px, #e5e7eb 6px, #e5e7eb 12px)'
+                        }}
+                    >
+                        <div className="cell-content">
+                            <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
+                            <span className="my-class-badge" style={{ backgroundColor: '#6b7280', color: '#fff' }}>홀딩</span>
+                        </div>
+                    </div>
+                );
+            }
+
             // 보강이 홀딩된 경우: 원래 수업은 다시 정상 (보강이동이 아님)
             const showMakeupMoved = isMakeupFrom && !isMakeupFromHeld;
             return (
