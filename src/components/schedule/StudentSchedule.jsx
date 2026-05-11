@@ -42,7 +42,7 @@ export default function StudentSchedule({
     isClassDisabled,
     isSlotLocked,
     // 코치 신규 전용 연동
-    newStudentWaitlist,
+    newStudentWaitlist = [],
     onCoachCellClick,
     // 코치 "수강생 전용(강제)" 모드 — 시간 데드라인/주 1회/홀딩 제약 우회
     forceMode = false,
