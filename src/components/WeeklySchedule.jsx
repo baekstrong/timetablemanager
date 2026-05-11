@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import {
     getDisabledClasses,
@@ -16,7 +16,7 @@ import CoachWaitlistModal from './schedule/CoachWaitlistModal';
 import CoachSchedule from './schedule/CoachSchedule';
 import StudentSchedule from './schedule/StudentSchedule';
 import { useScheduleCore } from './schedule/useScheduleCore';
-import { buildUpdatedSchedule } from '../utils/scheduleUtils';
+import { buildUpdatedSchedule, parseSheetDate } from '../utils/scheduleUtils';
 import './WeeklySchedule.css';
 
 const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
@@ -26,13 +26,57 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
     // Pending new student registrations (선언 위치: useScheduleCore에 전달 필요)
     const [pendingRegistrations, setPendingRegistrations] = useState([]);
 
+    // 코치 "수강생 전용" 강제 모드: 코치가 특정 수강생으로 빙의해 보강 신청/취소를 데드라인 없이 처리
+    const [forceModeStudent, setForceModeStudent] = useState('');
+
+    // 강제 모드 후보(수강생) 목록: 시간표가 있는 등록행을 이름 기준으로 중복 제거
+    const studentForceCandidates = useMemo(() => {
+        if (!students || students.length === 0) return [];
+        const seen = new Set();
+        const list = [];
+        for (const s of students) {
+            const name = s['이름'];
+            if (!name || !(s['요일 및 시간'] || '').trim()) continue;
+            if (seen.has(name)) continue;
+            seen.add(name);
+            list.push(name);
+        }
+        return list.sort((a, b) => a.localeCompare(b, 'ko'));
+    }, [students]);
+
+    // 빙의 대상 수강생의 등록행 — 오늘 날짜가 수강 기간 내인 행을 우선 선택
+    const forceModeStudentData = useMemo(() => {
+        if (mode !== 'studentForce' || !forceModeStudent || !students) return null;
+        const matches = students.filter(s => s['이름'] === forceModeStudent && (s['요일 및 시간'] || '').trim());
+        if (matches.length === 0) return null;
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        const active = matches.find(s => {
+            const start = parseSheetDate(s['시작날짜']);
+            const end = parseSheetDate(s['종료날짜']);
+            if (!start || !end) return false;
+            return start.getTime() <= now.getTime() && now.getTime() <= end.getTime();
+        });
+        return active || matches[0];
+    }, [mode, forceModeStudent, students]);
+
+    const isForceMode = mode === 'studentForce' && !!forceModeStudent && !!forceModeStudentData;
+
+    // useScheduleCore에 넘길 effective user/studentData — 강제 모드일 때는 빙의 대상으로 치환
+    const effectiveUser = useMemo(() => {
+        if (isForceMode) return { username: forceModeStudent, role: 'student' };
+        return user;
+    }, [isForceMode, forceModeStudent, user]);
+    const effectiveStudentData = isForceMode ? forceModeStudentData : studentData;
+
     // 코치/학생 공통 파생 데이터 + useWeeklyData 래핑
-    const scheduleCore = useScheduleCore({ user, students, mode, studentData, refresh, pendingRegistrations });
+    const scheduleCore = useScheduleCore({ user: effectiveUser, students, mode, studentData: effectiveStudentData, refresh, pendingRegistrations });
     const {
         weekAbsences,
         weekWaitlist, setWeekWaitlist,
         loadWeeklyData,
         studentSchedule, scheduleData, weekDates,
+        isMyHoldingDate,
         isMakeupHeld,
         lastDayStudents, delayedReregistrationStudents,
         getCellData, getHolidayInfo,
@@ -239,7 +283,11 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         setShowWaitlistModal(true);
     }
 
-    const pageTitle = mode === 'coach' ? '코치 시간표' : '수강생 시간표';
+    const pageTitle = mode === 'coach'
+        ? '코치 시간표'
+        : mode === 'studentForce'
+            ? (forceModeStudent ? `수강생 전용 — ${forceModeStudent}` : '수강생 전용 시간표')
+            : '수강생 시간표';
 
     // ── Loading / not-authenticated states ──
 
@@ -326,16 +374,79 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 <div className="controls">
                     <button
                         className={`mode-toggle ${mode === 'student' ? 'active' : ''}`}
-                        onClick={() => setMode('student')}
+                        onClick={() => { setMode('student'); setForceModeStudent(''); }}
                     >
                         신규 전용
                     </button>
                     <button
                         className={`mode-toggle ${mode === 'coach' ? 'active' : ''}`}
-                        onClick={() => setMode('coach')}
+                        onClick={() => { setMode('coach'); setForceModeStudent(''); }}
                     >
                         코치 전용
                     </button>
+                    <button
+                        className={`mode-toggle ${mode === 'studentForce' ? 'active' : ''}`}
+                        onClick={() => setMode('studentForce')}
+                    >
+                        수강생 전용
+                    </button>
+                </div>
+            )}
+
+            {/* 수강생 전용 모드 — 수강생 선택 및 강제 모드 안내 */}
+            {user?.role === 'coach' && mode === 'studentForce' && (
+                <div style={{
+                    margin: '0 0 12px',
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    backgroundColor: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    fontSize: '0.88rem',
+                    color: '#7f1d1d',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <strong>수강생 선택:</strong>
+                        <select
+                            value={forceModeStudent}
+                            onChange={e => setForceModeStudent(e.target.value)}
+                            style={{
+                                padding: '4px 8px',
+                                fontSize: '0.9rem',
+                                border: '1px solid #fca5a5',
+                                borderRadius: '4px',
+                                backgroundColor: '#fff',
+                                minWidth: '160px'
+                            }}
+                        >
+                            <option value="">-- 선택 --</option>
+                            {studentForceCandidates.map(name => (
+                                <option key={name} value={name}>{name}</option>
+                            ))}
+                        </select>
+                        {forceModeStudent && (
+                            <button
+                                onClick={() => setForceModeStudent('')}
+                                style={{
+                                    padding: '4px 10px',
+                                    fontSize: '0.8rem',
+                                    border: '1px solid #fca5a5',
+                                    borderRadius: '4px',
+                                    backgroundColor: '#fff',
+                                    color: '#7f1d1d',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                선택 해제
+                            </button>
+                        )}
+                    </div>
+                    <div style={{ fontSize: '0.82rem', lineHeight: '1.5' }}>
+                        ⚠️ <strong>강제 모드</strong> — 보강 신청/취소 시 시간 데드라인(2시간/1시간), 주 1회 제한, 홀딩 기간 제약을 무시합니다.<br />
+                        수강생을 선택하면 해당 수강생의 시간표가 나타나고, 코치가 그 수강생을 대신해 보강을 처리할 수 있습니다.
+                    </div>
                 </div>
             )}
 
@@ -372,6 +483,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     weekAbsences={weekAbsences}
                     weekWaitlist={weekWaitlist}
                     studentSchedule={studentSchedule}
+                    isMyHoldingDate={isMyHoldingDate}
                     isMakeupHeld={isMakeupHeld}
                     getCellData={getCellData}
                     getHolidayInfo={getHolidayInfo}
@@ -381,6 +493,28 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     isSlotLocked={isSlotLocked}
                     newStudentWaitlist={newStudentWaitlist}
                     onCoachCellClick={handleCoachWaitlistCellClick}
+                />
+            )}
+
+            {/* 수강생 전용(강제) 모드 — 코치가 빙의 대상 학생의 시간표를 렌더하고 데드라인 없이 보강 처리 */}
+            {mode === 'studentForce' && isForceMode && (
+                <StudentSchedule
+                    user={effectiveUser}
+                    mode="student"
+                    students={students}
+                    weekDates={weekDates}
+                    weekAbsences={weekAbsences}
+                    weekWaitlist={weekWaitlist}
+                    studentSchedule={studentSchedule}
+                    isMyHoldingDate={isMyHoldingDate}
+                    isMakeupHeld={isMakeupHeld}
+                    getCellData={getCellData}
+                    getHolidayInfo={getHolidayInfo}
+                    loadWeeklyData={loadWeeklyData}
+                    refreshStudents={refresh}
+                    isClassDisabled={isClassDisabled}
+                    isSlotLocked={isSlotLocked}
+                    forceMode={true}
                 />
             )}
 

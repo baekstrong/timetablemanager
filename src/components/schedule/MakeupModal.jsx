@@ -10,6 +10,8 @@ export default function MakeupModal({
     activeMakeupRequests,
     isSubmittingMakeup,
     getHolidayInfo,
+    isMyHoldingDate,
+    forceMode = false,
     onSubmit,
     onClose,
 }) {
@@ -51,6 +53,7 @@ export default function MakeupModal({
                             let originalDateStr = '';
                             let isAlreadyRequested = false;
                             let isPastDeadline = false;
+                            let isHoldingDay = false;
                             if (dateStr) {
                                 originalDateStr = weekDateToISO(dateStr);
                                 isAlreadyRequested = activeMakeupRequests.some(m =>
@@ -58,18 +61,23 @@ export default function MakeupModal({
                                     m.originalClass.day === schedule.day &&
                                     m.originalClass.period === schedule.period
                                 );
-                                isPastDeadline = isClassWithinMinutes(originalDateStr, schedule.period, 120);
+                                isPastDeadline = !forceMode && isClassWithinMinutes(originalDateStr, schedule.period, 120);
+                                isHoldingDay = !forceMode && (isMyHoldingDate?.(originalDateStr) ?? false);
                             }
-                            const isDisabled = isAlreadyRequested || isPastDeadline;
+                            const isDisabled = isAlreadyRequested || isPastDeadline || isHoldingDay;
 
                             return (
                                 <div
                                     key={index}
                                     className={`original-class-item ${selectedOriginalClass?.day === schedule.day && selectedOriginalClass?.period === schedule.period ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
-                                    style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: isAlreadyRequested ? '#e0f2fe' : '#f3f4f6' } : {}}
+                                    style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: isAlreadyRequested ? '#e0f2fe' : isHoldingDay ? '#f3e8ff' : '#f3f4f6' } : {}}
                                     onClick={() => {
                                         if (isAlreadyRequested) {
                                             alert('이미 보강 신청한 수업입니다.');
+                                            return;
+                                        }
+                                        if (isHoldingDay) {
+                                            alert('홀딩 기간 중인 수업은 보강 신청할 수 없습니다.\n홀딩이 끝난 뒤 신청해주세요.');
                                             return;
                                         }
                                         if (isPastDeadline) {
@@ -88,8 +96,9 @@ export default function MakeupModal({
                                     <span style={{ fontSize: '0.8em', color: isDisabled ? '#999' : '#666', marginLeft: '8px' }}>
                                         ({dateStr})
                                         {holidayReason !== null && holidayReason !== undefined && ` - 휴일${holidayReason ? `: ${holidayReason}` : ''}`}
-                                        {isAlreadyRequested && ' - 신청됨'}
-                                        {!isAlreadyRequested && isPastDeadline && ' - 마감'}
+                                        {isHoldingDay && ' - 홀딩'}
+                                        {!isHoldingDay && isAlreadyRequested && ' - 신청됨'}
+                                        {!isHoldingDay && !isAlreadyRequested && isPastDeadline && ' - 마감'}
                                     </span>
                                 </div>
                             );
