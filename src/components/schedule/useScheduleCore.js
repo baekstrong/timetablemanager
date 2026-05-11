@@ -54,15 +54,17 @@ export function useScheduleCore({
         return holding.startDate <= date && holding.endDate >= date;
     };
 
-    // 보강 목적지가 본인(학생) 홀딩 기간 내인지 판정
-    const isMakeupHeld = (makeup) => {
-        const makeupDate = makeup.makeupClass?.date;
-        if (!makeupDate) return false;
+    // 임의 날짜가 본인(학생) 홀딩 기간 내인지 판정
+    const isMyHoldingDate = (date) => {
+        if (!date) return false;
         const myHolding = weekHoldings.find(h => h.studentName === user?.username);
-        if (myHolding) return isDateHeld(myHolding, makeupDate);
+        if (myHolding) return isDateHeld(myHolding, date);
         if (!studentHoldingRange) return false;
-        return makeupDate >= studentHoldingRange.start && makeupDate <= studentHoldingRange.end;
+        return date >= studentHoldingRange.start && date <= studentHoldingRange.end;
     };
+
+    // 보강 목적지가 본인(학생) 홀딩 기간 내인지 판정
+    const isMakeupHeld = (makeup) => isMyHoldingDate(makeup.makeupClass?.date);
 
     const studentSchedule = useMemo(() => {
         if (!studentData) return [];
@@ -422,6 +424,7 @@ export function useScheduleCore({
         scheduleData,
         weekDates,
         isDateHeld,
+        isMyHoldingDate,
         isMakeupHeld,
         getEffectiveEndDate,
         lastDayStudents,

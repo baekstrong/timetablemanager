@@ -32,6 +32,7 @@ export default function StudentSchedule({
     weekAbsences,
     weekWaitlist,
     studentSchedule,
+    isMyHoldingDate,
     isMakeupHeld,
     getCellData,
     getHolidayInfo,
@@ -43,6 +44,8 @@ export default function StudentSchedule({
     // 코치 신규 전용 연동
     newStudentWaitlist,
     onCoachCellClick,
+    // 코치 "수강생 전용(강제)" 모드 — 시간 데드라인/주 1회/홀딩 제약 우회
+    forceMode = false,
 }) {
     // ── 학생 전용 state ──
     const [showMakeupModal, setShowMakeupModal] = useState(false);
@@ -131,7 +134,7 @@ export default function StudentSchedule({
         }
 
         // 주횟수와 무관하게 당주 최대 1회까지 보강 신청 (취소 내역도 소진으로 간주)
-        if (myWeekMakeupHistory.length >= 1) {
+        if (!forceMode && myWeekMakeupHistory.length >= 1) {
             alert('보강은 주 1회만 신청 가능합니다.\n이번 주 보강 신청 내역(취소 포함)이 있어 추가 신청이 불가합니다.');
             return;
         }
@@ -143,7 +146,7 @@ export default function StudentSchedule({
             return;
         }
 
-        if (isClassWithinMinutes(date, periodId, 120)) {
+        if (!forceMode && isClassWithinMinutes(date, periodId, 120)) {
             const period = PERIODS.find(p => p.id === periodId);
             alert(`${period?.name} 수업이 곧 시작됩니다.\n수업 시작 2시간 전까지만 보강 신청이 가능합니다.`);
             return;
@@ -176,8 +179,13 @@ export default function StudentSchedule({
             return;
         }
 
-        if (isClassWithinMinutes(selectedOriginalClass.date, selectedOriginalClass.period, 120)) {
+        if (!forceMode && isClassWithinMinutes(selectedOriginalClass.date, selectedOriginalClass.period, 120)) {
             alert(`${selectedOriginalClass.day}요일 ${selectedOriginalClass.periodName} 수업이 이미 시작되었거나 곧 시작됩니다.\n원래 수업 시작 2시간 전까지만 보강 신청이 가능합니다.`);
+            return;
+        }
+
+        if (!forceMode && isMyHoldingDate?.(selectedOriginalClass.date)) {
+            alert('홀딩 기간 중인 수업은 보강 신청할 수 없습니다.\n홀딩이 끝난 뒤 신청해주세요.');
             return;
         }
 
@@ -213,7 +221,7 @@ export default function StudentSchedule({
     async function handleMakeupCancel(makeupId) {
         if (!makeupId) return;
         const makeup = activeMakeupRequests.find(m => m.id === makeupId);
-        if (makeup && isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 60)) {
+        if (!forceMode && makeup && isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 60)) {
             alert('보강 수업 시작 1시간 전부터는 보강 취소가 불가합니다.');
             return;
         }
@@ -404,7 +412,7 @@ export default function StudentSchedule({
     return (
         <>
             {/* Student usage guide */}
-            {isRealStudent && (
+            {isRealStudent && !forceMode && (
                 <div style={{
                     margin: '0 0 12px',
                     padding: '10px 14px',
@@ -488,6 +496,8 @@ export default function StudentSchedule({
                     activeMakeupRequests={activeMakeupRequests}
                     isSubmittingMakeup={isSubmittingMakeup}
                     getHolidayInfo={getHolidayInfo}
+                    isMyHoldingDate={isMyHoldingDate}
+                    forceMode={forceMode}
                     onSubmit={handleMakeupSubmit}
                     onClose={() => {
                         setShowMakeupModal(false);
@@ -515,7 +525,7 @@ export default function StudentSchedule({
                                     {held && <span style={{ marginLeft: '6px', fontWeight: 700 }}>홀딩</span>}
                                     {!held && makeup.status === 'completed' && <span style={{ marginLeft: '6px', color: '#16a34a', fontWeight: 700 }}>완료</span>}
                                 </div>
-                                {!held && makeup.status === 'active' && !isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 30) && (
+                                {!held && makeup.status === 'active' && (forceMode || !isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 30)) && (
                                     <button className="banner-cancel-btn" onClick={() => handleMakeupCancel(makeup.id)}>취소</button>
                                 )}
                             </div>
