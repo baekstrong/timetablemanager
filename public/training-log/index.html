@@ -21,6 +21,57 @@
 
 <body class="bg-gray-100 min-h-screen">
 
+    <!-- 코치 빙의 모드 표시 띠 (메인 앱과 동일) -->
+    <div id="impersonationBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:10000;background:linear-gradient(135deg,#dc2626 0%,#b91c1c 100%);color:#fff;padding:10px 14px;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 6px rgba(0,0,0,0.15);font-size:0.95rem;">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+            <span style="font-size:1.1rem;">🔍</span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                <strong id="impersonationBannerName" style="font-size:1.05rem;"></strong>
+                <span style="margin-left:6px;opacity:0.9;">님으로 빙의 중</span>
+            </span>
+        </div>
+        <button id="impersonationBannerExit" style="background:#fff;color:#b91c1c;border:none;padding:6px 12px;border-radius:6px;font-weight:700;font-size:0.85rem;cursor:pointer;white-space:nowrap;">
+            코치로 돌아가기
+        </button>
+    </div>
+    <script>
+        (function () {
+            try {
+                var raw = sessionStorage.getItem('impersonation_origin');
+                if (!raw) return;
+                var parsed = JSON.parse(raw);
+                if (!parsed || !parsed.impersonatedName) return;
+
+                var banner = document.getElementById('impersonationBanner');
+                var nameEl = document.getElementById('impersonationBannerName');
+                var exitBtn = document.getElementById('impersonationBannerExit');
+                nameEl.textContent = parsed.impersonatedName;
+                banner.style.display = 'flex';
+                // 본문이 띠에 가려지지 않도록 padding 보정
+                document.body.style.paddingTop = (banner.offsetHeight || 44) + 'px';
+
+                exitBtn.addEventListener('click', function () {
+                    try {
+                        // 백업된 코치 세션 복원
+                        if (parsed.savedUserBackup) {
+                            localStorage.setItem('savedUser', parsed.savedUserBackup);
+                        } else {
+                            localStorage.removeItem('savedUser');
+                        }
+                        if (parsed.loginCredentialsBackup) {
+                            localStorage.setItem('login_credentials', parsed.loginCredentialsBackup);
+                        }
+                        sessionStorage.removeItem('impersonation_origin');
+                    } catch (e) { console.warn('impersonation exit failed:', e); }
+                    // 메인 앱으로 복귀 (auto-login으로 코치 로그인)
+                    window.location.href = '/timetablemanager/';
+                });
+            } catch (e) {
+                console.warn('impersonation banner init failed:', e);
+            }
+        })();
+    </script>
+
     <div id="app"></div>
 
     <!-- 수정 모달 -->
