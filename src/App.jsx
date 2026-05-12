@@ -16,6 +16,8 @@ import Ranking from './components/Ranking';
 import BottomNav from './components/BottomNav';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent, subscribePosts, getNewStudentRegistrations } from './services/firebaseService';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from './config/firebase';
 import './App.css';
 
 const IMPERSONATION_STORAGE_KEY = 'impersonation_origin';
@@ -161,17 +163,39 @@ function AppContent() {
     })();
   };
 
-  const handleStartImpersonation = (student) => {
+  const handleStartImpersonation = async (student) => {
     if (!user || user.role !== 'coach') return;
     const studentName = student?.['이름'];
     if (!studentName) return;
 
     const origin = user;
     setImpersonationOrigin(origin);
+
+    // 훈련일지 서브앱이 localStorage.savedUser로 세션 판별하므로 학생 계정으로 갈아끼움
+    // 원래 코치 savedUser는 백업해뒀다가 빙의 종료 시 복원
+    const savedUserBackup = localStorage.getItem('savedUser');
+    let studentPassword = '';
+    try {
+      if (db) {
+        const snap = await getDoc(doc(db, 'users', studentName));
+        if (snap.exists()) studentPassword = snap.data()?.password || '';
+      }
+    } catch (err) {
+      console.warn('Failed to fetch student password for impersonation:', err);
+    }
+    try {
+      localStorage.setItem('savedUser', JSON.stringify({
+        name: studentName,
+        password: studentPassword,
+        isCoach: false
+      }));
+    } catch {}
+
     try {
       sessionStorage.setItem(IMPERSONATION_STORAGE_KEY, JSON.stringify({
         originUser: origin,
-        impersonatedName: studentName
+        impersonatedName: studentName,
+        savedUserBackup
       }));
     } catch (err) {
       console.warn('Failed to persist impersonation:', err);
@@ -186,6 +210,20 @@ function AppContent() {
 
   const handleExitImpersonation = () => {
     const origin = impersonationOrigin;
+
+    // 백업해둔 코치 savedUser 복원 (훈련일지 세션 복귀)
+    try {
+      const raw = sessionStorage.getItem(IMPERSONATION_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed?.savedUserBackup) {
+        localStorage.setItem('savedUser', parsed.savedUserBackup);
+      } else {
+        localStorage.removeItem('savedUser');
+      }
+    } catch (err) {
+      console.warn('Failed to restore savedUser:', err);
+    }
+
     try { sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY); } catch {}
     setImpersonationOrigin(null);
     setStudentData(null);
