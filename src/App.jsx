@@ -172,8 +172,10 @@ function AppContent() {
     setImpersonationOrigin(origin);
 
     // 훈련일지 서브앱이 localStorage.savedUser로 세션 판별하므로 학생 계정으로 갈아끼움
-    // 원래 코치 savedUser는 백업해뒀다가 빙의 종료 시 복원
+    // 원래 코치 savedUser/login_credentials는 백업해뒀다가 빙의 종료 시 복원
+    // (훈련일지 복귀 시 학생 savedUser 기반으로 login_credentials를 덮어쓰므로 둘 다 백업 필요)
     const savedUserBackup = localStorage.getItem('savedUser');
+    const loginCredentialsBackup = localStorage.getItem('login_credentials');
     let studentPassword = '';
     try {
       if (db) {
@@ -195,7 +197,8 @@ function AppContent() {
       sessionStorage.setItem(IMPERSONATION_STORAGE_KEY, JSON.stringify({
         originUser: origin,
         impersonatedName: studentName,
-        savedUserBackup
+        savedUserBackup,
+        loginCredentialsBackup
       }));
     } catch (err) {
       console.warn('Failed to persist impersonation:', err);
@@ -211,7 +214,8 @@ function AppContent() {
   const handleExitImpersonation = () => {
     const origin = impersonationOrigin;
 
-    // 백업해둔 코치 savedUser 복원 (훈련일지 세션 복귀)
+    // 백업해둔 코치 savedUser + login_credentials 복원
+    // (훈련일지 복귀 시 학생용으로 덮어써졌을 수 있으므로 둘 다 복원)
     try {
       const raw = sessionStorage.getItem(IMPERSONATION_STORAGE_KEY);
       const parsed = raw ? JSON.parse(raw) : null;
@@ -219,6 +223,9 @@ function AppContent() {
         localStorage.setItem('savedUser', parsed.savedUserBackup);
       } else {
         localStorage.removeItem('savedUser');
+      }
+      if (parsed?.loginCredentialsBackup) {
+        localStorage.setItem('login_credentials', parsed.loginCredentialsBackup);
       }
     } catch (err) {
       console.warn('Failed to restore savedUser:', err);
@@ -237,15 +244,32 @@ function AppContent() {
     window.scrollTo(0, 0);
   };
 
-  // 새로고침 후 자동 로그인으로 코치가 복원되면 빙의 상태도 복원
+  // 새로고침/훈련일지 복귀 후 빙의 상태 복원
+  // - 훈련일지에서 돌아오면 login_credentials가 학생용으로 덮어써져 학생으로 auto-login 됨
+  //   → user.role과 무관하게 sessionStorage에 빙의 데이터 있으면 강제로 빙의 모드로 진입
   useEffect(() => {
-    if (!user || user.role !== 'coach' || impersonationOrigin) return;
+    if (!user) return;
     try {
       const raw = sessionStorage.getItem(IMPERSONATION_STORAGE_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw);
-      if (parsed?.impersonatedName) {
-        handleStartImpersonation({ '이름': parsed.impersonatedName });
+      if (!parsed?.impersonatedName || !parsed?.originUser) return;
+
+      const alreadyImpersonatingTarget =
+        user.role === 'student' && user.username === parsed.impersonatedName;
+
+      if (alreadyImpersonatingTarget) {
+        // 이미 빙의 대상으로 로그인되어 있음 → origin만 복원해서 배너 띄움
+        if (!impersonationOrigin) {
+          setImpersonationOrigin(parsed.originUser);
+          if (!studentData) loadStudentDataInBackground(parsed.impersonatedName);
+        }
+      } else if (!impersonationOrigin) {
+        // 다른 계정으로 로그인되어 있으면 빙의 대상으로 강제 전환
+        setImpersonationOrigin(parsed.originUser);
+        setUser({ username: parsed.impersonatedName, role: 'student' });
+        setStudentData(null);
+        loadStudentDataInBackground(parsed.impersonatedName);
       }
     } catch (err) {
       console.warn('Failed to restore impersonation:', err);
