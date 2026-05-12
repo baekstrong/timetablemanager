@@ -7,7 +7,7 @@ import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
 import './StudentManager.css';
 
-const StudentManager = ({ onBack }) => {
+const StudentManager = ({ onBack, onImpersonate }) => {
     const {
         students,
         isConnected,
@@ -479,6 +479,24 @@ const StudentManager = ({ onBack }) => {
                                                         <button onClick={() => handleEndClass(student, index)} className="end-class-btn" title="수강 종료 (시간표에서 제거)">
                                                             종료
                                                         </button>
+                                                        {onImpersonate && (
+                                                            <button
+                                                                onClick={() => onImpersonate(student)}
+                                                                className="impersonate-btn"
+                                                                title="이 수강생 화면으로 보기"
+                                                                style={{
+                                                                    background: '#dc2626',
+                                                                    color: '#fff',
+                                                                    border: 'none',
+                                                                    padding: '4px 8px',
+                                                                    borderRadius: '4px',
+                                                                    cursor: 'pointer',
+                                                                    fontSize: '0.85rem'
+                                                                }}
+                                                            >
+                                                                👤 빙의
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 )}
                                             </td>
