@@ -14,8 +14,11 @@ import CoachNewStudents from './components/CoachNewStudents';
 import ContractView from './components/ContractView';
 import Ranking from './components/Ranking';
 import BottomNav from './components/BottomNav';
+import ImpersonationBanner from './components/ImpersonationBanner';
 import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent, subscribePosts, getNewStudentRegistrations } from './services/firebaseService';
 import './App.css';
+
+const IMPERSONATION_STORAGE_KEY = 'impersonation_origin';
 
 function AppContent() {
   // Check for ?register=true URL parameter
@@ -29,6 +32,7 @@ function AppContent() {
   const [user, setUser] = useState(null);
   const [studentData, setStudentData] = useState(null);
   const [currentPage, setCurrentPage] = useState('login');
+  const [impersonationOrigin, setImpersonationOrigin] = useState(null); // 코치 본체 (빙의 중일 때만 채워짐)
   const [hasNewStudentNotification, setHasNewStudentNotification] = useState(false);
   const [hasWaitlistNotification, setHasWaitlistNotification] = useState(false);
   const [hasContractNotification, setHasContractNotification] = useState(false);
@@ -140,6 +144,76 @@ function AppContent() {
     }
   };
 
+  const loadStudentDataInBackground = (studentName) => {
+    setIsStudentDataLoading(true);
+    (async () => {
+      try {
+        const data = await getStudentByName(studentName);
+        if (data) setStudentData(data);
+        const result = await findStudentAcrossSheets(studentName);
+        if (result) setStudentData(result.student);
+        else if (!data) console.warn('❌ Student not found in any sheet');
+      } catch (error) {
+        console.error('Failed to load student data:', error);
+      } finally {
+        setIsStudentDataLoading(false);
+      }
+    })();
+  };
+
+  const handleStartImpersonation = (student) => {
+    if (!user || user.role !== 'coach') return;
+    const studentName = student?.['이름'];
+    if (!studentName) return;
+
+    const origin = user;
+    setImpersonationOrigin(origin);
+    try {
+      sessionStorage.setItem(IMPERSONATION_STORAGE_KEY, JSON.stringify({
+        originUser: origin,
+        impersonatedName: studentName
+      }));
+    } catch (err) {
+      console.warn('Failed to persist impersonation:', err);
+    }
+
+    setUser({ username: studentName, role: 'student' });
+    setStudentData(null);
+    setCurrentPage('dashboard');
+    window.scrollTo(0, 0);
+    loadStudentDataInBackground(studentName);
+  };
+
+  const handleExitImpersonation = () => {
+    const origin = impersonationOrigin;
+    try { sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY); } catch {}
+    setImpersonationOrigin(null);
+    setStudentData(null);
+    if (origin) {
+      setUser(origin);
+      setCurrentPage('students');
+    } else {
+      setUser(null);
+      setCurrentPage('login');
+    }
+    window.scrollTo(0, 0);
+  };
+
+  // 새로고침 후 자동 로그인으로 코치가 복원되면 빙의 상태도 복원
+  useEffect(() => {
+    if (!user || user.role !== 'coach' || impersonationOrigin) return;
+    try {
+      const raw = sessionStorage.getItem(IMPERSONATION_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed?.impersonatedName) {
+        handleStartImpersonation({ '이름': parsed.impersonatedName });
+      }
+    } catch (err) {
+      console.warn('Failed to restore impersonation:', err);
+    }
+  }, [user]);
+
   const handleLogout = () => {
     // Disable auto-login but preserve saved credentials if "Remember Me" was checked
     const savedCredentials = localStorage.getItem('login_credentials');
@@ -155,9 +229,11 @@ function AppContent() {
 
     // Clear training log session to sync logout
     localStorage.removeItem('savedUser');
+    try { sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY); } catch {}
 
     setUser(null);
     setStudentData(null);
+    setImpersonationOrigin(null);
     setCurrentPage('login');
   };
 
@@ -194,7 +270,7 @@ function AppContent() {
         return <StudentInfo user={user} studentData={studentData} onBack={handleBackToDashboard} />;
 
       case 'students':
-        return <StudentManager user={user} onBack={handleBackToDashboard} />;
+        return <StudentManager user={user} onBack={handleBackToDashboard} onImpersonate={handleStartImpersonation} />;
 
       case 'holidays':
         return <HolidayManager user={user} onBack={handleBackToDashboard} />;
@@ -227,6 +303,9 @@ function AppContent() {
 
   return (
     <div className="app">
+      {impersonationOrigin && user && user.role === 'student' && (
+        <ImpersonationBanner studentName={user.username} onExit={handleExitImpersonation} />
+      )}
       {renderPage()}
       {currentPage !== 'login' && user && (
         <BottomNav
