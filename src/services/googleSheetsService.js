@@ -1,3 +1,9 @@
+import {
+  parseAbsenceDatesFromNotes,
+  isHolidayRelevantToStudent,
+  shiftEndDateBySessions,
+} from './holidayEndDateDelta.js';
+
 // Backend Functions URL
 // 로컬 테스트: http://localhost:5001
 // Production: VITE_FUNCTIONS_URL 환경 변수 사용 (GitHub Pages + Netlify Functions)
@@ -1633,6 +1639,166 @@ async function adjustNextRegistration(sheetName, rows, headers, nextRowIndex, cu
     console.log(`📅 다음 등록 자동 조정: 시작일 ${newNextStartStr}, 종료일 ${newNextEndStr}`);
   }
 }
+
+/**
+ * 휴일 추가/삭제 시 영향받는 수강생의 종료일(H열)을 증분 조정.
+ * @param {Object} p
+ * @param {string[]} p.changedDates - 방금 추가/삭제된 날짜 'YYYY-MM-DD'
+ * @param {'add'|'delete'} p.mode
+ * @param {Array<{date:string}>} p.firebaseHolidays - 변경 반영된 전체 커스텀 휴일
+ * @returns {Promise<{affectedStudents:number, perSheet:Object, errors:string[]}>}
+ */
+export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebaseHolidays }) => {
+  const result = { affectedStudents: 0, perSheet: {}, errors: [] };
+  if (!changedDates || changedDates.length === 0) return result;
+
+  const sorted = [...changedDates].sort();
+  const earliest = new Date(sorted[0] + 'T00:00:00');
+  const baseY = earliest.getFullYear();
+  const baseM = earliest.getMonth() + 1; // 1-12
+
+  // 휴일 달 -3개월 ~ 휴일 달 시트 이름
+  const wanted = [];
+  for (let back = 3; back >= 0; back--) {
+    const d = new Date(baseY, baseM - 1 - back, 1);
+    wanted.push(getSheetNameByYearMonth(d.getFullYear(), d.getMonth() + 1));
+  }
+  let existing = [];
+  try {
+    existing = await getAllSheetNames();
+  } catch (e) {
+    result.errors.push(`시트 목록 조회 실패: ${e.message}`);
+    return result;
+  }
+  const sheetNames = wanted.filter((n) => existing.includes(n));
+
+  // 삭제 모드: 여전히 한국 공휴일인 날짜는 변화 없음 → 제외
+  const effectiveChanged =
+    mode === 'delete'
+      ? changedDates.filter((ds) => !isHolidayDate(new Date(ds + 'T00:00:00'), []))
+      : [...changedDates];
+  if (effectiveChanged.length === 0) return result;
+
+  const isHoliday = (date) => isHolidayDate(date, firebaseHolidays);
+
+  for (const sheetName of sheetNames) {
+    try {
+      const rows = await readSheetData(`${sheetName}!A:R`);
+      if (!rows || rows.length < 3) {
+        result.perSheet[sheetName] = 0;
+        continue;
+      }
+      const headers = rows[1];
+      const nameCol = headers.indexOf('이름');
+      const startCol = findColumnIndex(headers, '시작날짜');
+      const endCol = findColumnIndex(headers, '종료날짜');
+      const schedCol = findColumnIndex(headers, '요일 및 시간');
+      const notesCol = findColumnIndex(headers, '특이사항');
+      const holdUsedCol = findColumnIndex(headers, '홀딩 사용여부');
+      const holdStartCol = findColumnIndex(headers, '홀딩 시작일');
+      const holdEndCol = findColumnIndex(headers, '홀딩 종료일');
+
+      if (endCol === -1 || startCol === -1 || schedCol === -1) {
+        result.errors.push(`${sheetName}: 필수 컬럼 없음`);
+        result.perSheet[sheetName] = 0;
+        continue;
+      }
+
+      const shifted = []; // { rowIndex, newEndDate(Date), studentName }
+      const updates = [];
+
+      for (let i = 2; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !row[nameCol]) continue;
+        const startDate = parseSheetDate(row[startCol]);
+        const endDate = parseSheetDate(row[endCol]);
+        const scheduleStr = row[schedCol] || '';
+        if (!startDate || !endDate || !scheduleStr) continue;
+        const classDays = getClassDays(scheduleStr);
+        if (classDays.length === 0) continue;
+
+        const holdingInfo = parseHoldingStatus(holdUsedCol !== -1 ? row[holdUsedCol] : '');
+        const holdingRanges = [];
+        if (holdingInfo.isCurrentlyUsed && holdStartCol !== -1 && holdEndCol !== -1) {
+          const hs = parseSheetDate(row[holdStartCol]);
+          const he = parseSheetDate(row[holdEndCol]);
+          if (hs && he) holdingRanges.push({ start: hs, end: he });
+        }
+        const absenceDateSet = new Set(
+          parseAbsenceDatesFromNotes(notesCol !== -1 ? row[notesCol] : ''),
+        );
+
+        let n = 0;
+        for (const ds of effectiveChanged) {
+          const hd = new Date(ds + 'T00:00:00');
+          if (
+            isHolidayRelevantToStudent({
+              holidayDate: hd, classDays, startDate, endDate, holdingRanges, absenceDateSet,
+            })
+          ) {
+            n += 1;
+          }
+        }
+        if (n === 0) continue;
+
+        const delta = mode === 'add' ? n : -n;
+        const newEnd = shiftEndDateBySessions({
+          endDate, deltaSessions: delta, classDays, holdingRanges, isHoliday,
+        });
+        if (!newEnd) {
+          result.errors.push(`${sheetName} ${row[nameCol]}: 종료일 계산 실패(가드 소진)`);
+          continue;
+        }
+        updates.push({
+          range: `${sheetName}!${getColumnLetter(endCol)}${i + 1}`,
+          values: [[formatDateToYYMMDD(newEnd)]],
+        });
+        shifted.push({ rowIndex: i, newEndDate: newEnd, studentName: row[nameCol] });
+      }
+
+      if (updates.length > 0) {
+        await batchUpdateSheet(updates);
+        try {
+          await highlightCells(updates.map((u) => u.range.split('!')[1]), sheetName);
+        } catch (e) {
+          console.warn('휴일 종료일 조정 하이라이트 실패:', e);
+        }
+
+        // 미리 등록(다음 등록) 자동 조정
+        for (const s of shifted) {
+          const sameName = findAllStudentRowIndices(rows, headers, s.studentName);
+          if (sameName.length < 2) continue;
+          const curStart = parseSheetDate(rows[s.rowIndex][startCol]);
+          let nextIdx = -1;
+          let nextStart = null;
+          for (const idx of sameName) {
+            if (idx === s.rowIndex) continue;
+            const st = parseSheetDate(rows[idx][startCol]);
+            if (st && curStart && st > curStart && (!nextStart || st < nextStart)) {
+              nextStart = st;
+              nextIdx = idx;
+            }
+          }
+          if (nextIdx !== -1) {
+            try {
+              await adjustNextRegistration(
+                sheetName, rows, headers, nextIdx, s.newEndDate, firebaseHolidays,
+              );
+            } catch (e) {
+              console.warn(`다음 등록 조정 실패 (${s.studentName}):`, e);
+            }
+          }
+        }
+        result.affectedStudents += shifted.length;
+      }
+      result.perSheet[sheetName] = updates.length;
+    } catch (e) {
+      result.errors.push(`${sheetName}: ${e.message}`);
+    }
+  }
+
+  return result;
+};
 
 /**
  * 홀딩 취소 (Google Sheets에서 홀딩 정보 초기화 + 종료날짜 재계산)
