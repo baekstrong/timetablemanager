@@ -1654,13 +1654,18 @@ export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebase
 
   const sorted = [...changedDates].sort();
   const earliest = new Date(sorted[0] + 'T00:00:00');
-  const baseY = earliest.getFullYear();
-  const baseM = earliest.getMonth() + 1; // 1-12
+  const latest = new Date(sorted[sorted.length - 1] + 'T00:00:00');
 
-  // 휴일 달 -3개월 ~ 휴일 달 시트 이름
+  // 수강 기간이 최대 3개월(+홀딩 연장) 이므로, 가장 이른 휴일 달의 3개월
+  // 전부터 가장 늦은 휴일 달까지의 월별 시트를 모두 스캔한다.
+  const startCursor = new Date(earliest.getFullYear(), earliest.getMonth() - 3, 1);
+  const endCursor = new Date(latest.getFullYear(), latest.getMonth(), 1);
   const wanted = [];
-  for (let back = 3; back >= 0; back--) {
-    const d = new Date(baseY, baseM - 1 - back, 1);
+  for (
+    let d = new Date(startCursor);
+    d <= endCursor;
+    d = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+  ) {
     wanted.push(getSheetNameByYearMonth(d.getFullYear(), d.getMonth() + 1));
   }
   let existing = [];
@@ -1689,7 +1694,7 @@ export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebase
         continue;
       }
       const headers = rows[1];
-      const nameCol = headers.indexOf('이름');
+      const nameCol = findColumnIndex(headers, '이름');
       const startCol = findColumnIndex(headers, '시작날짜');
       const endCol = findColumnIndex(headers, '종료날짜');
       const schedCol = findColumnIndex(headers, '요일 및 시간');
@@ -1698,7 +1703,7 @@ export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebase
       const holdStartCol = findColumnIndex(headers, '홀딩 시작일');
       const holdEndCol = findColumnIndex(headers, '홀딩 종료일');
 
-      if (endCol === -1 || startCol === -1 || schedCol === -1) {
+      if (endCol === -1 || startCol === -1 || schedCol === -1 || nameCol === -1) {
         result.errors.push(`${sheetName}: 필수 컬럼 없음`);
         result.perSheet[sheetName] = 0;
         continue;
@@ -1765,6 +1770,7 @@ export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebase
         }
 
         // 미리 등록(다음 등록) 자동 조정
+        const shiftedRowIndices = new Set(shifted.map((x) => x.rowIndex));
         for (const s of shifted) {
           const sameName = findAllStudentRowIndices(rows, headers, s.studentName);
           if (sameName.length < 2) continue;
@@ -1779,7 +1785,7 @@ export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebase
               nextIdx = idx;
             }
           }
-          if (nextIdx !== -1) {
+          if (nextIdx !== -1 && !shiftedRowIndices.has(nextIdx)) {
             try {
               await adjustNextRegistration(
                 sheetName, rows, headers, nextIdx, s.newEndDate, firebaseHolidays,
