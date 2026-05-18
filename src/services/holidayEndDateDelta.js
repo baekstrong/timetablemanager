@@ -19,3 +19,40 @@ export function parseAbsenceDatesFromNotes(notes) {
   }
   return out;
 }
+
+const atMidnight = (d) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+};
+
+const toISO = (d) =>
+  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+const inAnyRange = (date, ranges) =>
+  (ranges || []).some(
+    (r) => r && atMidnight(date) >= atMidnight(r.start) && atMidnight(date) <= atMidnight(r.end),
+  );
+
+/**
+ * 변경된 휴일 1건이 이 수강생 종료일 변경을 유발하는지.
+ * @param {Object} p
+ * @param {Date} p.holidayDate
+ * @param {number[]} p.classDays  - 0=일 .. 6=토
+ * @param {Date} p.startDate
+ * @param {Date} p.endDate
+ * @param {Array<{start:Date,end:Date}>} p.holdingRanges
+ * @param {Set<string>} p.absenceDateSet - 'YYYY-MM-DD'
+ * @returns {boolean}
+ */
+export function isHolidayRelevantToStudent({
+  holidayDate, classDays, startDate, endDate, holdingRanges, absenceDateSet,
+}) {
+  if (!holidayDate || !startDate || !endDate) return false;
+  const h = atMidnight(holidayDate);
+  if (!classDays.includes(h.getDay())) return false;
+  if (h < atMidnight(startDate) || h > atMidnight(endDate)) return false;
+  if (inAnyRange(h, holdingRanges)) return false;
+  if (absenceDateSet && absenceDateSet.has(toISO(h))) return false;
+  return true;
+}
