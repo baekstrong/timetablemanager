@@ -56,3 +56,35 @@ export function isHolidayRelevantToStudent({
   if (absenceDateSet && absenceDateSet.has(toISO(h))) return false;
   return true;
 }
+
+/**
+ * 종료일을 deltaSessions만큼 이동. >0 미래, <0 과거, 0이면 그대로.
+ * 비수업요일·휴일·홀딩기간은 카운트하지 않고 건너뛴다. 최대 365회 가드.
+ * @param {Object} p
+ * @param {Date} p.endDate
+ * @param {number} p.deltaSessions
+ * @param {number[]} p.classDays
+ * @param {Array<{start:Date,end:Date}>} p.holdingRanges
+ * @param {(d:Date)=>boolean} p.isHoliday
+ * @returns {Date|null} 이동된 종료일, 가드 소진 시 null
+ */
+export function shiftEndDateBySessions({
+  endDate, deltaSessions, classDays, holdingRanges, isHoliday,
+}) {
+  if (!deltaSessions) return new Date(endDate);
+  const step = deltaSessions > 0 ? 1 : -1;
+  let remaining = Math.abs(deltaSessions);
+  const cursor = atMidnight(endDate);
+  let guard = 365;
+  while (remaining > 0 && guard-- > 0) {
+    cursor.setDate(cursor.getDate() + step);
+    if (
+      classDays.includes(cursor.getDay()) &&
+      !isHoliday(cursor) &&
+      !inAnyRange(cursor, holdingRanges)
+    ) {
+      remaining -= 1;
+    }
+  }
+  return remaining === 0 ? new Date(cursor) : null;
+}

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { parseAbsenceDatesFromNotes, isHolidayRelevantToStudent } from './holidayEndDateDelta.js';
+import {
+  parseAbsenceDatesFromNotes,
+  isHolidayRelevantToStudent,
+  shiftEndDateBySessions,
+} from './holidayEndDateDelta.js';
 
 describe('parseAbsenceDatesFromNotes', () => {
   it('단일 결석 기록을 ISO로 변환', () => {
@@ -68,5 +72,65 @@ describe('isHolidayRelevantToStudent', () => {
 
   it('시작일 당일 경계 포함 → true (2026-02-02 월)', () => {
     expect(isHolidayRelevantToStudent({ ...base, holidayDate: new Date(2026, 1, 2) })).toBe(true);
+  });
+});
+
+function toISOForTest(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+describe('shiftEndDateBySessions', () => {
+  const classDays = [1, 3]; // 월, 수
+  const noHoliday = () => false;
+
+  it('delta +1: 종료일(월 2/9) 다음 수업일은 수 2/11', () => {
+    const r = shiftEndDateBySessions({
+      endDate: new Date(2026, 1, 9), deltaSessions: 1,
+      classDays, holdingRanges: [], isHoliday: noHoliday,
+    });
+    expect(toISOForTest(r)).toBe('2026-02-11');
+  });
+
+  it('delta +2: 두 수업일 전진 (2/9 → 2/16)', () => {
+    const r = shiftEndDateBySessions({
+      endDate: new Date(2026, 1, 9), deltaSessions: 2,
+      classDays, holdingRanges: [], isHoliday: noHoliday,
+    });
+    expect(toISOForTest(r)).toBe('2026-02-16');
+  });
+
+  it('전진 중 휴일(2/11) 건너뜀 → 2/16', () => {
+    const isHol = (d) => toISOForTest(d) === '2026-02-11';
+    const r = shiftEndDateBySessions({
+      endDate: new Date(2026, 1, 9), deltaSessions: 1,
+      classDays, holdingRanges: [], isHoliday: isHol,
+    });
+    expect(toISOForTest(r)).toBe('2026-02-16');
+  });
+
+  it('delta -1: 종료일(수 2/11) 이전 수업일은 월 2/9', () => {
+    const r = shiftEndDateBySessions({
+      endDate: new Date(2026, 1, 11), deltaSessions: -1,
+      classDays, holdingRanges: [], isHoliday: noHoliday,
+    });
+    expect(toISOForTest(r)).toBe('2026-02-09');
+  });
+
+  it('후진 중 홀딩(2/9) 건너뜀 → 2/4', () => {
+    const ranges = [{ start: new Date(2026, 1, 9), end: new Date(2026, 1, 9) }];
+    const r = shiftEndDateBySessions({
+      endDate: new Date(2026, 1, 11), deltaSessions: -1,
+      classDays, holdingRanges: ranges, isHoliday: noHoliday,
+    });
+    expect(toISOForTest(r)).toBe('2026-02-04');
+  });
+
+  it('delta 0이면 종료일 그대로', () => {
+    const r = shiftEndDateBySessions({
+      endDate: new Date(2026, 1, 11), deltaSessions: 0,
+      classDays, holdingRanges: [], isHoliday: noHoliday,
+    });
+    expect(toISOForTest(r)).toBe('2026-02-11');
   });
 });
