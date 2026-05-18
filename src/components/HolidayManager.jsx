@@ -16,6 +16,7 @@ const HolidayManager = ({ user, onBack }) => {
     const [selectedDates, setSelectedDates] = useState([]);
     const [holidays, setHolidays] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(null);
     const [reason, setReason] = useState('');
 
     // 달력 월 선택 (기본값: 현재 월)
@@ -174,6 +175,8 @@ const HolidayManager = ({ user, onBack }) => {
     // 휴일 삭제 핸들러
     const handleDeleteHoliday = async (holidayId) => {
         if (!confirm('이 휴일을 삭제하시겠습니까?')) return;
+        if (isDeleting) return;
+        setIsDeleting(holidayId);
 
         const removed = holidays.find((h) => h.id === holidayId);
         try {
@@ -200,6 +203,8 @@ const HolidayManager = ({ user, onBack }) => {
             alert(summary);
         } catch (error) {
             alert(`휴일 삭제에 실패했습니다: ${error.message}`);
+        } finally {
+            setIsDeleting(null);
         }
     };
 
@@ -257,6 +262,7 @@ const HolidayManager = ({ user, onBack }) => {
                                         </div>
                                         <button
                                             onClick={() => handleDeleteHoliday(holiday.id)}
+                                            disabled={isDeleting === holiday.id || isSubmitting}
                                             style={{
                                                 padding: '4px 8px',
                                                 background: '#dc2626',
@@ -267,7 +273,7 @@ const HolidayManager = ({ user, onBack }) => {
                                                 fontSize: '12px'
                                             }}
                                         >
-                                            삭제
+                                            {isDeleting === holiday.id ? '삭제 중...' : '삭제'}
                                         </button>
                                     </div>
                                 ))}

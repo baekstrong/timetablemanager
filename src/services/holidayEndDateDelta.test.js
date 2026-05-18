@@ -9,24 +9,32 @@ describe('parseAbsenceDatesFromNotes', () => {
   it('단일 결석 기록을 ISO로 변환', () => {
     expect(parseAbsenceDatesFromNotes('26.2.10 결석')).toEqual(['2026-02-10']);
   });
-
-  it('쉼표로 묶인 여러 날짜 추출', () => {
+  it('쉼표로 묶인 여러 날짜(공통 결석 접미)', () => {
     expect(parseAbsenceDatesFromNotes('26.2.10, 26.2.12 결석'))
       .toEqual(['2026-02-10', '2026-02-12']);
   });
-
   it('한 자리 월/일 0 padding', () => {
     expect(parseAbsenceDatesFromNotes('26.3.1 결석')).toEqual(['2026-03-01']);
   });
-
   it('빈 값/널은 빈 배열', () => {
     expect(parseAbsenceDatesFromNotes('')).toEqual([]);
     expect(parseAbsenceDatesFromNotes(null)).toEqual([]);
     expect(parseAbsenceDatesFromNotes(undefined)).toEqual([]);
   });
-
   it('날짜 토큰 없는 메모는 빈 배열', () => {
     expect(parseAbsenceDatesFromNotes('상담 완료')).toEqual([]);
+  });
+  it('결석이 아닌 날짜 메모는 제외', () => {
+    expect(parseAbsenceDatesFromNotes('26.6.10 상담')).toEqual([]);
+    expect(parseAbsenceDatesFromNotes('26.6.10 보강신청')).toEqual([]);
+  });
+  it('결석 기록과 비결석 메모 혼재 시 결석만', () => {
+    expect(parseAbsenceDatesFromNotes('26.2.10 결석, 26.3.1 상담'))
+      .toEqual(['2026-02-10']);
+  });
+  it('여러 결석 구간 누적', () => {
+    expect(parseAbsenceDatesFromNotes('26.2.10 결석, 26.3.5 결석'))
+      .toEqual(['2026-02-10', '2026-03-05']);
   });
 });
 
@@ -132,5 +140,13 @@ describe('shiftEndDateBySessions', () => {
       classDays, holdingRanges: [], isHoliday: noHoliday,
     });
     expect(toISOForTest(r)).toBe('2026-02-11');
+  });
+
+  it('가드 소진 시 null (모든 수업일이 휴일)', () => {
+    const r = shiftEndDateBySessions({
+      endDate: new Date(2026, 1, 9), deltaSessions: 1,
+      classDays, holdingRanges: [], isHoliday: () => true,
+    });
+    expect(r).toBe(null);
   });
 });

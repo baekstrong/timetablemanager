@@ -1659,6 +1659,7 @@ export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebase
   // 수강 기간이 최대 3개월(+홀딩 연장) 이므로, 가장 이른 휴일 달의 3개월
   // 전부터 가장 늦은 휴일 달까지의 월별 시트를 모두 스캔한다.
   const startCursor = new Date(earliest.getFullYear(), earliest.getMonth() - 3, 1);
+  // endCursor: 가장 늦은 휴일이 속한 달까지 스캔 (상한 경계)
   const endCursor = new Date(latest.getFullYear(), latest.getMonth(), 1);
   const wanted = [];
   for (
@@ -1752,6 +1753,10 @@ export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebase
         });
         if (!newEnd) {
           result.errors.push(`${sheetName} ${row[nameCol]}: 종료일 계산 실패(가드 소진)`);
+          continue;
+        }
+        if (newEnd < startDate) {
+          result.errors.push(`${sheetName} ${row[nameCol]}: 종료일이 시작일 이전 — 건너뜀`);
           continue;
         }
         updates.push({
