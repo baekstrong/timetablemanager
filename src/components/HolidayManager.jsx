@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { createHoliday, getHolidays, deleteHoliday } from '../services/firebaseService';
+import { applyHolidayDeltaToEndDates } from '../services/googleSheetsService';
 import { KOREAN_HOLIDAYS } from '../data/mockData';
 import './HoldingManager.css';
 
@@ -15,6 +16,7 @@ const HolidayManager = ({ user, onBack }) => {
     const [selectedDates, setSelectedDates] = useState([]);
     const [holidays, setHolidays] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(null);
     const [reason, setReason] = useState('');
 
     // 달력 월 선택 (기본값: 현재 월)
@@ -141,11 +143,26 @@ const HolidayManager = ({ user, onBack }) => {
                 await createHoliday(date, reason || '휴무');
             }
 
-            alert(`${selectedDates.length}일이 휴일로 설정되었습니다.`);
-
-            // 데이터 새로고침
+            // 갱신된 전체 휴일 목록으로 종료일 증분 조정
             const data = await getHolidays();
             setHolidays(data);
+
+            let summary = `${selectedDates.length}일이 휴일로 설정되었습니다.`;
+            try {
+                const r = await applyHolidayDeltaToEndDates({
+                    changedDates: selectedDates,
+                    mode: 'add',
+                    firebaseHolidays: data,
+                });
+                summary += `\n수강생 ${r.affectedStudents}명의 종료일이 연장되었습니다.`;
+                if (r.errors.length > 0) {
+                    summary += `\n⚠️ 일부 처리 경고: ${r.errors.join(' / ')}`;
+                }
+            } catch (e) {
+                summary += `\n⚠️ 종료일 자동 조정 실패: ${e.message} (휴일 설정은 완료됨)`;
+            }
+            alert(summary);
+
             setSelectedDates([]);
             setReason('');
         } catch (error) {
@@ -158,14 +175,36 @@ const HolidayManager = ({ user, onBack }) => {
     // 휴일 삭제 핸들러
     const handleDeleteHoliday = async (holidayId) => {
         if (!confirm('이 휴일을 삭제하시겠습니까?')) return;
+        if (isDeleting) return;
+        setIsDeleting(holidayId);
 
+        const removed = holidays.find((h) => h.id === holidayId);
         try {
             await deleteHoliday(holidayId);
             const data = await getHolidays();
             setHolidays(data);
-            alert('휴일이 삭제되었습니다.');
+
+            let summary = '휴일이 삭제되었습니다.';
+            if (removed && removed.date) {
+                try {
+                    const r = await applyHolidayDeltaToEndDates({
+                        changedDates: [removed.date],
+                        mode: 'delete',
+                        firebaseHolidays: data,
+                    });
+                    summary += `\n수강생 ${r.affectedStudents}명의 종료일이 단축되었습니다.`;
+                    if (r.errors.length > 0) {
+                        summary += `\n⚠️ 일부 처리 경고: ${r.errors.join(' / ')}`;
+                    }
+                } catch (e) {
+                    summary += `\n⚠️ 종료일 자동 조정 실패: ${e.message} (휴일 삭제는 완료됨)`;
+                }
+            }
+            alert(summary);
         } catch (error) {
             alert(`휴일 삭제에 실패했습니다: ${error.message}`);
+        } finally {
+            setIsDeleting(null);
         }
     };
 
@@ -223,6 +262,7 @@ const HolidayManager = ({ user, onBack }) => {
                                         </div>
                                         <button
                                             onClick={() => handleDeleteHoliday(holiday.id)}
+                                            disabled={isDeleting === holiday.id || isSubmitting}
                                             style={{
                                                 padding: '4px 8px',
                                                 background: '#dc2626',
@@ -233,7 +273,7 @@ const HolidayManager = ({ user, onBack }) => {
                                                 fontSize: '12px'
                                             }}
                                         >
-                                            삭제
+                                            {isDeleting === holiday.id ? '삭제 중...' : '삭제'}
                                         </button>
                                     </div>
                                 ))}
@@ -343,7 +383,7 @@ const HolidayManager = ({ user, onBack }) => {
                             disabled={isSubmitting}
                             style={{ marginTop: '16px' }}
                         >
-                            <span>{isSubmitting ? '설정 중...' : '휴일로 설정하기'}</span>
+                            <span>{isSubmitting ? '설정 및 종료일 반영 중...' : '휴일로 설정하기'}</span>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
