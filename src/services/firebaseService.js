@@ -11,6 +11,7 @@ import {
     serverTimestamp,
     Timestamp,
     orderBy,
+    limit as queryLimit,
     getCountFromServer,
     getDoc,
     setDoc,
@@ -974,6 +975,17 @@ export const getPosts = async (category = null, limitCount = 20) => {
             const bTime = b.createdAt?.toMillis?.() || 0;
             return bTime - aTime;
         }).slice(0, limitCount);
+    });
+};
+
+export const getLatestPostCreatedAt = async () => {
+    return safeRead(0, async () => {
+        const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), queryLimit(1));
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) return 0;
+        const data = snapshot.docs[0].data();
+        if (data.deleted) return 0;
+        return data.createdAt?.toMillis?.() || 0;
     });
 };
 

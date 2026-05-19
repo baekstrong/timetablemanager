@@ -15,12 +15,15 @@ import ContractView from './components/ContractView';
 import Ranking from './components/Ranking';
 import BottomNav from './components/BottomNav';
 import ImpersonationBanner from './components/ImpersonationBanner';
-import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent, subscribePosts, getNewStudentRegistrations } from './services/firebaseService';
+import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent, getLatestPostCreatedAt, getNewStudentRegistrations } from './services/firebaseService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from './config/firebase';
 import './App.css';
 
 const IMPERSONATION_STORAGE_KEY = 'impersonation_origin';
+const NOTIFICATION_POLL_INTERVAL = 5 * 60 * 1000;
+
+const isPageVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
 
 function AppContent() {
   // Check for ?register=true URL parameter
@@ -53,14 +56,23 @@ function AppContent() {
         const waitlistRegs = await getNewStudentRegistrations('waitlist');
         const hasAvailable = waitlistRegs.some(r => r.hasAvailableSlots);
         setHasNewStudentNotification(count > 0 || hasAvailable);
-      } catch (err) {
+      } catch {
         // ignore polling errors
       }
     };
 
-    checkPending();
-    const interval = setInterval(checkPending, 30000);
-    return () => clearInterval(interval);
+    const checkPendingIfVisible = () => {
+      if (isPageVisible()) checkPending();
+    };
+
+    checkPendingIfVisible();
+    const interval = setInterval(checkPendingIfVisible, NOTIFICATION_POLL_INTERVAL);
+    const onVisible = () => checkPendingIfVisible();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [user]);
 
   // Poll for waitlist + contract notifications (student only)
@@ -75,28 +87,48 @@ function AppContent() {
         ]);
         setHasWaitlistNotification(waitlist.some(w => w.status === 'notified'));
         setHasContractNotification(!!contract);
-      } catch (err) {
+      } catch {
         // ignore polling errors
       }
     };
 
-    checkStudentNotifications();
-    const interval = setInterval(checkStudentNotifications, 30000);
-    return () => clearInterval(interval);
+    const checkStudentNotificationsIfVisible = () => {
+      if (isPageVisible()) checkStudentNotifications();
+    };
+
+    checkStudentNotificationsIfVisible();
+    const interval = setInterval(checkStudentNotificationsIfVisible, NOTIFICATION_POLL_INTERVAL);
+    const onVisible = () => checkStudentNotificationsIfVisible();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [user]);
 
-  // 새 게시글 알림
+  // 새 게시글 알림: 전체 posts 실시간 구독 대신 최신 1건만 저빈도 조회
   useEffect(() => {
     if (!user) return;
-    const unsubscribe = subscribePosts(null, 100, (posts) => {
-      const lastSeen = parseInt(localStorage.getItem('board_last_seen') || '0');
-      const hasNew = posts.some(p => {
-        const postTime = p.createdAt?.toMillis?.() || 0;
-        return postTime > lastSeen;
-      });
-      setHasNewPostNotification(hasNew);
-    });
-    return () => unsubscribe();
+
+    const checkNewPostIfVisible = async () => {
+      if (!isPageVisible()) return;
+      try {
+        const lastSeen = parseInt(localStorage.getItem('board_last_seen') || '0');
+        const latestPostTime = await getLatestPostCreatedAt();
+        setHasNewPostNotification(latestPostTime > lastSeen);
+      } catch {
+        // ignore polling errors
+      }
+    };
+
+    checkNewPostIfVisible();
+    const interval = setInterval(checkNewPostIfVisible, NOTIFICATION_POLL_INTERVAL);
+    const onVisible = () => checkNewPostIfVisible();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [user]);
 
   const handleLogin = async (userData) => {
