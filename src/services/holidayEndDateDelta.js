@@ -42,6 +42,12 @@ const inAnyRange = (date, ranges) =>
     (r) => r && atMidnight(date) >= atMidnight(r.start) && atMidnight(date) <= atMidnight(r.end),
   );
 
+export function filterEffectiveHolidayDeltaDates({ changedDates, mode, isBuiltInHoliday }) {
+  if (!changedDates || changedDates.length === 0) return [];
+  if (!['add', 'delete'].includes(mode)) return [...changedDates];
+  return changedDates.filter((ds) => !isBuiltInHoliday(ds));
+}
+
 /**
  * 변경된 휴일 1건이 이 수강생 종료일 변경을 유발하는지.
  * @param {Object} p

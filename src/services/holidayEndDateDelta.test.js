@@ -3,6 +3,7 @@ import {
   parseAbsenceDatesFromNotes,
   isHolidayRelevantToStudent,
   shiftEndDateBySessions,
+  filterEffectiveHolidayDeltaDates,
 } from './holidayEndDateDelta.js';
 
 describe('parseAbsenceDatesFromNotes', () => {
@@ -35,6 +36,27 @@ describe('parseAbsenceDatesFromNotes', () => {
   it('여러 결석 구간 누적', () => {
     expect(parseAbsenceDatesFromNotes('26.2.10 결석, 26.3.5 결석'))
       .toEqual(['2026-02-10', '2026-03-05']);
+  });
+});
+
+describe('filterEffectiveHolidayDeltaDates', () => {
+  const builtIn = new Set(['2026-02-16']);
+  const isBuiltInHoliday = (ds) => builtIn.has(ds);
+
+  it('추가 모드에서 이미 기본 공휴일인 날짜는 제외한다', () => {
+    expect(filterEffectiveHolidayDeltaDates({
+      changedDates: ['2026-02-16', '2026-02-17'],
+      mode: 'add',
+      isBuiltInHoliday,
+    })).toEqual(['2026-02-17']);
+  });
+
+  it('삭제 모드에서도 여전히 기본 공휴일인 날짜는 제외한다', () => {
+    expect(filterEffectiveHolidayDeltaDates({
+      changedDates: ['2026-02-16', '2026-02-17'],
+      mode: 'delete',
+      isBuiltInHoliday,
+    })).toEqual(['2026-02-17']);
   });
 });
 

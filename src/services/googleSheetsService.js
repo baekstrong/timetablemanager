@@ -2,6 +2,7 @@ import {
   parseAbsenceDatesFromNotes,
   isHolidayRelevantToStudent,
   shiftEndDateBySessions,
+  filterEffectiveHolidayDeltaDates,
 } from './holidayEndDateDelta.js';
 
 // Backend Functions URL
@@ -1678,11 +1679,13 @@ export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebase
   }
   const sheetNames = wanted.filter((n) => existing.includes(n));
 
-  // 삭제 모드: 여전히 한국 공휴일인 날짜는 변화 없음 → 제외
-  const effectiveChanged =
-    mode === 'delete'
-      ? changedDates.filter((ds) => !isHolidayDate(new Date(ds + 'T00:00:00'), []))
-      : [...changedDates];
+  // 추가/삭제 모드 모두: 기본 한국 공휴일은 이미 종료일 계산에서 휴일로 취급되므로
+  // 커스텀 휴일 delta 대상에서 제외한다. 중복 연장/중복 단축 방지.
+  const effectiveChanged = filterEffectiveHolidayDeltaDates({
+    changedDates,
+    mode,
+    isBuiltInHoliday: (ds) => isHolidayDate(new Date(ds + 'T00:00:00'), []),
+  });
   if (effectiveChanged.length === 0) return result;
 
   const isHoliday = (date) => isHolidayDate(date, firebaseHolidays);

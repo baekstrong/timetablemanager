@@ -117,6 +117,9 @@ const HolidayManager = ({ user, onBack }) => {
 
         const dateStr = formatLocalDate(date);
 
+        // 이미 기본 공휴일이면 종료일 계산에 반영되어 있으므로 커스텀 휴일로 중복 설정하지 않음
+        if (isKoreanHoliday(date)) return;
+
         // 이미 설정된 휴일이면 무시
         if (isCustomHoliday(date)) return;
 
@@ -139,18 +142,33 @@ const HolidayManager = ({ user, onBack }) => {
 
         setIsSubmitting(true);
         try {
+            const createdDates = [];
+            const createErrors = [];
             for (const date of selectedDates) {
-                await createHoliday(date, reason || '휴무');
+                try {
+                    await createHoliday(date, reason || '휴무');
+                    createdDates.push(date);
+                } catch (e) {
+                    createErrors.push(`${date}: ${e.message}`);
+                }
+            }
+
+            if (createdDates.length === 0) {
+                alert(`휴일 설정에 실패했습니다: ${createErrors.join(' / ')}`);
+                return;
             }
 
             // 갱신된 전체 휴일 목록으로 종료일 증분 조정
             const data = await getHolidays();
             setHolidays(data);
 
-            let summary = `${selectedDates.length}일이 휴일로 설정되었습니다.`;
+            let summary = `${createdDates.length}일이 휴일로 설정되었습니다.`;
+            if (createErrors.length > 0) {
+                summary += `\n⚠️ 일부 휴일 설정 실패: ${createErrors.join(' / ')}`;
+            }
             try {
                 const r = await applyHolidayDeltaToEndDates({
-                    changedDates: selectedDates,
+                    changedDates: createdDates,
                     mode: 'add',
                     firebaseHolidays: data,
                 });
@@ -159,14 +177,14 @@ const HolidayManager = ({ user, onBack }) => {
                     summary += `\n⚠️ 일부 처리 경고: ${r.errors.join(' / ')}`;
                 }
             } catch (e) {
-                summary += `\n⚠️ 종료일 자동 조정 실패: ${e.message} (휴일 설정은 완료됨)`;
+                summary += `\n⚠️ 종료일 자동 조정 실패: ${e.message} (성공한 휴일 설정은 완료됨)`;
             }
             alert(summary);
 
             setSelectedDates([]);
             setReason('');
         } catch (error) {
-            alert(`휴일 설정에 실패했습니다: ${error.message}`);
+            alert(`휴일 설정 후 처리에 실패했습니다: ${error.message}`);
         } finally {
             setIsSubmitting(false);
         }
