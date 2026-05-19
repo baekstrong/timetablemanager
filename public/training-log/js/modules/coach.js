@@ -306,24 +306,31 @@ window.scrollToStudent = scrollToStudent;
 // Data Caching & Real-time Listeners
 // ============================================
 let studentPinnedMemosCache = {};
+let coachPinnedMemosCache = {};
 
 export function setupRealtimePinnedMemosListener() {
-    if (!firebaseInitialized || !db) return;
+    // 2단계 읽기 절감: 코치 진입 시 pinnedMemos 전체 컬렉션 실시간 구독 금지.
+    // 선택된 학생의 문서만 render 시점에 직접 조회한다.
+}
 
-    // Listen to ALL student pinned memos
-    // (In a production app with many users, you'd filter by coach's students or listen individually)
-    db.collection('pinnedMemos').onSnapshot(snapshot => {
-        snapshot.forEach(doc => {
-            studentPinnedMemosCache[doc.id] = doc.data().memos || [];
-        });
+async function loadPinnedMemosForSelectedStudents() {
+    if (!firebaseInitialized || !db || state.selectedStudents.length === 0) return;
 
-        // Update UI if viewing specific students
-        if (state.selectedStudents.length > 0) {
-            renderPinnedMemosForCoach();
+    const selected = [...new Set(state.selectedStudents)];
+    await Promise.all(selected.map(async (studentName) => {
+        try {
+            const [studentDoc, coachDoc] = await Promise.all([
+                db.collection('pinnedMemos').doc(studentName).get(),
+                db.collection('coachPinnedMemos').doc(studentName).get()
+            ]);
+            studentPinnedMemosCache[studentName] = studentDoc.exists ? (studentDoc.data().memos || []) : [];
+            coachPinnedMemosCache[studentName] = coachDoc.exists ? (coachDoc.data().memos || []) : [];
+        } catch (error) {
+            console.error('선택 학생 메모 조회 실패:', studentName, error);
+            studentPinnedMemosCache[studentName] = studentPinnedMemosCache[studentName] || [];
+            coachPinnedMemosCache[studentName] = coachPinnedMemosCache[studentName] || [];
         }
-    }, error => {
-        console.error('Real-time pinned memo listener error:', error);
-    });
+    }));
 }
 
 // Feature 3, 4, 5: Render Pinned Memos for Coach View (Independent of Date Filter)
@@ -338,28 +345,14 @@ export async function renderPinnedMemosForCoach() {
         return;
     }
 
-    // cache update is handled by listeners
-    // Explicit fetch for Coach Memos (Simulating realtime for now, or use cache if we add listener)
-    let coachMemosMap = {};
-    if (firebaseInitialized && db) {
-        try {
-            // Optimization: If many students, this might be slow, but for now OK.
-            // Ideally we should cache this too.
-            const snapshot = await db.collection('coachPinnedMemos').get();
-            snapshot.forEach(doc => {
-                coachMemosMap[doc.id] = doc.data().memos || [];
-            });
-        } catch (e) {
-            console.error('Error fetching coach memos:', e);
-        }
-    }
+    await loadPinnedMemosForSelectedStudents();
 
     let html = '';
 
     state.selectedStudents.forEach(studentName => {
         const studentColor = getStudentColor(studentName, state.allStudents) || '#ffffff';
         const studentMemos = studentPinnedMemosCache[studentName] || [];
-        const coachMemos = coachMemosMap[studentName] || [];
+        const coachMemos = coachPinnedMemosCache[studentName] || [];
 
         // Filter by Exercise
         let filteredStudentMemos = studentMemos;
@@ -522,6 +515,7 @@ export async function saveCoachMessage(studentName, title, content) {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
+        coachPinnedMemosCache[studentName] = memos;
         alert('✅ 메시지가 전송되었습니다.');
         renderPinnedMemosForCoach();
     } catch (e) {
@@ -563,6 +557,7 @@ async function updateCoachMemo(studentName, memoId, newContent, isDelete = false
             memos[idx].updatedAt = new Date().toISOString();
         }
         await docRef.update({ memos });
+        coachPinnedMemosCache[studentName] = memos;
         renderPinnedMemosForCoach();
     }
 }
@@ -589,6 +584,7 @@ export async function saveCoachCommentToStudentMemo(studentName, memoIndex) {
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
+                studentPinnedMemosCache[studentName] = memos;
                 alert('✅ 코멘트가 저장되었습니다!');
                 if (state.recordsFilter) debouncedLoadAllRecords();
             } else {
@@ -843,7 +839,22 @@ export async function loadAllRecords() {
 
     if (state.unsubscribe) state.unsubscribe();
 
+    if (state.selectedStudents.length === 0) {
+        allRecordsList.innerHTML = '<p class="text-gray-500 text-center py-8 col-span-full">기록을 보려면 수강생을 먼저 선택하세요.</p>';
+        return;
+    }
+
+    const selectedStudentsForQuery = [...new Set(state.selectedStudents)];
+    if (selectedStudentsForQuery.length > 10 && !state.selectedDate && !state.exerciseFilter && !state.painFilter) {
+        allRecordsList.innerHTML = '<p class="text-gray-500 text-center py-8 col-span-full">읽기 절감을 위해 10명 이하로 선택하거나 날짜/운동/통증 필터를 먼저 적용하세요.</p>';
+        return;
+    }
+
     let query = db.collection('records');
+
+    if (selectedStudentsForQuery.length <= 10) {
+        query = query.where('userName', 'in', selectedStudentsForQuery);
+    }
 
     // Feature 2: 운동별 보기 필터 (날짜 필터와 함께 동작하도록 수정)
     if (state.exerciseFilter) {
@@ -863,18 +874,13 @@ export async function loadAllRecords() {
         query = query.where('pain', '==', true);
     }
 
-    // 고정 메모 필터 사용 시 Firestore에서 수강생의 고정 메모 불러오기 (Phase 1 Logic Restored)
+    // 고정 메모 필터 사용 시 선택된 수강생 문서만 조회
     let allPinnedMemos = {};
     if (state.pinnedMemoFilter && firebaseInitialized && db) {
-        try {
-            const pinnedSnapshot = await db.collection('pinnedMemos').get();
-            pinnedSnapshot.forEach(doc => {
-                const data = doc.data();
-                allPinnedMemos[data.userName] = data.memos || [];
-            });
-        } catch (error) {
-            console.error('❌ 고정 메모 불러오기 실패:', error);
-        }
+        await loadPinnedMemosForSelectedStudents();
+        state.selectedStudents.forEach(studentName => {
+            allPinnedMemos[studentName] = studentPinnedMemosCache[studentName] || [];
+        });
     }
 
     state.unsubscribe = query.limit(100).onSnapshot((snapshot) => {
