@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, subscribePosts, updatePost, deletePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters } from '../services/firebaseService';
+import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
 import GoogleSheetsSync from './GoogleSheetsSync';
@@ -30,6 +30,9 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     const [postsError, setPostsError] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [boardPage, setBoardPage] = useState(1);
+    const [boardTotalPages, setBoardTotalPages] = useState(1);
+    const boardCursorsRef = useRef({ 1: null });
+    const boardRequestIdRef = useRef(0);
     const [viewMode, setViewMode] = useState('list');
     const [selectedPostId, setSelectedPostId] = useState(null);
     const [showPostForm, setShowPostForm] = useState(false);
@@ -170,16 +173,46 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         checkMyLastDay();
     }, [user]);
 
-    // 실시간 게시글 구독
-    useEffect(() => {
+    const loadPosts = useCallback(async (targetPage = boardPage, { reset = false } = {}) => {
+        const requestId = ++boardRequestIdRef.current;
         setPostsLoading(true);
         setPostsError(null);
-        const unsubscribe = subscribePosts(selectedCategory, POST_LIMITS.FETCH_LIMIT, (data) => {
-            setPosts(data);
+
+        try {
+            if (reset) {
+                boardCursorsRef.current = { 1: null };
+            }
+
+            for (let page = 1; page < targetPage; page += 1) {
+                if (boardCursorsRef.current[page + 1] !== undefined) continue;
+                const preloaded = await getPostsPage(selectedCategory, POST_LIMITS.PAGE_SIZE, boardCursorsRef.current[page] || null);
+                boardCursorsRef.current[page + 1] = preloaded.nextCursor;
+            }
+
+            const data = await getPostsPage(
+                selectedCategory,
+                POST_LIMITS.PAGE_SIZE,
+                boardCursorsRef.current[targetPage] || null
+            );
+            boardCursorsRef.current[targetPage + 1] = data.nextCursor;
+
+            if (requestId !== boardRequestIdRef.current) return;
+            setPosts(data.posts);
+            setBoardTotalPages(data.totalPages);
             setPostsLoading(false);
-        });
-        return () => unsubscribe();
-    }, [selectedCategory]);
+        } catch (error) {
+            if (requestId !== boardRequestIdRef.current) return;
+            console.error('게시글 페이지 로드 실패:', error);
+            setPosts([]);
+            setPostsError('게시글을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+            setPostsLoading(false);
+        }
+    }, [boardPage, selectedCategory]);
+
+    // 게시글은 현재 페이지 분량만 읽는다. 페이지 이동 시 필요한 커서만 순차 확보.
+    useEffect(() => {
+        loadPosts(boardPage, { reset: boardPage === 1 });
+    }, [boardPage, selectedCategory, loadPosts]);
 
     const handleCategoryChange = (category) => {
         setSelectedCategory(category);
@@ -210,6 +243,9 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             }
             setShowPostForm(false);
             setEditingPost(null);
+            boardCursorsRef.current = { 1: null };
+            setBoardPage(1);
+            await loadPosts(1, { reset: true });
         } catch (error) {
             alert('저장 실패: ' + error.message);
         }
@@ -667,13 +703,13 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         posts={posts}
                         loading={postsLoading}
                         error={postsError}
-                        user={user}
                         selectedCategory={selectedCategory}
                         onCategoryChange={handleCategoryChange}
                         onPostClick={handlePostClick}
                         onWriteClick={() => { setEditingPost(null); setShowPostForm(true); }}
-                        onRetry={() => loadPosts()}
+                        onRetry={() => loadPosts(boardPage, { reset: true })}
                         currentPage={boardPage}
+                        totalPages={boardTotalPages}
                         onPageChange={setBoardPage}
                     />
                 ) : (

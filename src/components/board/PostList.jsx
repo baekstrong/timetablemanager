@@ -1,7 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { BOARD_CATEGORIES, CATEGORY_MAP } from '../../data/boardConstants';
-
-const POSTS_PER_PAGE = 10;
 
 const SEARCH_MODES = [
     { key: 'title', label: '제목' },
@@ -21,24 +19,18 @@ const PostList = ({
     posts,
     loading,
     error,
-    user,
     onPostClick,
     onWriteClick,
     onRetry,
     selectedCategory,
     onCategoryChange,
     currentPage,
+    totalPages,
     onPageChange,
 }) => {
     const [searchMode, setSearchMode] = useState('both');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeSearch, setActiveSearch] = useState('');
-
-    // 카테고리 변경 시 검색 리셋 (페이지는 부모가 관리)
-    useEffect(() => {
-        setSearchQuery('');
-        setActiveSearch('');
-    }, [selectedCategory]);
 
     // 검색 필터링
     const filteredPosts = activeSearch
@@ -50,10 +42,9 @@ const PostList = ({
         })
         : posts;
 
-    const totalPages = Math.max(1, Math.ceil(filteredPosts.length / POSTS_PER_PAGE));
-    const safePage = Math.min(currentPage, totalPages);
-    const startIdx = (safePage - 1) * POSTS_PER_PAGE;
-    const pagedPosts = filteredPosts.slice(startIdx, startIdx + POSTS_PER_PAGE);
+    const pageCount = activeSearch ? 1 : Math.max(1, totalPages || 1);
+    const safePage = Math.min(currentPage, pageCount);
+    const pagedPosts = filteredPosts;
 
     const handleSearch = () => {
         setActiveSearch(searchQuery.trim());
@@ -74,7 +65,11 @@ const PostList = ({
                     <button
                         key={category.key}
                         className={`board-tab${selectedCategory === category.key ? ' active' : ''}`}
-                        onClick={() => onCategoryChange(category.key)}
+                        onClick={() => {
+                            setSearchQuery('');
+                            setActiveSearch('');
+                            onCategoryChange(category.key);
+                        }}
                     >
                         {category.icon ? `${category.icon} ` : ''}{category.label}
                     </button>
@@ -106,7 +101,7 @@ const PostList = ({
                 </div>
             )}
 
-            {/* Post list (paged) */}
+            {/* Post list (current server page) */}
             {!loading && !error && pagedPosts.map((post) => {
                 const isPinned = post.pinned && post.category === 'notice';
                 const categoryInfo = CATEGORY_MAP[post.category];
@@ -159,7 +154,7 @@ const PostList = ({
             })}
 
             {/* Pagination */}
-            {!loading && !error && totalPages > 1 && (
+            {!loading && !error && pageCount > 1 && (
                 <div className="board-pagination">
                     <button
                         className="board-page-btn"
@@ -168,7 +163,7 @@ const PostList = ({
                     >
                         ‹
                     </button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    {Array.from({ length: pageCount }, (_, i) => i + 1).map((page) => (
                         <button
                             key={page}
                             className={`board-page-btn${page === safePage ? ' active' : ''}`}
@@ -179,7 +174,7 @@ const PostList = ({
                     ))}
                     <button
                         className="board-page-btn"
-                        disabled={safePage >= totalPages}
+                        disabled={safePage >= pageCount}
                         onClick={() => onPageChange(safePage + 1)}
                     >
                         ›

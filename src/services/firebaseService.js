@@ -19,7 +19,8 @@ import {
     arrayRemove,
     increment,
     writeBatch,
-    onSnapshot
+    onSnapshot,
+    startAfter
 } from 'firebase/firestore';
 
 // ============================================
@@ -975,6 +976,37 @@ export const getPosts = async (category = null, limitCount = 20) => {
             const bTime = b.createdAt?.toMillis?.() || 0;
             return bTime - aTime;
         }).slice(0, limitCount);
+    });
+};
+
+export const getPostsPage = async (category = 'all', pageSize = 10, cursor = null) => {
+    return safeRead({ posts: [], nextCursor: null, totalCount: 0, totalPages: 1 }, async () => {
+        const baseConstraints = category && category !== 'all'
+            ? [where('category', '==', category)]
+            : [];
+
+        const countSnapshot = await getCountFromServer(query(collection(db, 'posts'), ...baseConstraints));
+        const totalCount = countSnapshot.data().count || 0;
+        const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+        const pageConstraints = [
+            ...baseConstraints,
+            orderBy('createdAt', 'desc'),
+            ...(cursor ? [startAfter(cursor)] : []),
+            queryLimit(pageSize),
+        ];
+        const q = query(collection(db, 'posts'), ...pageConstraints);
+        const snapshot = await getDocs(q);
+        const posts = snapshot.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(p => !p.deleted);
+
+        return {
+            posts,
+            nextCursor: snapshot.docs[snapshot.docs.length - 1] || null,
+            totalCount,
+            totalPages,
+        };
     });
 };
 

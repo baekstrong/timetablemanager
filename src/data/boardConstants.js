@@ -15,5 +15,6 @@ export const POST_LIMITS = {
     TITLE_MAX: 100,
     CONTENT_MAX: 5000,
     COMMENT_MAX: 1000,
-    FETCH_LIMIT: 200,
+    PAGE_SIZE: 10,
+    FETCH_LIMIT: 200, // legacy fallback only; 게시판 목록은 PAGE_SIZE 단위로 읽는다.
 };
