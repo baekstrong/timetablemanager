@@ -41,6 +41,23 @@ function assertFirebase(fallback = undefined) {
     return null;
 }
 
+const HOLIDAY_CACHE_TTL_MS = 5 * 60 * 1000;
+let holidaysCache = null;
+let holidaysCacheFetchedAt = 0;
+
+function clearHolidaysCache() {
+    holidaysCache = null;
+    holidaysCacheFetchedAt = 0;
+}
+
+function dedupeDocsById(docs) {
+    const map = new Map();
+    docs.forEach(item => {
+        if (item?.id) map.set(item.id, item);
+    });
+    return Array.from(map.values());
+}
+
 /**
  * Firestore 쿼리 실행 후 docs를 { id, ...data() } 형태로 매핑
  */
@@ -192,13 +209,21 @@ export const getMakeupRequestsByDate = async (date) => {
 
 export const getMakeupRequestsByWeek = async (startDate, endDate) => {
     return safeRead([], async () => {
-        const allRequests = await queryDocs('makeupRequests',
-            where('status', 'in', ['active', 'completed'])
-        );
+        const [makeupDateRequests, originalDateRequests] = await Promise.all([
+            queryDocs('makeupRequests',
+                where('makeupClass.date', '>=', startDate),
+                where('makeupClass.date', '<=', endDate)
+            ),
+            queryDocs('makeupRequests',
+                where('originalClass.date', '>=', startDate),
+                where('originalClass.date', '<=', endDate)
+            )
+        ]);
 
-        const requests = allRequests.filter(req => {
-            const makeupDate = req.makeupClass.date;
-            const originalDate = req.originalClass.date;
+        const requests = dedupeDocsById([...makeupDateRequests, ...originalDateRequests]).filter(req => {
+            if (!['active', 'completed'].includes(req.status)) return false;
+            const makeupDate = req.makeupClass?.date;
+            const originalDate = req.originalClass?.date;
             return (makeupDate >= startDate && makeupDate <= endDate) ||
                    (originalDate >= startDate && originalDate <= endDate);
         });
@@ -309,10 +334,14 @@ export const getHoldingHistory = async (studentName) => {
 
 export const getHoldingsByWeek = async (startDate, endDate) => {
     return safeRead([], async () => {
-        const allHoldings = await queryDocs('holdingRequests',
-            where('status', '==', 'active')
+        const possibleHoldings = await queryDocs('holdingRequests',
+            where('endDate', '>=', startDate)
         );
-        const holdings = allHoldings.filter(h => h.endDate >= startDate && h.startDate <= endDate);
+        const holdings = possibleHoldings.filter(h =>
+            h.status === 'active' &&
+            h.endDate >= startDate &&
+            h.startDate <= endDate
+        );
         console.log(`${startDate} ~ ${endDate} 홀딩 목록:`, holdings.length);
         return holdings;
     });
@@ -435,6 +464,7 @@ export const createHoliday = async (date, reason = '') => {
     return safeWrite(async () => {
         console.log('휴일 추가:', { date, reason });
         const result = await createDoc('holidays', { date, reason });
+        clearHolidaysCache();
         console.log('휴일 추가 완료:', result.id);
         return result;
     });
@@ -442,7 +472,13 @@ export const createHoliday = async (date, reason = '') => {
 
 export const getHolidays = async () => {
     return safeRead([], async () => {
+        const now = Date.now();
+        if (holidaysCache && now - holidaysCacheFetchedAt < HOLIDAY_CACHE_TTL_MS) {
+            return holidaysCache;
+        }
         const holidays = await queryDocs('holidays');
+        holidaysCache = holidays;
+        holidaysCacheFetchedAt = now;
         console.log('휴일 목록 조회:', holidays.length);
         return holidays;
     });
@@ -452,6 +488,7 @@ export const deleteHoliday = async (holidayId) => {
     return safeWrite(async () => {
         console.log('휴일 삭제:', holidayId);
         await firestoreDeleteDoc(doc(db, 'holidays', holidayId));
+        clearHolidaysCache();
         console.log('휴일 삭제 완료');
     });
 };

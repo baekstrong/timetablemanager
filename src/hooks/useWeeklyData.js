@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     getStudentField,
     parseHoldingStatus,
@@ -9,7 +9,7 @@ import {
     getAbsencesByDate,
     getHolidays,
     getAllActiveWaitlist,
-    getAllActiveHoldings,
+    getHoldingsByWeek,
 } from '../services/firebaseService';
 import {
     parseSheetDate,
@@ -27,7 +27,7 @@ export function useWeeklyData({ user, students, mode, refresh }) {
     const [weekHolidays, setWeekHolidays] = useState([]);
     const [weekWaitlist, setWeekWaitlist] = useState([]);
 
-    async function loadWeeklyData() {
+    const loadWeeklyData = useCallback(async () => {
         try {
             const today = new Date();
             const dayOfWeek = today.getDay();
@@ -86,7 +86,7 @@ export function useWeeklyData({ user, students, mode, refresh }) {
                 Promise.all(dates.map(date => getAbsencesByDate(date).catch(() => []))),
                 getHolidays().catch(() => []),
                 getAllActiveWaitlist().catch(() => []),
-                getAllActiveHoldings().catch(() => [])
+                getHoldingsByWeek(startDate, thisWeekEndDate).catch(() => [])
             ]);
 
             const allAbsences = absenceArrays.flat();
@@ -129,11 +129,14 @@ export function useWeeklyData({ user, students, mode, refresh }) {
             setWeekAbsences([]);
             setWeekWaitlist([]);
         }
-    }
+    }, [students]);
 
     useEffect(() => {
-        loadWeeklyData();
-    }, [mode, students]);
+        const timeoutId = window.setTimeout(() => {
+            void loadWeeklyData();
+        }, 0);
+        return () => window.clearTimeout(timeoutId);
+    }, [mode, loadWeeklyData]);
 
     // Coach mode: auto-refresh every 30 minutes
     useEffect(() => {
@@ -149,7 +152,7 @@ export function useWeeklyData({ user, students, mode, refresh }) {
         }, REFRESH_INTERVAL);
 
         return () => clearInterval(intervalId);
-    }, [user, mode]);
+    }, [user, mode, refresh, loadWeeklyData]);
 
     return {
         weekMakeupRequests,
