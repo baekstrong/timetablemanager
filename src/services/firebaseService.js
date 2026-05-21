@@ -1349,11 +1349,22 @@ export const getPersonalBests = async (userName) => {
 };
 
 /**
- * 전체 PR 컬렉션 (랭킹 탭)
+ * 전체 PR 컬렉션 (legacy/admin fallback only).
+ * 일반 랭킹 화면에서는 운동별/학생별 범위 쿼리를 우선 사용해 Firestore reads를 줄인다.
  */
 export const getAllPersonalBests = async () => {
     return safeRead([], async () => {
         return queryDocs('personalBests');
+    });
+};
+
+/**
+ * 특정 운동의 PR 목록 (종목별 랭킹 탭).
+ */
+export const getPersonalBestsByExercise = async (exercise) => {
+    if (!exercise) return [];
+    return safeRead([], async () => {
+        return queryDocs('personalBests', where('exercise', '==', exercise));
     });
 };
 

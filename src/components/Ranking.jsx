@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import {
-    getAllPersonalBests,
+    getPersonalBests,
+    getPersonalBestsByExercise,
     getMonthlyPRUpdaters,
     getAttendanceRanking,
     getRecordsByUserSince,
@@ -82,9 +83,9 @@ const formatDate = (s) => {
 const Ranking = ({ user, onBack }) => {
     const { students } = useGoogleSheets();
     const [tab, setTab] = useState('ranking'); // 'ranking' | 'mypr' | 'graph'
-    const [allPRs, setAllPRs] = useState([]);
     const [trainingLogExercises, setTrainingLogExercises] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [refreshNonce, setRefreshNonce] = useState(0);
     const [showSubmitModal, setShowSubmitModal] = useState(false);
 
     const isCoach = user?.role === 'coach';
@@ -116,23 +117,21 @@ const Ranking = ({ user, onBack }) => {
         return Array.from(set).sort();
     }, [students]);
 
-    const loadAll = async () => {
+    const loadExerciseNames = async () => {
         setLoading(true);
         try {
-            const [data, exercises] = await Promise.all([
-                getAllPersonalBests(),
-                getAllExerciseNames()
-            ]);
-            setAllPRs(data);
+            const exercises = await getAllExerciseNames();
             setTrainingLogExercises(exercises);
         } catch (err) {
-            console.error('PR 로드 실패:', err);
+            console.error('운동 종목 로드 실패:', err);
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => { loadAll(); }, []);
+    const refreshCurrentPRData = () => setRefreshNonce(n => n + 1);
+
+    useEffect(() => { loadExerciseNames(); }, []);
 
     // 운동명 드롭다운 옵션: 코치가 관리하는 공식 운동 종목 목록 (이미 가나다 정렬)
     const exerciseSuggestions = trainingLogExercises;
@@ -164,19 +163,27 @@ const Ranking = ({ user, onBack }) => {
             ) : (
                 <>
                     {tab === 'ranking' && (
-                        <RankingTab allPRs={allPRs} genderMap={genderMap} />
+                        <RankingTab
+                            exerciseSuggestions={exerciseSuggestions}
+                            genderMap={genderMap}
+                            refreshNonce={refreshNonce}
+                        />
                     )}
                     {tab === 'mypr' && (
                         <MyPRTab
                             user={user}
-                            allPRs={allPRs}
                             studentNames={studentNames}
                             onAddClick={() => setShowSubmitModal(true)}
-                            onRefresh={loadAll}
+                            onRefresh={refreshCurrentPRData}
+                            refreshNonce={refreshNonce}
                         />
                     )}
                     {tab === 'graph' && (
-                        <GraphTab user={user} allPRs={allPRs} studentNames={studentNames} />
+                        <GraphTab
+                            user={user}
+                            studentNames={studentNames}
+                            refreshNonce={refreshNonce}
+                        />
                     )}
                 </>
             )}
@@ -190,7 +197,7 @@ const Ranking = ({ user, onBack }) => {
                     onClose={() => setShowSubmitModal(false)}
                     onSubmitted={() => {
                         setShowSubmitModal(false);
-                        loadAll();
+                        refreshCurrentPRData();
                     }}
                 />
             )}
@@ -202,28 +209,42 @@ const Ranking = ({ user, onBack }) => {
 // 랭킹 탭
 // ============================================
 
-const RankingTab = ({ allPRs, genderMap }) => {
+const RankingTab = ({ exerciseSuggestions, genderMap, refreshNonce }) => {
     const [subTab, setSubTab] = useState('topn'); // 'topn' | 'monthly' | 'attendance'
     const [genderFilter, setGenderFilter] = useState('all'); // 'all' | '남' | '여'
     const [selectedExercise, setSelectedExercise] = useState('');
+    const [exercisePRs, setExercisePRs] = useState([]);
+    const [loadingExercisePRs, setLoadingExercisePRs] = useState(false);
 
-    const exercises = useMemo(() => {
-        const set = new Set(allPRs.map(p => p.exercise).filter(Boolean));
-        return Array.from(set).sort();
-    }, [allPRs]);
-
+    const exercises = exerciseSuggestions;
     const effectiveExercise = selectedExercise || exercises[0] || '';
 
-    // 종목별 TOP-N: 같은 운동 내에서 prType 통일 가정. 다양한 중량 PR(weightThenReps)도 모두 정렬에 포함
+    useEffect(() => {
+        if (subTab !== 'topn' || !effectiveExercise) {
+            setExercisePRs([]);
+            return;
+        }
+        (async () => {
+            setLoadingExercisePRs(true);
+            try {
+                const data = await getPersonalBestsByExercise(effectiveExercise);
+                setExercisePRs(data);
+            } catch (err) {
+                console.error('운동별 PR 로드 실패:', err);
+                setExercisePRs([]);
+            } finally {
+                setLoadingExercisePRs(false);
+            }
+        })();
+    }, [subTab, effectiveExercise, refreshNonce]);
+
+    // 종목별 TOP-N: 선택 운동만 Firestore에서 읽고, 성별 필터/metric 정렬은 클라이언트에서 처리
     const topNData = useMemo(() => {
-        const filtered = allPRs.filter(p =>
-            p.exercise === effectiveExercise &&
-            (genderFilter === 'all' || genderMap[p.userName] === genderFilter)
-        );
-        return filtered.map(p => ({ ...p, _metric: prMetric(p) }))
+        return exercisePRs.filter(p => genderFilter === 'all' || genderMap[p.userName] === genderFilter)
+            .map(p => ({ ...p, _metric: prMetric(p) }))
             .sort((a, b) => b._metric - a._metric)
             .slice(0, 10);
-    }, [allPRs, effectiveExercise, genderFilter, genderMap]);
+    }, [exercisePRs, genderFilter, genderMap]);
 
     return (
         <div className="ranking-content">
@@ -252,18 +273,22 @@ const RankingTab = ({ allPRs, genderMap }) => {
                             >
                                 {exercises.map(ex => <option key={ex} value={ex}>{ex}</option>)}
                             </select>
-                            <ol className="ranking-list">
-                                {topNData.length === 0 ? (
-                                    <li className="ranking-empty-row">해당 조건의 기록이 없습니다.</li>
-                                ) : topNData.map((p, i) => (
-                                    <li key={p.id} className="ranking-row">
-                                        <span className="ranking-rank">{i + 1}</span>
-                                        <span className="ranking-name">{p.userName}</span>
-                                        <span className="ranking-value">{formatPRValue(p)}</span>
-                                        <span className="ranking-date">{formatDate(p.date)}</span>
-                                    </li>
-                                ))}
-                            </ol>
+                            {loadingExercisePRs ? (
+                                <div className="ranking-loading">불러오는 중...</div>
+                            ) : (
+                                <ol className="ranking-list">
+                                    {topNData.length === 0 ? (
+                                        <li className="ranking-empty-row">해당 조건의 기록이 없습니다.</li>
+                                    ) : topNData.map((p, i) => (
+                                        <li key={p.id} className="ranking-row">
+                                            <span className="ranking-rank">{i + 1}</span>
+                                            <span className="ranking-name">{p.userName}</span>
+                                            <span className="ranking-value">{formatPRValue(p)}</span>
+                                            <span className="ranking-date">{formatDate(p.date)}</span>
+                                        </li>
+                                    ))}
+                                </ol>
+                            )}
                         </>
                     )}
                 </>
@@ -392,9 +417,11 @@ const AttendanceSection = ({ genderMap, genderFilter }) => {
 // 내 PR 탭
 // ============================================
 
-const MyPRTab = ({ user, allPRs, studentNames, onAddClick, onRefresh }) => {
+const MyPRTab = ({ user, studentNames, onAddClick, onRefresh, refreshNonce }) => {
     const isCoach = user?.role === 'coach';
     const [selectedStudent, setSelectedStudent] = useState(isCoach ? '' : user.username);
+    const [myPRs, setMyPRs] = useState([]);
+    const [loadingPRs, setLoadingPRs] = useState(false);
     const [historyModal, setHistoryModal] = useState(null);
     const [editModal, setEditModal] = useState(null);
 
@@ -409,10 +436,25 @@ const MyPRTab = ({ user, allPRs, studentNames, onAddClick, onRefresh }) => {
     };
 
     const targetName = isCoach ? selectedStudent : user.username;
-    const myPRs = useMemo(() =>
-        allPRs.filter(p => p.userName === targetName),
-        [allPRs, targetName]
-    );
+
+    useEffect(() => {
+        if (!targetName) {
+            setMyPRs([]);
+            return;
+        }
+        (async () => {
+            setLoadingPRs(true);
+            try {
+                const data = await getPersonalBests(targetName);
+                setMyPRs(data);
+            } catch (err) {
+                console.error('개인 PR 로드 실패:', err);
+                setMyPRs([]);
+            } finally {
+                setLoadingPRs(false);
+            }
+        })();
+    }, [targetName, refreshNonce]);
 
     // weightThenReps는 같은 운동 내 여러 중량을 묶음
     const groupedByExercise = useMemo(() => {
@@ -452,6 +494,8 @@ const MyPRTab = ({ user, allPRs, studentNames, onAddClick, onRefresh }) => {
 
             {!targetName ? (
                 <div className="ranking-empty">학생을 선택해주세요.</div>
+            ) : loadingPRs ? (
+                <div className="ranking-loading">불러오는 중...</div>
             ) : groupedByExercise.length === 0 ? (
                 <div className="ranking-empty">등록된 PR이 없습니다.</div>
             ) : (
@@ -658,7 +702,7 @@ const computePRMetric = (pr, h) => {
     return numVal(h.intensity?.value) || numVal(h.reps?.value);
 };
 
-const GraphTab = ({ user, allPRs, studentNames }) => {
+const GraphTab = ({ user, studentNames, refreshNonce }) => {
     const isCoach = user?.role === 'coach';
     const [selectedStudent, setSelectedStudent] = useState(isCoach ? '' : user.username);
     const [graphMode, setGraphMode] = useState('exercise'); // 'exercise' | 'monthly'
@@ -701,7 +745,7 @@ const GraphTab = ({ user, allPRs, studentNames }) => {
             {!effectiveTarget ? (
                 <div className="ranking-empty">학생을 선택해주세요.</div>
             ) : graphMode === 'exercise' ? (
-                <ExerciseTrendBlock effectiveTarget={effectiveTarget} allPRs={allPRs} />
+                <ExerciseTrendBlock effectiveTarget={effectiveTarget} refreshNonce={refreshNonce} />
             ) : (
                 <MonthlyStatsGraph effectiveTarget={effectiveTarget} />
             )}
@@ -709,40 +753,49 @@ const GraphTab = ({ user, allPRs, studentNames }) => {
     );
 };
 
-const ExerciseTrendBlock = ({ effectiveTarget, allPRs }) => {
+const ExerciseTrendBlock = ({ effectiveTarget, refreshNonce }) => {
     const [periodMonths, setPeriodMonths] = useState(3);
     const [selectedExercises, setSelectedExercises] = useState([]);
     const [exerciseSearch, setExerciseSearch] = useState('');
     const [records, setRecords] = useState([]);
+    const [personalPRs, setPersonalPRs] = useState([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (!effectiveTarget) { setRecords([]); return; }
+        if (!effectiveTarget) {
+            setRecords([]);
+            setPersonalPRs([]);
+            return;
+        }
         (async () => {
             setLoading(true);
             try {
                 const since = new Date();
                 since.setMonth(since.getMonth() - periodMonths);
                 const sinceStr = since.toISOString().slice(0, 10);
-                const data = await getRecordsByUserSince(effectiveTarget, sinceStr);
-                setRecords(data);
+                const [recordData, prData] = await Promise.all([
+                    getRecordsByUserSince(effectiveTarget, sinceStr),
+                    getPersonalBests(effectiveTarget)
+                ]);
+                setRecords(recordData);
+                setPersonalPRs(prData);
             } catch (err) {
                 console.error('records 로드 실패:', err);
             } finally {
                 setLoading(false);
             }
         })();
-    }, [effectiveTarget, periodMonths]);
+    }, [effectiveTarget, periodMonths, refreshNonce]);
 
     // 학생의 모든 운동 목록 = records에서 + 해당 학생 PR에서 (PR만 있는 경우도 표시)
     const allExercises = useMemo(() => {
         const set = new Set();
         for (const r of records) if (r.exercise) set.add(r.exercise);
-        for (const pr of allPRs) {
-            if (pr.userName === effectiveTarget && pr.exercise) set.add(pr.exercise);
+        for (const pr of personalPRs) {
+            if (pr.exercise) set.add(pr.exercise);
         }
         return Array.from(set).sort();
-    }, [records, allPRs, effectiveTarget]);
+    }, [records, personalPRs]);
 
     // 검색 필터 적용된 표시 목록
     const filteredExercises = useMemo(() => {
@@ -791,8 +844,7 @@ const ExerciseTrendBlock = ({ effectiveTarget, allPRs }) => {
             }
         }
         // 공식 PR
-        for (const pr of allPRs) {
-            if (pr.userName !== effectiveTarget) continue;
+        for (const pr of personalPRs) {
             if (!selectedExercises.includes(pr.exercise)) continue;
             const prKey = `${pr.exercise}_pr`;
             for (const h of (pr.history || [])) {
@@ -804,7 +856,7 @@ const ExerciseTrendBlock = ({ effectiveTarget, allPRs }) => {
             }
         }
         return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
-    }, [records, allPRs, effectiveTarget, selectedExercises]);
+    }, [records, personalPRs, selectedExercises]);
 
     return (
         <>
