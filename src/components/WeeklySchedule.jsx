@@ -485,6 +485,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     weekAbsences={weekAbsences}
                     weekWaitlist={weekWaitlist}
                     studentSchedule={studentSchedule}
+                    studentData={effectiveStudentData}
                     isMyHoldingDate={isMyHoldingDate}
                     isMakeupHeld={isMakeupHeld}
                     getCellData={getCellData}
@@ -535,6 +536,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     weekAbsences={weekAbsences}
                     weekWaitlist={weekWaitlist}
                     studentSchedule={studentSchedule}
+                    studentData={effectiveStudentData}
                     isMyHoldingDate={isMyHoldingDate}
                     isMakeupHeld={isMakeupHeld}
                     getCellData={getCellData}

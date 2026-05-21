@@ -15,6 +15,7 @@ import {
     getThisWeekRange,
     getWaitlistCountForSlot,
 } from '../../utils/scheduleUtils';
+import { getMakeupWeeklyLimit } from '../../utils/makeupQuota';
 import MakeupModal from './MakeupModal';
 import { StudentTag, AvailableSeatsCell, HolidayCell } from './ScheduleCell';
 
@@ -32,6 +33,7 @@ export default function StudentSchedule({
     weekAbsences,
     weekWaitlist,
     studentSchedule,
+    studentData,
     isMyHoldingDate,
     isMakeupHeld,
     getCellData,
@@ -51,8 +53,12 @@ export default function StudentSchedule({
     const [showMakeupModal, setShowMakeupModal] = useState(false);
     const [selectedMakeupSlot, setSelectedMakeupSlot] = useState(null);
     const [selectedOriginalClass, setSelectedOriginalClass] = useState(null);
-    // 이번 주 보강 이력 (cancelled 포함 — 주 1회 쿼터 계산용)
+    // 이번 주 보강 이력 (cancelled 포함 — 주 수강 횟수별 쿼터 계산용)
     const [myWeekMakeupHistory, setMyWeekMakeupHistory] = useState([]);
+    const makeupWeeklyLimit = useMemo(
+        () => getMakeupWeeklyLimit(studentData, studentSchedule),
+        [studentData, studentSchedule]
+    );
     // 활성/완료 보강만 — 그리드/패널 렌더링용
     const activeMakeupRequests = useMemo(
         () => myWeekMakeupHistory.filter(m => m.status !== 'cancelled'),
@@ -139,9 +145,9 @@ export default function StudentSchedule({
             return;
         }
 
-        // 주횟수와 무관하게 당주 최대 1회까지 보강 신청 (취소 내역도 소진으로 간주)
-        if (!forceMode && myWeekMakeupHistory.length >= 1) {
-            alert('보강은 주 1회만 신청 가능합니다.\n이번 주 보강 신청 내역(취소 포함)이 있어 추가 신청이 불가합니다.');
+        // 주 수강 횟수만큼 당주 보강 신청 가능 (취소 내역도 소진으로 간주)
+        if (!forceMode && myWeekMakeupHistory.length >= makeupWeeklyLimit) {
+            alert(`보강은 주 ${makeupWeeklyLimit}회까지 신청 가능합니다.\n이번 주 보강 신청 내역(취소 포함)이 있어 추가 신청이 불가합니다.`);
             return;
         }
 
