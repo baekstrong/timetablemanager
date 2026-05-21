@@ -467,7 +467,7 @@ export default function StudentSchedule({
                         <strong>📌 보강 신청 조건</strong>
                         <div style={{ marginTop: '4px' }}>
                             · 원래 수업과 보강 대상 수업 모두 시작 <strong>2시간 전</strong>까지 신청 가능<br/>
-                            · 주 수강 횟수만큼 당주 보강 신청 가능 <strong>(주1회=1회, 주2회=2회, 주3회=3회, 주4회=4회)</strong>
+                            · 주 수강 횟수만큼 당주 보강 신청 가능 <strong>(주2회=2회, 주3회=3회, 주4회=4회)</strong>
                         </div>
                     </div>
                     <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #bae6fd' }}>
