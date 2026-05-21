@@ -30,7 +30,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     const [postsError, setPostsError] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [boardPage, setBoardPage] = useState(1);
-    const [boardTotalPages, setBoardTotalPages] = useState(1);
+    const [boardHasNextPage, setBoardHasNextPage] = useState(false);
     const boardCursorsRef = useRef({ 1: null });
     const boardRequestIdRef = useRef(0);
     const [viewMode, setViewMode] = useState('list');
@@ -198,7 +198,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
 
             if (requestId !== boardRequestIdRef.current) return;
             setPosts(data.posts);
-            setBoardTotalPages(data.totalPages);
+            setBoardHasNextPage(data.hasNextPage);
             setPostsLoading(false);
         } catch (error) {
             if (requestId !== boardRequestIdRef.current) return;
@@ -709,7 +709,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         onWriteClick={() => { setEditingPost(null); setShowPostForm(true); }}
                         onRetry={() => loadPosts(boardPage, { reset: true })}
                         currentPage={boardPage}
-                        totalPages={boardTotalPages}
+                        hasNextPage={boardHasNextPage}
                         onPageChange={setBoardPage}
                     />
                 ) : (

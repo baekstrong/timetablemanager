@@ -3,8 +3,6 @@ import { BOARD_CATEGORIES, CATEGORY_MAP } from '../../data/boardConstants';
 
 const SEARCH_MODES = [
     { key: 'title', label: '제목' },
-    { key: 'content', label: '내용' },
-    { key: 'both', label: '제목+내용' },
 ];
 
 const formatDate = (createdAt) => {
@@ -25,10 +23,10 @@ const PostList = ({
     selectedCategory,
     onCategoryChange,
     currentPage,
-    totalPages,
+    hasNextPage,
     onPageChange,
 }) => {
-    const [searchMode, setSearchMode] = useState('both');
+    const [searchMode, setSearchMode] = useState('title');
     const [searchQuery, setSearchQuery] = useState('');
     const [activeSearch, setActiveSearch] = useState('');
 
@@ -36,14 +34,11 @@ const PostList = ({
     const filteredPosts = activeSearch
         ? posts.filter(post => {
             const q = activeSearch.toLowerCase();
-            if (searchMode === 'title') return post.title?.toLowerCase().includes(q);
-            if (searchMode === 'content') return post.content?.toLowerCase().includes(q);
-            return post.title?.toLowerCase().includes(q) || post.content?.toLowerCase().includes(q);
+            return post.title?.toLowerCase().includes(q);
         })
         : posts;
 
-    const pageCount = activeSearch ? 1 : Math.max(1, totalPages || 1);
-    const safePage = Math.min(currentPage, pageCount);
+    const safePage = Math.max(1, currentPage || 1);
     const pagedPosts = filteredPosts;
 
     const handleSearch = () => {
@@ -131,7 +126,7 @@ const PostList = ({
                                 style={{ fontWeight: 600, fontSize: '0.9rem' }}
                             >
                                 {post.title}
-                                {post.images?.length > 0 && <span style={{ marginLeft: '4px', fontSize: '0.75rem', opacity: 0.6 }}>({post.images.length})</span>}
+                                {post.imageCount > 0 && <span style={{ marginLeft: '4px', fontSize: '0.75rem', opacity: 0.6 }}>({post.imageCount})</span>}
                                 {isToday && <span className="post-new-badge" style={{ marginLeft: '4px', verticalAlign: 'middle' }}>N</span>}
                             </span>
                         </div>
@@ -144,8 +139,8 @@ const PostList = ({
                                 {formatDate(post.createdAt)}
                             </span>
                             <span>
-                                {post.likes?.length > 0 && `❤️ ${post.likes.length}`}
-                                {post.likes?.length > 0 && post.commentCount > 0 && ' · '}
+                                {post.likeCount > 0 && `❤️ ${post.likeCount}`}
+                                {post.likeCount > 0 && post.commentCount > 0 && ' · '}
                                 {post.commentCount > 0 && `💬 ${post.commentCount}`}
                             </span>
                         </div>
@@ -154,30 +149,22 @@ const PostList = ({
             })}
 
             {/* Pagination */}
-            {!loading && !error && pageCount > 1 && (
+            {!loading && !error && !activeSearch && (safePage > 1 || hasNextPage) && (
                 <div className="board-pagination">
                     <button
                         className="board-page-btn"
                         disabled={safePage <= 1}
                         onClick={() => onPageChange(safePage - 1)}
                     >
-                        ‹
+                        ‹ 이전
                     </button>
-                    {Array.from({ length: pageCount }, (_, i) => i + 1).map((page) => (
-                        <button
-                            key={page}
-                            className={`board-page-btn${page === safePage ? ' active' : ''}`}
-                            onClick={() => onPageChange(page)}
-                        >
-                            {page}
-                        </button>
-                    ))}
+                    <span className="board-page-current">{safePage}</span>
                     <button
                         className="board-page-btn"
-                        disabled={safePage >= pageCount}
+                        disabled={!hasNextPage}
                         onClick={() => onPageChange(safePage + 1)}
                     >
-                        ›
+                        다음 ›
                     </button>
                 </div>
             )}

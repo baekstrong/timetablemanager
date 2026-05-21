@@ -12,7 +12,6 @@ import {
     Timestamp,
     orderBy,
     limit as queryLimit,
-    getCountFromServer,
     getDoc,
     setDoc,
     arrayUnion,
@@ -980,32 +979,57 @@ export const getPosts = async (category = null, limitCount = 20) => {
 };
 
 export const getPostsPage = async (category = 'all', pageSize = 10, cursor = null) => {
-    return safeRead({ posts: [], nextCursor: null, totalCount: 0, totalPages: 1 }, async () => {
+    return safeRead({ posts: [], nextCursor: null, hasNextPage: false }, async () => {
         const baseConstraints = category && category !== 'all'
             ? [where('category', '==', category)]
             : [];
 
-        const countSnapshot = await getCountFromServer(query(collection(db, 'posts'), ...baseConstraints));
-        const totalCount = countSnapshot.data().count || 0;
-        const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+        const includePinnedNotices = !cursor && (category === 'all' || category === 'notice');
+        const pinnedSnapshotPromise = includePinnedNotices
+            ? getDocs(query(
+                collection(db, 'posts'),
+                where('category', '==', 'notice'),
+                where('pinned', '==', true),
+                queryLimit(20)
+            ))
+            : Promise.resolve({ docs: [] });
 
         const pageConstraints = [
             ...baseConstraints,
             orderBy('createdAt', 'desc'),
             ...(cursor ? [startAfter(cursor)] : []),
-            queryLimit(pageSize),
+            queryLimit(pageSize + 1),
         ];
         const q = query(collection(db, 'posts'), ...pageConstraints);
-        const snapshot = await getDocs(q);
-        const posts = snapshot.docs
+        const [snapshot, pinnedSnapshot] = await Promise.all([getDocs(q), pinnedSnapshotPromise]);
+        const pageDocs = snapshot.docs.slice(0, pageSize);
+        const pagePosts = pageDocs
             .map(d => ({ id: d.id, ...d.data() }))
             .filter(p => !p.deleted);
+        const pinnedPosts = pinnedSnapshot.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(p => !p.deleted)
+            .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+        const pinnedIds = new Set(pinnedPosts.map(p => p.id));
+        const posts = [...pinnedPosts, ...pagePosts.filter(p => !p.pinned || p.category !== 'notice' || !pinnedIds.has(p.id))]
+            .map((post) => {
+                const images = post.images;
+                const likes = post.likes;
+                const summary = { ...post };
+                delete summary.content;
+                delete summary.images;
+                delete summary.likes;
+                return {
+                    ...summary,
+                    imageCount: Array.isArray(images) ? images.length : 0,
+                    likeCount: Array.isArray(likes) ? likes.length : 0,
+                };
+            });
 
         return {
             posts,
-            nextCursor: snapshot.docs[snapshot.docs.length - 1] || null,
-            totalCount,
-            totalPages,
+            nextCursor: pageDocs[pageDocs.length - 1] || null,
+            hasNextPage: snapshot.docs.length > pageSize,
         };
     });
 };

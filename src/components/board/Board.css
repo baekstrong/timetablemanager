@@ -359,14 +359,28 @@
 }
 
 .board-page-btn {
-    min-width: 32px;
+    min-width: 72px;
     height: 32px;
+    padding: 0 10px;
     border: 1px solid #d1d5db;
     border-radius: 6px;
     background: white;
     color: #374151;
     font-size: 0.85rem;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.board-page-current {
+    min-width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: #667eea;
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 600;
     display: flex;
     align-items: center;
     justify-content: center;
