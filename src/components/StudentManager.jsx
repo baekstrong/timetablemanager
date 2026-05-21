@@ -1,13 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getStudentField, clearStudentScheduleAllSheets, parseSheetDate, processStudentAbsence, processCoachHolding, cancelHoldingInSheets } from '../services/googleSheetsService';
+import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets } from '../services/googleSheetsService';
 import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests } from '../services/firebaseService';
+import { getCoachStudentListStatus, shouldShowInCoachStudentList } from '../utils/studentList';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
 import './StudentManager.css';
 
-const StudentManager = ({ onBack, onImpersonate }) => {
+const StudentManager = ({ onImpersonate }) => {
     const {
         students,
         isConnected,
@@ -20,8 +21,12 @@ const StudentManager = ({ onBack, onImpersonate }) => {
     const [editingStudent, setEditingStudent] = useState(null);
     const [editForm, setEditForm] = useState({});
     const [viewMode, setViewMode] = useState('table'); // 'table' or 'sheet'
-    const [showRegistrationModal, setShowRegistrationModal] = useState(false);
-    const [renewalStudentName, setRenewalStudentName] = useState(null);
+    const [renewalStudentName, setRenewalStudentName] = useState(() => {
+        const name = sessionStorage.getItem('renewalStudentName');
+        if (name) sessionStorage.removeItem('renewalStudentName');
+        return name;
+    });
+    const [showRegistrationModal, setShowRegistrationModal] = useState(Boolean(renewalStudentName));
     const [absenceTarget, setAbsenceTarget] = useState(null); // 결석 대상 수강생
     const [absenceDates, setAbsenceDates] = useState([]); // 결석 날짜 목록
     const [absenceDateInput, setAbsenceDateInput] = useState(''); // 날짜 입력
@@ -38,16 +43,6 @@ const StudentManager = ({ onBack, onImpersonate }) => {
         const makeups = await getActiveMakeupRequests(studentName).catch(() => []);
         return [...new Set(makeups.map(m => m.originalClass?.date).filter(Boolean))];
     };
-
-    // 시간표 배너에서 재등록 모달 자동 열기
-    useEffect(() => {
-        const name = sessionStorage.getItem('renewalStudentName');
-        if (name) {
-            sessionStorage.removeItem('renewalStudentName');
-            setRenewalStudentName(name);
-            setShowRegistrationModal(true);
-        }
-    }, []);
 
     // Start editing a student
     const handleEdit = (student, index) => {
@@ -78,7 +73,7 @@ const StudentManager = ({ onBack, onImpersonate }) => {
     };
 
     // End class (Clear schedule in ALL sheets)
-    const handleEndClass = async (student, index) => {
+    const handleEndClass = async (student) => {
         if (!confirm(`${student['이름']} 수강생의 수강을 종료하시겠습니까?\n\n- 시간표에서 제거됩니다.\n- 이름, 결제 내역 등은 시트에 보존됩니다.\n- 모든 시트의 '요일 및 시간' 칸이 지워집니다.`)) {
             return;
         }
@@ -86,6 +81,7 @@ const StudentManager = ({ onBack, onImpersonate }) => {
         try {
             // 모든 시트에서 해당 학생의 스케줄 삭제
             await clearStudentScheduleAllSheets(student['이름']);
+            if (refresh) await refresh();
             alert('수강 종료 처리되었습니다. (모든 시트에서 스케줄 삭제)');
         } catch (err) {
             console.error('Failed to end class:', err);
@@ -275,18 +271,10 @@ const StudentManager = ({ onBack, onImpersonate }) => {
         setHoldingProcessing(false);
     };
 
-    // 종료날짜가 지난 수강생 필터링 (활성 수강생만 표시) + 이름순(ㄱ→ㅎ) 정렬
+    // 스케줄이 남아있는 수강생을 코치 관리 목록에 표시 + 이름순(ㄱ→ㅎ) 정렬
     const activeStudents = useMemo(() => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
         return students
-            .filter(student => {
-                const endDateStr = student['종료날짜'];
-                if (!endDateStr) return true; // 종료날짜 없으면 표시
-                const endDate = parseSheetDate(endDateStr);
-                if (!endDate) return true; // 파싱 실패 시 표시
-                return endDate >= today; // 오늘이 종료일이면 아직 표시
-            })
+            .filter(shouldShowInCoachStudentList)
             .sort((a, b) => (a['이름'] || '').localeCompare(b['이름'] || '', 'ko'));
     }, [students]);
 
@@ -317,7 +305,7 @@ const StudentManager = ({ onBack, onImpersonate }) => {
             </div>
             <div className="student-header-actions-mobile">
                 <div className="info-message-mobile">
-                    📋 활성 수강생만 조회 중 (종료일 기준 필터링)
+                    📋 관리 대상 수강생 조회 중 (요일 및 시간 기준)
                 </div>
                 <div className="header-buttons-row">
                     <button onClick={() => setShowRegistrationModal(true)} className="register-btn">
@@ -403,7 +391,12 @@ const StudentManager = ({ onBack, onImpersonate }) => {
                                             <td>{student['시작날짜'] || '-'}</td>
 
                                             {/* 종료날짜 */}
-                                            <td>{student['종료날짜'] || '-'}</td>
+                                            <td>
+                                                {student['종료날짜'] || '-'}
+                                                {getCoachStudentListStatus(student) === 'expired' && (
+                                                    <span className="student-status-badge expired">종료일 지남</span>
+                                                )}
+                                            </td>
 
                                             {/* 홀딩 사용여부 */}
                                             <td>
@@ -476,7 +469,7 @@ const StudentManager = ({ onBack, onImpersonate }) => {
                                                         <button onClick={() => setContractHistoryTarget(student['이름'])} className="contract-btn" title="계약 이력">
                                                             계약
                                                         </button>
-                                                        <button onClick={() => handleEndClass(student, index)} className="end-class-btn" title="수강 종료 (시간표에서 제거)">
+                                                        <button onClick={() => handleEndClass(student)} className="end-class-btn" title="수강 종료 (시간표에서 제거)">
                                                             종료
                                                         </button>
                                                         {onImpersonate && (

@@ -117,6 +117,22 @@
     flex-shrink: 0;
 }
 
+.student-status-badge {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.student-status-badge.expired {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
 .not-connected-message {
     background: rgba(255, 255, 255, 0.95);
     border-radius: 20px;
