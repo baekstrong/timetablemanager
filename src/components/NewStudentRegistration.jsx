@@ -48,7 +48,6 @@ const NewStudentRegistration = () => {
 
     // Step 1: 개인정보
     const [name, setName] = useState('');
-    const [password, setPassword] = useState('');
     const [phone1, setPhone1] = useState('010');
     const [phone2, setPhone2] = useState('');
     const [phone3, setPhone3] = useState('');
@@ -228,7 +227,7 @@ const NewStudentRegistration = () => {
 
     const canProceed = () => {
         switch (step) {
-            case 0: return name.trim() && password.trim() && phone1.trim() && phone2.trim() && phone3.trim();
+            case 0: return name.trim() && phone1.trim() && phone2.trim() && phone3.trim();
             case 1: return weeklyFrequency !== null;
             case 2: return isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency;
             case 3: return selectedEntrance !== null || entranceInquiry !== '';
@@ -248,7 +247,7 @@ const NewStudentRegistration = () => {
             const phoneStr = `${phone1.trim()}-${phone2.trim()}-${phone3.trim()}`;
             const data = {
                 name: name.trim(),
-                password: password.trim(),
+                password: phone3.trim(),
                 phone: phoneStr,
                 gender: gender,
                 occupation: occupation.trim(),
@@ -346,7 +345,7 @@ const NewStudentRegistration = () => {
                     {step === 0 && (
                         <div className="reg-step-content">
                             <p className="reg-description" style={{ backgroundColor: '#eff6ff', color: '#1e40af', padding: '10px 12px', borderRadius: '8px', fontSize: '0.85rem', lineHeight: '1.5' }}>
-                                이곳에 입력한 이름과 비밀번호는 정규 수업 시 로그인 아이디와 비밀번호로 사용됩니다
+                                수강 신청에 필요한 기본 정보를 입력해주세요
                             </p>
                             <div className="reg-field">
                                 <label>이름 <span className="required">*</span></label>
@@ -355,16 +354,6 @@ const NewStudentRegistration = () => {
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
                                     placeholder="이름을 입력하세요"
-                                    className="reg-input"
-                                />
-                            </div>
-                            <div className="reg-field">
-                                <label>비밀번호 <span className="required">*</span></label>
-                                <input
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="비밀번호를 설정하세요"
                                     className="reg-input"
                                 />
                             </div>
