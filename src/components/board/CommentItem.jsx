@@ -2,16 +2,15 @@ import { useState, useRef } from 'react';
 import { POST_LIMITS } from '../../data/boardConstants';
 import { uploadToCloudinary } from '../../services/cloudinaryService';
 import { linkifyText } from '../../utils/linkify';
+import { formatLikeNames } from '../../utils/likeDisplay';
 
 const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, replies = [], repliesByParent = {}, depth = 0 }) => {
-    if (!comment) return null;
-
     const [showReplyInput, setShowReplyInput] = useState(false);
     const [replyText, setReplyText] = useState('');
     const [submitting, setSubmitting] = useState(false);
-    const [localLikes, setLocalLikes] = useState(comment.likes || []);
+    const [localLikes, setLocalLikes] = useState(comment?.likes || []);
     const [isEditing, setIsEditing] = useState(false);
-    const [editText, setEditText] = useState(comment.content);
+    const [editText, setEditText] = useState(comment?.content || '');
 
     // 답글 이미지
     const [replyImageFile, setReplyImageFile] = useState(null);
@@ -19,10 +18,12 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
     const replyFileInputRef = useRef(null);
 
     // 수정 이미지
-    const [editImage, setEditImage] = useState(comment.image || null); // 기존 이미지
+    const [editImage, setEditImage] = useState(comment?.image || null); // 기존 이미지
     const [editImageFile, setEditImageFile] = useState(null); // 새 파일
     const [editImagePreview, setEditImagePreview] = useState(null);
     const editFileInputRef = useRef(null);
+
+    if (!comment) return null;
 
     const getFormattedDate = (createdAt) => {
         if (!createdAt) return '-';
@@ -86,7 +87,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
             setReplyText('');
             removeReplyImage();
             setShowReplyInput(false);
-        } catch (err) {
+        } catch {
             alert('답글 등록 중 오류가 발생했습니다.');
         } finally {
             setSubmitting(false);
@@ -106,7 +107,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
             setEditImageFile(null);
             setEditImagePreview(null);
             setIsEditing(false);
-        } catch (err) {
+        } catch {
             alert('댓글 수정 중 오류가 발생했습니다.');
         } finally {
             setSubmitting(false);
@@ -122,7 +123,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
         setLocalLikes(newLikes);
         try {
             await onToggleLike(comment.id);
-        } catch (err) {
+        } catch {
             setLocalLikes(comment.likes || []);
         }
     };
@@ -130,6 +131,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
     const isAuthor = user && user.username === comment.author;
     const canDelete = user && (isAuthor || user.role === 'coach');
     const liked = user && localLikes.includes(user.username);
+    const commentLikeNames = formatLikeNames(localLikes);
     const commentDate = comment.createdAt?.toDate ? comment.createdAt.toDate() : new Date(comment.createdAt);
     const today = new Date();
     const isToday = commentDate.getFullYear() === today.getFullYear()
@@ -251,9 +253,13 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                     <button
                         className={`comment-like-btn${liked ? ' liked' : ''}`}
                         onClick={handleLike}
+                        title={commentLikeNames ? `좋아요: ${commentLikeNames}` : '좋아요'}
                     >
                         {liked ? '❤️' : '🤍'} {localLikes.length > 0 ? localLikes.length : ''}
                     </button>
+                    {commentLikeNames && (
+                        <span className="comment-like-names">좋아요: {commentLikeNames}</span>
+                    )}
                 </div>
 
                 {showReplyInput && (

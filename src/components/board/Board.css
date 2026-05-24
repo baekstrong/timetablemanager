@@ -176,6 +176,7 @@
     border-top: 1px solid #e5e7eb;
     border-bottom: 1px solid #e5e7eb;
     margin: 12px 0;
+    flex-wrap: wrap;
 }
 
 .post-action-btn {
@@ -192,6 +193,12 @@
 
 .post-action-btn.liked {
     color: #ef4444;
+}
+
+.post-like-names {
+    font-size: 0.82rem;
+    color: #6b7280;
+    line-height: 1.4;
 }
 
 /* ===== Comments ===== */
@@ -252,6 +259,10 @@
 
 .comment-like-row {
     margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
 }
 
 .comment-like-btn {
@@ -265,6 +276,12 @@
 
 .comment-like-btn.liked {
     color: #ef4444;
+}
+
+.comment-like-names {
+    font-size: 0.75rem;
+    color: #6b7280;
+    line-height: 1.35;
 }
 
 .comment-reply-btn {

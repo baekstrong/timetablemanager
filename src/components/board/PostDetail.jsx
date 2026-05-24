@@ -3,6 +3,7 @@ import { getPost, toggleLike, updatePost, deletePost, getComments, createComment
 import { CATEGORY_MAP, POST_LIMITS } from '../../data/boardConstants';
 import { uploadToCloudinary } from '../../services/cloudinaryService';
 import { linkifyText } from '../../utils/linkify';
+import { formatLikeNames } from '../../utils/likeDisplay';
 import CommentItem from './CommentItem';
 
 const formatDate = (timestamp) => {
@@ -82,7 +83,7 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
 
         try {
             await toggleLike(postId, user.username);
-        } catch (err) {
+        } catch {
             // Rollback on failure
             setPost((prev) => ({ ...prev, likes: post.likes || [] }));
             alert('좋아요 처리 중 오류가 발생했습니다.');
@@ -94,7 +95,7 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
         try {
             await deletePost(postId);
             onBack();
-        } catch (err) {
+        } catch {
             alert('게시글 삭제 중 오류가 발생했습니다.');
         }
     };
@@ -104,7 +105,7 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
             await deleteComment(postId, commentId);
             const updated = await getComments(postId);
             setComments(updated);
-        } catch (err) {
+        } catch {
             alert('댓글 삭제 중 오류가 발생했습니다.');
         }
     };
@@ -143,7 +144,7 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
             removeCommentImage();
             const updated = await getComments(postId);
             setComments(updated);
-        } catch (err) {
+        } catch {
             alert('댓글 등록 중 오류가 발생했습니다.');
         } finally {
             setSubmittingComment(false);
@@ -196,6 +197,7 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
     }
 
     const liked = post.likes?.includes(user?.username);
+    const postLikeNames = formatLikeNames(post.likes || []);
     const isAuthor = user?.username === post.author;
     const canDelete = isAuthor || user?.role === 'coach';
     const category = CATEGORY_MAP[post.category];
@@ -302,9 +304,13 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                     className={`post-action-btn${liked ? ' liked' : ''}`}
                     onClick={handleToggleLike}
                     style={{ fontSize: '1.08rem' }}
+                    title={postLikeNames ? `좋아요: ${postLikeNames}` : '좋아요'}
                 >
                     {liked ? '❤️' : '🤍'} {(post.likes || []).length}
                 </button>
+                {postLikeNames && (
+                    <span className="post-like-names">좋아요: {postLikeNames}</span>
+                )}
                 <span style={{ fontSize: '1.08rem', color: '#666' }}>💬 {comments.length}</span>
             </div>
 
