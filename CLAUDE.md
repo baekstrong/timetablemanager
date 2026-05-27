@@ -33,6 +33,19 @@ npm run backend    # 로컬 백엔드 (functions/server.js, 포트 5001)
 npm run build      # 프로덕션 빌드
 ```
 
+## 운영/버그 픽스 규칙
+
+- ops cron `ops 근력학교 repo weekly pull 매주 월 03:20`가 매주 월요일 03:20 KST에 로컬 repo를 최신화한다.
+- 자동 최신화는 `git pull --ff-only`만 허용한다. 충돌/실패 시 임의 merge하지 말고 보고한다.
+- 근학 앱 버그 픽스 작업을 시작하기 전에는 항상 먼저 최신 main을 pull 한다.
+
+```bash
+git -C /Users/baeggwanjangjadonghwa/workspace/repos/timetablemanager pull --ff-only
+```
+
+- pull 실패, 로컬 변경 충돌, fast-forward 불가 상태면 수정하지 말고 원인과 필요한 선택지를 보고한다.
+- 버그 원인 분석/수정안 제안은 가능하지만 실제 수정·push·배포는 백관장 승인 후 진행한다.
+
 ## 디렉토리 구조
 
 ```

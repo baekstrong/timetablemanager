@@ -1,4 +1,6 @@
+const functions = require('firebase-functions');
 const { onRequest } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { google } = require('googleapis');
 const admin = require('firebase-admin');
 
@@ -8,6 +10,56 @@ if (!admin.apps.length) {
 }
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_ID || process.env.VITE_GOOGLE_SHEETS_ID;
+const getHoldingDiscordWebhookUrl = () => (
+  process.env.DISCORD_HOLDING_WEBHOOK_URL
+  || functions.config().discord?.holding_webhook_url
+);
+
+const formatHoldingSlot = (data) => {
+  const startDate = data.startDate || '시작일 미상';
+  const endDate = data.endDate || '종료일 미상';
+  const holdingDates = Array.isArray(data.holdingDates) && data.holdingDates.length > 0
+    ? data.holdingDates.join(', ')
+    : '';
+  return holdingDates ? `${startDate}~${endDate} / ${holdingDates}` : `${startDate}~${endDate}`;
+};
+
+const postDiscordWebhook = async (webhookUrl, content) => {
+  if (!webhookUrl) {
+    console.warn('DISCORD_HOLDING_WEBHOOK_URL is not configured; skipping holding notification.');
+    return { skipped: true };
+  }
+  const response = await fetch(webhookUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Hermes-Ops/1.0',
+    },
+    body: JSON.stringify({ content }),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`Discord webhook failed: ${response.status} ${body.slice(0, 300)}`);
+  }
+  return { success: true };
+};
+
+exports.notifyHoldingRequest = onDocumentCreated('holdingRequests/{requestId}', async (event) => {
+  const data = event.data?.data() || {};
+  const requestId = event.params.requestId;
+  const status = data.status || 'active';
+  if (status === 'cancelled' || data.deleted) return;
+
+  const lines = [
+    '[근학 앱] 홀딩 신청',
+    '',
+    `학생: ${data.studentName || '이름 미상'}`,
+    `기간: ${formatHoldingSlot(data)}`,
+    `상태: ${status}`,
+    `신청 ID: ${requestId}`,
+  ];
+  await postDiscordWebhook(getHoldingDiscordWebhookUrl(), lines.join('\n'));
+});
 
 // Google Sheets API 클라이언트 생성
 const getGoogleSheetsClient = async () => {
