@@ -106,7 +106,9 @@ exports.appendSheet = onRequest({ cors: true }, async (req, res) => {
       spreadsheetId: SPREADSHEET_ID,
       range: range,
       valueInputOption: 'USER_ENTERED',
-      insertDataOption: 'INSERT_ROWS',
+      // INSERT_ROWS는 그리드에 새 행을 삽입해 우측 집계 블록(T~AH)을 밀어버리므로
+      // OVERWRITE로 표 바로 아래 빈 행에 값만 기록한다 (행 삽입 없음)
+      insertDataOption: 'OVERWRITE',
       resource: {
         values: values,
       },
