@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getPendingContractForStudent, agreeToContract } from '../services/firebaseService';
-import { appendSheetData, formatCellsWithStyle } from '../services/googleSheetsService';
+import { readSheetData, writeSheetData, formatCellsWithStyle } from '../services/googleSheetsService';
 import { CONTRACT_TITLE, TRAINING_RULES, VALID_SESSION_COUNTS, GUARANTEES, RISK_NOTICE, SIGNATURE_STATEMENT } from '../data/contractTerms';
 import './ContractView.css';
 
@@ -43,9 +43,34 @@ const ContractView = ({ user, onBack }) => {
         try {
             const { registrationData, targetSheet } = contract;
 
-            // 1. 행 데이터 구성
+            // 1. 시트에서 빈 행 위치와 다음 번호 계산
+            // (append+OVERWRITE의 표 자동감지는 이 시트의 우측 집계 블록 T~AH 때문에
+            //  새 행을 정확한 위치에 기록하지 못하므로, 신규 승인과 동일하게 빈 행을 직접 계산해 update 한다)
+            const rows = await readSheetData(`${targetSheet}!A:R`);
+            let lastDataRowIndex = 1;
+            for (let i = rows.length - 1; i >= 2; i--) {
+                if (rows[i] && rows[i][1]) {
+                    lastDataRowIndex = i;
+                    break;
+                }
+            }
+            const targetRow = lastDataRowIndex + 1 + 1;
+
+            // A열 번호 자동 부여 (A열 최대값 + 1)
+            let maxNumber = 0;
+            for (let i = 2; i < rows.length; i++) {
+                if (rows[i] && rows[i][0]) {
+                    const num = parseInt(rows[i][0]);
+                    if (!isNaN(num) && num > maxNumber) {
+                        maxNumber = num;
+                    }
+                }
+            }
+            const newNumber = maxNumber + 1;
+
+            // 2. 행 데이터 구성
             const rowData = [
-                '=ROW()-2',                             // A: 번호
+                newNumber,                              // A: 번호 (A열 최대값+1)
                 registrationData.이름,                  // B: 이름
                 registrationData.주횟수,                // C: 주횟수
                 registrationData['요일 및 시간'],       // D: 요일 및 시간
@@ -65,13 +90,11 @@ const ContractView = ({ user, onBack }) => {
                 registrationData.직업                   // R: 직업
             ];
 
-            // 2. 시트에 추가. 동의 단계에서는 Sheets read quota를 쓰지 않도록 append만 사용한다.
-            const appendResult = await appendSheetData(`${targetSheet}!A:R`, [rowData]);
-            const updatedRange = appendResult?.updates?.updatedRange || '';
-            const rowMatch = updatedRange.match(/![A-Z]+(\d+):/);
-            const appendedRow = rowMatch ? Number(rowMatch[1]) : null;
+            // 3. 시트의 빈 행에 직접 기록 (행 삽입 없음 → 우측 집계 블록 T~AH 위치 유지)
+            await writeSheetData(`${targetSheet}!A${targetRow}:R${targetRow}`, [rowData]);
+            const appendedRow = targetRow;
 
-            // 3. 서식 적용 (재등록이므로 주황색 없음, 미결제만 빨간색)
+            // 4. 서식 적용 (재등록이므로 주황색 없음, 미결제만 빨간색)
             try {
                 const paymentEmpty = [];
                 if (appendedRow && !registrationData.결제일) paymentEmpty.push(`J${appendedRow}`);
@@ -84,7 +107,7 @@ const ContractView = ({ user, onBack }) => {
                 console.warn('서식 적용 실패:', err);
             }
 
-            // 4. Firebase 상태 업데이트
+            // 5. Firebase 상태 업데이트
             await agreeToContract(contract.id);
 
             alert('계약에 동의하였습니다. 등록이 완료되었습니다.');
