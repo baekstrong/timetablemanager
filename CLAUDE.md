@@ -14,6 +14,10 @@
 - **백엔드 (프로덕션)**: Netlify Functions (서버리스)
 - **백엔드 (로컬)**: Express 서버 (`functions/server.js`, 포트 5001)
 - **SMS**: Solapi API (HMAC-SHA256 인증)
+- **캘린더**: Google Calendar API v3 (입학반 일정 — `calendarService.js` + Netlify `calendar.js`, 종료일 동기화 — `google-apps-script/CalendarSync.gs`)
+- **차트**: Recharts
+- **이미지 업로드**: Cloudinary(unsigned upload preset) + `browser-image-compression`(`cloudinaryService.js`, 게시판 첨부)
+- **에러 모니터링**: Sentry(`@sentry/react`, `src/main.jsx`에서 프로덕션만 init)
 - **훈련일지 서브앱**: Vanilla JS SPA (`public/training-log/`, Tailwind CDN, Firebase)
 
 ## 배포
@@ -31,6 +35,9 @@
 npm run dev        # Vite 개발 서버 (React 앱)
 npm run backend    # 로컬 백엔드 (functions/server.js, 포트 5001)
 npm run build      # 프로덕션 빌드
+npm run preview    # 빌드 결과 미리보기
+npm run lint       # ESLint (eslint .)
+npm run test       # Vitest 단위 테스트 (vitest run)
 ```
 
 ## 운영/버그 픽스 규칙
@@ -369,6 +376,13 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 | 승인 | 학생 | 승인 확인 + 준비 메시지 + 결제 링크 |
 | 승인 (예약) | 학생 | 입학반 3일 전 오전 9시 리마인더 |
 
+## Google Calendar 연동 (입학반 일정)
+
+- `calendarService.js` → Netlify `calendar.js`(로컬은 `server.js`) → Google Calendar API v3
+- 입학반 일정 추가/수정/삭제 시 `[입학반] M월 D일 (요일)` 형식 이벤트를 `GOOGLE_CALENDAR_ID` 캘린더에 자동 반영
+- `calendarService.getCalendarBaseUrl()`은 `VITE_FUNCTIONS_URL`의 `/sheets`를 떼고 `/calendar`를 붙여 엔드포인트를 결정(없으면 `/.netlify/functions/calendar`, 로컬 `http://localhost:5001/calendar`)
+- 별개로 `google-apps-script/CalendarSync.gs`는 시트에 바인딩되어 수강생 **종료일**을 전용 캘린더로 동기화 (앱과 독립적으로 시트에서 직접 실행)
+
 ## 훈련일지 서브앱 (training-log)
 
 `public/training-log/`에 위치한 별도 Vanilla JS SPA.
@@ -386,6 +400,8 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`
 - `VITE_GOOGLE_SHEETS_ID`
 - `VITE_FUNCTIONS_URL` (로컬 개발: `http://localhost:5001`)
+- `VITE_CLOUDINARY_CLOUD_NAME`, `VITE_CLOUDINARY_UPLOAD_PRESET` (게시판 이미지 업로드)
+- `VITE_SENTRY_DSN` (선택, 미설정 시 코드 내 기본 DSN 사용; 프로덕션에서만 init)
 
 ### 서버 (Netlify Functions)
 
@@ -394,6 +410,9 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - `COACH_PHONE`
 - `NAVER_STORE_LINK_2`, `NAVER_STORE_LINK_3`, `NAVER_STORE_LINK_4`
 - `PREPARATION_MESSAGE`
+- `GOOGLE_CALENDAR_ID` (입학반 일정 동기화 대상 캘린더)
+
+> ⚠️ 루트의 `*-<해시>.json`(Google 서비스 계정 키)은 시크릿이다. `.gitignore`에 있어야 하며 커밋·노출 금지.
 
 ## 작업 시 주의사항
 
