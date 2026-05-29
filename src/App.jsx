@@ -15,6 +15,8 @@ import ContractView from './components/ContractView';
 import Ranking from './components/Ranking';
 import BottomNav from './components/BottomNav';
 import ImpersonationBanner from './components/ImpersonationBanner';
+import UpdateBanner from './components/UpdateBanner';
+import { startVersionCheck } from './utils/versionCheck';
 import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent, getLatestPostCreatedAt, getNewStudentRegistrations } from './services/firebaseService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from './config/firebase';
@@ -43,7 +45,13 @@ function AppContent() {
   const [hasContractNotification, setHasContractNotification] = useState(false);
   const [hasNewPostNotification, setHasNewPostNotification] = useState(false);
   const [isStudentDataLoading, setIsStudentDataLoading] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const { getStudentByName, findStudentAcrossSheets } = useGoogleSheets();
+
+  // 새 빌드 배포 감지 → 상단 새로고침 안내 배너
+  useEffect(() => {
+    return startVersionCheck(() => setUpdateAvailable(true));
+  }, []);
 
   // Poll for pending registrations (coach only)
   useEffect(() => {
@@ -397,6 +405,7 @@ function AppContent() {
 
   return (
     <div className="app">
+      {updateAvailable && <UpdateBanner />}
       {impersonationOrigin && user && user.role === 'student' && (
         <ImpersonationBanner studentName={user.username} onExit={handleExitImpersonation} />
       )}
