@@ -589,6 +589,23 @@ export const parseSheetDate = (dateStr) => {
   return null;
 };
 
+/**
+ * 특정 등록(행)의 수강 기간이 주어진 날짜를 포함하는지 검사 (양 끝 포함)
+ * 시작/종료날짜를 해석할 수 없으면 false.
+ * @param {Object} student - parseStudentData 결과 객체
+ * @param {Date} date
+ * @returns {boolean}
+ */
+export const studentRegistrationCoversDate = (student, date) => {
+  const start = parseSheetDate(getStudentField(student, '시작날짜'));
+  const end = parseSheetDate(getStudentField(student, '종료날짜'));
+  if (!start || !end || !date) return false;
+  const d = new Date(date); d.setHours(0, 0, 0, 0);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  return d >= start && d <= end;
+};
+
 // ─── 홀딩 상태 ───
 
 /**
@@ -965,14 +982,19 @@ export const findStudentAcrossSheets = async (studentName) => {
     }
   });
 
-  // ±2개월 안에서 못 찾으면 전체 시트로 폴백 (재등록 행이 오래된 시트에 남아있는 케이스 커버)
-  if (allMatches.length === 0) {
-    console.warn(`⚠️ Student "${studentName}" not in ±2 months — falling back to full-sheet scan`);
+  // 장기(2~3개월) 등록의 행은 "등록(결제)한 달" 시트에 남아 있어, 현재 월에서 2개월 넘게
+  // 떨어진 시트에 있을 수 있다. (예: 2월 시트에 3~6월 수강 등록 행)
+  // 이 경우 ±2개월 윈도우가 '오늘 활성인 등록'을 놓치고, 인접 달에 있는 '미리 등록(미래 등록)'을
+  // 활성으로 오인한다 → ①아예 못 찾았거나 ②윈도우 안에 오늘 활성 등록이 없으면 전체 시트로 폴백.
+  const hasActiveMatch = allMatches.some(m => studentRegistrationCoversDate(m.student, today));
+  if (allMatches.length === 0 || !hasActiveMatch) {
+    console.warn(`⚠️ "${studentName}" ±2개월 윈도우에 오늘 활성 등록 없음 — 전체 시트 스캔으로 보강`);
     try {
       const allSheets = await getAllSheetNames();
+      const windowSheetNames = new Set(searchMonths.map(({ year, month }) => getSheetNameByYearMonth(year, month)));
       const studentSheets = allSheets
         .filter(name => name.startsWith('등록생 목록('))
-        .filter(name => !searchMonths.some(({ year, month }) => getSheetNameByYearMonth(year, month) === name));
+        .filter(name => !windowSheetNames.has(name)); // 윈도우에서 이미 읽은 시트는 제외(중복 방지)
 
       const fallbackResults = await Promise.allSettled(
         studentSheets.map(async (foundSheetName) => {
@@ -1002,7 +1024,7 @@ export const findStudentAcrossSheets = async (studentName) => {
       console.warn(`❌ Student "${studentName}" not found in any sheet`);
       return null;
     }
-    console.log(`✅ 폴백 검색으로 "${studentName}" 찾음 (${allMatches.length}건)`);
+    console.log(`✅ 전체 시트 스캔 후 "${studentName}" 등록 ${allMatches.length}건 확보`);
   }
 
   if (allMatches.length === 1) {
