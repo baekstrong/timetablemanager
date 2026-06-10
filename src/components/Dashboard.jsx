@@ -335,16 +335,16 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                             display: 'inline-block',
                             width: '40px',
                             height: '40px',
-                            border: '4px solid #e5e7eb',
-                            borderTopColor: '#22c55e',
+                            border: '4px solid var(--hairline)',
+                            borderTopColor: 'var(--success)',
                             borderRadius: '50%',
                             animation: 'spin 0.8s linear infinite',
                             marginBottom: '16px',
                         }} />
-                        <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#111827', marginBottom: '8px' }}>
+                        <div style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text)', marginBottom: '8px' }}>
                             시간표를 변경하고 있습니다
                         </div>
-                        <div style={{ fontSize: '0.85rem', color: '#6b7280', lineHeight: '1.5' }}>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                             처리가 끝날 때까지<br/>화면을 닫지 말고 잠시 기다려주세요.
                         </div>
                     </div>
@@ -371,8 +371,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                 {/* 수강생 모드: 오늘이 종료일이면 메시지 표시 */}
                 {user.role !== 'coach' && isMyLastDay && (
                     <div style={{
-                        background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
-                        border: '1px solid #f59e0b',
+                        background: '#EDBC401A',
+                        border: '1px solid #EDBC40',
                         borderRadius: '8px',
                         padding: '0.75rem 1rem',
                         marginBottom: '1rem',
@@ -387,8 +387,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
 
                 {user.role !== 'coach' && isCourseExpired && (
                     <div style={{
-                        background: 'linear-gradient(135deg, #fee2e2, #fecaca)',
-                        border: '1px solid #ef4444',
+                        background: '#E94E581A',
+                        border: '1px solid #E94E58',
                         borderRadius: '8px',
                         padding: '0.75rem 1rem',
                         marginBottom: '1rem',
@@ -411,17 +411,17 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                 alignItems: 'center',
                                 gap: '0.5rem',
                                 padding: '0.75rem 1rem',
-                                background: 'rgba(255,255,255,0.8)',
+                                background: 'var(--canvas)',
                                 borderRadius: '8px',
                                 cursor: 'pointer',
                                 userSelect: 'none',
-                                border: '1px solid #e5e7eb'
+                                border: '1px solid var(--hairline)'
                             }}
                         >
                             <span style={{ fontSize: '0.9rem' }}>{sheetsExpanded ? '▼' : '▶'}</span>
                             <span style={{ fontWeight: '600', fontSize: '1rem' }}>Google Sheets 연동</span>
                             {sheetsLoading ? (
-                                <span style={{ fontSize: '0.85rem', color: '#666', marginLeft: '0.5rem' }}>동기화 중...</span>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>동기화 중...</span>
                             ) : sheetsError ? (
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#dc2626', marginLeft: '0.5rem' }}>
                                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#dc2626', display: 'inline-block' }}></span>
@@ -442,7 +442,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                         onClick={() => onNavigate('test')}
                                         style={{
                                             padding: '0.75rem 1.5rem',
-                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                            background: 'var(--accent)',
                                             color: 'white',
                                             border: 'none',
                                             borderRadius: '8px',
@@ -470,8 +470,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                             style={{
                                 width: '100%',
                                 padding: '0.75rem 1rem',
-                                background: 'rgba(255,255,255,0.8)',
-                                border: '1px solid #e5e7eb',
+                                background: 'var(--canvas)',
+                                border: '1px solid var(--hairline)',
                                 borderRadius: '8px',
                                 fontSize: '0.95rem',
                                 fontWeight: '600',
@@ -479,12 +479,12 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '0.5rem',
-                                color: '#374151'
+                                color: 'var(--text)'
                             }}
                         >
                             <span>🗓️</span>
                             <span>휴일설정</span>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px', marginLeft: 'auto', color: '#9ca3af' }}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px', marginLeft: 'auto', color: 'var(--text-muted)' }}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                             </svg>
                         </button>
@@ -497,8 +497,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         margin: '0 0 1rem 0',
                         padding: '14px 16px',
                         borderRadius: '10px',
-                        background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
-                        border: '1.5px solid #f59e0b',
+                        background: '#EDBC401A',
+                        border: '1.5px solid #EDBC40',
                         cursor: 'pointer'
                     }}
                     onClick={() => onNavigate('contractView')}
@@ -651,17 +651,17 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         marginBottom: '1rem',
                         padding: '12px 16px',
                         borderRadius: '10px',
-                        background: 'linear-gradient(135deg, #eef2ff, #e0e7ff)',
-                        border: '1px solid #c7d2fe',
+                        background: '#329BE71A',
+                        border: '1px solid var(--hairline)',
                         cursor: 'pointer'
                     }}
                 >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: recentPRs.length ? '8px' : 0 }}>
-                        <span style={{ fontWeight: 700, color: '#3730a3', fontSize: '0.95rem' }}>🏆 이달의 PR</span>
-                        <span style={{ fontSize: '0.8rem', color: '#6366f1' }}>랭킹 보기 ›</span>
+                        <span style={{ fontWeight: 700, color: 'var(--accent)', fontSize: '0.95rem' }}>🏆 이달의 PR</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--accent)' }}>랭킹 보기 ›</span>
                     </div>
                     {recentPRs.length === 0 ? (
-                        <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>최근 30일 갱신된 PR이 없습니다.</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>최근 30일 갱신된 PR이 없습니다.</div>
                     ) : (() => {
                         const visibleCount = Math.min(PR_VISIBLE, recentPRs.length);
                         const trackItems = recentPRs.length > PR_VISIBLE
@@ -682,13 +682,13 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                                 height: `${PR_LINE_HEIGHT}px`,
                                                 lineHeight: `${PR_LINE_HEIGHT}px`,
                                                 fontSize: '0.85rem',
-                                                color: '#3730a3',
+                                                color: 'var(--accent)',
                                                 whiteSpace: 'nowrap',
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis'
                                             }}
                                         >
-                                            <strong>{p.userName}</strong> — {p.exercise} {formatPRSummary(p)} <span style={{ color: '#9ca3af' }}>{p.date}</span>
+                                            <strong>{p.userName}</strong> — {p.exercise} {formatPRSummary(p)} <span style={{ color: 'var(--text-muted)' }}>{p.date}</span>
                                         </div>
                                     ))}
                                 </div>

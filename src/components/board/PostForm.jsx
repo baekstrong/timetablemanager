@@ -214,7 +214,7 @@ const PostForm = ({ user, editingPost, onSubmit, onClose }) => {
 
                 {/* Upload progress */}
                 {uploadProgress && (
-                    <div style={{ fontSize: '0.85rem', color: '#667eea', marginBottom: '0.5rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--accent)', marginBottom: '0.5rem', textAlign: 'center' }}>
                         {uploadProgress}
                     </div>
                 )}
@@ -232,7 +232,7 @@ const PostForm = ({ user, editingPost, onSubmit, onClose }) => {
                             padding: '8px 16px',
                             background: submitting || !title.trim() || !content.trim()
                                 ? '#ccc'
-                                : 'linear-gradient(135deg, #667eea, #764ba2)',
+                                : 'var(--accent)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '8px',

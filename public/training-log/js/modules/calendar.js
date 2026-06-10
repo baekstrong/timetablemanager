@@ -50,7 +50,7 @@ export async function renderCalendar() {
                 <div class="font-semibold py-2">수</div>
                 <div class="font-semibold py-2">목</div>
                 <div class="font-semibold py-2">금</div>
-                <div class="text-blue-600 font-semibold py-2">토</div>
+                <div class="text-[#329BE7] font-semibold py-2">토</div>
         `;
 
         const firstDayOfWeek = firstDay.getDay();
@@ -103,12 +103,12 @@ export function selectCalendarDate(dateStr) {
     state.selectedDate = dateStr;
 
     // 화면 제목 업데이트 (DOM 직접 조작)
-    const titleElement = document.querySelector('.max-w-2xl .bg-white.rounded-lg.shadow-md.p-6.mb-4 h3');
+    const titleElement = document.querySelector('.max-w-2xl .bg-white.rounded-lg.p-6.mb-4 h3');
     if (titleElement) {
         titleElement.textContent = `🏋️ ${formatDate(state.selectedDate)} 운동 기록`;
     }
 
-    const recordsTitleElement = document.querySelector('.max-w-2xl .bg-white.rounded-lg.shadow-md.p-6:last-child h3');
+    const recordsTitleElement = document.querySelector('.max-w-2xl .bg-white.rounded-lg.p-6:last-child h3');
     if (recordsTitleElement) {
         recordsTitleElement.textContent = `📝 ${formatDate(state.selectedDate)} 기록`;
     }

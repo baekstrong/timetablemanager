@@ -682,7 +682,7 @@ const HistoryModal = ({ pr, onClose }) => {
 // 그래프 탭
 // ============================================
 
-const GRAPH_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
+const GRAPH_COLORS = ['#329BE7', '#47C8FF', '#31A552', '#EDBC40', '#E94E58', '#327AB8', '#06b6d4', '#84cc16'];
 
 const computeSetMetric = (set) => {
     const intUnit = set.intensity?.unit;
@@ -999,7 +999,7 @@ const MonthlyStatsGraph = ({ effectiveTarget }) => {
                         }}
                     />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar yAxisId="left" dataKey="trainingDays" fill="#6366f1" name="출석일 수" radius={[4, 4, 0, 0]} />
+                    <Bar yAxisId="left" dataKey="trainingDays" fill="#329BE7" name="출석일 수" radius={[4, 4, 0, 0]} />
                     <Line yAxisId="right" type="monotone" dataKey="volume" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} name="총 운동량" />
                 </ComposedChart>
             </ResponsiveContainer>

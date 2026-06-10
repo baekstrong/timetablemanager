@@ -594,7 +594,7 @@ const StudentManager = ({ onImpersonate }) => {
                             <div style={{ marginBottom: '16px' }}>
                                 <p style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>활성 홀딩 목록</p>
                                 {existingHoldings.map(h => (
-                                    <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f0f4ff', borderRadius: '8px', border: '1px solid #667eea', marginBottom: '6px' }}>
+                                    <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--accent-10)', borderRadius: '8px', border: '1px solid var(--accent-30)', marginBottom: '6px' }}>
                                         <div>
                                             <span style={{ fontSize: '14px', color: '#374151' }}>
                                                 {h.startDate} ~ {h.endDate}
@@ -671,7 +671,7 @@ const StudentManager = ({ onImpersonate }) => {
                                 className="absence-submit-btn"
                                 onClick={handleSubmitHolding}
                                 disabled={holdingProcessing || holdingDates.length === 0}
-                                style={{ background: '#667eea' }}
+                                style={{ background: 'var(--accent)' }}
                             >
                                 {holdingProcessing ? '처리 중...' : `홀딩 처리 (${holdingDates.length}일)`}
                             </button>

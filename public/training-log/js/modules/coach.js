@@ -82,7 +82,7 @@ export async function loadStudentList() {
             <div class="w-full mb-3 pb-3 border-b border-gray-300">
                 <button 
                     onclick="toggleSelectAll()"
-                    class="px-4 py-2 rounded-lg text-sm font-semibold ${allSelected ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'} hover:opacity-90 transition"
+                    class="px-4 py-2 rounded-lg text-sm font-semibold ${allSelected ? 'bg-green-500 text-white' : 'bg-[#329BE7] text-white'} hover:opacity-90 transition"
                 >
                     ${allSelected ? '✓ 전체 선택됨 (' + state.allStudents.length + '명)' : '👥 전체 선택 (' + state.allStudents.length + '명)'}
                 </button>
@@ -234,7 +234,7 @@ function updateStudentBadges() {
             selectAllBtn.className = 'px-4 py-2 rounded-lg text-sm font-semibold bg-green-500 text-white hover:opacity-90 transition';
             selectAllBtn.innerHTML = `✓ 전체 선택됨 (${state.allStudents.length}명)`;
         } else {
-            selectAllBtn.className = 'px-4 py-2 rounded-lg text-sm font-semibold bg-blue-500 text-white hover:opacity-90 transition';
+            selectAllBtn.className = 'px-4 py-2 rounded-lg text-sm font-semibold bg-[#329BE7] text-white hover:opacity-90 transition';
             selectAllBtn.innerHTML = `👥 전체 선택 (${state.allStudents.length}명)`;
         }
     }
@@ -380,13 +380,13 @@ export async function renderPinnedMemosForCoach() {
         // But if filtering by exercise and no matches, maybe show nothing?
         // User wants "Send Personal Message" capability.
 
-        html += `<div id="student-section-${studentName}" class="rounded-xl p-4 mb-4 shadow-md border border-gray-200" style="background-color: ${studentColor}20;">
+        html += `<div id="student-section-${studentName}" class="rounded-xl p-4 mb-4 border border-[#EFEFF0]" style="background-color: ${studentColor}20;">
             <div class="flex items-center justify-between border-b border-gray-200 pb-2 mb-3">
                 <h3 class="font-bold text-gray-800 text-lg flex items-center gap-2">
-                    <span class="px-2 py-1 rounded bg-white border border-gray-200 text-sm shadow-sm">${studentName}</span>
+                    <span class="px-2 py-1 rounded bg-white border border-[#EFEFF0] text-sm">${studentName}</span>
                     <span class="text-sm font-normal text-gray-500">님의 메모 & 메시지</span>
                 </h3>
-                <button onclick="promptPersonalMessage('${studentName}')" class="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded hover:bg-indigo-700 font-semibold shadow-sm flex items-center gap-1">
+                <button onclick="promptPersonalMessage('${studentName}')" class="bg-[#329BE7] text-white text-xs px-3 py-1.5 rounded hover:bg-[#327AB8] font-semibold flex items-center gap-1">
                     📩 메시지 보내기
                 </button>
             </div>`;
@@ -394,21 +394,21 @@ export async function renderPinnedMemosForCoach() {
         // 1. Coach Messages (Personal Messages / Coach Memos)
         if (filteredCoachMemos.length > 0) {
             html += `<div class="mb-4">
-                <h4 class="text-xs font-bold text-indigo-800 mb-2 uppercase tracking-wider opacity-70">Coach Messages</h4>
+                <h4 class="text-xs font-bold text-[#327AB8] mb-2 uppercase tracking-wider opacity-70">Coach Messages</h4>
                 <div class="space-y-2">`;
 
             filteredCoachMemos.forEach((memo, idx) => {
                 html += `
-                    <div class="bg-indigo-50 rounded-lg p-3 border border-indigo-100 shadow-sm relative">
+                    <div class="bg-[#329BE71A] rounded-lg p-3 border border-[#329BE7]/20 relative">
                         <div class="flex justify-between items-start mb-1">
-                            <span class="font-bold text-indigo-900 text-sm">${memo.exercise}</span>
+                            <span class="font-bold text-[#327AB8] text-sm">${memo.exercise}</span>
                             <div class="flex gap-2">
-                                <button onclick="editCoachMemo('${studentName}', '${memo.id || ''}', \`${(memo.memo || '').replace(/`/g, '\\`')}\`)" class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded border border-blue-300 font-semibold">수정</button>
+                                <button onclick="editCoachMemo('${studentName}', '${memo.id || ''}', \`${(memo.memo || '').replace(/`/g, '\\`')}\`)" class="px-2 py-1 text-xs bg-[#329BE71A] text-[#327AB8] rounded border border-[#329BE7]/30 font-semibold">수정</button>
                                 <button onclick="deleteCoachMemo('${studentName}', '${memo.id || ''}')" class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded border border-red-300 font-semibold">삭제</button>
                             </div>
                         </div>
                         <div class="text-gray-800 text-sm whitespace-pre-wrap">${memo.memo}</div>
-                        <div class="text-xs text-indigo-300 mt-1 text-right">${formatDate(memo.updatedAt || memo.createdAt)}</div>
+                        <div class="text-xs text-[#329BE7]/60 mt-1 text-right">${formatDate(memo.updatedAt || memo.createdAt)}</div>
                     </div>`;
             });
             html += `</div></div>`;
@@ -437,7 +437,7 @@ export async function renderPinnedMemosForCoach() {
                     ? `<button onclick="toggleMemoHighlight('${studentName}', ${originalIdx})" class="text-yellow-400 hover:text-yellow-500 text-lg leading-none" title="중요 해제">★</button>`
                     : `<button onclick="toggleMemoHighlight('${studentName}', ${originalIdx})" class="text-gray-300 hover:text-yellow-400 text-lg leading-none" title="중요 표시">☆</button>`;
                 html += `
-                    <div class="${bgColor} rounded-lg p-3 border-l-4 ${borderColor} shadow-sm ${isHighlighted ? 'ring-1 ring-yellow-200' : ''}">
+                    <div class="${bgColor} rounded-lg p-3 border-l-4 ${borderColor} ${isHighlighted ? 'ring-1 ring-yellow-200' : ''}">
                         <div class="flex justify-between items-start">
                             <div class="flex items-center gap-2 mb-1">
                                 ${starBtn}
@@ -453,11 +453,11 @@ export async function renderPinnedMemosForCoach() {
                             <label class="text-xs font-bold text-gray-500 block mb-1">💬 코멘트</label>
                             <div class="flex gap-2">
                                 <textarea id="coach-comment-${studentName}-${originalIdx}"
-                                    class="flex-1 px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:border-blue-500"
+                                    class="flex-1 px-2 py-1 text-sm border border-[#EFEFF0] rounded focus:outline-none focus:border-[#329BE7]"
                                     rows="1"
                                     placeholder="코멘트...">${comment}</textarea>
                                 <button onclick="saveCoachCommentToStudentMemo('${studentName}', ${originalIdx})"
-                                    class="bg-gray-600 text-white text-xs px-3 py-1 rounded hover:bg-gray-700 font-semibold shadow-sm h-fit self-end pb-1.5 pt-1.5">
+                                    class="bg-gray-600 text-white text-xs px-3 py-1 rounded hover:bg-gray-700 font-semibold h-fit self-end pb-1.5 pt-1.5">
                                     저장
                                 </button>
                             </div>
@@ -985,7 +985,7 @@ export async function loadAllRecords() {
                 const bgColor = getStudentColor(data.userName, state.allStudents);
 
                 html += `
-                <div class="bg-white rounded-lg shadow-md p-5 card-enter" style="background-color: ${bgColor};">
+                <div class="bg-white rounded-lg border border-[#EFEFF0] p-5 card-enter" style="background-color: ${bgColor};">
                     <div class="flex items-center justify-between mb-3">
                         <span class="px-3 py-1 rounded-full text-sm font-semibold" style="background-color: ${getStudentBadgeColor(data.userName, state.allStudents)}; color: ${getStudentTextColor(data.userName, state.allStudents)};">
                             ${data.userName}
@@ -1048,7 +1048,7 @@ export function openPersonalMessageModal(studentName) {
                     </div>
                     <div class="flex justify-end gap-2">
                         <button onclick="closePersonalMessageModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 font-semibold">취소</button>
-                        <button onclick="confirmSendMessage()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold">전송</button>
+                        <button onclick="confirmSendMessage()" class="px-4 py-2 bg-[#329BE7] text-white rounded hover:bg-[#327AB8] font-semibold">전송</button>
                     </div>
                 </div>
             </div>

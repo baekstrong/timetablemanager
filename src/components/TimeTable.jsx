@@ -20,8 +20,8 @@ const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => i + START_
 // Generate random color for each student
 const generateColor = (index) => {
     const colors = [
-        '#38bdf8', '#818cf8', '#34d399', '#f472b6', '#fb923c',
-        '#a78bfa', '#4ade80', '#60a5fa', '#f87171', '#fbbf24'
+        '#38bdf8', '#2dd4bf', '#34d399', '#f472b6', '#fb923c',
+        '#22d3ee', '#4ade80', '#60a5fa', '#f87171', '#fbbf24'
     ];
     return colors[index % colors.length];
 };

@@ -207,7 +207,7 @@ export function loadMyRecords() {
                                 ▼
                             </button>
                             <div class="w-px bg-gray-300 mx-1"></div>
-                            <button onclick="openEditModal('${doc.id}')" class="text-xs text-blue-600 hover:text-blue-800">
+                            <button onclick="openEditModal('${doc.id}')" class="text-xs text-[#329BE7] hover:text-[#327AB8]">
                                 ✏️ 수정
                             </button>
                             <button onclick="deleteRecord('${doc.id}')" class="text-xs text-red-600 hover:text-red-800">
@@ -726,7 +726,7 @@ export function addSameEditSet() {
                     <button onclick="changeAddEditSetCount(1)" style="width: 50px; height: 50px; font-size: 24px; background: #e5e7eb; border: none; border-radius: 8px;">+</button>
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button onclick="confirmAddSameEditSet()" style="flex: 1; background: #2563eb; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold;">확인</button>
+                    <button onclick="confirmAddSameEditSet()" style="flex: 1; background: #329BE7; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold;">확인</button>
                     <button onclick="closeAddEditSetModal()" style="flex: 1; background: #6b7280; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold;">취소</button>
                 </div>
             </div>
@@ -1204,7 +1204,7 @@ export function openMemoArchiveModal() {
                     </div>
                     ${memo.memo ? `<div class="text-sm text-gray-700 whitespace-pre-wrap mb-3">${memo.memo}</div>` : '<div class="text-sm text-gray-400 italic mb-3">메모 없음</div>'}
                     <div class="flex gap-2">
-                        <button onclick="restoreArchivedMemo(${idx})" class="text-xs px-3 py-1.5 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition">
+                        <button onclick="restoreArchivedMemo(${idx})" class="text-xs px-3 py-1.5 bg-[#329BE71A] text-[#327AB8] rounded hover:bg-[#329BE7]/20 transition">
                             복원
                         </button>
                         <button onclick="deleteArchivedMemo(${idx})" class="text-xs px-3 py-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200 transition">

@@ -1,6 +1,6 @@
 .contract-view-container {
     min-height: 100vh;
-    background: #f9fafb;
+    background: var(--canvas-tint);
     padding-bottom: 100px;
 }
 
@@ -10,7 +10,7 @@
     z-index: 10;
     background: white;
     padding: 1rem 1.25rem;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--hairline);
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -22,7 +22,7 @@
     gap: 0.3rem;
     background: none;
     border: none;
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 0.9rem;
     cursor: pointer;
     padding: 0.3rem 0;
@@ -37,7 +37,7 @@
 .contract-title {
     font-size: 1.15rem;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--text);
     margin: 0;
 }
 
@@ -45,7 +45,7 @@
 .contract-empty {
     text-align: center;
     padding: 3rem 1rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 1rem;
 }
 
@@ -59,14 +59,13 @@
     border-radius: 12px;
     padding: 1.25rem;
     margin-bottom: 1rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--hairline);
 }
 
 .contract-section-title {
     font-size: 1.05rem;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--text);
     margin: 0 0 0.75rem 0;
 }
 
@@ -80,7 +79,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 0.5rem 0;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid var(--canvas-tint);
 }
 
 .contract-info-row:last-child {
@@ -89,13 +88,13 @@
 
 .contract-info-label {
     font-size: 0.88rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     font-weight: 500;
 }
 
 .contract-info-value {
     font-size: 0.92rem;
-    color: #1f2937;
+    color: var(--text);
     font-weight: 600;
 }
 
@@ -105,8 +104,7 @@
     border-radius: 12px;
     padding: 1.25rem;
     margin-bottom: 1rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--hairline);
 }
 
 .contract-terms-card.risk {
@@ -118,7 +116,7 @@
     margin: 0;
     padding-left: 1.25rem;
     font-size: 0.88rem;
-    color: #374151;
+    color: var(--text);
     line-height: 1.7;
 }
 
@@ -142,25 +140,25 @@
 
 .contract-valid-sessions-table th,
 .contract-valid-sessions-table td {
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--hairline);
     padding: 0.4rem 0.3rem;
     text-align: center;
 }
 
 .contract-valid-sessions-table th {
-    background: #f9fafb;
-    color: #374151;
+    background: var(--canvas-tint);
+    color: var(--text);
     font-weight: 600;
 }
 
 .contract-valid-sessions-table td {
-    color: #1f2937;
+    color: var(--text);
     font-weight: 500;
 }
 
 .contract-signature-statement {
     font-size: 0.9rem;
-    color: #374151;
+    color: var(--text);
     font-weight: 600;
     text-align: right;
     margin: 1rem 0;
@@ -172,8 +170,7 @@
     border-radius: 12px;
     padding: 1.25rem;
     margin-top: 1.5rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-    border: 1.5px solid #d1d5db;
+    border: 1.5px solid var(--hairline);
     text-align: center;
 }
 
@@ -186,31 +183,30 @@
     margin-bottom: 1rem;
     font-size: 0.95rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--text);
 }
 
 .contract-agree-label input[type="checkbox"] {
     width: 20px;
     height: 20px;
-    accent-color: #f59e0b;
+    accent-color: var(--caution);
 }
 
 .contract-agree-btn {
     width: 100%;
     padding: 0.85rem;
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    background: var(--caution);
     color: white;
     border: none;
     border-radius: 10px;
     font-size: 1rem;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: opacity 0.2s ease;
 }
 
 .contract-agree-btn:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+    opacity: 0.88;
 }
 
 .contract-agree-btn:disabled {

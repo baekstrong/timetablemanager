@@ -1183,7 +1183,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                     <>
                                                         <button
                                                             className="cns-action-btn"
-                                                            style={{ background: '#6366f1', color: '#fff', fontSize: '0.8rem' }}
+                                                            style={{ background: 'var(--accent)', color: '#fff', fontSize: '0.8rem' }}
                                                             onClick={() => handleEditSlotsOpen(reg)}
                                                         >
                                                             대기 시간표 편집
@@ -1804,9 +1804,9 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                     textAlign: 'center',
                                                     borderRadius: '4px',
                                                     cursor: isDisabled ? 'default' : 'pointer',
-                                                    border: isSelected ? '2px solid #4f46e5' : '1px solid #e5e7eb',
-                                                    backgroundColor: isDisabled ? '#f3f4f6' : isSelected ? '#e0e7ff' : isFull ? '#fef3c7' : '#fff',
-                                                    color: isDisabled ? '#9ca3af' : isSelected ? '#4f46e5' : isFull ? '#92400e' : '#333',
+                                                    border: isSelected ? '2px solid var(--accent)' : '1px solid var(--hairline)',
+                                                    backgroundColor: isDisabled ? 'var(--canvas-tint)' : isSelected ? 'var(--accent-10)' : isFull ? '#fef3c7' : '#fff',
+                                                    color: isDisabled ? 'var(--text-muted)' : isSelected ? 'var(--accent)' : isFull ? '#92400e' : '#333',
                                                     fontWeight: isSelected ? 700 : 400
                                                 }}
                                             >
@@ -1817,7 +1817,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                 </div>
                             ))}
                         </div>
-                        <p style={{ fontSize: '0.75rem', color: '#6366f1', marginTop: '8px' }}>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '8px' }}>
                             마감된 시간도 선택 가능합니다. 자유롭게 편집하세요.
                         </p>
                         <div className="cns-modal-actions" style={{ marginTop: '16px' }}>

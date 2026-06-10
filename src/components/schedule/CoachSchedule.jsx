@@ -108,14 +108,14 @@ export default function CoachSchedule({
             return (
                 <div
                     className="schedule-cell cell-disabled"
-                    style={{ backgroundColor: '#f3f4f6', cursor: 'pointer' }}
+                    style={{ backgroundColor: '#F7F7F8', cursor: 'pointer' }}
                     onClick={() => {
                         if (confirm(`${day}요일 ${periodObj.name} 수업을 활성화하시겠습니까?`)) {
                             toggleClassDisabledHandler(day, periodObj.id);
                         }
                     }}
                 >
-                    <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>수업 없음</div>
+                    <div style={{ fontSize: '0.8rem', color: 'rgba(0,0,0,0.6)' }}>수업 없음</div>
                     <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '4px' }}>클릭하여 활성화</div>
                 </div>
             );
@@ -163,7 +163,7 @@ export default function CoachSchedule({
             ];
             waitlistTooltipElement = (
                 <span
-                    style={{ color: '#d97706', fontWeight: 'bold', marginLeft: '4px', fontSize: '0.75rem' }}
+                    style={{ color: '#9a7a12', fontWeight: 'bold', marginLeft: '4px', fontSize: '0.75rem' }}
                     title={`대기: ${tooltipParts.join(', ')}`}
                 >
                     대기 {waitCount}명
@@ -181,14 +181,14 @@ export default function CoachSchedule({
                     alignItems: 'flex-start',
                     justifyContent: 'flex-start',
                     padding: '8px',
-                    ...(isHoliday ? { backgroundColor: '#fef2f2' } : {})
+                    ...(isHoliday ? { backgroundColor: '#E94E581A' } : {})
                 }}
             >
                 {/* Holiday banner */}
                 {isHoliday && (
                     <div style={{ width: '100%', textAlign: 'center', marginBottom: '4px', padding: '2px 0', borderBottom: '1px solid #fca5a5', borderRadius: '4px' }}>
-                        <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '0.75rem' }}>휴일</span>
-                        {holidayReason && <span style={{ color: '#6b7280', fontSize: '0.65rem', marginLeft: '4px' }}>{holidayReason}</span>}
+                        <span style={{ color: '#E94E58', fontWeight: 'bold', fontSize: '0.75rem' }}>휴일</span>
+                        {holidayReason && <span style={{ color: 'rgba(0,0,0,0.6)', fontSize: '0.65rem', marginLeft: '4px' }}>{holidayReason}</span>}
                     </div>
                 )}
 
@@ -197,7 +197,7 @@ export default function CoachSchedule({
                     <span>
                         {data.isFull
                             ? <span style={{ color: 'red' }}>Full</span>
-                            : <>{data.currentCount}명<span style={{ color: '#666', fontWeight: 'normal', marginLeft: '4px' }}>(여석: {data.availableSeats}자리)</span></>
+                            : <>{data.currentCount}명<span style={{ color: 'rgba(0,0,0,0.6)', fontWeight: 'normal', marginLeft: '4px' }}>(여석: {data.availableSeats}자리)</span></>
                         }
                         {waitlistTooltipElement}
                     </span>
@@ -209,7 +209,7 @@ export default function CoachSchedule({
                             padding: '0 2px',
                             borderRadius: '4px',
                             ...(locked
-                                ? { border: '1px solid #ef4444', backgroundColor: '#fef2f2' }
+                                ? { border: '1px solid #E94E58', backgroundColor: '#E94E581A' }
                                 : { color: '#d1d5db' })
                         }}
                         title={locked ? '보강 잠금 해제' : '보강 잠금'}
@@ -264,8 +264,8 @@ export default function CoachSchedule({
                 title="오늘 마지막 수업"
                 items={lastDayStudents}
                 style={SECTION_STYLES.lastDay}
-                titleColor="#166534"
-                itemColor="#14532d"
+                titleColor="#2a8f46"
+                itemColor="#2a8f46"
                 renderItem={(s) => {
                     const now = new Date();
                     const period = PERIODS.find(p => p.id === s.todayPeriod);
@@ -277,14 +277,14 @@ export default function CoachSchedule({
                         isBold = nowMin >= (classStartMin - 30) && nowMin <= (classEndMin + 30);
                     }
                     return (
-                        <div key={s.name} style={{ fontWeight: isBold ? '800' : '400' }}>
+                        <div key={s.name} style={{ fontWeight: isBold ? '700' : '400' }}>
                             <span
                                 onClick={() => {
                                     sessionStorage.setItem('renewalStudentName', s.name);
                                     onNavigate?.('students');
                                 }}
                                 style={{ cursor: 'pointer' }}
-                            >{s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})</span> {period ? <span style={{ fontSize: '0.8rem', color: '#15803d' }}>{period.id}교시</span> : ''}
+                            >{s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})</span> {period ? <span style={{ fontSize: '0.8rem', color: '#2a8f46' }}>{period.id}교시</span> : ''}
                         </div>
                     );
                 }}
@@ -294,8 +294,8 @@ export default function CoachSchedule({
                 title="재등록 지연"
                 items={delayedReregistrationStudents}
                 style={SECTION_STYLES.delayedRereg}
-                titleColor="#92400e"
-                itemColor="#78350f"
+                titleColor="#9a7a12"
+                itemColor="#9a7a12"
                 renderItem={(s) => (
                     <div key={s.name}>
                         <span
@@ -304,7 +304,7 @@ export default function CoachSchedule({
                                 onNavigate?.('students');
                             }}
                             style={{ cursor: 'pointer' }}
-                        >{s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})</span> <span style={{ fontSize: '0.8rem', color: '#b45309' }}>종료: {s.endDate}</span>
+                        >{s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})</span> <span style={{ fontSize: '0.8rem', color: '#9a7a12' }}>종료: {s.endDate}</span>
                     </div>
                 )}
             />
@@ -349,7 +349,7 @@ export default function CoachSchedule({
             <div className="legend">
                 <div className="legend-item"><span className="student-tag" style={{ fontSize: '0.8rem' }}>김철수</span> 출석 예정</div>
                 <div className="legend-item"><span className="student-tag substitute" style={{ fontSize: '0.8rem' }}>이영희(보강)</span> 보강/대타</div>
-                <div className="legend-item"><span className="student-tag" style={{ fontSize: '0.8rem', backgroundColor: '#fee2e2', textDecoration: 'line-through' }}>박민수</span> 결석/홀딩</div>
+                <div className="legend-item"><span className="student-tag" style={{ fontSize: '0.8rem', backgroundColor: '#E94E581A', textDecoration: 'line-through' }}>박민수</span> 결석/홀딩</div>
             </div>
         </>
     );

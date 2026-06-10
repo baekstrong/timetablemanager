@@ -3,14 +3,14 @@
     height: 100vh;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent);
     overflow: hidden;
 }
 
 .sheets-header {
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--canvas);
     padding: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid var(--hairline);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -20,7 +20,7 @@
 
 .sheets-header h2 {
     margin: 0;
-    color: #333;
+    color: var(--text);
     font-size: 24px;
 }
 
@@ -34,35 +34,34 @@
 .open-new-tab-btn {
     padding: 10px 20px;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--r-chip);
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s ease;
-    background: #f0f0f0;
-    color: #333;
+    transition: background 0.2s var(--ease);
+    background: var(--canvas-tint);
+    color: var(--text);
     text-decoration: none;
     display: inline-block;
 }
 
 .view-toggle button:hover,
 .open-new-tab-btn:hover {
-    background: #e0e0e0;
-    transform: translateY(-2px);
+    background: var(--hairline);
 }
 
 .view-toggle button.active {
-    background: #667eea;
+    background: var(--accent);
     color: white;
 }
 
 .open-new-tab-btn {
-    background: #28a745;
+    background: var(--success);
     color: white;
 }
 
 .open-new-tab-btn:hover {
-    background: #218838;
+    background: color-mix(in srgb, var(--success) 85%, black);
 }
 
 .sheets-content {
@@ -75,9 +74,9 @@
 
 .sheets-iframe-wrapper {
     flex: 1;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    background: var(--canvas);
+    border-radius: var(--r-md);
+    border: 1px solid var(--hairline);
     overflow: hidden;
     position: relative;
 }
@@ -97,7 +96,7 @@
     background: rgba(0, 0, 0, 0.8);
     color: white;
     padding: 15px 25px;
-    border-radius: 8px;
+    border-radius: var(--r-chip);
     text-align: center;
     pointer-events: none;
     z-index: 10;
@@ -109,16 +108,16 @@
 }
 
 .sheets-info {
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--canvas);
     padding: 20px;
     margin-top: 20px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-radius: var(--r-md);
+    border: 1px solid var(--hairline);
 }
 
 .sheets-info h3 {
     margin: 0 0 15px 0;
-    color: #333;
+    color: var(--text);
     font-size: 18px;
 }
 
@@ -130,7 +129,7 @@
 
 .sheets-info li {
     margin: 10px 0;
-    color: #555;
+    color: var(--text-secondary);
     font-size: 14px;
     line-height: 1.6;
     position: relative;
@@ -141,29 +140,28 @@
     content: "✓";
     position: absolute;
     left: 0;
-    color: #28a745;
+    color: var(--success);
     font-weight: bold;
 }
 
 .sheets-info strong {
-    color: #333;
+    color: var(--text);
 }
 
 .back-button {
     padding: 10px 20px;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--r-chip);
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s ease;
-    background: #6c757d;
+    transition: background 0.2s var(--ease);
+    background: #A7A7AA;
     color: white;
 }
 
 .back-button:hover {
-    background: #5a6268;
-    transform: translateY(-2px);
+    background: color-mix(in srgb, #A7A7AA 80%, black);
 }
 
 /* 반응형 디자인 */
@@ -206,6 +204,6 @@
 
 .sheets-iframe-wrapper.loading::after {
     content: "구글 시트 로딩 중...";
-    color: #666;
+    color: var(--text-secondary);
     font-size: 16px;
 }

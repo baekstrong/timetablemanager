@@ -7,8 +7,8 @@ import {
 } from '../../services/firebaseService';
 
 const SECTION_STYLES_WAITLIST = {
-    background: 'linear-gradient(135deg, #fef9c3, #fde047)',
-    border: '1px solid #eab308',
+    background: '#EDBC401A',
+    border: '1px solid #EDBC404D',
     borderRadius: '12px',
     padding: '1rem 1.25rem',
     marginBottom: '1rem',
@@ -18,9 +18,9 @@ const DELETE_BTN_STYLE = {
     fontSize: '0.75rem',
     padding: '2px 8px',
     borderRadius: '4px',
-    border: '1px solid #dc2626',
-    background: '#fee2e2',
-    color: '#dc2626',
+    border: '1px solid #E94E58',
+    background: '#E94E581A',
+    color: '#E94E58',
     cursor: 'pointer',
     fontWeight: '600',
 };
@@ -37,7 +37,7 @@ export default function CoachWaitlistPanel({
     return (
         <section style={SECTION_STYLES_WAITLIST}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <div style={{ fontWeight: '700', fontSize: '1rem', color: '#713f12' }}>
+                <div style={{ fontWeight: '700', fontSize: '1rem', color: '#9a7a12' }}>
                     시간표 대기 현황 <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>({weekWaitlist.length + newStudentWaitlist.length}명)</span>
                 </div>
                 <button
@@ -46,9 +46,9 @@ export default function CoachWaitlistPanel({
                         fontSize: '0.75rem',
                         padding: '3px 8px',
                         borderRadius: '4px',
-                        border: showWaitlistDeleteMode ? '1px solid #dc2626' : '1px solid #a16207',
-                        background: showWaitlistDeleteMode ? '#fee2e2' : 'transparent',
-                        color: showWaitlistDeleteMode ? '#dc2626' : '#a16207',
+                        border: showWaitlistDeleteMode ? '1px solid #E94E58' : '1px solid #EDBC404D',
+                        background: showWaitlistDeleteMode ? '#E94E581A' : 'transparent',
+                        color: showWaitlistDeleteMode ? '#E94E58' : '#9a7a12',
                         cursor: 'pointer',
                         fontWeight: '600'
                     }}
@@ -56,7 +56,7 @@ export default function CoachWaitlistPanel({
                     {showWaitlistDeleteMode ? '완료' : '삭제'}
                 </button>
             </div>
-            <div style={{ color: '#78350f', fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <div style={{ color: '#9a7a12', fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 {weekWaitlist.map(w => {
                     const desiredP = PERIODS.find(p => p.id === w.desiredSlot.period);
                     const currentP = PERIODS.find(p => p.id === w.currentSlot.period);
@@ -68,10 +68,10 @@ export default function CoachWaitlistPanel({
                         <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span>
                                 {w.studentName}
-                                <span style={{ fontSize: '0.8rem', color: '#92400e', marginLeft: '4px' }}>
+                                <span style={{ fontSize: '0.8rem', color: '#9a7a12', marginLeft: '4px' }}>
                                     {w.currentSlot.day}{currentP ? currentP.id : w.currentSlot.period}교시 → {w.desiredSlot.day}{desiredP ? desiredP.id : w.desiredSlot.period}교시
                                 </span>
-                                <span style={{ fontSize: '0.75rem', color: '#a16207', marginLeft: '4px' }}>
+                                <span style={{ fontSize: '0.75rem', color: '#9a7a12', marginLeft: '4px' }}>
                                     ({w.status === 'waiting' ? '대기중' : w.status === 'notified' ? '승인완료' : w.status})
                                 </span>
                             </span>
@@ -91,9 +91,9 @@ export default function CoachWaitlistPanel({
                                         disabled={!hasSpace}
                                         style={{
                                             fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px',
-                                            border: hasSpace ? '1px solid #16a34a' : '1px solid #9ca3af',
-                                            background: hasSpace ? '#dcfce7' : '#f3f4f6',
-                                            color: hasSpace ? '#16a34a' : '#9ca3af',
+                                            border: hasSpace ? '1px solid #31A5524D' : '1px solid #9ca3af',
+                                            background: hasSpace ? '#31A5521A' : '#F7F7F8',
+                                            color: hasSpace ? '#2a8f46' : '#9ca3af',
                                             cursor: hasSpace ? 'pointer' : 'not-allowed',
                                             fontWeight: '600'
                                         }}
@@ -105,7 +105,7 @@ export default function CoachWaitlistPanel({
                                     <>
                                         <span style={{
                                             fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px',
-                                            background: '#dbeafe', color: '#2563eb', fontWeight: '600'
+                                            background: '#329BE71A', color: '#327AB8', fontWeight: '600'
                                         }}>
                                             수락중...
                                         </span>
@@ -155,8 +155,8 @@ export default function CoachWaitlistPanel({
                         <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span>
                                 {r.name}
-                                <span style={{ fontSize: '0.8rem', color: '#92400e', marginLeft: '4px' }}>{slotStr}</span>
-                                <span style={{ fontSize: '0.75rem', color: '#d97706', marginLeft: '4px', fontWeight: '600' }}>(신규대기)</span>
+                                <span style={{ fontSize: '0.8rem', color: '#9a7a12', marginLeft: '4px' }}>{slotStr}</span>
+                                <span style={{ fontSize: '0.75rem', color: '#9a7a12', marginLeft: '4px', fontWeight: '600' }}>(신규대기)</span>
                             </span>
                             {showWaitlistDeleteMode && (
                                 <button

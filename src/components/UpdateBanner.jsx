@@ -20,7 +20,7 @@ const UpdateBanner = () => {
         justifyContent: 'center',
         gap: '12px',
         padding: '10px 16px',
-        background: '#2563eb',
+        background: 'var(--accent)',
         color: '#fff',
         fontSize: '14px',
         fontWeight: 600,
@@ -34,7 +34,7 @@ const UpdateBanner = () => {
         style={{
           padding: '6px 14px',
           background: '#fff',
-          color: '#2563eb',
+          color: 'var(--accent)',
           border: 'none',
           borderRadius: '6px',
           fontSize: '14px',

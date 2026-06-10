@@ -14,31 +14,31 @@
 
 .board-tab {
     padding: 4px 12px;
-    border-radius: 16px;
-    background: #f3f4f6;
+    border-radius: var(--r-full);
+    background: var(--canvas-tint);
     font-size: 0.85rem;
     cursor: pointer;
     border: none;
     white-space: nowrap;
-    color: #374151;
-    transition: all 0.2s ease;
+    color: var(--text-secondary);
+    transition: all 0.2s var(--ease);
 }
 
 .board-tab.active {
-    background: #667eea;
+    background: var(--accent);
     color: white;
     font-weight: 600;
 }
 
 /* ===== Post List Cards ===== */
 .post-card {
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
+    background: var(--canvas);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-chip);
     padding: 12px;
     margin-bottom: 6px;
     cursor: pointer;
-    transition: opacity 0.1s ease;
+    transition: opacity 0.1s var(--ease);
 }
 
 .post-card:active {
@@ -60,7 +60,7 @@
 .post-card-title {
     font-size: 0.95rem;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--text);
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -106,8 +106,8 @@
 }
 
 .post-category-badge[data-category="free"] {
-    background: #dbeafe;
-    color: #1e40af;
+    background: var(--accent-10);
+    color: var(--accent-hover);
 }
 
 .post-category-badge[data-category="food"] {
@@ -136,14 +136,14 @@
     font-size: 1.1rem;
     font-weight: 700;
     margin: 8px 0;
-    color: #1f2937;
+    color: var(--text);
     line-height: 1.4;
 }
 
 .post-detail-content {
     white-space: pre-wrap;
     line-height: 1.6;
-    color: #374151;
+    color: var(--text);
     margin: 12px 0;
     font-size: 0.95rem;
     word-break: break-all;
@@ -151,14 +151,14 @@
 
 .post-detail-content a,
 .comment-content a {
-    color: #2563eb;
+    color: var(--accent);
     text-decoration: underline;
     word-break: break-all;
 }
 
 .post-detail-content a:hover,
 .comment-content a:hover {
-    color: #1d4ed8;
+    color: var(--accent);
 }
 
 .post-detail-meta {
@@ -173,8 +173,8 @@
     display: flex;
     gap: 12px;
     padding: 8px 0;
-    border-top: 1px solid #e5e7eb;
-    border-bottom: 1px solid #e5e7eb;
+    border-top: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
     margin: 12px 0;
     flex-wrap: wrap;
 }
@@ -187,8 +187,8 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    color: #6b7280;
-    transition: color 0.2s ease;
+    color: var(--text-secondary);
+    transition: color 0.2s var(--ease);
 }
 
 .post-action-btn.liked {
@@ -197,7 +197,7 @@
 
 .post-like-names {
     font-size: 0.82rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     line-height: 1.4;
 }
 
@@ -208,7 +208,7 @@
 
 .comment-item {
     padding: 10px 0;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid var(--hairline);
 }
 
 .comment-item-header {
@@ -228,11 +228,11 @@
 .comment-author {
     font-weight: 600;
     font-size: 0.85rem;
-    color: #1f2937;
+    color: var(--text);
 }
 
 .comment-author-coach {
-    color: #667eea;
+    color: var(--accent);
 }
 
 .comment-date {
@@ -242,7 +242,7 @@
 
 .comment-content {
     font-size: 0.9rem;
-    color: #374151;
+    color: var(--text);
     line-height: 1.5;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -270,7 +270,7 @@
     border: none;
     cursor: pointer;
     font-size: 0.8rem;
-    color: #9ca3af;
+    color: var(--text-muted);
     padding: 0;
 }
 
@@ -280,28 +280,28 @@
 
 .comment-like-names {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     line-height: 1.35;
 }
 
 .comment-reply-btn {
     background: none;
     border: none;
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 0.75rem;
     cursor: pointer;
     padding: 0;
 }
 
 .comment-reply-btn:hover {
-    color: #667eea;
+    color: var(--accent);
 }
 
 /* Reply (대댓글) */
 .comment-reply {
     margin-left: 24px;
     padding-left: 12px;
-    border-left: 2px solid #e5e7eb;
+    border-left: 2px solid var(--hairline);
 }
 
 .comment-reply-input-area {
@@ -320,7 +320,7 @@
 .comment-reply-cancel-btn {
     background: none;
     border: none;
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 0.8rem;
     cursor: pointer;
     padding: 4px 8px;
@@ -336,35 +336,35 @@
 .comment-input {
     flex: 1;
     padding: 8px 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-chip);
     font-size: 16px;
     resize: none;
     min-height: 40px;
     font-family: inherit;
     outline: none;
-    transition: border-color 0.2s ease;
+    transition: border-color 0.2s var(--ease);
 }
 
 .comment-input:focus {
-    border-color: #667eea;
+    border-color: var(--accent);
 }
 
 .comment-submit-btn {
-    background: #667eea;
+    background: var(--accent);
     color: white;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--r-chip);
     padding: 8px 16px;
     font-weight: 600;
     font-size: 0.85rem;
     cursor: pointer;
     white-space: nowrap;
-    transition: background 0.2s ease;
+    transition: background 0.2s var(--ease);
 }
 
 .comment-submit-btn:hover {
-    background: #5a6fd6;
+    background: var(--accent-hover);
 }
 
 /* ===== Pagination ===== */
@@ -381,10 +381,10 @@
     min-width: 72px;
     height: 32px;
     padding: 0 10px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    background: white;
-    color: #374151;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--canvas);
+    color: var(--text);
     font-size: 0.85rem;
     cursor: pointer;
     display: flex;
@@ -395,8 +395,8 @@
 .board-page-current {
     min-width: 32px;
     height: 32px;
-    border-radius: 6px;
-    background: #667eea;
+    border-radius: 8px;
+    background: var(--accent);
     color: white;
     font-size: 0.85rem;
     font-weight: 600;
@@ -411,9 +411,9 @@
 }
 
 .board-page-btn.active {
-    background: #667eea;
+    background: var(--accent);
     color: white;
-    border-color: #667eea;
+    border-color: var(--accent);
     font-weight: 600;
 }
 
@@ -421,9 +421,9 @@
 .board-search {
     margin-top: 20px;
     padding: 12px;
-    background: #f9fafb;
-    border-radius: 8px;
-    border: 1px solid #e5e7eb;
+    background: var(--canvas-tint);
+    border-radius: var(--r-chip);
+    border: 1px solid var(--hairline);
 }
 
 .board-search-modes {
@@ -440,23 +440,23 @@
 .board-search-input {
     flex: 1;
     padding: 8px 12px;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
     font-size: 16px;
     font-family: inherit;
     outline: none;
 }
 
 .board-search-input:focus {
-    border-color: #667eea;
+    border-color: var(--accent);
 }
 
 .board-search-btn {
     padding: 8px 16px;
-    background: #667eea;
+    background: var(--accent);
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
@@ -465,10 +465,10 @@
 
 .board-search-clear-btn {
     padding: 8px 12px;
-    background: #f3f4f6;
-    color: #6b7280;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
+    background: var(--canvas-tint);
+    color: var(--text-secondary);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
     font-size: 0.85rem;
     cursor: pointer;
     white-space: nowrap;
@@ -483,16 +483,15 @@
 }
 
 .write-btn-fixed button {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: var(--accent);
     color: white;
     border: none;
     padding: 12px 20px;
-    border-radius: 24px;
+    border-radius: var(--r-band);
     font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
 }
 
 .write-btn-fixed button:hover {
@@ -515,8 +514,8 @@
 }
 
 .post-form-modal {
-    background: white;
-    border-radius: 12px;
+    background: var(--canvas);
+    border-radius: var(--r-md);
     padding: 1.5rem;
     width: 90%;
     max-width: 500px;
@@ -528,7 +527,7 @@
 .post-form-modal h3 {
     font-size: 1.1rem;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--text);
     margin-bottom: 1rem;
 }
 
@@ -542,37 +541,37 @@
 .post-form-input {
     width: 100%;
     padding: 0.75rem;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-chip);
     font-size: 1rem;
     box-sizing: border-box;
     font-family: inherit;
     outline: none;
-    transition: border-color 0.2s ease;
+    transition: border-color 0.2s var(--ease);
     margin-bottom: 0.75rem;
 }
 
 .post-form-input:focus {
-    border-color: #667eea;
+    border-color: var(--accent);
 }
 
 .post-form-textarea {
     width: 100%;
     padding: 0.75rem;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-chip);
     font-size: 1rem;
     box-sizing: border-box;
     min-height: 120px;
     resize: vertical;
     font-family: inherit;
     outline: none;
-    transition: border-color 0.2s ease;
+    transition: border-color 0.2s var(--ease);
     margin-bottom: 0.75rem;
 }
 
 .post-form-textarea:focus {
-    border-color: #667eea;
+    border-color: var(--accent);
 }
 
 .post-form-actions {
@@ -592,18 +591,18 @@
     align-items: center;
     gap: 4px;
     padding: 8px 14px;
-    background: #f3f4f6;
-    border: 1px dashed #d1d5db;
-    border-radius: 8px;
+    background: var(--canvas-tint);
+    border: 1px dashed var(--hairline);
+    border-radius: var(--r-chip);
     font-size: 0.85rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.2s var(--ease);
 }
 
 .post-form-image-btn:hover:not(:disabled) {
-    background: #e5e7eb;
-    border-color: #9ca3af;
+    background: var(--accent-10);
+    border-color: var(--accent);
 }
 
 .post-form-image-btn:disabled {
@@ -624,9 +623,9 @@
     flex-shrink: 0;
     width: 72px;
     height: 72px;
-    border-radius: 8px;
+    border-radius: var(--r-chip);
     overflow: hidden;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--hairline);
 }
 
 .post-form-image-thumb img {
@@ -691,18 +690,18 @@
 
 .comment-image-btn {
     background: none;
-    border: 1px dashed #d1d5db;
-    border-radius: 6px;
+    border: 1px dashed var(--hairline);
+    border-radius: 8px;
     padding: 4px 10px;
     font-size: 0.8rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.2s var(--ease);
 }
 
 .comment-image-btn:hover {
-    background: #f3f4f6;
-    border-color: #9ca3af;
+    background: var(--accent-10);
+    border-color: var(--accent);
 }
 
 .comment-image-preview-wrap {
@@ -715,8 +714,8 @@
     width: 64px;
     height: 64px;
     object-fit: cover;
-    border-radius: 8px;
-    border: 1px solid #e5e7eb;
+    border-radius: var(--r-chip);
+    border: 1px solid var(--hairline);
 }
 
 .comment-image-remove {
@@ -757,16 +756,15 @@
 }
 
 .back-btn-fixed button {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: var(--accent);
     color: white;
     border: none;
     padding: 12px 20px;
-    border-radius: 24px;
+    border-radius: var(--r-band);
     font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
 }
 
 .back-btn-fixed button:hover {
@@ -790,14 +788,14 @@
 .board-retry-btn {
     margin-top: 8px;
     padding: 6px 16px;
-    background: #f3f4f6;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
+    background: var(--canvas-tint);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
     cursor: pointer;
     font-size: 0.9rem;
-    transition: background 0.2s ease;
+    transition: background 0.2s var(--ease);
 }
 
 .board-retry-btn:hover {
-    background: #e5e7eb;
+    background: var(--accent-10);
 }

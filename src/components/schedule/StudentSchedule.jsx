@@ -322,12 +322,12 @@ export default function StudentSchedule({
                             borderColor: '#9ca3af',
                             borderWidth: '2px',
                             opacity: 0.7,
-                            background: 'repeating-linear-gradient(45deg, #f3f4f6, #f3f4f6 6px, #e5e7eb 6px, #e5e7eb 12px)'
+                            background: 'var(--canvas-tint)'
                         }}
                     >
                         <div className="cell-content">
                             <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
-                            <span className="my-class-badge" style={{ backgroundColor: '#6b7280', color: '#fff' }}>홀딩</span>
+                            <span className="my-class-badge" style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff' }}>홀딩</span>
                         </div>
                     </div>
                 );
@@ -343,7 +343,7 @@ export default function StudentSchedule({
                     <div className="cell-content">
                         <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
                         {showMakeupMoved ? (
-                            <span className="my-class-badge" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>보강이동</span>
+                            <span className="my-class-badge" style={{ backgroundColor: '#EDBC401A', color: '#9a7a12' }}>보강이동</span>
                         ) : (
                             <span className="my-class-badge">MY</span>
                         )}
@@ -359,11 +359,11 @@ export default function StudentSchedule({
                     <div
                         className="schedule-cell cell-available makeup-absent"
                         onClick={cellClick}
-                        style={{ borderColor: '#dc2626', borderWidth: '2px' }}
+                        style={{ borderColor: '#E94E58', borderWidth: '2px' }}
                     >
                         <div className="cell-content">
                             <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
-                            <span className="my-class-badge" style={{ backgroundColor: '#fecaca', color: '#991b1b' }}>보강결석</span>
+                            <span className="my-class-badge" style={{ backgroundColor: '#E94E581A', color: '#E94E58' }}>보강결석</span>
                         </div>
                     </div>
                 );
@@ -377,7 +377,7 @@ export default function StudentSchedule({
                     >
                         <div className="cell-content">
                             <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
-                            <span className="my-class-badge" style={{ backgroundColor: '#6b7280', color: '#fff', fontSize: '0.65rem' }}>보강홀딩</span>
+                            <span className="my-class-badge" style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '0.65rem' }}>보강홀딩</span>
                         </div>
                     </div>
                 );
@@ -386,11 +386,11 @@ export default function StudentSchedule({
                 <div
                     className="schedule-cell cell-available makeup-class"
                     onClick={cellClick}
-                    style={{ borderColor: '#3b82f6', borderWidth: '2px' }}
+                    style={{ borderColor: '#327AB8', borderWidth: '2px' }}
                 >
                     <div className="cell-content">
                         <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
-                        <span className="my-class-badge" style={{ backgroundColor: '#3b82f6', color: '#fff' }}>보강</span>
+                        <span className="my-class-badge" style={{ backgroundColor: '#327AB8', color: '#fff' }}>보강</span>
                     </div>
                 </div>
             );
@@ -404,9 +404,9 @@ export default function StudentSchedule({
         // Locked slot
         if (isSlotLocked(day, periodObj.id)) {
             return (
-                <div className="schedule-cell" style={{ backgroundColor: '#fef2f2', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="schedule-cell" style={{ backgroundColor: '#E94E581A', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                     <span style={{ fontSize: '1.2rem' }}>🔒</span>
-                    <span style={{ color: '#991b1b', fontSize: '0.8rem', fontWeight: 'bold', marginTop: '2px' }}>보강 불가</span>
+                    <span style={{ color: '#E94E58', fontSize: '0.8rem', fontWeight: 'bold', marginTop: '2px' }}>보강 불가</span>
                 </div>
             );
         }
@@ -452,10 +452,10 @@ export default function StudentSchedule({
                     margin: '0 0 12px',
                     padding: '10px 14px',
                     borderRadius: '8px',
-                    backgroundColor: '#f0f9ff',
-                    border: '1px solid #bae6fd',
+                    backgroundColor: '#329BE71A',
+                    border: '1px solid #329BE74D',
                     fontSize: '0.82rem',
-                    color: '#0c4a6e',
+                    color: '#327AB8',
                     lineHeight: '1.6'
                 }}>
                     <strong>이용 안내</strong>
@@ -463,14 +463,14 @@ export default function StudentSchedule({
                         · 여석이 있는 칸을 눌러 <strong>보강 신청</strong>할 수 있습니다 (1회성 수업 이동)<br/>
                         · 시간표 변경은 코치에게 문의해주세요
                     </div>
-                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #bae6fd' }}>
+                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #329BE74D' }}>
                         <strong>📌 보강 신청 조건</strong>
                         <div style={{ marginTop: '4px' }}>
                             · 원래 수업과 보강 대상 수업 모두 시작 <strong>2시간 전</strong>까지 신청 가능<br/>
                             · 주 수강 횟수만큼 당주 보강 신청 가능 <strong>(주2회=2회, 주3회=3회, 주4회=4회)</strong>
                         </div>
                     </div>
-                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #bae6fd' }}>
+                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #329BE74D' }}>
                         <strong>📌 보강 취소 조건</strong>
                         <div style={{ marginTop: '4px' }}>
                             · 보강 수업 시작 <strong>1시간 전</strong>까지 취소 가능<br/>
@@ -483,7 +483,7 @@ export default function StudentSchedule({
             {/* Active makeup banners (시간표 위에 노출하여 취소 버튼을 쉽게 찾도록) */}
             {isRealStudent && activeMakeupRequests.length > 0 && (
                 <div className="active-makeup-banner">
-                    <div className="banner-header" style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#666' }}>
+                    <div className="banner-header" style={{ marginBottom: '8px', fontSize: '0.9rem', color: 'rgba(0,0,0,0.6)' }}>
                         🔄 이번 주 보강 ({activeMakeupRequests.length}/{makeupWeeklyLimit}개)
                     </div>
                     {activeMakeupRequests.map((makeup, index) => {
@@ -491,12 +491,12 @@ export default function StudentSchedule({
                         return (
                             <div key={makeup.id} className="banner-content" style={{
                                 marginBottom: index < activeMakeupRequests.length - 1 ? '8px' : '0',
-                                ...(held ? { background: 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)' } : {})
+                                ...(held ? { background: '#A7A7AA' } : {})
                             }}>
                                 <div className="banner-text" style={{ whiteSpace: 'normal' }}>
                                     {makeup.originalClass.day}요일 {makeup.originalClass.periodName} → {makeup.makeupClass.day}요일 {makeup.makeupClass.periodName}
                                     {held && <span style={{ marginLeft: '6px', fontWeight: 700 }}>홀딩</span>}
-                                    {!held && makeup.status === 'completed' && <span style={{ marginLeft: '6px', color: '#16a34a', fontWeight: 700 }}>완료</span>}
+                                    {!held && makeup.status === 'completed' && <span style={{ marginLeft: '6px', color: '#2a8f46', fontWeight: 700 }}>완료</span>}
                                 </div>
                                 {!held && makeup.status === 'active' && (forceMode || !isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 30)) && (
                                     <button className="banner-cancel-btn" onClick={() => handleMakeupCancel(makeup.id)}>취소</button>
@@ -535,14 +535,14 @@ export default function StudentSchedule({
             <div className="legend">
                 {isRealStudent ? (
                     <>
-                        <div className="legend-item"><span className="legend-color" style={{ background: '#ef4444' }}></span> 만석 (대기 가능)</div>
+                        <div className="legend-item"><span className="legend-color" style={{ background: '#E94E58' }}></span> 만석 (대기 가능)</div>
                         <div className="legend-item"><span className="legend-color" style={{ background: 'white', border: '1px solid #ccc' }}></span> 신청 가능 (숫자: 여석)</div>
-                        <div className="legend-item"><span className="legend-color" style={{ background: '#f59e0b' }}></span> 자율 운동</div>
+                        <div className="legend-item"><span className="legend-color" style={{ background: '#EDBC40' }}></span> 자율 운동</div>
                     </>
                 ) : (
                     <>
                         <div className="legend-item"><span className="legend-color" style={{ background: 'white', border: '1px solid #ccc' }}></span> 여석 있음 (클릭: 시간표 이동)</div>
-                        <div className="legend-item"><span className="legend-color" style={{ background: '#ef4444' }}></span> 만석 (클릭: 대기 등록)</div>
+                        <div className="legend-item"><span className="legend-color" style={{ background: '#E94E58' }}></span> 만석 (클릭: 대기 등록)</div>
                     </>
                 )}
             </div>

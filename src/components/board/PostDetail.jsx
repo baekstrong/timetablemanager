@@ -221,7 +221,7 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                     )}
                     <span
                         className="post-detail-author"
-                        style={post.isCoach ? { color: '#7c3aed', fontWeight: 600 } : {}}
+                        style={post.isCoach ? { color: 'var(--accent)', fontWeight: 600 } : {}}
                     >
                         {post.author}
                     </span>
