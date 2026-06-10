@@ -113,7 +113,7 @@ button {
     font-weight: bold;
 }
 .has-feedback {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    background: #ef4444;
     color: white;
     font-weight: bold;
 }

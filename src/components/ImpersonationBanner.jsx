@@ -5,7 +5,7 @@ const ImpersonationBanner = ({ studentName, onExit }) => {
                 position: 'sticky',
                 top: 0,
                 zIndex: 1000,
-                background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                background: 'var(--error)',
                 color: '#fff',
                 padding: '10px 14px',
                 display: 'flex',

@@ -81,7 +81,7 @@ export function renderStudentScreen() {
                 <h3 class="text-lg font-bold mb-3 text-gray-800">📅 출석 캘린더</h3>
                 <div class="mb-2 text-xs text-gray-600">
                     <span class="inline-block w-4 h-4 bg-[#329BE7] rounded mr-1"></span> 운동한 날
-                    <span class="inline-block w-4 h-4 bg-gradient-to-r from-red-500 to-red-700 rounded mr-1 ml-3"></span> 피드백 받은 날
+                    <span class="inline-block w-4 h-4 bg-red-600 rounded mr-1 ml-3"></span> 피드백 받은 날
                 </div>
                 <div id="calendar"></div>
             </div>
