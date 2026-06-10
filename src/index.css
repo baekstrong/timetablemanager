@@ -31,6 +31,7 @@
   --bg-primary: var(--canvas);
   --bg-secondary: var(--canvas-tint);
   --bg-glass: var(--canvas);
+  --border-glass: var(--hairline);
   --text-primary: var(--text);
   --border-color: var(--hairline);
   --warning: var(--caution);
