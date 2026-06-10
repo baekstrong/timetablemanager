@@ -29,6 +29,8 @@ export function isReminderResendable(reg) {
 
 // 등록 건의 누락/실패 문자 개수 (수강생 3종 기준; 승인/리마인더는 해당될 때만)
 export function smsIssueCount(reg) {
+  // 코치 직접 등록(재등록 포함)은 자동 문자 발송 흐름을 타지 않으므로 집계 제외
+  if (reg && reg.registeredByCoach) return 0;
   const log = (reg && reg.smsLog) || {};
   let issues = 0;
   const bad = (e) => !e || e.status === 'failed';

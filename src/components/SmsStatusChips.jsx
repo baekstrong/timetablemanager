@@ -17,6 +17,8 @@ const ICON = { sent: '✅', scheduled: '⏳', failed: '❌', none: '⚪' };
  * @param {(reg, typeKey) => string|null} resendDisabledReason - null이면 활성, 문자열이면 비활성+사유
  */
 export default function SmsStatusChips({ reg, onResend, resendDisabledReason }) {
+    // 코치 직접 등록(재등록 포함)은 자동 문자 대상이 아님 → 표시 생략
+    if (reg.registeredByCoach) return null;
     const log = reg.smsLog || {};
     return (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>

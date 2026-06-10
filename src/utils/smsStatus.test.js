@@ -38,6 +38,9 @@ describe('smsIssueCount', () => {
     const reg = { status: 'approved', smsLog: { reception: { status: 'sent', at: 1 }, approval: { status: 'sent', at: 1 } } };
     expect(smsIssueCount(reg)).toBe(0);
   });
+  it('코치 직접 등록(registeredByCoach)은 자동문자 대상 아님 → 항상 0', () => {
+    expect(smsIssueCount({ status: 'approved', registeredByCoach: true, smsLog: {} })).toBe(0);
+  });
 });
 
 describe('isReminderResendable', () => {
