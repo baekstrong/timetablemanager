@@ -35,6 +35,10 @@
   --text-primary: var(--text);
   --border-color: var(--hairline);
   --warning: var(--caution);
+  --bg-card: var(--canvas);
+  --accent-secondary: var(--accent-light);
+  --shadow-sm: none;
+  --shadow-glow: none;
 }
 
 * {
