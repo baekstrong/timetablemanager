@@ -132,7 +132,7 @@ const PostList = ({
                         </div>
                         <div className="post-card-meta">
                             <span>
-                                <span style={post.isCoach ? { color: '#667eea', fontWeight: 600 } : {}}>
+                                <span style={post.isCoach ? { color: 'var(--accent)', fontWeight: 600 } : {}}>
                                     {post.author}
                                 </span>
                                 {' · '}
