@@ -29,9 +29,9 @@ export const studentColors = [
     '#A5F3FC', // Cyan 200
     '#BAE6FD', // Sky 200
     '#BFDBFE', // Blue 200
-    '#C7D2FE', // Indigo 200
-    '#DDD6FE', // Violet 200
-    '#E9D5FF', // Purple 200
+    '#BAE6FD', // Sky 200 (코발트 계열)
+    '#A5F3FC', // Cyan 200 (코발트 계열)
+    '#99F6E4', // Teal 200 (코발트 계열)
     '#F5D0FE', // Fuchsia 200
     '#FBCFE8', // Pink 200
     '#FDA4AF'  // Rose 200

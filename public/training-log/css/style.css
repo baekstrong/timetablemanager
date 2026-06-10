@@ -49,7 +49,7 @@ body {
     transform: translateX(-50%);
     width: 0;
     height: 3px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #329BE7;
     border-radius: 0 0 3px 3px;
     transition: width 0.25s ease;
 }
@@ -72,7 +72,7 @@ body {
 }
 
 .bottom-nav-tab.active .tab-icon svg {
-    stroke: #667eea;
+    stroke: #329BE7;
 }
 
 .tab-label {
@@ -83,7 +83,7 @@ body {
 }
 
 .bottom-nav-tab.active .tab-label {
-    color: #667eea;
+    color: #329BE7;
     font-weight: 700;
 }
 .card-enter {
@@ -108,7 +108,7 @@ button {
     -webkit-tap-highlight-color: transparent;
 }
 .has-workout {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #329BE7;
     color: white;
     font-weight: bold;
 }
@@ -140,9 +140,9 @@ select {
     transform: scale(1.05);
 }
 .student-badge.active {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #329BE7;
     color: white;
-    box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);
+    box-shadow: 0 4px 6px rgba(50, 155, 231, 0.3);
 }
 .set-row {
     background: #f9fafb;
@@ -236,9 +236,9 @@ body.modal-open {
     box-shadow: none;
 }
 .student-quick-nav-btn.active {
-    background: #eef2ff;
-    border-color: #667eea;
-    color: #667eea;
+    background: #329BE71A;
+    border-color: #329BE7;
+    color: #329BE7;
 }
 .student-quick-nav-btn:active {
     transform: scale(0.95);

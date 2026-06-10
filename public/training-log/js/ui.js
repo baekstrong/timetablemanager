@@ -80,7 +80,7 @@ export function renderStudentScreen() {
             <div class="bg-white rounded-lg shadow-md p-4 mb-4">
                 <h3 class="text-lg font-bold mb-3 text-gray-800">📅 출석 캘린더</h3>
                 <div class="mb-2 text-xs text-gray-600">
-                    <span class="inline-block w-4 h-4 bg-gradient-to-r from-purple-500 to-purple-700 rounded mr-1"></span> 운동한 날
+                    <span class="inline-block w-4 h-4 bg-[#329BE7] rounded mr-1"></span> 운동한 날
                     <span class="inline-block w-4 h-4 bg-gradient-to-r from-red-500 to-red-700 rounded mr-1 ml-3"></span> 피드백 받은 날
                 </div>
                 <div id="calendar"></div>
@@ -148,11 +148,11 @@ export function renderCoachScreen() {
     return `
         <div class="max-w-6xl mx-auto p-4">
             <!-- 헤더 -->
-            <div class="bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg shadow-lg p-6 mb-6 text-white">
+            <div class="bg-[#329BE7] rounded-lg shadow-lg p-6 mb-6 text-white">
                 <div class="flex justify-between items-center">
                     <div>
                         <h2 class="text-2xl font-bold">👨‍🏫 코치 대시보드</h2>
-                        <p class="text-purple-100 mt-1">전체 수강생 훈련 현황</p>
+                        <p class="text-white/80 mt-1">전체 수강생 훈련 현황</p>
                     </div>
                     <div class="flex gap-2">
                     </div>
@@ -220,9 +220,9 @@ export function renderCoachScreen() {
                             <label for="painFilterCheck" class="text-sm font-semibold text-red-700">⚠️ 통증 있는 기록만 보기</label>
                         </div>
 
-                        <div class="flex items-center space-x-2 p-3 bg-purple-50 rounded-lg">
+                        <div class="flex items-center space-x-2 p-3 bg-[#329BE71A] rounded-lg">
                             <input type="checkbox" id="pinnedMemoFilterCheck" ${state.pinnedMemoFilter ? 'checked' : ''} onchange="togglePinnedMemoFilter()" class="w-5 h-5">
-                            <label for="pinnedMemoFilterCheck" class="text-sm font-semibold text-purple-700">📝 운동 메모만 보기</label>
+                            <label for="pinnedMemoFilterCheck" class="text-sm font-semibold text-[#329BE7]">📝 운동 메모만 보기</label>
                         </div>
                         <div class="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
                             <input type="checkbox" id="recordsFilterCheck" ${state.recordsFilter ? 'checked' : ''} onchange="toggleRecordsFilter()" class="w-5 h-5">

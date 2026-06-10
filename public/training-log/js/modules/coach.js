@@ -386,7 +386,7 @@ export async function renderPinnedMemosForCoach() {
                     <span class="px-2 py-1 rounded bg-white border border-gray-200 text-sm shadow-sm">${studentName}</span>
                     <span class="text-sm font-normal text-gray-500">님의 메모 & 메시지</span>
                 </h3>
-                <button onclick="promptPersonalMessage('${studentName}')" class="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded hover:bg-indigo-700 font-semibold shadow-sm flex items-center gap-1">
+                <button onclick="promptPersonalMessage('${studentName}')" class="bg-[#329BE7] text-white text-xs px-3 py-1.5 rounded hover:bg-[#327AB8] font-semibold shadow-sm flex items-center gap-1">
                     📩 메시지 보내기
                 </button>
             </div>`;
@@ -394,21 +394,21 @@ export async function renderPinnedMemosForCoach() {
         // 1. Coach Messages (Personal Messages / Coach Memos)
         if (filteredCoachMemos.length > 0) {
             html += `<div class="mb-4">
-                <h4 class="text-xs font-bold text-indigo-800 mb-2 uppercase tracking-wider opacity-70">Coach Messages</h4>
+                <h4 class="text-xs font-bold text-[#327AB8] mb-2 uppercase tracking-wider opacity-70">Coach Messages</h4>
                 <div class="space-y-2">`;
 
             filteredCoachMemos.forEach((memo, idx) => {
                 html += `
-                    <div class="bg-indigo-50 rounded-lg p-3 border border-indigo-100 shadow-sm relative">
+                    <div class="bg-[#329BE71A] rounded-lg p-3 border border-[#329BE7]/20 shadow-sm relative">
                         <div class="flex justify-between items-start mb-1">
-                            <span class="font-bold text-indigo-900 text-sm">${memo.exercise}</span>
+                            <span class="font-bold text-[#327AB8] text-sm">${memo.exercise}</span>
                             <div class="flex gap-2">
                                 <button onclick="editCoachMemo('${studentName}', '${memo.id || ''}', \`${(memo.memo || '').replace(/`/g, '\\`')}\`)" class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded border border-blue-300 font-semibold">수정</button>
                                 <button onclick="deleteCoachMemo('${studentName}', '${memo.id || ''}')" class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded border border-red-300 font-semibold">삭제</button>
                             </div>
                         </div>
                         <div class="text-gray-800 text-sm whitespace-pre-wrap">${memo.memo}</div>
-                        <div class="text-xs text-indigo-300 mt-1 text-right">${formatDate(memo.updatedAt || memo.createdAt)}</div>
+                        <div class="text-xs text-[#329BE7]/60 mt-1 text-right">${formatDate(memo.updatedAt || memo.createdAt)}</div>
                     </div>`;
             });
             html += `</div></div>`;
