@@ -387,14 +387,28 @@ const CoachNewStudents = ({ user, onBack }) => {
                     const failed = [];
                     if (smsResults.approvalSMS) sent.push('승인 문자');
                     else failed.push('승인 문자');
+
+                    const groupId = smsResults.reminderSMS?.groupId;
+                    const smsLogUpdate = {
+                        'smsLog.approval': {
+                            status: smsResults.approvalSMS ? 'sent' : 'failed',
+                            at: Date.now(),
+                        },
+                    };
                     if (smsResults.reminderSMS) {
                         sent.push('입학반 리마인더');
-                        // 예약 SMS groupId 저장 (취소용)
-                        const groupId = smsResults.reminderSMS?.groupId;
-                        if (groupId) {
-                            await updateNewStudentRegistration(reg.id, { reminderGroupId: groupId });
-                        }
+                        smsLogUpdate['smsLog.reminder'] = {
+                            status: 'scheduled',
+                            at: Date.now(),
+                            ...(groupId ? { groupId } : {}),
+                        };
+                        // 예약 SMS groupId 저장 (취소용, 기존 필드 하위호환 유지)
+                        if (groupId) smsLogUpdate.reminderGroupId = groupId;
+                    } else if (reg.entranceDate && reg.entranceClassDate) {
+                        // 리마인더가 기대됐는데 예약 실패
+                        smsLogUpdate['smsLog.reminder'] = { status: 'failed', at: Date.now() };
                     }
+                    await updateNewStudentRegistration(reg.id, smsLogUpdate);
                     if (sent.length > 0) {
                         console.log(`문자 발송 완료: ${sent.join(', ')}`);
                     }
