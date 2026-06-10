@@ -7,8 +7,8 @@ import {
 } from '../../services/firebaseService';
 
 const SECTION_STYLES_WAITLIST = {
-    background: 'linear-gradient(135deg, #fef9c3, #fde047)',
-    border: '1px solid #eab308',
+    background: '#EDBC401A',
+    border: '1px solid #EDBC404D',
     borderRadius: '12px',
     padding: '1rem 1.25rem',
     marginBottom: '1rem',

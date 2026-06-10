@@ -322,7 +322,7 @@ export default function StudentSchedule({
                             borderColor: '#9ca3af',
                             borderWidth: '2px',
                             opacity: 0.7,
-                            background: 'repeating-linear-gradient(45deg, #f3f4f6, #f3f4f6 6px, #e5e7eb 6px, #e5e7eb 12px)'
+                            background: 'var(--canvas-tint)'
                         }}
                     >
                         <div className="cell-content">
@@ -491,7 +491,7 @@ export default function StudentSchedule({
                         return (
                             <div key={makeup.id} className="banner-content" style={{
                                 marginBottom: index < activeMakeupRequests.length - 1 ? '8px' : '0',
-                                ...(held ? { background: 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)' } : {})
+                                ...(held ? { background: '#A7A7AA' } : {})
                             }}>
                                 <div className="banner-text" style={{ whiteSpace: 'normal' }}>
                                     {makeup.originalClass.day}요일 {makeup.originalClass.periodName} → {makeup.makeupClass.day}요일 {makeup.makeupClass.periodName}

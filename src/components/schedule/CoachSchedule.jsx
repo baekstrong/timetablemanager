@@ -277,7 +277,7 @@ export default function CoachSchedule({
                         isBold = nowMin >= (classStartMin - 30) && nowMin <= (classEndMin + 30);
                     }
                     return (
-                        <div key={s.name} style={{ fontWeight: isBold ? '800' : '400' }}>
+                        <div key={s.name} style={{ fontWeight: isBold ? '700' : '400' }}>
                             <span
                                 onClick={() => {
                                     sessionStorage.setItem('renewalStudentName', s.name);

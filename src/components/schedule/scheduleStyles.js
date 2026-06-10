@@ -14,25 +14,28 @@ export const TAG_STYLES = {
 
 export const SECTION_STYLES = {
     lastDay: {
-        background: 'linear-gradient(135deg, #dcfce7, #bbf7d0)',
-        border: '1px solid #4ade80',
+        background: '#31A5521A',
+        border: '1px solid #31A5524D',
         borderRadius: '12px',
         padding: '1rem 1.25rem',
         marginBottom: '1rem',
+        color: '#31A552',
     },
     delayedRereg: {
-        background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
-        border: '1px solid #f59e0b',
+        background: '#EDBC401A',
+        border: '1px solid #EDBC404D',
         borderRadius: '12px',
         padding: '1rem 1.25rem',
         marginBottom: '1rem',
+        color: '#9a7a12',
     },
     waitlist: {
-        background: 'linear-gradient(135deg, #fef9c3, #fde047)',
-        border: '1px solid #eab308',
+        background: '#EDBC401A',
+        border: '1px solid #EDBC404D',
         borderRadius: '12px',
         padding: '1rem 1.25rem',
         marginBottom: '1rem',
+        color: '#9a7a12',
     },
 };
 
