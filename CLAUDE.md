@@ -269,7 +269,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `holidays` | 코치 커스텀 공휴일 |
 | `disabledClasses` | 비활성화된 수업 슬롯 (키: `"월-1"`) |
 | `waitlistRequests` | 시간표 대기 신청 — 영구 시간표 변경 (status: waiting/notified/accepted/cancelled) |
-| `newStudentRegistrations` | 신규 수강 신청 (pending/approved/rejected) |
+| `newStudentRegistrations` | 신규 수강 신청 (pending/approved/rejected). `smsLog{reception,approval,reminder}` 필드에 자동 문자 발송 결과 기록 → 신규 페이지 SMS 상황판(상태칩+재발송)이 이를 읽음. `registeredByCoach=true`(코치 직접 등록)는 자동문자 대상 아님 |
 | `entranceClasses` | 입학반 정보 |
 | `registrationFAQ` | 신규 등록 FAQ |
 | `coachPinnedMemos` | 코치가 수강생별 고정한 메모 (훈련일지) |
