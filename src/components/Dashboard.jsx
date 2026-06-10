@@ -657,8 +657,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                     }}
                 >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: recentPRs.length ? '8px' : 0 }}>
-                        <span style={{ fontWeight: 700, color: 'var(--accent)', fontSize: '0.95rem' }}>🏆 이달의 PR</span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--accent)' }}>랭킹 보기 ›</span>
+                        <span style={{ fontWeight: 700, color: 'var(--accent-hover)', fontSize: '0.95rem' }}>🏆 이달의 PR</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--accent-hover)' }}>랭킹 보기 ›</span>
                     </div>
                     {recentPRs.length === 0 ? (
                         <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>최근 30일 갱신된 PR이 없습니다.</div>
@@ -682,7 +682,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                                 height: `${PR_LINE_HEIGHT}px`,
                                                 lineHeight: `${PR_LINE_HEIGHT}px`,
                                                 fontSize: '0.85rem',
-                                                color: 'var(--accent)',
+                                                color: 'var(--text)',
                                                 whiteSpace: 'nowrap',
                                                 overflow: 'hidden',
                                                 textOverflow: 'ellipsis'
