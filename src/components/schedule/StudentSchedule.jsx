@@ -343,7 +343,7 @@ export default function StudentSchedule({
                     <div className="cell-content">
                         <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
                         {showMakeupMoved ? (
-                            <span className="my-class-badge" style={{ backgroundColor: '#EDBC401A', color: '#9a7a12' }}>보강이동</span>
+                            <span className="my-class-badge" style={{ backgroundColor: '#FAEAC2', color: '#92400e' }}>보강이동</span>
                         ) : (
                             <span className="my-class-badge">MY</span>
                         )}
@@ -363,7 +363,7 @@ export default function StudentSchedule({
                     >
                         <div className="cell-content">
                             <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
-                            <span className="my-class-badge" style={{ backgroundColor: '#E94E581A', color: '#E94E58' }}>보강결석</span>
+                            <span className="my-class-badge" style={{ backgroundColor: '#F8D2D5', color: '#991b1b' }}>보강결석</span>
                         </div>
                     </div>
                 );
