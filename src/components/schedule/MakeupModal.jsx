@@ -32,9 +32,9 @@ export default function MakeupModal({
                             margin: '0 0 12px',
                             padding: '10px 12px',
                             borderRadius: '8px',
-                            backgroundColor: '#fffbeb',
-                            border: '1px solid #fcd34d',
-                            color: '#78350f',
+                            backgroundColor: '#EDBC401A',
+                            border: '1px solid #EDBC404D',
+                            color: '#9a7a12',
                             fontSize: '0.84rem',
                             lineHeight: '1.5'
                         }}>
@@ -70,7 +70,7 @@ export default function MakeupModal({
                                 <div
                                     key={index}
                                     className={`original-class-item ${selectedOriginalClass?.day === schedule.day && selectedOriginalClass?.period === schedule.period ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
-                                    style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: isAlreadyRequested ? '#e0f2fe' : isHoldingDay ? '#f3e8ff' : '#f3f4f6' } : {}}
+                                    style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed', backgroundColor: isAlreadyRequested ? '#329BE71A' : isHoldingDay ? '#EDBC401A' : '#F7F7F8' } : {}}
                                     onClick={() => {
                                         if (isAlreadyRequested) {
                                             alert('이미 보강 신청한 수업입니다.');
@@ -93,7 +93,7 @@ export default function MakeupModal({
                                     }}
                                 >
                                     <span className="period-name">{schedule.day}요일 {periodInfo?.name}</span>
-                                    <span style={{ fontSize: '0.8em', color: isDisabled ? '#999' : '#666', marginLeft: '8px' }}>
+                                    <span style={{ fontSize: '0.8em', color: isDisabled ? '#999' : 'rgba(0,0,0,0.6)', marginLeft: '8px' }}>
                                         ({dateStr})
                                         {holidayReason !== null && holidayReason !== undefined && ` - 휴일${holidayReason ? `: ${holidayReason}` : ''}`}
                                         {isHoldingDay && ' - 홀딩'}
