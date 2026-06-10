@@ -264,8 +264,8 @@ export default function CoachSchedule({
                 title="오늘 마지막 수업"
                 items={lastDayStudents}
                 style={SECTION_STYLES.lastDay}
-                titleColor="#2a8f46"
-                itemColor="#2a8f46"
+                titleColor="#166534"
+                itemColor="#166534"
                 renderItem={(s) => {
                     const now = new Date();
                     const period = PERIODS.find(p => p.id === s.todayPeriod);
@@ -284,7 +284,7 @@ export default function CoachSchedule({
                                     onNavigate?.('students');
                                 }}
                                 style={{ cursor: 'pointer' }}
-                            >{s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})</span> {period ? <span style={{ fontSize: '0.8rem', color: '#2a8f46' }}>{period.id}교시</span> : ''}
+                            >{s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})</span> {period ? <span style={{ fontSize: '0.8rem', color: '#166534' }}>{period.id}교시</span> : ''}
                         </div>
                     );
                 }}
@@ -294,8 +294,8 @@ export default function CoachSchedule({
                 title="재등록 지연"
                 items={delayedReregistrationStudents}
                 style={SECTION_STYLES.delayedRereg}
-                titleColor="#9a7a12"
-                itemColor="#9a7a12"
+                titleColor="#92400e"
+                itemColor="#92400e"
                 renderItem={(s) => (
                     <div key={s.name}>
                         <span
@@ -304,7 +304,7 @@ export default function CoachSchedule({
                                 onNavigate?.('students');
                             }}
                             style={{ cursor: 'pointer' }}
-                        >{s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})</span> <span style={{ fontSize: '0.8rem', color: '#9a7a12' }}>종료: {s.endDate}</span>
+                        >{s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})</span> <span style={{ fontSize: '0.8rem', color: '#92400e' }}>종료: {s.endDate}</span>
                     </div>
                 )}
             />
