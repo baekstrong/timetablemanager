@@ -10,7 +10,7 @@ export function renderLoginScreen() {
 
     return `
         <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+            <div class="bg-white rounded-2xl border border-[#EFEFF0] p-8 w-full max-w-md">
                 <div class="text-center mb-8">
                     <h1 class="text-3xl font-bold text-gray-800 mb-2">💪 실전 훈련일지</h1>
                     <p class="text-gray-600">이름과 비밀번호를 입력하세요</p>
@@ -24,7 +24,7 @@ export function renderLoginScreen() {
                             id="nameInput" 
                             placeholder="이름 입력"
                             value="${saved ? saved.name : ''}"
-                            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-lg"
+                            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#329BE7] text-lg"
                         >
                     </div>
                     
@@ -35,7 +35,7 @@ export function renderLoginScreen() {
                             id="passwordInput" 
                             placeholder="비밀번호 입력"
                             value="${saved ? saved.password : ''}"
-                            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-lg"
+                            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#329BE7] text-lg"
                             onkeypress="if(event.key === 'Enter') login()"
                         >
                         <p class="text-xs text-gray-500 mt-2">* 처음 입력한 비밀번호가 자동 등록됩니다</p>
@@ -48,7 +48,7 @@ export function renderLoginScreen() {
                     
                     <button 
                         onclick="login()"
-                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition duration-200"
+                        class="w-full bg-[#329BE7] hover:bg-[#327AB8] text-white font-bold py-3 rounded-lg transition duration-200"
                     >
                         입장하기
                     </button>
@@ -62,7 +62,7 @@ export function renderStudentScreen() {
     return `
         <div class="max-w-2xl mx-auto p-4 pb-20">
             <!-- 헤더 -->
-            <div class="bg-white rounded-lg shadow-md p-4 mb-4 flex justify-between items-center">
+            <div class="bg-white rounded-lg border border-[#EFEFF0] p-4 mb-4 flex justify-between items-center">
                 <div>
                     <h2 class="text-xl font-bold text-gray-800">${state.currentUser}님의 훈련일지</h2>
                     <p class="text-sm text-gray-600">오늘도 화이팅! 💪</p>
@@ -77,7 +77,7 @@ export function renderStudentScreen() {
             <div id="pinnedMemosContainer" class="mb-4"></div>
 
             <!-- 달력 -->
-            <div class="bg-white rounded-lg shadow-md p-4 mb-4">
+            <div class="bg-white rounded-lg border border-[#EFEFF0] p-4 mb-4">
                 <h3 class="text-lg font-bold mb-3 text-gray-800">📅 출석 캘린더</h3>
                 <div class="mb-2 text-xs text-gray-600">
                     <span class="inline-block w-4 h-4 bg-[#329BE7] rounded mr-1"></span> 운동한 날
@@ -87,7 +87,7 @@ export function renderStudentScreen() {
             </div>
 
             <!-- 운동 기록 입력 폼 -->
-            <div class="bg-white rounded-lg shadow-md p-6 mb-4">
+            <div class="bg-white rounded-lg border border-[#EFEFF0] p-6 mb-4">
                 <h3 class="text-lg font-bold mb-4 text-gray-800">🏋️ ${formatDate(state.selectedDate)} 운동 기록</h3>
                 <div class="space-y-3">
                     <div class="relative">
@@ -95,11 +95,11 @@ export function renderStudentScreen() {
                                autocomplete="off"
                                oninput="autoSaveFormData(); handleExerciseSearch(this.value);"
                                onfocus="handleExerciseSearch(this.value)"
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-gray-800 font-medium">
+                               class="w-full px-4 py-3 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7] text-gray-800 font-medium">
                         
                         <!-- Custom Autocomplete Dropdown -->
                         <div id="exerciseSuggestions" 
-                             class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto">
+                             class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-[#EFEFF0] rounded-lg z-50 max-h-60 overflow-y-auto">
                         </div>
                     </div>
 
@@ -110,7 +110,7 @@ export function renderStudentScreen() {
                         <button onclick="addSet()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg">
                             + 세트 추가
                         </button>
-                        <button onclick="addSameSet()" class="bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg">
+                        <button onclick="addSameSet()" class="bg-[#329BE7] hover:bg-[#327AB8] text-white py-2 rounded-lg">
                             ↻ 같은 세트 추가
                         </button>
                     </div>
@@ -125,7 +125,7 @@ export function renderStudentScreen() {
                     
                     <textarea id="memo" placeholder="운동 메모 (여기에 입력하면 자동으로 고정됩니다)" rows="2"
                               oninput="autoSaveFormData()"
-                              class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500"></textarea>
+                              class="w-full px-4 py-2 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7]"></textarea>
                     
                     <button onclick="addRecord()" 
                             class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition">
@@ -135,7 +135,7 @@ export function renderStudentScreen() {
             </div>
 
             <!-- 선택한 날짜 기록 리스트 -->
-            <div class="bg-white rounded-lg shadow-md p-6">
+            <div class="bg-white rounded-lg border border-[#EFEFF0] p-6">
                 <h3 class="text-lg font-bold mb-4 text-gray-800">📝 ${formatDate(state.selectedDate)} 기록</h3>
                 <div id="recordsList"></div>
             </div>
@@ -148,7 +148,7 @@ export function renderCoachScreen() {
     return `
         <div class="max-w-6xl mx-auto p-4">
             <!-- 헤더 -->
-            <div class="bg-[#329BE7] rounded-lg shadow-lg p-6 mb-6 text-white">
+            <div class="bg-[#329BE7] rounded-lg p-6 mb-6 text-white">
                 <div class="flex justify-between items-center">
                     <div>
                         <h2 class="text-2xl font-bold">👨‍🏫 코치 대시보드</h2>
@@ -167,7 +167,7 @@ export function renderCoachScreen() {
             </div>
 
             <!-- 수강생 선택 (아코디언) -->
-            <div class="bg-white rounded-lg shadow-md mb-4">
+            <div class="bg-white rounded-lg border border-[#EFEFF0] mb-4">
                 <button onclick="toggleStudentList()" class="w-full p-4 text-left flex items-center justify-between hover:bg-gray-50 transition rounded-lg">
                     <div>
                         <h3 class="text-sm font-semibold text-gray-700">👥 수강생 선택</h3>
@@ -183,7 +183,7 @@ export function renderCoachScreen() {
             </div>
 
             <!-- 필터 (아코디언, 기본 접힘) -->
-            <div class="bg-white rounded-lg shadow-md mb-4">
+            <div class="bg-white rounded-lg border border-[#EFEFF0] mb-4">
                 <button onclick="toggleFilterPanel()" class="w-full p-4 text-left flex items-center justify-between hover:bg-gray-50 transition rounded-lg">
                     <div>
                         <h3 class="text-sm font-semibold text-gray-700">🔍 필터 설정</h3>
@@ -199,7 +199,7 @@ export function renderCoachScreen() {
                             id="coachDateFilter"
                             value=""
                             onchange="changeCoachDate(this.value)"
-                            class="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                            class="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#329BE7]"
                         >
                         <button onclick="showAllDates()" class="ml-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
                             전체 보기
@@ -210,7 +210,7 @@ export function renderCoachScreen() {
                         <div class="mb-3">
                             <select id="coachExerciseFilter" onchange="changeCoachExerciseFilter(this.value)"
                                     style="max-width: 100%;"
-                                    class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 font-bold text-lg text-gray-700 bg-white">
+                                    class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#329BE7] font-bold text-lg text-gray-700 bg-white">
                                 <option value="">🏋️ 운동 종목 선택 (전체 보기)</option>
                             </select>
                         </div>
@@ -224,9 +224,9 @@ export function renderCoachScreen() {
                             <input type="checkbox" id="pinnedMemoFilterCheck" ${state.pinnedMemoFilter ? 'checked' : ''} onchange="togglePinnedMemoFilter()" class="w-5 h-5">
                             <label for="pinnedMemoFilterCheck" class="text-sm font-semibold text-[#329BE7]">📝 운동 메모만 보기</label>
                         </div>
-                        <div class="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
+                        <div class="flex items-center space-x-2 p-3 bg-[#329BE71A] rounded-lg">
                             <input type="checkbox" id="recordsFilterCheck" ${state.recordsFilter ? 'checked' : ''} onchange="toggleRecordsFilter()" class="w-5 h-5">
-                            <label for="recordsFilterCheck" class="text-sm font-semibold text-blue-700">📋 운동 기록 보기</label>
+                            <label for="recordsFilterCheck" class="text-sm font-semibold text-[#327AB8]">📋 운동 기록 보기</label>
                         </div>
                     </div>
                 </div>
@@ -253,7 +253,7 @@ export function renderCoachScreen() {
                         <button onclick="migrateAllStudentsPinnedMemos()" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded-lg font-semibold text-sm">
                             🔄 localStorage → Firestore 마이그레이션
                         </button>
-                        <button onclick="viewAllPinnedMemos()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-semibold text-sm">
+                        <button onclick="viewAllPinnedMemos()" class="w-full bg-[#329BE7] hover:bg-[#327AB8] text-white py-2 rounded-lg font-semibold text-sm">
                             👁️ 전체 고정 메모 보기
                         </button>
                     </div>
@@ -273,10 +273,10 @@ export function renderAdminModalHTML() {
                 </div>
                 
                 <div class="mb-4 flex gap-2">
-                    <input type="text" id="newExerciseInput" placeholder="새 운동 이름 입력" 
-                           class="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                    <input type="text" id="newExerciseInput" placeholder="새 운동 이름 입력"
+                           class="flex-1 px-3 py-2 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7]"
                            onkeypress="if(event.key === 'Enter') addExercise()">
-                    <button onclick="addExercise()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold">
+                    <button onclick="addExercise()" class="bg-[#329BE7] hover:bg-[#327AB8] text-white px-4 py-2 rounded-lg font-bold">
                         추가
                     </button>
                 </div>
@@ -312,7 +312,7 @@ export function renderEditModalContent(data, docId) {
                     <button onclick="addEditSet()" type="button" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg text-sm">
                         + 세트 추가
                     </button>
-                    <button onclick="addSameEditSet()" type="button" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg text-sm">
+                    <button onclick="addSameEditSet()" type="button" class="flex-1 bg-[#329BE7] hover:bg-[#327AB8] text-white py-2 rounded-lg text-sm">
                         ↻ 같은 세트 추가
                     </button>
                 </div>
@@ -332,7 +332,7 @@ export function renderEditModalContent(data, docId) {
             
             <div class="flex gap-2">
                 <button onclick="saveEdit('${docId}')" type="button"
-                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-semibold">
+                        class="flex-1 bg-[#329BE7] hover:bg-[#327AB8] text-white py-2 rounded-lg font-semibold">
                     저장
                 </button>
                 <button onclick="closeEditModal()" type="button"
@@ -350,7 +350,7 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos) {
     // 1. 코치 고정 메모 렌더링 (최상단)
     if (coachPinnedMemos && coachPinnedMemos.length > 0) {
         html += `
-            <div class="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 shadow-sm mb-6">
+            <div class="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mb-6">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-sm font-bold text-yellow-800 flex items-center gap-2">
                         <span>👨‍🏫 코치 운동 메모</span>
@@ -359,7 +359,7 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos) {
                 </div>
                 <div class="space-y-4">
                      ${coachPinnedMemos.map(memo => `
-                        <div class="bg-white rounded-lg p-4 border border-yellow-200 shadow-sm relative group">
+                        <div class="bg-white rounded-lg p-4 border border-yellow-200 relative group">
                             <div class="flex justify-between items-start mb-2">
                                 <div>
                                     <span class="text-base font-bold text-gray-800">${memo.exercise}</span>
@@ -388,14 +388,14 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos) {
         });
 
         html += `
-            <div class="bg-blue-50 border-2 border-blue-400 rounded-lg p-4 shadow-sm">
+            <div class="bg-[#329BE71A] border-2 border-[#329BE7] rounded-lg p-4">
                 <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-bold text-blue-800">📌 운동 메모 (${studentPinnedMemos.length}개)</h3>
+                    <h3 class="text-sm font-bold text-[#327AB8]">📌 운동 메모 (${studentPinnedMemos.length}개)</h3>
                 </div>
                 <div class="space-y-4">
                      ${indexedMemos.map(({ pinned, idx }) => {
                         const isHighlighted = pinned.highlighted === true;
-                        const borderClass = isHighlighted ? 'border-yellow-400 bg-yellow-50 ring-1 ring-yellow-200' : 'border-blue-200';
+                        const borderClass = isHighlighted ? 'border-yellow-400 bg-yellow-50 ring-1 ring-yellow-200' : 'border-[#EFEFF0]';
                         const starBtn = isHighlighted
                             ? `<button onclick="toggleStudentMemoHighlight(${idx})" class="text-yellow-400 hover:text-yellow-500 text-lg leading-none" title="중요 해제">★</button>`
                             : `<button onclick="toggleStudentMemoHighlight(${idx})" class="text-gray-300 hover:text-yellow-400 text-lg leading-none" title="중요 표시">☆</button>`;
@@ -419,7 +419,7 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos) {
                                      </div>
                                     <button
                                         onclick="editStudentMemo('${pinned.exercise}', \`${(pinned.memo || '').replace(/`/g, '\\`').replace(/'/g, "\\'")}\`)"
-                                        class="text-xs px-2 py-1.5 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition text-center">
+                                        class="text-xs px-2 py-1.5 bg-[#329BE71A] text-[#327AB8] rounded hover:bg-[#329BE7]/20 transition text-center">
                                         수정
                                     </button>
                                     <button

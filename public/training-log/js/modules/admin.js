@@ -142,7 +142,7 @@ export function handleExerciseSearch(query) {
 
     // Render Suggestions
     suggestionBox.innerHTML = filtered.map(name => `
-        <div class="px-4 py-3 hover:bg-blue-50 cursor-pointer text-gray-700 font-medium border-b border-gray-100 last:border-0 transition-colors"
+        <div class="px-4 py-3 hover:bg-[#329BE71A] cursor-pointer text-gray-700 font-medium border-b border-[#EFEFF0] last:border-0 transition-colors"
              onclick="selectExerciseSuggestion('${name}')">
             ${name}
         </div>

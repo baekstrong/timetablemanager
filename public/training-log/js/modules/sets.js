@@ -186,7 +186,7 @@ export function addSameSet() {
                     <button onclick="changeAddSetCount(1)" style="width: 50px; height: 50px; font-size: 24px; background: #e5e7eb; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; touch-action: manipulation; -webkit-user-select: none; user-select: none;">+</button>
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button onclick="confirmAddSameSet()" style="flex: 1; background: #2563eb; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">확인</button>
+                    <button onclick="confirmAddSameSet()" style="flex: 1; background: #329BE7; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">확인</button>
                     <button onclick="closeAddSetModal()" style="flex: 1; background: #6b7280; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">취소</button>
                 </div>
             </div>

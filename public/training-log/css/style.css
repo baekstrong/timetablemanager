@@ -118,11 +118,10 @@ button {
     font-weight: bold;
 }
 .today {
-    border: 3px solid #3b82f6;
+    border: 3px solid #329BE7;
 }
 .selected-date {
     border: 3px solid #10b981;
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
 }
 .student-badge {
     cursor: pointer;
