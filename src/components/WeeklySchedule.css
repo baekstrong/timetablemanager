@@ -107,7 +107,7 @@
     display: grid;
     /* Time Column + 5 Days */
     grid-template-columns: 140px repeat(5, 1fr);
-    border: 1px solid var(--border-glass);
+    border: 1px solid var(--grid-line);
     border-radius: var(--r-md);
     overflow: hidden;
     background-color: var(--bg-glass);
@@ -120,8 +120,8 @@
     font-weight: 700;
     padding: 1rem;
     text-align: center;
-    border-bottom: 1px solid var(--border-glass);
-    border-right: 1px solid var(--border-glass);
+    border-bottom: 1px solid var(--grid-line);
+    border-right: 1px solid var(--grid-line);
 }
 
 /* Time/Period Cells (Rows) */
@@ -133,8 +133,8 @@
     align-items: center;
     justify-content: center;
     padding: 1rem;
-    border-bottom: 1px solid var(--hairline);
-    border-right: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--grid-line);
+    border-right: 1px solid var(--grid-line);
     font-weight: 600;
 }
 
@@ -152,8 +152,8 @@
 /* Schedule Cells */
 .schedule-cell {
     background-color: var(--canvas);
-    border-bottom: 1px solid var(--hairline);
-    border-right: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--grid-line);
+    border-right: 1px solid var(--grid-line);
     padding: 4px;
     min-height: 80px;
     display: flex;
@@ -590,8 +590,8 @@
     .mode-student .schedule-cell {
         padding: 2px;
         min-height: 60px;
-        border-bottom: 1px solid var(--hairline);
-        border-right: 1px solid var(--hairline);
+        border-bottom: 1px solid var(--grid-line);
+        border-right: 1px solid var(--grid-line);
     }
 
     .mode-student .grid-header {
