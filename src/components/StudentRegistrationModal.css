@@ -275,7 +275,7 @@
 
 .reg-contract-btn {
     padding: 0.7rem 1.5rem;
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    background: var(--caution);
     border: none;
     border-radius: 10px;
     color: white;
@@ -297,7 +297,7 @@
 /* Register button in header */
 .register-btn {
     padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: var(--success);
     border: none;
     border-radius: 12px;
     color: white;
@@ -324,7 +324,7 @@
 
 .reg-absence-add-btn {
     padding: 0.6rem 1rem;
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    background: var(--caution);
     color: white;
     border: none;
     border-radius: 8px;

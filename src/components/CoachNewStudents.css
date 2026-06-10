@@ -312,7 +312,7 @@
 }
 
 .cns-action-btn.approve {
-    background: linear-gradient(135deg, #16a34a, #15803d);
+    background: var(--success);
     color: #fff;
 }
 
