@@ -234,8 +234,8 @@
 }
 
 .cns-badge.question {
-    background: #dbeafe;
-    color: #1e40af;
+    background: var(--accent-10);
+    color: var(--accent-hover);
 }
 
 .cns-expand-arrow {

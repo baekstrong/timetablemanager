@@ -106,8 +106,8 @@
 }
 
 .post-category-badge[data-category="free"] {
-    background: #dbeafe;
-    color: #1e40af;
+    background: var(--accent-10);
+    color: var(--accent-hover);
 }
 
 .post-category-badge[data-category="food"] {
@@ -151,14 +151,14 @@
 
 .post-detail-content a,
 .comment-content a {
-    color: #2563eb;
+    color: var(--accent);
     text-decoration: underline;
     word-break: break-all;
 }
 
 .post-detail-content a:hover,
 .comment-content a:hover {
-    color: #1d4ed8;
+    color: var(--accent);
 }
 
 .post-detail-meta {

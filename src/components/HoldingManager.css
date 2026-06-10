@@ -258,8 +258,8 @@
 
 .history-period {
     padding: 4px 12px;
-    background: #dbeafe;
-    color: #1e40af;
+    background: var(--accent-10);
+    color: var(--accent-hover);
     border-radius: 6px;
     font-size: 13px;
     font-weight: 600;

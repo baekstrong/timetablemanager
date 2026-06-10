@@ -69,7 +69,7 @@ export default function CoachWaitlistModal({
                                     <div key={name}
                                         onClick={() => { setWaitlistStudentName(name); setWaitlistStudentSearch(name); }}
                                         style={{ padding: '6px 12px', cursor: 'pointer', fontSize: '0.9rem', borderBottom: '1px solid #EFEFF0' }}
-                                        onMouseEnter={(e) => e.target.style.backgroundColor = '#f0f9ff'}
+                                        onMouseEnter={(e) => e.target.style.backgroundColor = '#329BE71A'}
                                         onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                                     >
                                         {name}

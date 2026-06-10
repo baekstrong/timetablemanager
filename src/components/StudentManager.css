@@ -246,8 +246,8 @@
 }
 
 .student-table tbody tr.editing {
-    background: #eff6ff;
-    box-shadow: 0 0 0 2px #3b82f6;
+    background: var(--accent-10);
+    box-shadow: 0 0 0 2px var(--accent);
 }
 
 .student-table td {
@@ -287,7 +287,7 @@
 .edit-select {
     width: 100%;
     padding: 0.5rem;
-    border: 2px solid #3b82f6;
+    border: 2px solid var(--accent);
     border-radius: 6px;
     font-size: 0.9rem;
     background: white;
@@ -297,8 +297,8 @@
 .edit-input:focus,
 .edit-select:focus {
     outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-10);
 }
 
 .action-cell {
@@ -324,12 +324,12 @@
 }
 
 .edit-btn {
-    background: #3b82f6;
+    background: var(--accent);
     color: white;
 }
 
 .edit-btn:hover {
-    background: #2563eb;
+    background: var(--accent-hover);
 }
 
 .save-btn {
