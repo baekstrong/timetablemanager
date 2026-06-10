@@ -45,6 +45,29 @@ git push
 - **에러 모니터링**: Sentry(`@sentry/react`, `src/main.jsx`에서 프로덕션만 init)
 - **훈련일지 서브앱**: Vanilla JS SPA (`public/training-log/`, Tailwind CDN, Firebase)
 
+## 디자인 시스템 (플랫 + 단일 코발트)
+
+Channel Talk/Bezier 기반. **완전 플랫**(그라데이션·장식 그림자 없음) + **단일 코발트 액센트**. 토큰은 `src/index.css`의 `:root`에 정의되며 모든 컴포넌트는 하드코딩 색 대신 이 변수를 참조한다.
+
+### 핵심 원칙 (반드시 지킬 것)
+1. **그라데이션 0개** — `linear-gradient` 신규 사용 금지. 단색 토큰만.
+2. **단일 브랜드 액센트는 코발트 `--accent #329BE7`** — 큰 면적 배경엔 쓰지 말고 액센트로만. 보라/인디고/바이올렛(`#667eea`·`#6366f1`·`#8b5cf6` 등) 도입 금지.
+3. **본문 텍스트는 `--text` (rgba(0,0,0,.85))** — 순수 `#000` 금지.
+4. **그림자는 모달/팝오버 본체에만** — 카드 깊이는 `1px solid var(--hairline)` 보더 + 표면 틴트로.
+5. **라디우스는 사다리값에서만** — `--r-chip 8` / `--r-md 12` / `--r-cta 18` / `--r-card 20` / `--r-band 32`. 보간(24 등) 금지.
+6. **상태색은 상태표시에만** — `--success`/`--caution`/`--error`/`--info`. 장식에 쓰지 말 것. 상태칩 패턴: 배경 `{색}1A` + 보더 `1px solid {색}4D` + 텍스트 해당 색.
+
+### 주요 토큰
+- 액센트: `--accent #329BE7`, `--accent-hover #327AB8`, `--accent-light #47C8FF`, `--accent-10/20/30`(알파)
+- 표면: `--canvas #fff`, `--surface #FCFCFC`, `--canvas-tint #F7F7F8`, `--hairline #EFEFF0`
+- 텍스트: `--text`, `--text-secondary`, `--text-muted #A7A7AA`, `--cta-dark #242428`
+- 상태: `--success #31A552`, `--caution #EDBC40`, `--error #E94E58`, `--info #5E56F0`
+- 모션: `--ease cubic-bezier(0.3,0,0,1)`, `--dur-s/m/l` 150/300/450ms
+- 폰트: `--font` = Inter + Noto Sans KR (weight 400/700)
+
+### 훈련일지 서브앱
+`public/training-log/`는 별도 HTML이라 `:root` 변수를 못 쓴다. 코발트 hex(`#329BE7`) 또는 Tailwind arbitrary value(`bg-[#329BE7]`)를 직접 사용한다.
+
 ## 배포
 
 - **프론트엔드**: GitHub Pages (`.github/workflows/deploy.yml`로 자동 배포, `main` 브랜치 push 시 트리거)
