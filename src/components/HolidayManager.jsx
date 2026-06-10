@@ -254,10 +254,10 @@ const HolidayManager = ({ user, onBack }) => {
 
                 {/* 현재 설정된 휴일 목록 */}
                 {holidays.length > 0 && (
-                    <div className="info-card" style={{ marginBottom: '24px', background: '#f0f4ff', borderColor: '#667eea' }}>
+                    <div className="info-card" style={{ marginBottom: '24px', background: 'var(--accent-10)', borderColor: 'var(--accent-30)' }}>
                         <div className="info-icon">📋</div>
                         <div className="info-content">
-                            <h3 style={{ color: '#4338ca' }}>설정된 휴일 목록</h3>
+                            <h3 style={{ color: 'var(--accent)' }}>설정된 휴일 목록</h3>
                             <div style={{ marginTop: '12px' }}>
                                 {holidays.map(holiday => (
                                     <div key={holiday.id} style={{

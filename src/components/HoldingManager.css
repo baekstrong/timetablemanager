@@ -1,6 +1,6 @@
 .holding-container {
     min-height: 100vh;
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    background: var(--canvas-tint);
     padding: 20px 20px 100px;
     box-sizing: border-box;
     overflow-x: hidden;
@@ -18,11 +18,11 @@
 .back-button {
     padding: 12px 20px;
     background: white;
-    border: 2px solid #e5e7eb;
+    border: 1px solid var(--hairline);
     border-radius: 12px;
     font-size: 14px;
     font-weight: 600;
-    color: #667eea !important;
+    color: var(--accent) !important;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -31,9 +31,9 @@
 }
 
 .back-button:hover {
-    background: #f9fafb;
-    border-color: #667eea;
-    color: #667eea;
+    background: var(--canvas-tint);
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 .back-button svg {
@@ -44,10 +44,7 @@
 .holding-title {
     font-size: 32px;
     font-weight: 800;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--accent);
 }
 
 .holding-content {
@@ -61,13 +58,12 @@
 
 /* 안내 카드 */
 .info-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent);
     padding: 24px;
     border-radius: 16px;
     display: flex;
     gap: 20px;
     color: white;
-    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
     animation: slideDown 0.6s ease-out;
     box-sizing: border-box;
     max-width: 100%;
@@ -123,7 +119,7 @@
     background: white;
     padding: 32px;
     border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--hairline);
     animation: fadeIn 0.6s ease-out;
     box-sizing: border-box;
     max-width: 100%;
@@ -144,10 +140,10 @@
 .form-title {
     font-size: 24px;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--text);
     margin-bottom: 24px;
     padding-bottom: 16px;
-    border-bottom: 2px solid #f3f4f6;
+    border-bottom: 2px solid var(--hairline);
 }
 
 .holding-form {
@@ -165,14 +161,14 @@
 .form-group label {
     font-size: 14px;
     font-weight: 600;
-    color: #374151;
+    color: var(--text);
 }
 
 .form-input,
 .form-select,
 .form-textarea {
     padding: 14px 16px;
-    border: 2px solid #e5e7eb;
+    border: 1px solid var(--hairline);
     border-radius: 12px;
     font-size: 15px;
     transition: all 0.3s ease;
@@ -183,8 +179,8 @@
 .form-select:focus,
 .form-textarea:focus {
     outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-10);
 }
 
 .form-textarea {
@@ -194,7 +190,7 @@
 
 .submit-button {
     padding: 16px 24px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent);
     color: white;
     border: none;
     border-radius: 12px;
@@ -206,12 +202,10 @@
     justify-content: center;
     gap: 8px;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
 }
 
 .submit-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+    background: var(--accent-hover);
 }
 
 .submit-button svg {
@@ -228,7 +222,7 @@
 
 .empty-message {
     text-align: center;
-    color: #9ca3af;
+    color: var(--text-muted);
     padding: 40px;
     font-size: 15px;
 }
@@ -238,15 +232,15 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px;
-    background: #f9fafb;
+    background: var(--canvas-tint);
     border-radius: 12px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--hairline);
     transition: all 0.3s ease;
 }
 
 .history-item:hover {
-    background: #f3f4f6;
-    border-color: #d1d5db;
+    background: var(--canvas-tint);
+    border-color: var(--hairline);
 }
 
 .history-info {
@@ -258,7 +252,7 @@
 
 .history-date {
     font-weight: 600;
-    color: #1f2937;
+    color: var(--text);
     font-size: 15px;
 }
 
@@ -272,7 +266,7 @@
 }
 
 .history-reason {
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 14px;
 }
 
@@ -395,7 +389,7 @@
     background: white;
     padding: 32px;
     border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--hairline);
     animation: fadeIn 0.6s ease-out;
     box-sizing: border-box;
     max-width: 100%;
@@ -417,7 +411,7 @@
 .calendar-header h3 {
     font-size: 20px;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--text);
     flex: 1;
     text-align: center;
 }
@@ -425,18 +419,18 @@
 .month-nav-button {
     padding: 8px 16px;
     background: white;
-    border: 2px solid #e5e7eb;
+    border: 1px solid var(--hairline);
     border-radius: 8px;
     font-size: 16px;
     cursor: pointer;
     transition: all 0.2s ease;
-    color: #667eea;
+    color: var(--accent);
     font-weight: bold;
 }
 
 .month-nav-button:hover {
-    background: #f0f4ff;
-    border-color: #667eea;
+    background: var(--accent-10);
+    border-color: var(--accent);
 }
 
 .calendar-weekdays {
@@ -452,7 +446,7 @@
     text-align: center;
     font-size: 14px;
     font-weight: 600;
-    color: #6b7280;
+    color: var(--text-secondary);
     padding: 8px;
 }
 
@@ -472,7 +466,7 @@
     justify-content: center;
     padding: 8px;
     border-radius: 12px;
-    border: 2px solid #e5e7eb;
+    border: 1px solid var(--hairline);
     background: white;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -487,14 +481,14 @@
 }
 
 .calendar-day:not(.empty):not(.disabled):hover {
-    border-color: #667eea;
-    background: #f0f4ff;
+    border-color: var(--accent);
+    background: var(--accent-10);
     transform: scale(1.05);
 }
 
 .calendar-day.class-day {
-    border-color: #667eea;
-    background: #f0f4ff;
+    border-color: var(--accent);
+    background: var(--accent-10);
 }
 
 .calendar-day.holding-day {
@@ -503,8 +497,8 @@
 }
 
 .calendar-day.selected {
-    border-color: #667eea;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: var(--accent);
+    background: var(--accent);
     color: white;
 }
 
@@ -520,7 +514,7 @@
 
 .calendar-day.disabled:hover {
     transform: none;
-    border-color: #e5e7eb;
+    border-color: var(--hairline);
     background: white;
 }
 
@@ -531,12 +525,12 @@
 .day-number {
     font-size: 16px;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--text);
 }
 
 .class-indicator {
     font-size: 8px;
-    color: #667eea;
+    color: var(--accent);
     margin-top: 2px;
 }
 
@@ -559,7 +553,7 @@
     gap: 24px;
     margin-top: 20px;
     padding-top: 20px;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--hairline);
 }
 
 .legend-item {
@@ -567,7 +561,7 @@
     align-items: center;
     gap: 8px;
     font-size: 14px;
-    color: #6b7280;
+    color: var(--text-secondary);
 }
 
 .legend-dot {
@@ -577,7 +571,7 @@
 }
 
 .legend-dot.class {
-    background: #667eea;
+    background: var(--accent);
 }
 
 .legend-dot.holding {
@@ -588,19 +582,19 @@
 .selected-info {
     margin-top: 24px;
     padding: 20px;
-    background: #f0f4ff;
+    background: var(--accent-10);
     border-radius: 12px;
-    border: 2px solid #667eea;
+    border: 1px solid var(--accent-30);
 }
 
 .selected-info p {
     margin: 8px 0;
     font-size: 15px;
-    color: #374151;
+    color: var(--text);
 }
 
 .selected-info strong {
-    color: #667eea;
+    color: var(--accent);
     font-weight: 700;
 }
 
@@ -621,7 +615,7 @@
 /* 달력 부제목 */
 .calendar-subtitle {
     text-align: center;
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 14px;
     margin-bottom: 16px;
 }
@@ -636,7 +630,7 @@
 
 .selected-date-chip {
     padding: 6px 12px;
-    background: #667eea;
+    background: var(--accent);
     color: white;
     border-radius: 20px;
     font-size: 13px;
@@ -645,7 +639,7 @@
 
 /* 선택된 날짜 범례 추가 */
 .legend-dot.selected {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent);
 }
 
 /* 홀딩 내역 일수 표시 */
@@ -667,7 +661,7 @@
 
 .type-option {
     padding: 20px;
-    border: 2px solid #e5e7eb;
+    border: 1px solid var(--hairline);
     border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -689,22 +683,22 @@
 .type-option .type-label {
     font-size: 16px;
     font-weight: 600;
-    color: #374151;
+    color: var(--text);
 }
 
 .type-option .type-desc {
     font-size: 13px;
-    color: #6b7280;
+    color: var(--text-secondary);
 }
 
 .type-option:hover {
-    border-color: #667eea;
-    background: #f0f4ff;
+    border-color: var(--accent);
+    background: var(--accent-10);
 }
 
 .type-option.selected {
-    border-color: #667eea;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-color: var(--accent);
+    background: var(--accent);
 }
 
 .type-option.selected .type-label,
@@ -715,21 +709,21 @@
 .type-option.disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background: #f3f4f6;
-    border-color: #d1d5db;
+    background: var(--canvas-tint);
+    border-color: var(--hairline);
 }
 
 .type-option.disabled:hover {
-    border-color: #d1d5db;
-    background: #f3f4f6;
+    border-color: var(--hairline);
+    background: var(--canvas-tint);
 }
 
 .type-option.disabled .type-label {
-    color: #9ca3af;
+    color: var(--text-muted);
 }
 
 .type-option.disabled .type-desc {
-    color: #9ca3af;
+    color: var(--text-muted);
 }
 
 /* Absence Day Styling (Red) */
@@ -814,18 +808,18 @@
 
 /* 수강 기간 외 날짜 스타일 */
 .calendar-day.out-of-period {
-    background: #f3f4f6 !important;
-    border-color: #e5e7eb !important;
+    background: var(--canvas-tint) !important;
+    border-color: var(--hairline) !important;
     opacity: 0.5;
     cursor: not-allowed;
 }
 
 .calendar-day.out-of-period .day-number {
-    color: #9ca3af;
+    color: var(--text-muted);
 }
 
 .calendar-day.out-of-period:hover {
     transform: none;
-    border-color: #e5e7eb !important;
-    background: #f3f4f6 !important;
+    border-color: var(--hairline) !important;
+    background: var(--canvas-tint) !important;
 }

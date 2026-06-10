@@ -748,7 +748,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                 }}>
                     <div style={{
                         width: '40px', height: '40px', border: '4px solid #e5e7eb',
-                        borderTop: '4px solid #667eea', borderRadius: '50%',
+                        borderTop: '4px solid var(--accent)', borderRadius: '50%',
                         animation: 'spin 1s linear infinite'
                     }} />
                     <p style={{ marginTop: '16px', color: '#4b5563', fontSize: '15px', fontWeight: 500 }}>
@@ -839,14 +839,14 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
 
                 {/* 현재 활성 홀딩/결석 목록 - Firebase 데이터 기준 */}
                 {(holdingHistory.length > 0 || absences.length > 0) && (
-                    <div className="info-card" style={{ marginBottom: '24px', background: '#f0f4ff', borderColor: '#667eea' }}>
+                    <div className="info-card" style={{ marginBottom: '24px', background: 'var(--accent-10)', borderColor: 'var(--accent-30)' }}>
                         <div className="info-icon">📋</div>
                         <div className="info-content">
-                            <h3 style={{ color: '#4338ca' }}>현재 신청 내역</h3>
+                            <h3 style={{ color: 'var(--accent)' }}>현재 신청 내역</h3>
 
                             {holdingHistory.length > 0 && (
                                 <div style={{ marginTop: '12px' }}>
-                                    <strong style={{ color: '#667eea' }}>⏸️ 홀딩</strong>
+                                    <strong style={{ color: 'var(--accent)' }}>⏸️ 홀딩</strong>
                                     {holdingHistory.map(holdingData => {
                                         // 홀딩 시작일 수업 시작 1시간 전까지 취소 가능 (보강일 포함)
                                         const holdingStartDate = new Date(holdingData.startDate + 'T00:00:00');
@@ -862,7 +862,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                                         }
 
                                         return (
-                                            <div key={holdingData.id} style={{ marginTop: '8px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #667eea' }}>
+                                            <div key={holdingData.id} style={{ marginTop: '8px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid var(--accent-30)' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                     <div>
                                                         <div style={{ fontSize: '14px', color: '#374151' }}>
@@ -936,7 +936,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                                 return a.date >= formatLocalDate(cutoff);
                             }).length > 0 && (
                                 <div style={{ marginTop: '12px' }}>
-                                    <strong style={{ color: '#764ba2' }}>❌ 결석</strong>
+                                    <strong style={{ color: 'var(--error)' }}>❌ 결석</strong>
                                     {absences.filter(a => {
                                         if (!membershipPeriod.start) return true;
                                         const cutoff = new Date(membershipPeriod.start);
@@ -961,7 +961,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                                         }
 
                                         return (
-                                            <div key={absence.id} style={{ marginTop: '8px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #764ba2' }}>
+                                            <div key={absence.id} style={{ marginTop: '8px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #E94E584D' }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                     <div style={{ fontSize: '14px', color: '#374151' }}>
                                                         {absence.date}

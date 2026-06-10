@@ -1,7 +1,7 @@
 .student-manager-container {
     min-height: 100vh;
     padding: 2rem 2rem 100px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--canvas-tint);
 }
 
 .student-header {
@@ -26,7 +26,7 @@
 
 .info-message-mobile {
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--text-secondary);
     margin-bottom: 0.75rem;
 }
 
@@ -53,10 +53,10 @@
 
 .view-switch-btn {
     padding: 0.5rem 0.75rem;
-    background: rgba(255, 255, 255, 0.95);
-    border: none;
+    background: white;
+    border: 1px solid var(--hairline);
     border-radius: 8px;
-    color: #667eea;
+    color: var(--accent);
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
@@ -67,8 +67,7 @@
 
 .view-switch-btn:hover {
     background: white;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+    border-color: var(--accent);
 }
 
 .back-button {
@@ -76,20 +75,18 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.75rem 1.25rem;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: white;
+    border: 1px solid var(--hairline);
     border-radius: 12px;
-    color: white;
+    color: var(--text);
     font-size: 0.95rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
 }
 
 .back-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: translateX(-4px);
+    background: var(--canvas-tint);
 }
 
 .back-button svg {
@@ -100,17 +97,16 @@
 .student-title {
     font-size: 2rem;
     font-weight: 700;
-    color: white;
+    color: var(--text);
     margin: 0;
-    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
 .student-count {
     padding: 0.5rem 0.75rem;
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--accent-10);
+    border: 1px solid var(--hairline);
     border-radius: 8px;
-    color: white;
+    color: var(--text-secondary);
     font-size: 0.8rem;
     font-weight: 600;
     white-space: nowrap;
@@ -134,11 +130,11 @@
 }
 
 .not-connected-message {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 20px;
+    background: white;
+    border-radius: var(--r-card);
     padding: 3rem;
     text-align: center;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--hairline);
 }
 
 .warning-icon {
@@ -148,41 +144,40 @@
 
 .not-connected-message h3 {
     font-size: 1.5rem;
-    color: #1f2937;
+    color: var(--text);
     margin-bottom: 0.5rem;
 }
 
 .not-connected-message p {
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 1rem;
 }
 
 .error-banner {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    background: var(--error);
     color: white;
     padding: 1rem 1.5rem;
-    border-radius: 12px;
+    border-radius: var(--r-md);
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
     gap: 0.75rem;
     font-weight: 500;
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 .loading-container {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 20px;
+    background: white;
+    border-radius: var(--r-card);
     padding: 4rem;
     text-align: center;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--hairline);
 }
 
 .loading-spinner {
     width: 50px;
     height: 50px;
-    border: 4px solid rgba(102, 126, 234, 0.2);
-    border-top-color: #667eea;
+    border: 4px solid var(--accent-10);
+    border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin: 0 auto 1.5rem;
@@ -195,21 +190,20 @@
 }
 
 .loading-container p {
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 1.1rem;
 }
 
 .student-content {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 20px;
+    background: white;
+    border-radius: var(--r-card);
     padding: 2rem;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
+    border: 1px solid var(--hairline);
 }
 
 .student-table-container {
     overflow-x: auto;
-    border-radius: 12px;
+    border-radius: var(--r-md);
 }
 
 .student-table {
@@ -220,7 +214,7 @@
 }
 
 .student-table thead {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent);
     color: white;
 }
 
@@ -248,9 +242,7 @@
 }
 
 .student-table tbody tr:hover {
-    background: #f9fafb;
-    transform: scale(1.01);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    background: var(--canvas-tint);
 }
 
 .student-table tbody tr.editing {
@@ -260,7 +252,7 @@
 
 .student-table td {
     padding: 1rem;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--hairline);
     white-space: nowrap;
 }
 
@@ -270,7 +262,7 @@
 
 .student-name {
     font-weight: 600;
-    color: #1f2937;
+    color: var(--text);
 }
 
 .holding-status {
@@ -332,33 +324,30 @@
 }
 
 .edit-btn {
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    background: #3b82f6;
     color: white;
 }
 
 .edit-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    background: #2563eb;
 }
 
 .save-btn {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: #10b981;
     color: white;
 }
 
 .save-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    background: #059669;
 }
 
 .cancel-btn {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    background: #ef4444;
     color: white;
 }
 
 .cancel-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    background: #dc2626;
 }
 
 .holding-btn {
@@ -369,13 +358,12 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
-    background: linear-gradient(135deg, #667eea 0%, #5a67d8 100%);
+    background: var(--accent);
     color: white;
 }
 
 .holding-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    background: var(--accent-hover);
 }
 
 .absence-btn {
@@ -391,28 +379,25 @@
 }
 
 .absence-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    background: #d97706;
 }
 
 .contract-btn {
-    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    background: var(--accent);
     color: white;
 }
 
 .contract-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+    background: var(--accent-hover);
 }
 
 .end-class-btn {
-    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    background: #6b7280;
     color: white;
 }
 
 .end-class-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(75, 85, 99, 0.3);
+    background: #4b5563;
 }
 
 /* 결석 모달 */
@@ -444,13 +429,13 @@
 .absence-modal-title {
     font-size: 1.4rem;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--text);
     margin-bottom: 0.5rem;
 }
 
 .absence-modal-student {
     font-size: 1rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     margin-bottom: 1.5rem;
 }
 
@@ -463,7 +448,7 @@
 .absence-date-input {
     flex: 1;
     padding: 0.75rem;
-    border: 2px solid #e5e7eb;
+    border: 1px solid var(--hairline);
     border-radius: 10px;
     font-size: 1rem;
 }
@@ -513,7 +498,7 @@
 }
 
 .absence-info-box {
-    background: #f9fafb;
+    background: var(--canvas-tint);
     border-radius: 10px;
     padding: 0.75rem 1rem;
     margin-bottom: 1.5rem;
@@ -521,7 +506,7 @@
 
 .absence-info-box p {
     font-size: 0.85rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     margin: 0.25rem 0;
 }
 
@@ -533,12 +518,12 @@
 .absence-cancel-btn {
     flex: 1;
     padding: 0.75rem;
-    background: #e5e7eb;
+    background: var(--hairline);
     border: none;
     border-radius: 10px;
     font-weight: 600;
     cursor: pointer;
-    color: #374151;
+    color: var(--text);
 }
 
 .absence-submit-btn {
@@ -560,7 +545,7 @@
 .empty-message {
     text-align: center;
     padding: 3rem !important;
-    color: #9ca3af;
+    color: var(--text-muted);
     font-size: 1.1rem;
 }
 

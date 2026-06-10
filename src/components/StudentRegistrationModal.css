@@ -38,7 +38,7 @@
 .reg-modal-title {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--text);
     margin: 0 0 1.5rem 0;
     text-align: center;
 }
@@ -46,7 +46,7 @@
 /* Tab Toggle */
 .reg-tab-toggle {
     display: flex;
-    background: #f3f4f6;
+    background: var(--canvas-tint);
     border-radius: 10px;
     padding: 4px;
     margin-bottom: 1.5rem;
@@ -62,13 +62,12 @@
     cursor: pointer;
     transition: all 0.2s ease;
     background: transparent;
-    color: #6b7280;
+    color: var(--text-secondary);
 }
 
 .reg-tab-btn.active {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent);
     color: white;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
 /* Sheet Selector */
@@ -80,7 +79,7 @@
     display: block;
     font-size: 0.85rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--text);
     margin-bottom: 0.35rem;
 }
 
@@ -89,7 +88,7 @@
 .reg-field-group textarea {
     width: 100%;
     padding: 0.6rem 0.75rem;
-    border: 1.5px solid #d1d5db;
+    border: 1px solid var(--hairline);
     border-radius: 8px;
     font-size: 0.9rem;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -101,8 +100,8 @@
 .reg-field-group select:focus,
 .reg-field-group textarea:focus {
     outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-10);
 }
 
 .reg-field-group textarea {
@@ -112,7 +111,7 @@
 
 .reg-field-group .field-hint {
     font-size: 0.75rem;
-    color: #9ca3af;
+    color: var(--text-muted);
     margin-top: 0.2rem;
 }
 
@@ -133,7 +132,7 @@
 .reg-end-date-display {
     padding: 0.6rem 0.75rem;
     background: #f0fdf4;
-    border: 1.5px solid #86efac;
+    border: 1px solid #86efac;
     border-radius: 8px;
     color: #16a34a;
     font-weight: 600;
@@ -141,9 +140,9 @@
 }
 
 .reg-end-date-display.empty {
-    background: #f9fafb;
-    border-color: #d1d5db;
-    color: #9ca3af;
+    background: var(--canvas-tint);
+    border-color: var(--hairline);
+    color: var(--text-muted);
 }
 
 /* Date field with clear button */
@@ -159,10 +158,10 @@
 
 .reg-date-clear-btn {
     padding: 0.4rem 0.6rem;
-    border: 1.5px solid #d1d5db;
+    border: 1px solid var(--hairline);
     border-radius: 6px;
     background: white;
-    color: #6b7280;
+    color: var(--text-secondary);
     cursor: pointer;
     font-size: 0.85rem;
     font-weight: 600;
@@ -186,20 +185,20 @@
 .reg-search-row input {
     flex: 1;
     padding: 0.6rem 0.75rem;
-    border: 1.5px solid #d1d5db;
+    border: 1px solid var(--hairline);
     border-radius: 8px;
     font-size: 0.9rem;
 }
 
 .reg-search-row input:focus {
     outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-10);
 }
 
 .reg-search-btn {
     padding: 0.6rem 1.2rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent);
     color: white;
     border: none;
     border-radius: 8px;
@@ -211,8 +210,7 @@
 }
 
 .reg-search-btn:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    background: var(--accent-hover);
 }
 
 .reg-search-btn:disabled {
@@ -223,7 +221,7 @@
 /* Section divider */
 .reg-section-divider {
     border: none;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--hairline);
     margin: 1.25rem 0;
 }
 
@@ -234,15 +232,15 @@
     gap: 0.75rem;
     margin-top: 1.5rem;
     padding-top: 1rem;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--hairline);
 }
 
 .reg-cancel-btn {
     padding: 0.7rem 1.5rem;
     background: white;
-    border: 1.5px solid #d1d5db;
+    border: 1px solid var(--hairline);
     border-radius: 10px;
-    color: #374151;
+    color: var(--text);
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
@@ -250,13 +248,13 @@
 }
 
 .reg-cancel-btn:hover {
-    background: #f9fafb;
-    border-color: #9ca3af;
+    background: var(--canvas-tint);
+    border-color: var(--text-muted);
 }
 
 .reg-submit-btn {
     padding: 0.7rem 1.5rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent);
     border: none;
     border-radius: 10px;
     color: white;
@@ -267,8 +265,7 @@
 }
 
 .reg-submit-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.3);
+    background: var(--accent-hover);
 }
 
 .reg-submit-btn:disabled {
@@ -289,8 +286,7 @@
 }
 
 .reg-contract-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(245, 158, 11, 0.3);
+    background: #d97706;
 }
 
 .reg-contract-btn:disabled {
@@ -309,12 +305,10 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
 .register-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+    background: #059669;
 }
 
 /* 결석 날짜 입력 */
@@ -373,15 +367,15 @@
 .reg-calendar-section {
     margin-top: 1rem;
     padding: 1rem;
-    background: #f9fafb;
+    background: var(--canvas-tint);
     border-radius: 12px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--hairline);
 }
 
 .reg-calendar-header {
     font-size: 0.9rem;
     font-weight: 700;
-    color: #374151;
+    color: var(--text);
     margin-bottom: 0.5rem;
     display: flex;
     align-items: center;
@@ -391,8 +385,8 @@
 .reg-calendar-count {
     font-size: 0.8rem;
     font-weight: 600;
-    color: #7c3aed;
-    background: #ede9fe;
+    color: var(--accent);
+    background: var(--accent-10);
     padding: 0.15rem 0.5rem;
     border-radius: 10px;
 }
@@ -402,7 +396,7 @@
     gap: 0.75rem;
     margin-bottom: 0.75rem;
     font-size: 0.7rem;
-    color: #6b7280;
+    color: var(--text-secondary);
 }
 
 .reg-legend-item {
@@ -419,7 +413,7 @@
 }
 
 .reg-legend-dot.class {
-    background: #8b5cf6;
+    background: var(--accent);
 }
 
 .reg-legend-dot.holiday {
@@ -441,7 +435,7 @@
 .reg-calendar-month-title {
     font-size: 0.8rem;
     font-weight: 600;
-    color: #4b5563;
+    color: var(--text);
     margin-bottom: 0.35rem;
 }
 
@@ -455,7 +449,7 @@
     text-align: center;
     font-size: 0.65rem;
     font-weight: 600;
-    color: #9ca3af;
+    color: var(--text-muted);
     padding: 0.15rem 0;
 }
 
@@ -464,7 +458,7 @@
     font-size: 0.7rem;
     padding: 0.3rem 0.1rem;
     border-radius: 4px;
-    color: #6b7280;
+    color: var(--text-secondary);
     min-height: 1.4rem;
     display: flex;
     align-items: center;
@@ -476,11 +470,11 @@
 }
 
 .reg-calendar-cell.out-of-range {
-    color: #d1d5db;
+    color: var(--hairline);
 }
 
 .reg-calendar-cell.class-day {
-    background: #8b5cf6;
+    background: var(--accent);
     color: white;
     font-weight: 600;
 }
