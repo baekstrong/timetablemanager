@@ -2,7 +2,7 @@
     min-height: 100vh;
     padding: 1rem;
     padding-bottom: 6rem;
-    background: linear-gradient(180deg, #fafafa 0%, #f3f4f6 100%);
+    background: var(--canvas-tint);
     box-sizing: border-box;
 }
 
@@ -16,19 +16,19 @@
 .ranking-back-btn {
     padding: 0.5rem 0.75rem;
     background: white;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--hairline);
     border-radius: 8px;
     font-size: 0.9rem;
     cursor: pointer;
-    color: #374151;
+    color: var(--text);
 }
 
-.ranking-back-btn:hover { background: #f9fafb; }
+.ranking-back-btn:hover { background: var(--canvas-tint); }
 
 .ranking-title {
     font-size: 1.3rem;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--text);
     margin: 0;
 }
 
@@ -39,7 +39,7 @@
     background: white;
     padding: 0.4rem;
     border-radius: 10px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--hairline);
 }
 
 .ranking-tab {
@@ -50,15 +50,15 @@
     border-radius: 7px;
     font-size: 0.95rem;
     font-weight: 600;
-    color: #6b7280;
+    color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.15s;
 }
 
-.ranking-tab:hover { color: #374151; }
+.ranking-tab:hover { color: var(--text); }
 
 .ranking-tab.active {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    background: var(--accent);
     color: white;
 }
 
@@ -71,20 +71,20 @@
 
 .ranking-subtab {
     padding: 0.5rem 0.85rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--hairline);
     background: white;
     border-radius: 18px;
     font-size: 0.85rem;
     font-weight: 500;
-    color: #6b7280;
+    color: var(--text-secondary);
     cursor: pointer;
     white-space: nowrap;
 }
 
 .ranking-subtab.active {
-    background: #1f2937;
+    background: var(--cta-dark);
     color: white;
-    border-color: #1f2937;
+    border-color: var(--cta-dark);
 }
 
 .ranking-gender-filter {
@@ -95,25 +95,25 @@
 
 .ranking-gender-filter button {
     padding: 0.4rem 0.75rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--hairline);
     background: white;
     border-radius: 6px;
     font-size: 0.85rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     cursor: pointer;
 }
 
 .ranking-gender-filter button.active {
-    background: #6366f1;
+    background: var(--accent);
     color: white;
-    border-color: #6366f1;
+    border-color: var(--accent);
 }
 
 .ranking-content {
     background: white;
     border-radius: 12px;
     padding: 1rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--hairline);
 }
 
 .ranking-loading,
@@ -121,18 +121,18 @@
 .ranking-empty-row {
     text-align: center;
     padding: 2rem 1rem;
-    color: #9ca3af;
+    color: var(--text-muted);
     font-size: 0.95rem;
 }
 
 .ranking-period-label {
     font-size: 0.8rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     margin-bottom: 0.5rem;
     padding: 0.4rem 0.6rem;
-    background: #f9fafb;
+    background: var(--canvas-tint);
     border-radius: 6px;
-    border: 1px dashed #e5e7eb;
+    border: 1px dashed var(--hairline);
 }
 
 .ranking-period-row {
@@ -145,22 +145,22 @@
 
 .ranking-month-select {
     padding: 0.4rem 0.6rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--hairline);
     border-radius: 6px;
     background: white;
     font-size: 0.85rem;
-    color: #1f2937;
+    color: var(--text);
 }
 
 .ranking-period-hint {
     font-size: 0.75rem;
-    color: #9ca3af;
+    color: var(--text-muted);
 }
 
 .ranking-exercise-select {
     width: 100%;
     padding: 0.6rem 0.75rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--hairline);
     border-radius: 8px;
     font-size: 0.95rem;
     background: white;
@@ -178,14 +178,14 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.7rem 0.5rem;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid var(--canvas-tint);
 }
 
 .ranking-row:last-child { border-bottom: none; }
 
 .ranking-rank {
     font-weight: 700;
-    color: #6366f1;
+    color: var(--accent);
     font-size: 1rem;
     min-width: 1.5rem;
     text-align: center;
@@ -193,24 +193,24 @@
 
 .ranking-name {
     font-weight: 600;
-    color: #1f2937;
+    color: var(--text);
     flex: 1;
 }
 
 .ranking-exercise {
     font-size: 0.85rem;
-    color: #6b7280;
+    color: var(--text-secondary);
 }
 
 .ranking-value {
     font-weight: 600;
-    color: #4338ca;
+    color: var(--accent-hover);
     font-size: 0.95rem;
 }
 
 .ranking-date {
     font-size: 0.8rem;
-    color: #9ca3af;
+    color: var(--text-muted);
     min-width: 2.5rem;
     text-align: right;
 }
@@ -232,7 +232,7 @@
 
 .mypr-add-btn {
     padding: 0.6rem 1rem;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    background: var(--accent);
     color: white;
     border: none;
     border-radius: 8px;
@@ -251,8 +251,8 @@
 }
 
 .mypr-card {
-    background: linear-gradient(135deg, #fafafa, #f9fafb);
-    border: 1px solid #e5e7eb;
+    background: var(--canvas-tint);
+    border: 1px solid var(--hairline);
     border-radius: 10px;
     padding: 0.85rem 1rem;
 }
@@ -266,14 +266,14 @@
 
 .mypr-card-title {
     font-weight: 700;
-    color: #1f2937;
+    color: var(--text);
     font-size: 1rem;
 }
 
 .mypr-card-type {
     font-size: 0.75rem;
-    color: #6366f1;
-    background: #eef2ff;
+    color: var(--accent);
+    background: var(--accent-10);
     padding: 0.15rem 0.5rem;
     border-radius: 12px;
 }
@@ -289,7 +289,7 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.4rem 0;
-    border-bottom: 1px dashed #e5e7eb;
+    border-bottom: 1px dashed var(--hairline);
 }
 
 .mypr-card-record:last-child { border-bottom: none; }
@@ -297,25 +297,25 @@
 .mypr-record-value {
     flex: 1;
     font-weight: 600;
-    color: #4338ca;
+    color: var(--accent-hover);
 }
 
 .mypr-record-date {
     font-size: 0.8rem;
-    color: #9ca3af;
+    color: var(--text-muted);
 }
 
 .mypr-history-btn {
     padding: 0.25rem 0.6rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--hairline);
     background: white;
     border-radius: 5px;
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     cursor: pointer;
 }
 
-.mypr-history-btn:hover { background: #f3f4f6; }
+.mypr-history-btn:hover { background: var(--canvas-tint); }
 
 .mypr-delete-btn {
     color: #dc2626;
@@ -330,9 +330,9 @@
 .mypr-card-note {
     margin-top: 0.5rem;
     font-size: 0.8rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     padding: 0.4rem 0.6rem;
-    background: #f9fafb;
+    background: var(--canvas-tint);
     border-radius: 6px;
 }
 
@@ -347,23 +347,23 @@
     flex-wrap: wrap;
     gap: 0.5rem;
     padding: 0.5rem 0;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid var(--canvas-tint);
 }
 
 .mypr-history-value {
     font-weight: 600;
-    color: #4338ca;
+    color: var(--accent-hover);
 }
 
 .mypr-history-date {
-    color: #6b7280;
+    color: var(--text-secondary);
     font-size: 0.85rem;
 }
 
 .mypr-history-note {
     flex-basis: 100%;
     font-size: 0.8rem;
-    color: #9ca3af;
+    color: var(--text-muted);
 }
 
 /* 그래프 */
@@ -384,8 +384,8 @@
 .graph-exercise-picker {
     margin: 0.75rem 0;
     padding: 0.75rem;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
+    background: var(--canvas-tint);
+    border: 1px solid var(--hairline);
     border-radius: 10px;
 }
 
@@ -402,11 +402,11 @@
 
 .graph-picker-btn {
     padding: 0 0.7rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--hairline);
     background: white;
     border-radius: 6px;
     font-size: 0.8rem;
-    color: #4b5563;
+    color: var(--text);
     cursor: pointer;
     white-space: nowrap;
 }
@@ -426,11 +426,11 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.35rem 0.65rem;
-    border: 1.5px solid #e5e7eb;
+    border: 1.5px solid var(--hairline);
     border-radius: 16px;
     background: white;
     font-size: 0.85rem;
-    color: #4b5563;
+    color: var(--text);
     cursor: pointer;
     transition: all 0.15s;
 }
@@ -448,4 +448,4 @@
     background: white;
 }
 
-.graph-exercise-chip:hover { background: #f3f4f6; }
+.graph-exercise-chip:hover { background: var(--canvas-tint); }

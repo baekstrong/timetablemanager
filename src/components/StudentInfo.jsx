@@ -196,7 +196,7 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                             <span className="detail-value">
                                 {actualRemainingHolding}회 남음
                                 {membershipInfo.registrationMonths > 1 && (
-                                    <span style={{ fontSize: '0.85em', color: '#6b7280', marginLeft: '8px' }}>
+                                    <span style={{ fontSize: '0.85em', color: 'var(--text-secondary)', marginLeft: '8px' }}>
                                         ({membershipInfo.registrationMonths}개월 등록)
                                     </span>
                                 )}
@@ -230,8 +230,8 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                                 style={{
                                     width: `${Math.max(0, Math.min(100, ((membershipInfo.totalSessions - membershipInfo.remainingSessions) / membershipInfo.totalSessions) * 100))}%`,
                                     background: membershipInfo.remainingSessions <= 2
-                                        ? 'linear-gradient(90deg, #f093fb 0%, #f5576c 100%)'
-                                        : 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)'
+                                        ? 'var(--error)'
+                                        : 'var(--accent)'
                                 }}
                             />
                         </div>
@@ -306,19 +306,19 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                     borderRadius: '16px',
                     padding: '1.25rem',
                     marginTop: '1rem',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
+                    border: '1px solid var(--hairline)'
                 }}>
                     <button
                         onClick={() => setShowContractHistory(true)}
                         style={{
                             width: '100%',
                             padding: '0.75rem',
-                            background: '#f9fafb',
-                            border: '1.5px solid #e5e7eb',
+                            background: 'var(--canvas-tint)',
+                            border: '1.5px solid var(--hairline)',
                             borderRadius: '10px',
                             fontSize: '0.95rem',
                             fontWeight: '600',
-                            color: '#374151',
+                            color: 'var(--text)',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',

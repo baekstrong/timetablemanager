@@ -31,7 +31,7 @@
 .pr-modal-title {
     font-size: 1.2rem;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--text);
     margin: 0;
 }
 
@@ -39,14 +39,14 @@
     background: none;
     border: none;
     font-size: 1.5rem;
-    color: #6b7280;
+    color: var(--text-secondary);
     cursor: pointer;
     padding: 0.25rem 0.5rem;
     line-height: 1;
 }
 
 .pr-modal-close:hover {
-    color: #1f2937;
+    color: var(--text);
 }
 
 .pr-form-row {
@@ -57,7 +57,7 @@
     display: block;
     font-size: 0.85rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--text);
     margin-bottom: 0.4rem;
 }
 
@@ -68,7 +68,7 @@
 .pr-form-row textarea {
     width: 100%;
     padding: 0.55rem 0.7rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--hairline);
     border-radius: 8px;
     font-size: 0.95rem;
     box-sizing: border-box;
@@ -79,8 +79,8 @@
 .pr-form-row select:focus,
 .pr-form-row textarea:focus {
     outline: none;
-    border-color: #6366f1;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-10);
 }
 
 .pr-combobox {
@@ -93,7 +93,7 @@
     left: 0;
     right: 0;
     background: white;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--hairline);
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
     max-height: 220px;
@@ -107,13 +107,13 @@
 .pr-combobox-item {
     padding: 0.55rem 0.8rem;
     font-size: 0.95rem;
-    color: #1f2937;
+    color: var(--text);
     cursor: pointer;
 }
 
 .pr-combobox-item:hover {
-    background: #eef2ff;
-    color: #4338ca;
+    background: var(--accent-10);
+    color: var(--accent-hover);
 }
 
 .pr-input-group {
@@ -133,7 +133,7 @@
 
 .pr-unit-label {
     font-size: 0.95rem;
-    color: #4b5563;
+    color: var(--text);
     font-weight: 500;
 }
 
@@ -146,7 +146,7 @@
 .pr-type-btn {
     text-align: left;
     padding: 0.7rem 0.8rem;
-    border: 1.5px solid #e5e7eb;
+    border: 1.5px solid var(--hairline);
     border-radius: 8px;
     background: white;
     cursor: pointer;
@@ -154,24 +154,24 @@
 }
 
 .pr-type-btn:hover {
-    border-color: #c7d2fe;
+    border-color: var(--accent-30);
 }
 
 .pr-type-btn.active {
-    border-color: #6366f1;
-    background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+    border-color: var(--accent);
+    background: var(--accent-10);
 }
 
 .pr-type-label {
     font-size: 0.9rem;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--text);
     margin-bottom: 0.15rem;
 }
 
 .pr-type-desc {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--text-secondary);
 }
 
 .pr-modal-actions {
@@ -193,14 +193,14 @@
 }
 
 .pr-btn-cancel {
-    background: #f3f4f6;
-    color: #4b5563;
+    background: var(--canvas-tint);
+    color: var(--text);
 }
 
-.pr-btn-cancel:hover { background: #e5e7eb; }
+.pr-btn-cancel:hover { background: var(--hairline); }
 
 .pr-btn-submit {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    background: var(--accent);
     color: white;
 }
 
