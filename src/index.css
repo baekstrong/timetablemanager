@@ -1,30 +1,39 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap');
 
 :root {
-  /* Color Palette */
-  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  --accent-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  /* 브랜드 — 단일 코발트 + 알파 사다리 */
+  --accent: #329BE7;        --accent-hover: #327AB8;   --accent-light: #47C8FF;
+  --accent-30: #329BE74D;   --accent-20: #329BE733;    --accent-10: #329BE71A;
 
-  /* Background Colors */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f9fafb;
-  --bg-glass: rgba(255, 255, 255, 0.9);
+  /* 표면 (플랫) */
+  --canvas: #FFFFFF;  --surface: #FCFCFC;  --canvas-tint: #F7F7F8;  --hairline: #EFEFF0;
 
-  /* Text Colors */
-  --text-primary: #1f2937;
-  --text-secondary: #6b7280;
-  --text-muted: #9ca3af;
+  /* 텍스트 — 반투명 검정 (#000 금지) */
+  --text: rgba(0,0,0,0.85);  --text-secondary: rgba(0,0,0,0.6);  --text-muted: #A7A7AA;
+  --cta-dark: #242428;
 
-  /* Border Colors */
-  --border-color: #e5e7eb;
-  --border-glass: rgba(255, 255, 255, 0.3);
+  /* 상태색 — "상태"에만 */
+  --success: #31A552;  --caution: #EDBC40;  --error: #E94E58;  --info: #5E56F0;
 
-  /* Status Colors */
-  --success: #10b981;
-  --warning: #f59e0b;
-  --error: #ef4444;
-  --info: #3b82f6;
+  /* 라디우스 사다리 (보간 금지) */
+  --r-chip: 8px;  --r-md: 12px;  --r-cta: 18px;  --r-card: 20px;  --r-band: 32px;  --r-full: 9999px;
+
+  /* 간격 */
+  --sp-xs: 4px;  --sp-sm: 8px;  --sp-md: 16px;  --sp-lg: 24px;  --sp-xl: 32px;  --sp-xxl: 48px;
+
+  /* 모션 */
+  --ease: cubic-bezier(0.3,0,0,1);  --dur-s: 150ms;  --dur-m: 300ms;  --dur-l: 450ms;
+
+  /* 폰트 — Inter + Noto KR */
+  --font: 'Inter','Noto Sans KR',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+
+  /* 하위호환 (기존 변수 참조 코드가 깨지지 않게 매핑) */
+  --bg-primary: var(--canvas);
+  --bg-secondary: var(--canvas-tint);
+  --bg-glass: var(--canvas);
+  --text-primary: var(--text);
+  --border-color: var(--hairline);
+  --warning: var(--caution);
 }
 
 * {
@@ -34,13 +43,12 @@
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  color: var(--text-primary);
+  background: var(--canvas-tint);
+  color: var(--text);
+  letter-spacing: -0.1px;
 }
 
 code {
@@ -60,20 +68,12 @@ code {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--text-muted);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #5568d3 0%, #653a8e 100%);
-}
-
-/* Utility Classes */
-.text-gradient {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  background: var(--text-secondary);
 }
 
 /* Animation Keyframes */
