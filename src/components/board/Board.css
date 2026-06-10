@@ -657,13 +657,15 @@
 .post-detail-images {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: 8px;
     margin: 12px 0;
 }
 
 .post-detail-image {
-    max-width: 400px;
-    width: 100%;
+    max-width: 100%;
+    width: auto;
+    height: auto;
     border-radius: 8px;
     cursor: pointer;
     transition: opacity 0.2s ease;
