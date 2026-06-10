@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getDisabledClasses, createNewStudentRegistration, getEntranceClasses, getFAQs, getNewStudentRegistrations } from '../services/firebaseService';
+import { getDisabledClasses, createNewStudentRegistration, updateNewStudentRegistration, getEntranceClasses, getFAQs, getNewStudentRegistrations } from '../services/firebaseService';
 import { sendRegistrationNotifications } from '../services/smsService';
 import { formatEntranceDate, calculateStartEndDates } from '../utils/dateUtils';
 import { PERIODS, DAYS, MAX_CAPACITY, PRICING, ENTRANCE_FEE } from '../data/mockData';
@@ -268,7 +268,8 @@ const NewStudentRegistration = () => {
                 question: question.trim()
             };
 
-            await createNewStudentRegistration(data, isWaitlistMode ? 'waitlist' : 'pending');
+            const created = await createNewStudentRegistration(data, isWaitlistMode ? 'waitlist' : 'pending');
+            const regId = created?.id;
 
             // 안내 문자 발송 (수강생 SMS 1 + 코치 SMS 1)
             // 실패해도 등록에 영향을 주지 않음
@@ -286,6 +287,14 @@ const NewStudentRegistration = () => {
                     question: question.trim(),
                     isWaitlist: isWaitlistMode
                 });
+                if (regId) {
+                    await updateNewStudentRegistration(regId, {
+                        'smsLog.reception': {
+                            status: smsResults.studentSMS ? 'sent' : 'failed',
+                            at: Date.now(),
+                        },
+                    });
+                }
                 if (!smsResults.studentSMS || !smsResults.coachSMS) {
                     const failed = [];
                     if (!smsResults.studentSMS) failed.push('수강생');

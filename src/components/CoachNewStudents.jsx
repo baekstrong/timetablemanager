@@ -25,8 +25,10 @@ import {
     getStudentField,
     calculateEndDateWithHolidays
 } from '../services/googleSheetsService';
-import { sendApprovalNotifications, sendWaitlistAvailableSMS, cancelScheduledSMS, sendWaitlistCancelledSMS } from '../services/smsService';
+import { sendApprovalNotifications, sendWaitlistAvailableSMS, cancelScheduledSMS, sendWaitlistCancelledSMS, sendStudentRegistrationSMS, sendStudentApprovalSMS, scheduleEntranceReminderSMS } from '../services/smsService';
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../services/calendarService';
+import SmsStatusChips from './SmsStatusChips';
+import { smsIssueCount, isReminderResendable } from '../utils/smsStatus';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { formatEntranceDate, convertToYYMMDD, calculateStartEndDates } from '../utils/dateUtils';
 import { PRICING, PERIODS, DAYS, MAX_CAPACITY } from '../data/mockData';
@@ -387,14 +389,28 @@ const CoachNewStudents = ({ user, onBack }) => {
                     const failed = [];
                     if (smsResults.approvalSMS) sent.push('승인 문자');
                     else failed.push('승인 문자');
+
+                    const groupId = smsResults.reminderSMS?.groupId;
+                    const smsLogUpdate = {
+                        'smsLog.approval': {
+                            status: smsResults.approvalSMS ? 'sent' : 'failed',
+                            at: Date.now(),
+                        },
+                    };
                     if (smsResults.reminderSMS) {
                         sent.push('입학반 리마인더');
-                        // 예약 SMS groupId 저장 (취소용)
-                        const groupId = smsResults.reminderSMS?.groupId;
-                        if (groupId) {
-                            await updateNewStudentRegistration(reg.id, { reminderGroupId: groupId });
-                        }
+                        smsLogUpdate['smsLog.reminder'] = {
+                            status: 'scheduled',
+                            at: Date.now(),
+                            ...(groupId ? { groupId } : {}),
+                        };
+                        // 예약 SMS groupId 저장 (취소용, 기존 필드 하위호환 유지)
+                        if (groupId) smsLogUpdate.reminderGroupId = groupId;
+                    } else if (reg.entranceDate && reg.entranceClassDate) {
+                        // 리마인더가 기대됐는데 예약 실패
+                        smsLogUpdate['smsLog.reminder'] = { status: 'failed', at: Date.now() };
                     }
+                    await updateNewStudentRegistration(reg.id, smsLogUpdate);
                     if (sent.length > 0) {
                         console.log(`문자 발송 완료: ${sent.join(', ')}`);
                     }
@@ -547,6 +563,46 @@ const CoachNewStudents = ({ user, onBack }) => {
         } catch (err) {
             alert('SMS 발송 실패: ' + err.message);
         }
+    };
+
+    // 상황판: 문자 종류별 재발송
+    const handleResendSms = async (reg, typeKey) => {
+        if (!reg.phone) { alert('연락처가 없어 문자를 보낼 수 없습니다.'); return; }
+        const labelMap = { reception: '접수확인', approval: '승인문자', reminder: '입학반 리마인더' };
+        if (!confirm(`"${reg.name}" 수강생에게 [${labelMap[typeKey]}] 문자를 재발송할까요?`)) return;
+        try {
+            const details = {
+                paymentMethod: reg.paymentMethod,
+                weeklyFrequency: reg.weeklyFrequency,
+                scheduleString: reg.scheduleString || '',
+                entranceDate: reg.entranceDate,
+                entranceClassDate: reg.entranceClassDate,
+            };
+            if (typeKey === 'reception') {
+                const ok = await sendStudentRegistrationSMS(reg.phone, reg.name, reg.isWaitlist);
+                await updateNewStudentRegistration(reg.id, { 'smsLog.reception': { status: ok ? 'sent' : 'failed', at: Date.now() } });
+            } else if (typeKey === 'approval') {
+                const ok = await sendStudentApprovalSMS(reg.phone, reg.name, details);
+                await updateNewStudentRegistration(reg.id, { 'smsLog.approval': { status: ok ? 'sent' : 'failed', at: Date.now() } });
+            } else if (typeKey === 'reminder') {
+                const res = await scheduleEntranceReminderSMS(reg.phone, reg.name, details);
+                const groupId = res?.groupId;
+                await updateNewStudentRegistration(reg.id, {
+                    'smsLog.reminder': { status: res ? 'scheduled' : 'failed', at: Date.now(), ...(groupId ? { groupId } : {}) },
+                    ...(groupId ? { reminderGroupId: groupId } : {}),
+                });
+            }
+            alert('재발송 처리되었습니다.');
+            await loadRegistrations();
+        } catch (err) {
+            alert('재발송 실패: ' + (err?.message || err));
+        }
+    };
+
+    // 리마인더 재발송 비활성 사유 (입학반 날짜 지남)
+    const resendDisabledReason = (reg, typeKey) => {
+        if (typeKey === 'reminder' && !isReminderResendable(reg)) return '입학반 날짜가 지나 재예약할 수 없습니다.';
+        return null;
     };
 
     // 시간표 편집 모달 열기
@@ -1160,6 +1216,10 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                 </div>
                                             </div>
 
+                                            <div style={{ marginTop: '8px' }}>
+                                                <SmsStatusChips reg={reg} onResend={handleResendSms} resendDisabledReason={resendDisabledReason} />
+                                            </div>
+
                                             <div className="cns-action-row">
                                                 {regFilter === 'pending' && (
                                                     <>
@@ -1216,6 +1276,20 @@ const CoachNewStudents = ({ user, onBack }) => {
                                 </div>
                             );
 
+                            // SMS 누락 요약 배너
+                            const smsSummaryBanner = (() => {
+                                const issues = registrations.reduce((sum, r) => sum + smsIssueCount(r), 0);
+                                return (
+                                    <div style={{
+                                        margin: '0 0 12px', padding: '10px 14px', borderRadius: 'var(--r-md)',
+                                        background: issues > 0 ? '#F8D2D5' : '#C9E8D2',
+                                        color: issues > 0 ? '#991b1b' : '#166534', fontWeight: 600, fontSize: '0.9rem',
+                                    }}>
+                                        {issues > 0 ? `⚠ 자동 문자 누락/실패 ${issues}건 — 아래에서 재발송하세요` : '✅ 자동 문자 누락/실패 없음'}
+                                    </div>
+                                );
+                            })();
+
                             // 승인됨 필터: 입학반별 그룹 표시
                             if (regFilter === 'approved') {
                                 const groups = {};
@@ -1234,6 +1308,7 @@ const CoachNewStudents = ({ user, onBack }) => {
 
                                 return (
                                     <div className="cns-reg-list">
+                                        {smsSummaryBanner}
                                         {sortedKeys.map(key => (
                                             <div key={key}>
                                                 <div className="cns-group-header">
@@ -1254,6 +1329,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                             // 기본 렌더링
                             return (
                                 <div className="cns-reg-list">
+                                    {smsSummaryBanner}
                                     {registrations.map(renderRegCard)}
                                 </div>
                             );
