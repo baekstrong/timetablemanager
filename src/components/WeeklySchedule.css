@@ -174,16 +174,16 @@
 
 /* Free Training (Autonomous) */
 .cell-free {
-    background-color: #f59e0b;
-    /* Orange/Gold */
-    color: white;
+    background-color: var(--caution);
+    /* 자율훈련 — caution(앰버) */
+    color: var(--cta-dark);
     font-weight: 700;
     font-size: 1.2em;
 }
 
-/* Full Class (Red) */
+/* Full Class */
 .cell-full {
-    background-color: #ef4444;
+    background-color: var(--error);
     color: white;
 }
 
@@ -221,10 +221,9 @@
 
 /* Highlighted Students (e.g. Substitutes or Special) */
 .student-tag.special {
-    background-color: #f59e0b;
-    /* Orange */
-    color: white;
-    border-color: #d97706;
+    background-color: var(--caution);
+    color: var(--cta-dark);
+    border-color: var(--caution);
 }
 
 .student-tag.substitute {
@@ -280,7 +279,7 @@
 }
 
 .my-class-badge {
-    background-color: #fbbf24;
+    background-color: var(--caution);
     color: var(--cta-dark);
     font-size: 0.7em;
     padding: 2px 6px;
