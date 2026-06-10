@@ -210,8 +210,8 @@
 }
 
 .student-tag {
-    background-color: var(--canvas-tint);
-    border: 1px solid var(--hairline);
+    background-color: #E8E9EC;
+    border: 1px solid #D2D4D8;
     padding: 2px 6px;
     border-radius: var(--r-chip);
     font-size: 0.75rem;
