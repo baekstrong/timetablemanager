@@ -42,7 +42,7 @@ const CoachNewStudents = ({ user, onBack }) => {
 
     // === 등록 목록 ===
     const [registrations, setRegistrations] = useState([]);
-    const [regFilter, setRegFilter] = useState('pending');
+    const [regFilter, setRegFilter] = useState('approved');
     const [collapsedRegs, setCollapsedRegs] = useState(new Set());
     const [approving, setApproving] = useState(null);
     const [regCounts, setRegCounts] = useState({});
