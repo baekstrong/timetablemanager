@@ -344,7 +344,7 @@ const NewStudentRegistration = () => {
                     {/* Step 1: 가입 */}
                     {step === 0 && (
                         <div className="reg-step-content">
-                            <p className="reg-description" style={{ backgroundColor: '#eff6ff', color: '#1e40af', padding: '10px 12px', borderRadius: '8px', fontSize: '0.85rem', lineHeight: '1.5' }}>
+                            <p className="reg-description" style={{ backgroundColor: 'var(--accent-10)', color: 'var(--accent-hover)', padding: '10px 12px', borderRadius: '8px', fontSize: '0.85rem', lineHeight: '1.5' }}>
                                 수강 신청에 필요한 기본 정보를 입력해주세요
                             </p>
                             <div className="reg-field">
@@ -402,9 +402,9 @@ const NewStudentRegistration = () => {
                                                 flex: 1,
                                                 textAlign: 'center',
                                                 cursor: 'pointer',
-                                                backgroundColor: gender === g ? '#4f46e5' : '#fff',
-                                                color: gender === g ? '#fff' : '#333',
-                                                border: gender === g ? '2px solid #4f46e5' : '1px solid #ddd',
+                                                backgroundColor: gender === g ? 'var(--accent)' : 'var(--canvas)',
+                                                color: gender === g ? '#fff' : 'var(--text)',
+                                                border: gender === g ? '2px solid var(--accent)' : '1px solid var(--hairline)',
                                                 borderRadius: '8px',
                                                 padding: '10px',
                                                 fontSize: '1rem'
@@ -917,7 +917,7 @@ const NewStudentRegistration = () => {
                                     </div>
                                 )}
                                 {isWaitlistMode && (
-                                    <div className="reg-summary-row" style={{ background: '#fef3c7' }}>
+                                    <div className="reg-summary-row" style={{ background: '#fef3c7', borderRadius: '6px' }}>
                                         <span style={{ color: '#92400e', fontWeight: 600 }}>대기 신청</span>
                                         <span style={{ color: '#92400e' }}>여석 발생 시 연락</span>
                                     </div>
