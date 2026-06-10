@@ -227,9 +227,9 @@
 }
 
 .student-tag.substitute {
-    background-color: var(--info);
+    background-color: var(--accent);
     color: white;
-    border-color: var(--info);
+    border-color: var(--accent-hover);
 }
 
 .student-tag.new {
