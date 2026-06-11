@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { categorizeOccupation, tallyOccupations, computeRevenueTrend, tallyGenders, tallyPaymentMethods, countNewVsRenewal, computeSheetChurnByMonth, tallyReferralSources } from './analyticsService';
+import { categorizeOccupation, tallyOccupations, computeRevenueTrend, tallyGenders, tallyPaymentMethods, countNewVsRenewal, computeChurnByMonth, parseYmd, tallyReferralSources, parseAggregateBlock } from './analyticsService';
 
 describe('categorizeOccupation', () => {
   it('회사/직장 키워드를 회사원으로 분류', () => {
@@ -102,36 +102,77 @@ describe('tallyReferralSources', () => {
   });
 });
 
-describe('computeSheetChurnByMonth', () => {
-  it('D열 비고 다음달 활성 없음 → 해당 월 이탈로 집계', () => {
-    const months = [
-      { year: 2026, month: 1, students: [
-        { 이름: '김철수', '요일 및 시간': '월1수1' },
-        { 이름: '이영희', '요일 및 시간': '' },
-      ]},
-      { year: 2026, month: 2, students: [
-        { 이름: '김철수', '요일 및 시간': '월1수1' },
-      ]},
-      { year: 2026, month: 3, students: [
-        { 이름: '김철수', '요일 및 시간': '' },
-      ]},
+describe('parseYmd', () => {
+  it('YYMMDD/YYYYMMDD 파싱, 잘못된 값은 null', () => {
+    expect(parseYmd('260313')).toBe(new Date(2026, 2, 13).getTime());
+    expect(parseYmd('20260313')).toBe(new Date(2026, 2, 13).getTime());
+    expect(parseYmd('')).toBeNull();
+    expect(parseYmd('12')).toBeNull();
+    expect(parseYmd(undefined)).toBeNull();
+  });
+});
+
+describe('computeChurnByMonth', () => {
+  const today = new Date(2026, 5, 11).getTime(); // 2026-06-11
+  const win = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06'];
+
+  it('종료날짜 기준: 마지막 종료월에 이탈 집계 (이름별 dedup)', () => {
+    const rows = [
+      { 이름: '류채림', 종료날짜: '260213' },
+      { 이름: '류채림', 종료날짜: '260313' }, // 마지막 = 3월
+      { 이름: '김지연', 종료날짜: '260413' }, // 4월
     ];
-    // 2월은 다음달(3월) 존재 → 판정 / 3월은 최근달 → 제외
-    // 이영희: 1월 D비어있고 2월 이후 활성 없음 → 1월 이탈
-    // 김철수: 3월에 D비었지만 3월은 최근달이라 제외
-    const out = computeSheetChurnByMonth(months);
-    expect(out['2026-01']).toEqual(['이영희']);
-    expect(out['2026-02']).toBeUndefined();
-    expect(out['2026-03']).toBeUndefined();
+    expect(computeChurnByMonth(rows, [], win, today)).toEqual({ '2026-03': 1, '2026-04': 1 });
   });
 
-  it('D열 비었어도 이후 달에 활성 등록 있으면 이탈 아님', () => {
-    const months = [
-      { year: 2026, month: 1, students: [{ 이름: '박민수', '요일 및 시간': '' }] },
-      { year: 2026, month: 2, students: [{ 이름: '박민수', '요일 및 시간': '화5목5' }] },
-      { year: 2026, month: 3, students: [{ 이름: '박민수', '요일 및 시간': '화5목5' }] },
+  it('오늘 이후까지 가는 등록이 있으면 이탈 아님', () => {
+    const rows = [
+      { 이름: '활성', 종료날짜: '260710' },           // 미래 → 활성
+      { 이름: '복수', 종료날짜: '260213' },
+      { 이름: '복수', 종료날짜: '260730' },           // 미래 등록 존재 → 활성
     ];
-    const out = computeSheetChurnByMonth(months);
-    expect(out['2026-01']).toBeUndefined();
+    expect(computeChurnByMonth(rows, [], win, today)).toEqual({});
+  });
+
+  it('Firebase 종료기록은 종료날짜보다 우선 (중도 종료, H가 미래여도 그 달 이탈)', () => {
+    const terms = [{ studentName: '박종료', ms: new Date(2026, 4, 15).getTime() }]; // 5월
+    const rows = [{ 이름: '박종료', 종료날짜: '260910' }]; // 9월(미래)이지만 종료기록 우선
+    expect(computeChurnByMonth(rows, terms, win, today)).toEqual({ '2026-05': 1 });
+  });
+
+  it('표시 범위 밖 이탈은 집계 안 함', () => {
+    const rows = [{ 이름: '옛날', 종료날짜: '251220' }]; // 2025-12, 범위 밖
+    expect(computeChurnByMonth(rows, [], win, today)).toEqual({});
+  });
+
+  it('종료날짜 없으면 판정 불가(제외)', () => {
+    expect(computeChurnByMonth([{ 이름: '미정', 종료날짜: '' }], [], win, today)).toEqual({});
+  });
+});
+
+describe('parseAggregateBlock', () => {
+  const labels = ['계좌','카드','네이버','탈잉','제로페이','어플','총합','단말기와 차액','<-네이버+탈잉+제로+어플','기타(HR)','총 매출','환불',' 최종 매출\n(환불 포함)'];
+
+  it('만원→원 환산, 0 방식 제외, 최종매출 추출 (6월: 환불 없음)', () => {
+    const values = ['39','190','0','0','62','0','291','291','62','0','291','0','291'];
+    expect(parseAggregateBlock(labels, values)).toEqual({
+      payments: { 계좌: 390000, 카드: 1900000, 제로페이: 620000 },
+      refund: 0,
+      finalRevenue: 2910000,
+    });
+  });
+
+  it('환불은 절대값, 소수 최종매출 처리 (5월: 환불 -53.025)', () => {
+    const values = ['39','39','0','0','0','0','78','78','0','0','871','-53.025','817.975'];
+    expect(parseAggregateBlock(labels, values)).toEqual({
+      payments: { 계좌: 390000, 카드: 390000 },
+      refund: 530250,
+      finalRevenue: 8179750,
+    });
+  });
+
+  it('빈 입력은 안전하게 0/빈 객체', () => {
+    expect(parseAggregateBlock([], [])).toEqual({ payments: {}, refund: 0, finalRevenue: 0 });
+    expect(parseAggregateBlock(undefined, undefined)).toEqual({ payments: {}, refund: 0, finalRevenue: 0 });
   });
 });

@@ -1,5 +1,5 @@
-import { getStudentField, getAllStudents, readSheetData, getSheetNameByYearMonth } from './googleSheetsService';
-import { getNewStudentRegistrations, getTerminations } from './firebaseService';
+import { getStudentField, getAllStudents, readSheetData, getSheetNameByYearMonth, getAllSheetNames, parseStudentData } from './googleSheetsService';
+import { getTerminations } from './firebaseService';
 
 // ─── 직업 키워드 그룹핑 ───
 const OCCUPATION_RULES = [
@@ -69,42 +69,65 @@ export function countNewVsRenewal(students) {
   return result;
 }
 
-// ─── 이탈 (시트 기반) ───
+// ─── 이탈 (종료날짜 기준 + Firebase 종료기록) ───
 const ymKey = (year, month) => `${year}-${String(month).padStart(2, '0')}`;
 
-export function computeSheetChurnByMonth(months) {
-  // months: [{ year, month, students }] — 입력 순서 무관, 내부에서 정렬
-  const ordered = [...(months || [])].sort((a, b) =>
-    (a.year * 100 + a.month) - (b.year * 100 + b.month)
-  );
-  const hasSchedule = (s) => (getStudentField(s, '요일 및 시간') || '').trim() !== '';
+// 'YYMMDD' 또는 'YYYYMMDD' → ms(로컬 자정). 형식이 아니면 null.
+export function parseYmd(raw) {
+  const s = String(raw ?? '').replace(/[^0-9]/g, '');
+  let yy, mm, dd;
+  if (s.length === 6) { yy = 2000 + Number(s.slice(0, 2)); mm = Number(s.slice(2, 4)); dd = Number(s.slice(4, 6)); }
+  else if (s.length === 8) { yy = Number(s.slice(0, 4)); mm = Number(s.slice(4, 6)); dd = Number(s.slice(6, 8)); }
+  else return null;
+  if (!mm || !dd || mm > 12 || dd > 31) return null;
+  return new Date(yy, mm - 1, dd).getTime();
+}
 
-  // 이름이 특정 인덱스 이후(배타적)에 활성 등록을 갖는지
-  const activeAfter = (name, idx) => {
-    for (let j = idx + 1; j < ordered.length; j++) {
-      const found = ordered[j].students.find(s => (s['이름'] || '').trim() === name);
-      if (found && hasSchedule(found)) return true;
-    }
-    return false;
-  };
+const monthKeyFromMs = (ms) => {
+  const d = new Date(ms);
+  return ymKey(d.getFullYear(), d.getMonth() + 1);
+};
 
-  const churnedNames = new Set();
-  const result = {};
-  // 가장 최근 달(마지막 인덱스)은 제외 → length - 1 까지만
-  for (let i = 0; i < ordered.length - 1; i++) {
-    const { year, month, students } = ordered[i];
-    for (const s of students) {
-      const name = (s['이름'] || '').trim();
-      if (!name || churnedNames.has(name)) continue;
-      if (hasSchedule(s)) continue;            // D열 채워짐 → 종료 아님
-      if (activeAfter(name, i)) continue;      // 이후 활성 → 이탈 아님
-      const key = ymKey(year, month);
-      if (!result[key]) result[key] = [];
-      result[key].push(name);
-      churnedNames.add(name);
-    }
+// 이탈 = 오늘 이후까지 가는 등록이 없는 수강생. 이탈 월 = 마지막 종료날짜(H)의 월.
+// Firebase 종료기록(terminations: [{studentName, ms}])이 있으면 그 날짜를 우선한다(중도 종료 대응).
+// windowKeys('YYYY-MM' 목록) 안에 드는 달만 집계해 { 'YYYY-MM': 인원수 }로 반환.
+export function computeChurnByMonth(rows, terminations, windowKeys, todayMs) {
+  const windowSet = new Set(windowKeys || []);
+  const churned = {}; // 이름 → 'YYYY-MM'
+
+  // 1) Firebase 종료기록 우선(권위 있는 날짜)
+  for (const t of terminations || []) {
+    const name = (t?.studentName || '').trim();
+    if (!name) continue;
+    const ms = typeof t?.ms === 'number' ? t.ms : null;
+    if (ms == null) continue;
+    churned[name] = monthKeyFromMs(ms);
   }
-  return result;
+
+  // 2) 종료날짜(H) 기준 — 이름별 종료일 모음
+  const endsByName = {};
+  for (const r of rows || []) {
+    const name = (getStudentField(r, '이름') || '').trim();
+    if (!name) continue;
+    if (!endsByName[name]) endsByName[name] = [];
+    endsByName[name].push(parseYmd(getStudentField(r, '종료날짜')));
+  }
+  for (const [name, ends] of Object.entries(endsByName)) {
+    if (churned[name]) continue;                 // Firebase 우선
+    const valid = ends.filter((e) => e != null);
+    if (valid.length === 0) continue;            // 종료일 없음 → 판정 불가
+    // NOTE: 현재 진행 중인 등록의 종료날짜(H)가 아직 비어 있고(데이터 입력 지연),
+    //       과거 종료 행만 남아 있으면 오탐(이탈로 잡힘) 가능. 보통 H는 채워져 있음.
+    if (valid.some((e) => e >= todayMs)) continue; // 오늘 이후까지 등록 있음 → 활성
+    churned[name] = monthKeyFromMs(Math.max(...valid));
+  }
+
+  // 3) 표시 범위 안에서 월별 카운트
+  const counts = {};
+  for (const key of Object.values(churned)) {
+    if (windowSet.has(key)) counts[key] = (counts[key] || 0) + 1;
+  }
+  return counts;
 }
 
 // ─── 유입경로 ───
@@ -134,6 +157,34 @@ export function recentMonths(n, baseDate = new Date()) {
 // 셀이 비었거나 읽기 실패 시 컬럼 I(결제유무 'O') 합산으로 폴백 — 컬럼 I도 만원 단위.
 const REVENUE_CELL = 'AF3';
 const MANWON = 10000;
+
+// ─── 집계 블록 파서 (행2=라벨, 행3=값, 만원 단위) ───
+const PAYMENT_LABELS = ['계좌', '카드', '네이버', '탈잉', '제로페이', '어플'];
+const toWon = (raw) => {
+  const n = parseFloat(String(raw ?? '').replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(n) ? Math.round(n * MANWON) : 0;
+};
+
+export function parseAggregateBlock(labelRow, valueRow) {
+  const labels = labelRow || [];
+  const values = valueRow || [];
+  const payments = {};
+  let refund = 0;
+  let finalRevenue = 0;
+  labels.forEach((rawLabel, i) => {
+    const label = String(rawLabel ?? '').trim();
+    const won = toWon(values[i]);
+    if (PAYMENT_LABELS.includes(label)) {
+      if (won > 0) payments[label] = won;
+    } else if (label === '환불') {
+      refund = Math.abs(won);
+    } else if (label.includes('최종 매출')) {
+      finalRevenue = won;
+    }
+  });
+  return { payments, refund, finalRevenue };
+}
+
 export async function getMonthlyRevenue(year, month) {
   const sheet = getSheetNameByYearMonth(year, month);
   // 집계 값은 소수·음수(환불) 가능 → parseFloat, 부호·소수점 보존
@@ -160,69 +211,98 @@ export async function getMonthlyRevenue(year, month) {
   }
 }
 
-// 이탈 합치기: 과거달=시트, 최근달=Firebase 종료기록
-function mergeChurn(sheetChurnByMonth, terminations, months) {
-  const counts = {};
-  for (const { year, month } of months) {
-    const key = ymKey(year, month);
-    counts[key] = (sheetChurnByMonth[key] || []).length;
+// 집계 블록(T2:AF3) 1회 읽기 → { payments(원), refund(원,양수), finalRevenue(원) }
+export async function getAggregate(year, month) {
+  const sheet = getSheetNameByYearMonth(year, month);
+  try {
+    const rows = await readSheetData(`${sheet}!T2:AF3`);
+    return parseAggregateBlock(rows?.[0], rows?.[1]);
+  } catch {
+    return { payments: {}, refund: 0, finalRevenue: 0 };
   }
-  // 가장 최근 달은 Firebase 종료기록으로 대체
-  const latest = months[months.length - 1];
-  const latestKey = ymKey(latest.year, latest.month);
-  const inLatest = (terminations || []).filter(t => {
-    const ms = t.terminatedAt?.toMillis?.();
-    if (!ms) return false;
-    const d = new Date(ms);
-    return d.getFullYear() === latest.year && (d.getMonth() + 1) === latest.month;
-  });
-  counts[latestKey] = inLatest.length;
-  return counts;
 }
 
-export async function buildDashboard(monthsCount = 6, baseDate = new Date()) {
+// 매출: 집계 최종매출 우선, 0/실패면 getMonthlyRevenue 폴백(컬럼 I 합산)
+async function resolveRevenue(year, month, agg) {
+  if (agg && agg.finalRevenue > 0) return agg.finalRevenue;
+  return getMonthlyRevenue(year, month);
+}
+
+// 모든 '등록생 목록(...)' 시트의 원본 행(중복 제거 없이) 읽기 — 이탈 판정용
+export async function getAllRawRows() {
+  const names = await getAllSheetNames();
+  const studentSheets = (names || []).filter((n) => n.startsWith('등록생 목록('));
+  const arrays = await Promise.all(studentSheets.map(async (name) => {
+    try { return parseStudentData(await readSheetData(`${name}!A:R`)); }
+    catch { return []; }
+  }));
+  return arrays.flat();
+}
+
+// 최근 N개월(고정) 추세: 매출·환불·이탈
+export async function getTrends(monthsCount = 6, baseDate = new Date()) {
   const months = recentMonths(monthsCount, baseDate);
-  const latest = months[months.length - 1];
-
-  // 월별 학생 배열 + 매출 (병렬)
-  const perMonth = await Promise.all(months.map(async ({ year, month }) => ({
-    year, month,
-    students: await getAllStudents(year, month).catch(() => []),
-    revenue: await getMonthlyRevenue(year, month),
-  })));
-
-  const latestMonthData = perMonth[perMonth.length - 1];
-  const [registrations, terminations] = await Promise.all([
-    getNewStudentRegistrations().catch(() => []),
+  const perMonth = await Promise.all(months.map(async ({ year, month }) => {
+    const agg = await getAggregate(year, month);
+    return { year, month, revenue: await resolveRevenue(year, month, agg), refund: agg.refund };
+  }));
+  const [rawRows, terminations] = await Promise.all([
+    getAllRawRows().catch(() => []),
     getTerminations().catch(() => []),
   ]);
 
   const revenueTrend = computeRevenueTrend(
     perMonth.map(m => ({ year: m.year, month: m.month, revenue: m.revenue }))
   );
-  const sheetChurn = computeSheetChurnByMonth(
-    perMonth.map(m => ({ year: m.year, month: m.month, students: m.students }))
-  );
-  const churnByMonth = mergeChurn(sheetChurn, terminations, months);
+  const refundTrend = perMonth.map(m => ({ year: m.year, month: m.month, refund: m.refund }));
 
-  // 최근 N개월 내 신청만 유입경로 집계
-  const cutoff = new Date(months[0].year, months[0].month - 1, 1).getTime();
-  const recentRegs = registrations.filter(r => (r.createdAt?.toMillis?.() || 0) >= cutoff);
+  const windowKeys = months.map(m => ymKey(m.year, m.month));
+  const terms = (terminations || []).map(t => ({
+    studentName: t.studentName,
+    ms: t.terminatedAt?.toMillis?.() ?? null,
+  }));
+  const todayMidnight = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate()).getTime();
+  const churnByMonth = computeChurnByMonth(rawRows, terms, windowKeys, todayMidnight);
+
+  return { months, revenueTrend, refundTrend, churnByMonth };
+}
+
+// 선택한 달 현황. registrations는 호출측에서 1회 로드해 전달.
+export async function getMonthSnapshot(year, month, registrations = []) {
+  const agg = await getAggregate(year, month);
+  const revenue = await resolveRevenue(year, month, agg);
+
+  // 전월 대비
+  const prevDate = new Date(year, month - 2, 1);
+  const py = prevDate.getFullYear();
+  const pm = prevDate.getMonth() + 1;
+  const prevAgg = await getAggregate(py, pm);
+  const prevRevenue = await resolveRevenue(py, pm, prevAgg);
+  const trend = computeRevenueTrend([{ revenue: prevRevenue }, { revenue }]);
+  const prevDelta = { delta: trend[1].delta, deltaPct: trend[1].deltaPct };
+
+  const students = await getAllStudents(year, month).catch(() => []);
+  const inMonth = (registrations || []).filter(r => {
+    const ms = r.createdAt?.toMillis?.();
+    if (!ms) return false;
+    const d = new Date(ms);
+    return d.getFullYear() === year && (d.getMonth() + 1) === month;
+  });
 
   return {
-    months,
-    latest,
-    revenueTrend,
-    payments: tallyPaymentMethods(latestMonthData.students),
-    genders: tallyGenders(latestMonthData.students),
-    occupations: tallyOccupations(latestMonthData.students),
-    referrals: tallyReferralSources(recentRegs),
-    newVsRenewal: countNewVsRenewal(latestMonthData.students),
-    totalStudents: latestMonthData.students.filter(s => (s['이름'] || '').trim()).length,
-    churnByMonth,
-    churnLatest: churnByMonth[ymKey(latest.year, latest.month)] || 0,
+    year, month,
+    revenue,
+    refund: agg.refund,
+    prevDelta,
+    payments: agg.payments,
+    totalStudents: students.filter(s => (s['이름'] || '').trim()).length,
+    newVsRenewal: countNewVsRenewal(students),
+    genders: tallyGenders(students),
+    occupations: tallyOccupations(students),
+    referrals: tallyReferralSources(inMonth),
   };
 }
+
 
 // ─── 매출 증감 ───
 export function computeRevenueTrend(monthlyRevenues) {
