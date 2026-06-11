@@ -129,7 +129,8 @@ export function recentMonths(n, baseDate = new Date()) {
   return list;
 }
 
-// 시트의 사전 계산 매출 합계 셀 읽기. CELL은 구현 중 확정(F1 또는 AF3).
+// 시트의 사전 계산 매출 합계 셀(F1)을 우선 읽고, 비었거나 실패하면 컬럼 I 합산으로 폴백.
+// (F1/AF3 중 실제 합계 셀은 운영 시트에서 확정 필요 — 폴백이 있어 어느 경우든 정확)
 const REVENUE_CELL = 'F1';
 export async function getMonthlyRevenue(year, month) {
   const sheet = getSheetNameByYearMonth(year, month);
@@ -137,7 +138,19 @@ export async function getMonthlyRevenue(year, month) {
     const rows = await readSheetData(`${sheet}!${REVENUE_CELL}`);
     const raw = rows?.[0]?.[0];
     const num = parseInt(String(raw ?? '').replace(/[^0-9]/g, ''), 10);
-    return Number.isFinite(num) ? num : 0;
+    if (Number.isFinite(num) && num > 0) return num;
+  } catch {
+    // 셀 읽기 실패 시 폴백
+  }
+  // 폴백: 결제유무 'O'인 행의 결제금액 합산
+  try {
+    const students = await getAllStudents(year, month);
+    return (students || []).reduce((sum, s) => {
+      const paid = (getStudentField(s, '결제유무') || '').trim().toUpperCase() === 'O';
+      if (!paid) return sum;
+      const amt = parseInt((getStudentField(s, '결제금액') || '0').replace(/[^0-9]/g, ''), 10) || 0;
+      return sum + amt;
+    }, 0);
   } catch {
     return 0;
   }

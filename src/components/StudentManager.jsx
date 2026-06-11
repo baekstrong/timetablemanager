@@ -325,7 +325,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                       className="analytics-entry-btn"
                       onClick={() => onNavigate && onNavigate('analytics')}
                     >
-                      📊 매출·통계
+                      📈 매출·통계
                     </button>
                     <div className="student-count">총 {activeStudents.length}명</div>
                 </div>

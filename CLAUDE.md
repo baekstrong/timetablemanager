@@ -112,7 +112,8 @@ src/
 ├── services/
 │   ├── googleSheetsService.js       # Google Sheets API 호출 (~1768줄)
 │   ├── firebaseService.js           # Firestore CRUD (~1123줄)
-│   └── smsService.js                # Solapi SMS 발송
+│   ├── smsService.js                # Solapi SMS 발송
+│   └── analyticsService.js          # 매출·통계 집계 로직
 ├── components/
 │   ├── Login.jsx                    # 로그인 (Firestore 평문 비밀번호 비교)
 │   ├── Dashboard.jsx                # 대시보드 (커뮤니티 게시판)
@@ -131,6 +132,7 @@ src/
 │   ├── BottomNav.jsx                # 하단 네비게이션 (코치/학생 탭 다름)
 │   ├── Ranking.jsx                  # 랭킹·내 PR·성장 그래프 페이지 (3 탭)
 │   ├── PRSubmitModal.jsx            # 공식 PR 측정 등록 모달 (prType별 동적 폼)
+│   ├── AnalyticsDashboard.jsx       # 매출·통계 대시보드 (코치용)
 │   ├── GoogleSheetsSync.jsx         # Sheets 동기화 UI
 │   ├── GoogleSheetsEmbed.jsx        # Sheets 임베드
 │   └── GoogleSheetsTest.jsx         # Sheets 연결 테스트
@@ -173,6 +175,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `newstudents` | CoachNewStudents | 신규 승인 (코치용) |
 | `contractView` | ContractView | 재등록 계약 동의 (학생용) |
 | `ranking` | Ranking | 랭킹·내 PR·성장 그래프 (코치/학생 공용, Dashboard 카드로 진입) |
+| `analytics` | AnalyticsDashboard | 매출·통계 대시보드 (코치용, 수강생 관리에서 진입) |
 
 - URL `?register=true` → 로그인 없이 `NewStudentRegistration` 직접 렌더링
 - 훈련일지 탭 → `window.location.href = './training-log/index.html'` (React 외부)
@@ -269,13 +272,14 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `holidays` | 코치 커스텀 공휴일 |
 | `disabledClasses` | 비활성화된 수업 슬롯 (키: `"월-1"`) |
 | `waitlistRequests` | 시간표 대기 신청 — 영구 시간표 변경 (status: waiting/notified/accepted/cancelled) |
-| `newStudentRegistrations` | 신규 수강 신청 (pending/approved/rejected). `smsLog{reception,approval,reminder}` 필드에 자동 문자 발송 결과 기록 → 신규 페이지 SMS 상황판(상태칩+재발송)이 이를 읽음. `registeredByCoach=true`(코치 직접 등록)는 자동문자 대상 아님 |
+| `newStudentRegistrations` | 신규 수강 신청 (pending/approved/rejected). `smsLog{reception,approval,reminder}` 필드에 자동 문자 발송 결과 기록 → 신규 페이지 SMS 상황판(상태칩+재발송)이 이를 읽음. `registeredByCoach=true`(코치 직접 등록)는 자동문자 대상 아님. `referralSource`(유입경로: 인스타그램/네이버/지인추천/직접방문/기타) 필드를 포함하며 매출·통계 대시보드 유입경로 집계에 사용 |
 | `entranceClasses` | 입학반 정보 |
 | `registrationFAQ` | 신규 등록 FAQ |
 | `coachPinnedMemos` | 코치가 수강생별 고정한 메모 (훈련일지) |
 | `pinnedMemos` | 수강생 자신의 고정 메모 (훈련일지) |
 | `renewalContracts` | 재등록 계약 (status: pending/agreed/cancelled) |
 | `personalBests` | 공식 PR 측정 결과 (`prType`별 비교 룰; doc id: `{userName}__{exercise}` 또는 `{userName}__{exercise}__{intensity}{unit}` for `weightThenReps`) |
+| `studentTerminations` | 코치가 '종료' 버튼으로 수강 종료한 기록 (이탈 통계용). `{studentName, terminatedBy:'coach', reason, terminatedAt}` |
 
 ### `personalBests` 상세
 
