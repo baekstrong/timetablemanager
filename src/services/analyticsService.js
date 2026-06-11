@@ -129,28 +129,32 @@ export function recentMonths(n, baseDate = new Date()) {
   return list;
 }
 
-// 시트의 사전 계산 매출 합계 셀(F1)을 우선 읽고, 비었거나 실패하면 컬럼 I 합산으로 폴백.
-// (F1/AF3 중 실제 합계 셀은 운영 시트에서 확정 필요 — 폴백이 있어 어느 경우든 정확)
-const REVENUE_CELL = 'F1';
+// 시트의 '엑셀 시트 집계' 블록(T~AH)에 사전 계산된 '최종 매출(환불 포함)' 셀(AF3)을 읽는다.
+// ⚠️ 시트의 모든 금액은 '만원' 단위(예: 291 = 291만원)이므로 원 단위로 환산(×10000)한다.
+// 셀이 비었거나 읽기 실패 시 컬럼 I(결제유무 'O') 합산으로 폴백 — 컬럼 I도 만원 단위.
+const REVENUE_CELL = 'AF3';
+const MANWON = 10000;
 export async function getMonthlyRevenue(year, month) {
   const sheet = getSheetNameByYearMonth(year, month);
+  // 집계 값은 소수·음수(환불) 가능 → parseFloat, 부호·소수점 보존
   try {
     const rows = await readSheetData(`${sheet}!${REVENUE_CELL}`);
     const raw = rows?.[0]?.[0];
-    const num = parseInt(String(raw ?? '').replace(/[^0-9]/g, ''), 10);
-    if (Number.isFinite(num) && num > 0) return num;
+    const num = parseFloat(String(raw ?? '').replace(/[^0-9.-]/g, ''));
+    if (Number.isFinite(num) && num > 0) return Math.round(num * MANWON);
   } catch {
     // 셀 읽기 실패 시 폴백
   }
-  // 폴백: 결제유무 'O'인 행의 결제금액 합산
+  // 폴백: 결제유무 'O'인 행의 결제금액(만원, 환불은 음수) 합산 → 원 환산
   try {
     const students = await getAllStudents(year, month);
-    return (students || []).reduce((sum, s) => {
+    const manwon = (students || []).reduce((sum, s) => {
       const paid = (getStudentField(s, '결제유무') || '').trim().toUpperCase() === 'O';
       if (!paid) return sum;
-      const amt = parseInt((getStudentField(s, '결제금액') || '0').replace(/[^0-9]/g, ''), 10) || 0;
+      const amt = parseFloat((getStudentField(s, '결제금액') || '0').replace(/[^0-9.-]/g, '')) || 0;
       return sum + amt;
     }, 0);
+    return Math.round(manwon * MANWON);
   } catch {
     return 0;
   }
