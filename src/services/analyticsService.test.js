@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { categorizeOccupation, tallyOccupations, computeRevenueTrend, tallyGenders, tallyPaymentMethods, countNewVsRenewal } from './analyticsService';
+import { categorizeOccupation, tallyOccupations, computeRevenueTrend, tallyGenders, tallyPaymentMethods, countNewVsRenewal, computeSheetChurnByMonth } from './analyticsService';
 
 describe('categorizeOccupation', () => {
   it('회사/직장 키워드를 회사원으로 분류', () => {
@@ -87,5 +87,39 @@ describe('countNewVsRenewal', () => {
       { '신규/재등록': '신규' }, { '신규/재등록': '재등록' }, { '신규/재등록': '재등록' },
     ];
     expect(countNewVsRenewal(students)).toEqual({ 신규: 1, 재등록: 2 });
+  });
+});
+
+describe('computeSheetChurnByMonth', () => {
+  it('D열 비고 다음달 활성 없음 → 해당 월 이탈로 집계', () => {
+    const months = [
+      { year: 2026, month: 1, students: [
+        { 이름: '김철수', '요일 및 시간': '월1수1' },
+        { 이름: '이영희', '요일 및 시간': '' },
+      ]},
+      { year: 2026, month: 2, students: [
+        { 이름: '김철수', '요일 및 시간': '월1수1' },
+      ]},
+      { year: 2026, month: 3, students: [
+        { 이름: '김철수', '요일 및 시간': '' },
+      ]},
+    ];
+    // 2월은 다음달(3월) 존재 → 판정 / 3월은 최근달 → 제외
+    // 이영희: 1월 D비어있고 2월 이후 활성 없음 → 1월 이탈
+    // 김철수: 3월에 D비었지만 3월은 최근달이라 제외
+    const out = computeSheetChurnByMonth(months);
+    expect(out['2026-01']).toEqual(['이영희']);
+    expect(out['2026-02']).toBeUndefined();
+    expect(out['2026-03']).toBeUndefined();
+  });
+
+  it('D열 비었어도 이후 달에 활성 등록 있으면 이탈 아님', () => {
+    const months = [
+      { year: 2026, month: 1, students: [{ 이름: '박민수', '요일 및 시간': '' }] },
+      { year: 2026, month: 2, students: [{ 이름: '박민수', '요일 및 시간': '화5목5' }] },
+      { year: 2026, month: 3, students: [{ 이름: '박민수', '요일 및 시간': '화5목5' }] },
+    ];
+    const out = computeSheetChurnByMonth(months);
+    expect(out['2026-01']).toBeUndefined();
   });
 });

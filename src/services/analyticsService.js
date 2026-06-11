@@ -68,6 +68,44 @@ export function countNewVsRenewal(students) {
   return result;
 }
 
+// ─── 이탈 (시트 기반) ───
+const ymKey = (year, month) => `${year}-${String(month).padStart(2, '0')}`;
+
+export function computeSheetChurnByMonth(months) {
+  // months: [{ year, month, students }] — 입력 순서 무관, 내부에서 정렬
+  const ordered = [...(months || [])].sort((a, b) =>
+    (a.year * 100 + a.month) - (b.year * 100 + b.month)
+  );
+  const hasSchedule = (s) => (getStudentField(s, '요일 및 시간') || '').trim() !== '';
+
+  // 이름이 특정 인덱스 이후(배타적)에 활성 등록을 갖는지
+  const activeAfter = (name, idx) => {
+    for (let j = idx + 1; j < ordered.length; j++) {
+      const found = ordered[j].students.find(s => (s['이름'] || '').trim() === name);
+      if (found && hasSchedule(found)) return true;
+    }
+    return false;
+  };
+
+  const churnedNames = new Set();
+  const result = {};
+  // 가장 최근 달(마지막 인덱스)은 제외 → length - 1 까지만
+  for (let i = 0; i < ordered.length - 1; i++) {
+    const { year, month, students } = ordered[i];
+    for (const s of students) {
+      const name = (s['이름'] || '').trim();
+      if (!name || churnedNames.has(name)) continue;
+      if (hasSchedule(s)) continue;            // D열 채워짐 → 종료 아님
+      if (activeAfter(name, i)) continue;      // 이후 활성 → 이탈 아님
+      const key = ymKey(year, month);
+      if (!result[key]) result[key] = [];
+      result[key].push(name);
+      churnedNames.add(name);
+    }
+  }
+  return result;
+}
+
 // ─── 매출 증감 ───
 export function computeRevenueTrend(monthlyRevenues) {
   return (monthlyRevenues || []).map((cur, i) => {
