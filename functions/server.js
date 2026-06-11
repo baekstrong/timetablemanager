@@ -229,6 +229,35 @@ app.post(['/batchUpdateSheet', '/batchUpdate'], async (req, res) => {
 });
 
 /**
+ * POST /batchGet (alias /batchGetSheet)
+ * 여러 범위를 한 번의 요청으로 읽기 (할당량 절약)
+ */
+app.post(['/batchGet', '/batchGetSheet'], async (req, res) => {
+  try {
+    const { ranges } = req.body;
+    if (!Array.isArray(ranges) || ranges.length === 0) {
+      return res.status(400).json({ error: 'ranges (array) is required' });
+    }
+    const sheets = await getGoogleSheetsClient();
+    const response = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId: SPREADSHEET_ID,
+      ranges,
+    });
+    res.json({
+      success: true,
+      valueRanges: (response.data.valueRanges || []).map(v => ({
+        range: v.range,
+        values: v.values || [],
+      })),
+    });
+  } catch (error) {
+    console.error('❌ Error batchGet:', error.message);
+    const upstreamStatus = error.status || error.response?.status || error.code;
+    res.status(upstreamStatus === 429 ? 429 : 500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /formatCells
  * 셀 서식 적용 (배경색, 정렬)
  */

@@ -313,6 +313,35 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // POST /sheets/batchGet - 여러 범위를 한 번에 읽기 (할당량 절약)
+    if (event.httpMethod === 'POST' && path === 'batchGet') {
+      const { ranges } = JSON.parse(event.body || '{}');
+      if (!Array.isArray(ranges) || ranges.length === 0) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'ranges (array) is required' }),
+        };
+      }
+
+      const response = await sheets.spreadsheets.values.batchGet({
+        spreadsheetId: SPREADSHEET_ID,
+        ranges,
+      });
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          valueRanges: (response.data.valueRanges || []).map(v => ({
+            range: v.range,
+            values: v.values || [],
+          })),
+        }),
+      };
+    }
+
     return {
       statusCode: 404,
       headers,
@@ -320,8 +349,12 @@ exports.handler = async (event, context) => {
     };
   } catch (error) {
     console.error('Error:', error);
+    // 할당량 초과(429)는 상태코드를 보존해 클라이언트가 재시도할 수 있게 한다
+    // (googleapis는 상태를 error.status / error.response.status / error.code 중 하나에 둠)
+    const upstreamStatus = error.status || error.response?.status || error.code;
+    const statusCode = upstreamStatus === 429 ? 429 : 500;
     return {
-      statusCode: 500,
+      statusCode,
       headers,
       body: JSON.stringify({
         success: false,

@@ -1,4 +1,4 @@
-import { getStudentField, getAllStudents, readSheetData, getSheetNameByYearMonth, getAllSheetNames, parseStudentData } from './googleSheetsService';
+import { getStudentField, getAllStudents, readSheetData, batchReadSheetData, getSheetNameByYearMonth, getAllSheetNames, parseStudentData } from './googleSheetsService';
 import { getTerminations } from './firebaseService';
 
 // ─── 직업 키워드 그룹핑 ───
@@ -229,11 +229,17 @@ async function resolveRevenue(year, month, agg) {
 }
 
 // 모든 '등록생 목록(...)' 시트의 원본 행(중복 제거 없이) 읽기 — 이탈 판정용
+// 모든 시트를 한 번의 batchGet 요청으로 읽어 할당량 절약(N개 요청 → 1개).
 export async function getAllRawRows() {
   const names = await getAllSheetNames();
   const studentSheets = (names || []).filter((n) => n.startsWith('등록생 목록('));
-  const arrays = await Promise.all(studentSheets.map(async (name) => {
-    try { return parseStudentData(await readSheetData(`${name}!A:R`)); }
+  if (studentSheets.length === 0) return [];
+  let valueRanges = [];
+  try {
+    valueRanges = await batchReadSheetData(studentSheets.map((n) => `${n}!A:R`));
+  } catch { valueRanges = []; }
+  const arrays = await Promise.all(studentSheets.map(async (name, i) => {
+    try { return parseStudentData(valueRanges[i]?.values ?? await readSheetData(`${name}!A:R`)); }
     catch { return []; }
   }));
   return arrays.flat();
@@ -242,8 +248,12 @@ export async function getAllRawRows() {
 // 최근 N개월(고정) 추세: 매출·환불·이탈
 export async function getTrends(monthsCount = 6, baseDate = new Date()) {
   const months = recentMonths(monthsCount, baseDate);
-  const perMonth = await Promise.all(months.map(async ({ year, month }) => {
-    const agg = await getAggregate(year, month);
+  // 월별 집계 블록(T2:AF3)을 한 번의 batchGet으로 읽음 (6개 요청 → 1개)
+  const aggRanges = months.map(({ year, month }) => `${getSheetNameByYearMonth(year, month)}!T2:AF3`);
+  const aggVrs = await batchReadSheetData(aggRanges).catch(() => []);
+  const perMonth = await Promise.all(months.map(async ({ year, month }, i) => {
+    const rows = aggVrs[i]?.values;
+    const agg = rows ? parseAggregateBlock(rows[0], rows[1]) : await getAggregate(year, month);
     return { year, month, revenue: await resolveRevenue(year, month, agg), refund: agg.refund };
   }));
   const [rawRows, terminations] = await Promise.all([

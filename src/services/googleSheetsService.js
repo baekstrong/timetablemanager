@@ -42,13 +42,47 @@ export const isSignedIn = () => true;
  * @param {string} errorContext - 에러 로그용 문맥 설명
  * @returns {Promise<Object>} - 서버 응답의 data 객체
  */
-async function apiGet(path, errorContext) {
-  const response = await fetch(`${FUNCTIONS_BASE_URL}${path}`);
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error || `Failed to ${errorContext}`);
+// 할당량/레이트리밋 에러 판별 (상태코드 또는 메시지)
+export function isQuotaError(status, message) {
+  if (status === 429) return true;
+  const m = String(message || '').toLowerCase();
+  return m.includes('quota') || m.includes('rate limit') || m.includes('ratelimit') || m.includes('resource_exhausted');
+}
+
+const QUOTA_MAX_RETRIES = 4;
+const QUOTA_BASE_DELAY_MS = 600;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const backoffDelay = (attempt) => QUOTA_BASE_DELAY_MS * (2 ** attempt) + Math.floor(Math.random() * 200);
+
+// fetch + JSON + success 검사. 할당량(429/quota) 에러면 지수 백오프로 재시도.
+async function requestWithRetry(url, options, errorContext) {
+  let lastError;
+  for (let attempt = 0; attempt <= QUOTA_MAX_RETRIES; attempt++) {
+    let response;
+    let data;
+    try {
+      response = await fetch(url, options);
+      data = await response.json();
+    } catch (netErr) {
+      // 네트워크 단절 등 — 마지막 시도면 throw, 아니면 재시도
+      lastError = netErr;
+      if (attempt < QUOTA_MAX_RETRIES) { await sleep(backoffDelay(attempt)); continue; }
+      throw netErr;
+    }
+    if (data && data.success) return data;
+    const message = (data && data.error) || `Failed to ${errorContext}`;
+    if (isQuotaError(response.status, message) && attempt < QUOTA_MAX_RETRIES) {
+      console.warn(`⏳ Sheets 할당량 초과 — 재시도 ${attempt + 1}/${QUOTA_MAX_RETRIES} (${errorContext})`);
+      await sleep(backoffDelay(attempt));
+      continue;
+    }
+    throw new Error(message);
   }
-  return data;
+  throw lastError || new Error(`Failed to ${errorContext}`);
+}
+
+async function apiGet(path, errorContext) {
+  return requestWithRetry(`${FUNCTIONS_BASE_URL}${path}`, undefined, errorContext);
 }
 
 /**
@@ -59,16 +93,11 @@ async function apiGet(path, errorContext) {
  * @returns {Promise<Object>} - 서버 응답의 data 객체
  */
 async function apiPost(path, body, errorContext) {
-  const response = await fetch(`${FUNCTIONS_BASE_URL}${path}`, {
+  return requestWithRetry(`${FUNCTIONS_BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  });
-  const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error || `Failed to ${errorContext}`);
-  }
-  return data;
+  }, errorContext);
 }
 
 /**
@@ -453,6 +482,17 @@ export const readSheetData = async (range = null) => {
   }
   const data = await apiGet(`/read?range=${encodeURIComponent(range)}`, 'read sheet data');
   return data.values || [];
+};
+
+/**
+ * 여러 범위를 한 번의 요청으로 읽기 (할당량 절약 — N개 시트를 1개 요청으로)
+ * @param {Array<string>} ranges - A1 표기 범위 배열
+ * @returns {Promise<Array<{range:string, values:Array}>>} - 입력 순서대로 반환
+ */
+export const batchReadSheetData = async (ranges) => {
+  if (!ranges || ranges.length === 0) return [];
+  const data = await apiPost('/batchGet', { ranges }, 'batch read sheet data');
+  return data.valueRanges || [];
 };
 
 /**
@@ -1085,15 +1125,24 @@ export const getAllStudentsFromAllSheets = async () => {
     return [];
   }
 
+  // 모든 월별 시트를 한 번의 batchGet 요청으로 읽음 (할당량 절약: N개 요청 → 1개)
+  let valueRanges = [];
+  try {
+    valueRanges = await batchReadSheetData(studentSheets.map(name => `${name}!A:R`));
+  } catch (error) {
+    console.warn('⚠️ batchGet 실패 — 개별 읽기로 폴백:', error);
+    valueRanges = [];
+  }
+
   const studentsArrays = await Promise.all(
-    studentSheets.map(async (foundSheetName) => {
+    studentSheets.map(async (foundSheetName, i) => {
       try {
-        const rows = await readSheetData(`${foundSheetName}!A:R`);
+        // batchGet 결과는 입력 순서대로. 실패/누락 시 개별 읽기로 폴백.
+        const rows = valueRanges[i]?.values ?? await readSheetData(`${foundSheetName}!A:R`);
         const parsedData = parseStudentData(rows);
         parsedData.forEach(student => {
           student._foundSheetName = foundSheetName;
         });
-        console.log(`✅ Loaded ${parsedData.length} students from ${foundSheetName}`);
         return parsedData;
       } catch (error) {
         console.warn(`⚠️ Failed to load sheet ${foundSheetName}:`, error);
