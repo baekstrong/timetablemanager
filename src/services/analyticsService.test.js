@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { categorizeOccupation, tallyOccupations, computeRevenueTrend, tallyGenders, tallyPaymentMethods, countNewVsRenewal, computeSheetChurnByMonth } from './analyticsService';
+import { categorizeOccupation, tallyOccupations, computeRevenueTrend, tallyGenders, tallyPaymentMethods, countNewVsRenewal, computeSheetChurnByMonth, tallyReferralSources } from './analyticsService';
 
 describe('categorizeOccupation', () => {
   it('회사/직장 키워드를 회사원으로 분류', () => {
@@ -87,6 +87,18 @@ describe('countNewVsRenewal', () => {
       { '신규/재등록': '신규' }, { '신규/재등록': '재등록' }, { '신규/재등록': '재등록' },
     ];
     expect(countNewVsRenewal(students)).toEqual({ 신규: 1, 재등록: 2 });
+  });
+});
+
+describe('tallyReferralSources', () => {
+  it('referralSource별 집계, 빈 값은 미입력', () => {
+    const regs = [
+      { referralSource: '인스타그램' }, { referralSource: '인스타그램' },
+      { referralSource: '지인추천' }, { referralSource: '' }, {},
+    ];
+    expect(tallyReferralSources(regs)).toEqual({
+      인스타그램: 2, 지인추천: 1, 미입력: 2,
+    });
   });
 });
 

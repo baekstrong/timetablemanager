@@ -1,4 +1,5 @@
-import { getStudentField } from './googleSheetsService';
+import { getStudentField, getAllStudents, readSheetData, getSheetNameByYearMonth } from './googleSheetsService';
+import { getNewStudentRegistrations, getTerminations } from './firebaseService';
 
 // ─── 직업 키워드 그룹핑 ───
 const OCCUPATION_RULES = [
@@ -104,6 +105,106 @@ export function computeSheetChurnByMonth(months) {
     }
   }
   return result;
+}
+
+// ─── 유입경로 ───
+export function tallyReferralSources(registrations) {
+  const result = {};
+  for (const r of registrations || []) {
+    const key = (r.referralSource || '').trim() || '미입력';
+    result[key] = (result[key] || 0) + 1;
+  }
+  return result;
+}
+
+// ─── IO 오케스트레이션 ───
+
+// 최근 N개월의 {year, month} 목록 (오래된→최신). baseDate 기본 오늘.
+export function recentMonths(n, baseDate = new Date()) {
+  const list = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(baseDate.getFullYear(), baseDate.getMonth() - i, 1);
+    list.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+  }
+  return list;
+}
+
+// 시트의 사전 계산 매출 합계 셀 읽기. CELL은 구현 중 확정(F1 또는 AF3).
+const REVENUE_CELL = 'F1';
+export async function getMonthlyRevenue(year, month) {
+  const sheet = getSheetNameByYearMonth(year, month);
+  try {
+    const rows = await readSheetData(`${sheet}!${REVENUE_CELL}`);
+    const raw = rows?.[0]?.[0];
+    const num = parseInt(String(raw ?? '').replace(/[^0-9]/g, ''), 10);
+    return Number.isFinite(num) ? num : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// 이탈 합치기: 과거달=시트, 최근달=Firebase 종료기록
+function mergeChurn(sheetChurnByMonth, terminations, months) {
+  const counts = {};
+  for (const { year, month } of months) {
+    const key = ymKey(year, month);
+    counts[key] = (sheetChurnByMonth[key] || []).length;
+  }
+  // 가장 최근 달은 Firebase 종료기록으로 대체
+  const latest = months[months.length - 1];
+  const latestKey = ymKey(latest.year, latest.month);
+  const inLatest = (terminations || []).filter(t => {
+    const ms = t.terminatedAt?.toMillis?.();
+    if (!ms) return false;
+    const d = new Date(ms);
+    return d.getFullYear() === latest.year && (d.getMonth() + 1) === latest.month;
+  });
+  counts[latestKey] = inLatest.length;
+  return counts;
+}
+
+export async function buildDashboard(monthsCount = 6, baseDate = new Date()) {
+  const months = recentMonths(monthsCount, baseDate);
+  const latest = months[months.length - 1];
+
+  // 월별 학생 배열 + 매출 (병렬)
+  const perMonth = await Promise.all(months.map(async ({ year, month }) => ({
+    year, month,
+    students: await getAllStudents(year, month).catch(() => []),
+    revenue: await getMonthlyRevenue(year, month),
+  })));
+
+  const latestMonthData = perMonth[perMonth.length - 1];
+  const [registrations, terminations] = await Promise.all([
+    getNewStudentRegistrations().catch(() => []),
+    getTerminations().catch(() => []),
+  ]);
+
+  const revenueTrend = computeRevenueTrend(
+    perMonth.map(m => ({ year: m.year, month: m.month, revenue: m.revenue }))
+  );
+  const sheetChurn = computeSheetChurnByMonth(
+    perMonth.map(m => ({ year: m.year, month: m.month, students: m.students }))
+  );
+  const churnByMonth = mergeChurn(sheetChurn, terminations, months);
+
+  // 최근 N개월 내 신청만 유입경로 집계
+  const cutoff = new Date(months[0].year, months[0].month - 1, 1).getTime();
+  const recentRegs = registrations.filter(r => (r.createdAt?.toMillis?.() || 0) >= cutoff);
+
+  return {
+    months,
+    latest,
+    revenueTrend,
+    payments: tallyPaymentMethods(latestMonthData.students),
+    genders: tallyGenders(latestMonthData.students),
+    occupations: tallyOccupations(latestMonthData.students),
+    referrals: tallyReferralSources(recentRegs),
+    newVsRenewal: countNewVsRenewal(latestMonthData.students),
+    totalStudents: latestMonthData.students.filter(s => (s['이름'] || '').trim()).length,
+    churnByMonth,
+    churnLatest: churnByMonth[ymKey(latest.year, latest.month)] || 0,
+  };
 }
 
 // ─── 매출 증감 ───
