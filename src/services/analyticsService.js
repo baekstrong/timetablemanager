@@ -116,6 +116,8 @@ export function computeChurnByMonth(rows, terminations, windowKeys, todayMs) {
     if (churned[name]) continue;                 // Firebase 우선
     const valid = ends.filter((e) => e != null);
     if (valid.length === 0) continue;            // 종료일 없음 → 판정 불가
+    // NOTE: 현재 진행 중인 등록의 종료날짜(H)가 아직 비어 있고(데이터 입력 지연),
+    //       과거 종료 행만 남아 있으면 오탐(이탈로 잡힘) 가능. 보통 H는 채워져 있음.
     if (valid.some((e) => e >= todayMs)) continue; // 오늘 이후까지 등록 있음 → 활성
     churned[name] = monthKeyFromMs(Math.max(...valid));
   }
