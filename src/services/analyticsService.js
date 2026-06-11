@@ -27,6 +27,47 @@ export function tallyOccupations(students) {
   return result;
 }
 
+// ─── 학생 구성 ───
+export function normalizeGender(g) {
+  const t = (g || '').trim();
+  if (t.startsWith('남')) return '남';
+  if (t.startsWith('여')) return '여';
+  return '';
+}
+
+export function tallyGenders(students) {
+  const result = {};
+  for (const s of students || []) {
+    const g = normalizeGender(getStudentField(s, '성별'));
+    if (!g) continue;
+    result[g] = (result[g] || 0) + 1;
+  }
+  return result;
+}
+
+export function tallyPaymentMethods(students) {
+  const result = {};
+  for (const s of students || []) {
+    const method = (getStudentField(s, '결제방식') || '').trim();
+    if (!method) continue;
+    const amount = parseInt((getStudentField(s, '결제금액') || '0').replace(/[^0-9]/g, ''), 10) || 0;
+    if (!result[method]) result[method] = { count: 0, amount: 0 };
+    result[method].count += 1;
+    result[method].amount += amount;
+  }
+  return result;
+}
+
+export function countNewVsRenewal(students) {
+  const result = { 신규: 0, 재등록: 0 };
+  for (const s of students || []) {
+    const v = (getStudentField(s, '신규/재등록') || '').trim();
+    if (v === '신규') result.신규 += 1;
+    else if (v === '재등록') result.재등록 += 1;
+  }
+  return result;
+}
+
 // ─── 매출 증감 ───
 export function computeRevenueTrend(monthlyRevenues) {
   return (monthlyRevenues || []).map((cur, i) => {

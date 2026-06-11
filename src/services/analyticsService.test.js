@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { categorizeOccupation, tallyOccupations, computeRevenueTrend } from './analyticsService';
+import { categorizeOccupation, tallyOccupations, computeRevenueTrend, tallyGenders, tallyPaymentMethods, countNewVsRenewal } from './analyticsService';
 
 describe('categorizeOccupation', () => {
   it('회사/직장 키워드를 회사원으로 분류', () => {
@@ -57,5 +57,35 @@ describe('computeRevenueTrend', () => {
     ]);
     expect(out[1].delta).toBe(500000);
     expect(out[1].deltaPct).toBeNull();
+  });
+});
+
+describe('tallyGenders', () => {
+  it('남/여 정규화 후 집계', () => {
+    const students = [{ 성별: '남' }, { 성별: '남자' }, { 성별: '여' }, { 성별: '' }];
+    expect(tallyGenders(students)).toEqual({ 남: 2, 여: 1 });
+  });
+});
+
+describe('tallyPaymentMethods', () => {
+  it('결제방식별 건수와 금액 합', () => {
+    const students = [
+      { 결제방식: '카드', 결제금액: '450000' },
+      { 결제방식: '카드', 결제금액: '390000' },
+      { 결제방식: '계좌', 결제금액: '310000' },
+    ];
+    expect(tallyPaymentMethods(students)).toEqual({
+      카드: { count: 2, amount: 840000 },
+      계좌: { count: 1, amount: 310000 },
+    });
+  });
+});
+
+describe('countNewVsRenewal', () => {
+  it('신규/재등록 카운트', () => {
+    const students = [
+      { '신규/재등록': '신규' }, { '신규/재등록': '재등록' }, { '신규/재등록': '재등록' },
+    ];
+    expect(countNewVsRenewal(students)).toEqual({ 신규: 1, 재등록: 2 });
   });
 });
