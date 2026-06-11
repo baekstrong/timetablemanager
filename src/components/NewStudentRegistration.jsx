@@ -53,6 +53,7 @@ const NewStudentRegistration = () => {
     const [phone3, setPhone3] = useState('');
     const [gender, setGender] = useState('');
     const [occupation, setOccupation] = useState('');
+    const [referralSource, setReferralSource] = useState('');
     const [healthIssues, setHealthIssues] = useState('');
     const [exerciseGoal, setExerciseGoal] = useState('');
 
@@ -251,6 +252,7 @@ const NewStudentRegistration = () => {
                 phone: phoneStr,
                 gender: gender,
                 occupation: occupation.trim(),
+                referralSource,
                 healthIssues: healthIssues.trim(),
                 exerciseGoal: exerciseGoal.trim(),
                 weeklyFrequency,
@@ -434,6 +436,32 @@ const NewStudentRegistration = () => {
                                     placeholder="직업을 입력하세요"
                                     className="reg-input"
                                 />
+                            </div>
+                            <div className="reg-field">
+                                <label>어떻게 알고 오셨나요? (선택)</label>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    {['인스타그램', '네이버', '지인추천', '직접방문', '기타'].map(opt => (
+                                        <button
+                                            key={opt}
+                                            type="button"
+                                            className={`reg-input ${referralSource === opt ? 'selected' : ''}`}
+                                            style={{
+                                                flex: '1 1 auto',
+                                                textAlign: 'center',
+                                                cursor: 'pointer',
+                                                backgroundColor: referralSource === opt ? 'var(--accent)' : 'var(--canvas)',
+                                                color: referralSource === opt ? '#fff' : 'var(--text)',
+                                                border: referralSource === opt ? '2px solid var(--accent)' : '1px solid var(--hairline)',
+                                                borderRadius: '8px',
+                                                padding: '10px',
+                                                fontSize: '0.9rem'
+                                            }}
+                                            onClick={() => setReferralSource(referralSource === opt ? '' : opt)}
+                                        >
+                                            {opt}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                             <div className="reg-field">
                                 <label>불편한 곳 (선택)</label>

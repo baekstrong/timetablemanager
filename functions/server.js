@@ -47,7 +47,7 @@ const getGoogleCalendarClient = async () => {
  * GET /readSheet
  * 구글 시트 데이터 읽기
  */
-app.get('/readSheet', async (req, res) => {
+app.get(['/readSheet', '/read'], async (req, res) => {
   try {
     const { range } = req.query;
 
@@ -82,7 +82,7 @@ app.get('/readSheet', async (req, res) => {
  * POST /writeSheet
  * 구글 시트 데이터 쓰기
  */
-app.post('/writeSheet', async (req, res) => {
+app.post(['/writeSheet', '/write'], async (req, res) => {
   try {
     const { range, values } = req.body;
 
@@ -122,7 +122,7 @@ app.post('/writeSheet', async (req, res) => {
  * POST /appendSheet
  * 구글 시트에 데이터 추가
  */
-app.post('/appendSheet', async (req, res) => {
+app.post(['/appendSheet', '/append'], async (req, res) => {
   try {
     const { range, values } = req.body;
 
@@ -164,7 +164,7 @@ app.post('/appendSheet', async (req, res) => {
  * GET /getSheetInfo
  * 스프레드시트 정보 가져오기
  */
-app.get('/getSheetInfo', async (req, res) => {
+app.get(['/getSheetInfo', '/info'], async (req, res) => {
   try {
     console.log(`📊 Getting sheet info`);
 
@@ -193,7 +193,7 @@ app.get('/getSheetInfo', async (req, res) => {
  * POST /batchUpdateSheet
  * 여러 셀 일괄 업데이트
  */
-app.post('/batchUpdateSheet', async (req, res) => {
+app.post(['/batchUpdateSheet', '/batchUpdate'], async (req, res) => {
   try {
     const { data } = req.body;
 

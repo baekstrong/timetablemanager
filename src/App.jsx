@@ -13,6 +13,7 @@ import NewStudentRegistration from './components/NewStudentRegistration';
 import CoachNewStudents from './components/CoachNewStudents';
 import ContractView from './components/ContractView';
 import Ranking from './components/Ranking';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
 import BottomNav from './components/BottomNav';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import UpdateBanner from './components/UpdateBanner';
@@ -372,7 +373,7 @@ function AppContent() {
         return <StudentInfo user={user} studentData={studentData} onBack={handleBackToDashboard} />;
 
       case 'students':
-        return <StudentManager user={user} onBack={handleBackToDashboard} onImpersonate={handleStartImpersonation} />;
+        return <StudentManager user={user} onBack={handleBackToDashboard} onImpersonate={handleStartImpersonation} onNavigate={handleNavigate} />;
 
       case 'holidays':
         return <HolidayManager user={user} onBack={handleBackToDashboard} />;
@@ -385,6 +386,9 @@ function AppContent() {
 
       case 'ranking':
         return <Ranking user={user} onBack={handleBackToDashboard} />;
+
+      case 'analytics':
+        return <AnalyticsDashboard onBack={() => setCurrentPage('students')} />;
 
       case 'training':
         return (
