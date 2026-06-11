@@ -252,7 +252,8 @@ app.post(['/batchGet', '/batchGetSheet'], async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error batchGet:', error.message);
-    res.status(error.code === 429 ? 429 : 500).json({ success: false, error: error.message });
+    const upstreamStatus = error.status || error.response?.status || error.code;
+    res.status(upstreamStatus === 429 ? 429 : 500).json({ success: false, error: error.message });
   }
 });
 
