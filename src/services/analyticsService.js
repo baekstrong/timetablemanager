@@ -287,50 +287,6 @@ function mergeChurn(sheetChurnByMonth, terminations, months) {
   return counts;
 }
 
-export async function buildDashboard(monthsCount = 6, baseDate = new Date()) {
-  const months = recentMonths(monthsCount, baseDate);
-  const latest = months[months.length - 1];
-
-  // 월별 학생 배열 + 매출 (병렬)
-  const perMonth = await Promise.all(months.map(async ({ year, month }) => ({
-    year, month,
-    students: await getAllStudents(year, month).catch(() => []),
-    revenue: await getMonthlyRevenue(year, month),
-  })));
-
-  const latestMonthData = perMonth[perMonth.length - 1];
-  const [registrations, terminations] = await Promise.all([
-    getNewStudentRegistrations().catch(() => []),
-    getTerminations().catch(() => []),
-  ]);
-
-  const revenueTrend = computeRevenueTrend(
-    perMonth.map(m => ({ year: m.year, month: m.month, revenue: m.revenue }))
-  );
-  const sheetChurn = computeSheetChurnByMonth(
-    perMonth.map(m => ({ year: m.year, month: m.month, students: m.students }))
-  );
-  const churnByMonth = mergeChurn(sheetChurn, terminations, months);
-
-  // 최근 N개월 내 신청만 유입경로 집계
-  const cutoff = new Date(months[0].year, months[0].month - 1, 1).getTime();
-  const recentRegs = registrations.filter(r => (r.createdAt?.toMillis?.() || 0) >= cutoff);
-
-  return {
-    months,
-    latest,
-    revenueTrend,
-    payments: tallyPaymentMethods(latestMonthData.students),
-    genders: tallyGenders(latestMonthData.students),
-    occupations: tallyOccupations(latestMonthData.students),
-    referrals: tallyReferralSources(recentRegs),
-    newVsRenewal: countNewVsRenewal(latestMonthData.students),
-    totalStudents: latestMonthData.students.filter(s => (s['이름'] || '').trim()).length,
-    churnByMonth,
-    churnLatest: churnByMonth[ymKey(latest.year, latest.month)] || 0,
-  };
-}
-
 // ─── 매출 증감 ───
 export function computeRevenueTrend(monthlyRevenues) {
   return (monthlyRevenues || []).map((cur, i) => {
