@@ -8,7 +8,7 @@ import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
 import './StudentManager.css';
 
-const StudentManager = ({ onImpersonate }) => {
+const StudentManager = ({ onImpersonate, onNavigate }) => {
     const {
         students,
         isConnected,
@@ -319,6 +319,13 @@ const StudentManager = ({ onImpersonate }) => {
                     </button>
                     <button onClick={() => setViewMode('sheet')} className="view-switch-btn">
                         📊 구글 시트로 보기
+                    </button>
+                    <button
+                      type="button"
+                      className="analytics-entry-btn"
+                      onClick={() => onNavigate && onNavigate('analytics')}
+                    >
+                      📊 매출·통계
                     </button>
                     <div className="student-count">총 {activeStudents.length}명</div>
                 </div>

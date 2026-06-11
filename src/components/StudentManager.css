@@ -70,6 +70,9 @@
     border-color: var(--accent);
 }
 
+.analytics-entry-btn { border: 1px solid var(--hairline); background: var(--canvas); color: var(--text); border-radius: var(--r-chip); padding: 8px 14px; cursor: pointer; font-weight: 700; }
+.analytics-entry-btn:hover { border-color: var(--accent); color: var(--accent); }
+
 .back-button {
     display: flex;
     align-items: center;
