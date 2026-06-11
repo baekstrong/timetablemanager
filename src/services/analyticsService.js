@@ -1,5 +1,5 @@
 import { getStudentField, getAllStudents, readSheetData, getSheetNameByYearMonth } from './googleSheetsService';
-import { getNewStudentRegistrations, getTerminations } from './firebaseService';
+import { getTerminations } from './firebaseService';
 
 // ─── 직업 키워드 그룹핑 ───
 const OCCUPATION_RULES = [
