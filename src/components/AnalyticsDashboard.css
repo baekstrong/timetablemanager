@@ -13,3 +13,16 @@
 .chart-card h2 { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
 .pie-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 @media (max-width: 640px) { .pie-grid { grid-template-columns: 1fr; } }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin: 8px 0 12px; }
+.section-title { font-size: 16px; font-weight: 700; }
+.trend-title { margin: 24px 0 12px; padding-top: 16px; border-top: 1px solid var(--hairline); }
+.analytics-month-select {
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-chip);
+  padding: 6px 10px;
+  background: var(--canvas);
+  color: var(--text);
+  font-size: 14px;
+  font-family: var(--font);
+  cursor: pointer;
+}
