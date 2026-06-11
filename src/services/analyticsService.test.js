@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { categorizeOccupation, tallyOccupations, computeRevenueTrend, tallyGenders, tallyPaymentMethods, countNewVsRenewal, computeSheetChurnByMonth, tallyReferralSources } from './analyticsService';
+import { categorizeOccupation, tallyOccupations, computeRevenueTrend, tallyGenders, tallyPaymentMethods, countNewVsRenewal, computeSheetChurnByMonth, tallyReferralSources, parseAggregateBlock } from './analyticsService';
 
 describe('categorizeOccupation', () => {
   it('회사/직장 키워드를 회사원으로 분류', () => {
@@ -133,5 +133,32 @@ describe('computeSheetChurnByMonth', () => {
     ];
     const out = computeSheetChurnByMonth(months);
     expect(out['2026-01']).toBeUndefined();
+  });
+});
+
+describe('parseAggregateBlock', () => {
+  const labels = ['계좌','카드','네이버','탈잉','제로페이','어플','총합','단말기와 차액','<-네이버+탈잉+제로+어플','기타(HR)','총 매출','환불',' 최종 매출\n(환불 포함)'];
+
+  it('만원→원 환산, 0 방식 제외, 최종매출 추출 (6월: 환불 없음)', () => {
+    const values = ['39','190','0','0','62','0','291','291','62','0','291','0','291'];
+    expect(parseAggregateBlock(labels, values)).toEqual({
+      payments: { 계좌: 390000, 카드: 1900000, 제로페이: 620000 },
+      refund: 0,
+      finalRevenue: 2910000,
+    });
+  });
+
+  it('환불은 절대값, 소수 최종매출 처리 (5월: 환불 -53.025)', () => {
+    const values = ['39','39','0','0','0','0','78','78','0','0','871','-53.025','817.975'];
+    expect(parseAggregateBlock(labels, values)).toEqual({
+      payments: { 계좌: 390000, 카드: 390000 },
+      refund: 530250,
+      finalRevenue: 8179750,
+    });
+  });
+
+  it('빈 입력은 안전하게 0/빈 객체', () => {
+    expect(parseAggregateBlock([], [])).toEqual({ payments: {}, refund: 0, finalRevenue: 0 });
+    expect(parseAggregateBlock(undefined, undefined)).toEqual({ payments: {}, refund: 0, finalRevenue: 0 });
   });
 });

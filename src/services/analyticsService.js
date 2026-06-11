@@ -134,6 +134,34 @@ export function recentMonths(n, baseDate = new Date()) {
 // 셀이 비었거나 읽기 실패 시 컬럼 I(결제유무 'O') 합산으로 폴백 — 컬럼 I도 만원 단위.
 const REVENUE_CELL = 'AF3';
 const MANWON = 10000;
+
+// ─── 집계 블록 파서 (행2=라벨, 행3=값, 만원 단위) ───
+const PAYMENT_LABELS = ['계좌', '카드', '네이버', '탈잉', '제로페이', '어플'];
+const toWon = (raw) => {
+  const n = parseFloat(String(raw ?? '').replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(n) ? Math.round(n * MANWON) : 0;
+};
+
+export function parseAggregateBlock(labelRow, valueRow) {
+  const labels = labelRow || [];
+  const values = valueRow || [];
+  const payments = {};
+  let refund = 0;
+  let finalRevenue = 0;
+  labels.forEach((rawLabel, i) => {
+    const label = String(rawLabel ?? '').trim();
+    const won = toWon(values[i]);
+    if (PAYMENT_LABELS.includes(label)) {
+      if (won > 0) payments[label] = won;
+    } else if (label === '환불') {
+      refund = Math.abs(won);
+    } else if (label.includes('최종 매출')) {
+      finalRevenue = won;
+    }
+  });
+  return { payments, refund, finalRevenue };
+}
+
 export async function getMonthlyRevenue(year, month) {
   const sheet = getSheetNameByYearMonth(year, month);
   // 집계 값은 소수·음수(환불) 가능 → parseFloat, 부호·소수점 보존
