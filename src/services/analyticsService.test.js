@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { categorizeOccupation, tallyOccupations } from './analyticsService';
+import { categorizeOccupation, tallyOccupations, computeRevenueTrend } from './analyticsService';
 
 describe('categorizeOccupation', () => {
   it('회사/직장 키워드를 회사원으로 분류', () => {
@@ -35,5 +35,27 @@ describe('tallyOccupations', () => {
     expect(tallyOccupations(students)).toEqual({
       회사원: 2, 자영업: 1, 기타: 1,
     });
+  });
+});
+
+describe('computeRevenueTrend', () => {
+  it('전월 대비 증감액·증감률을 계산 (오래된→최신 순서 입력)', () => {
+    const input = [
+      { year: 2026, month: 1, revenue: 1000000 },
+      { year: 2026, month: 2, revenue: 1500000 },
+      { year: 2026, month: 3, revenue: 1200000 },
+    ];
+    const out = computeRevenueTrend(input);
+    expect(out[0]).toMatchObject({ year: 2026, month: 1, revenue: 1000000, delta: null, deltaPct: null });
+    expect(out[1]).toMatchObject({ revenue: 1500000, delta: 500000, deltaPct: 50 });
+    expect(out[2]).toMatchObject({ revenue: 1200000, delta: -300000, deltaPct: -20 });
+  });
+  it('전월 매출이 0이면 deltaPct는 null', () => {
+    const out = computeRevenueTrend([
+      { year: 2026, month: 1, revenue: 0 },
+      { year: 2026, month: 2, revenue: 500000 },
+    ]);
+    expect(out[1].delta).toBe(500000);
+    expect(out[1].deltaPct).toBeNull();
   });
 });

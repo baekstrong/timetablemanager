@@ -26,3 +26,14 @@ export function tallyOccupations(students) {
   }
   return result;
 }
+
+// ─── 매출 증감 ───
+export function computeRevenueTrend(monthlyRevenues) {
+  return (monthlyRevenues || []).map((cur, i) => {
+    if (i === 0) return { ...cur, delta: null, deltaPct: null };
+    const prev = monthlyRevenues[i - 1].revenue;
+    const delta = cur.revenue - prev;
+    const deltaPct = prev > 0 ? Math.round((delta / prev) * 100) : null;
+    return { ...cur, delta, deltaPct };
+  });
+}
