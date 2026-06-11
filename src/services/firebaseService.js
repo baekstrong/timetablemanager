@@ -664,6 +664,27 @@ export const deleteNewStudentRegistration = async (id) => {
 };
 
 // ============================================
+// STUDENT TERMINATION FUNCTIONS (수강 종료 기록)
+// ============================================
+
+export const createStudentTermination = async (studentName, reason = '') => {
+    return safeWrite(async () => {
+        return createDoc('studentTerminations', {
+            studentName,
+            terminatedBy: 'coach',
+            reason,
+            terminatedAt: serverTimestamp(),
+        });
+    });
+};
+
+export const getTerminations = async () => {
+    return safeRead([], async () => {
+        return queryDocs('studentTerminations');
+    });
+};
+
+// ============================================
 // ENTRANCE CLASS FUNCTIONS
 // ============================================
 

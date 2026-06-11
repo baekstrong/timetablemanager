@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets } from '../services/googleSheetsService';
-import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests } from '../services/firebaseService';
+import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination } from '../services/firebaseService';
 import { getCoachStudentListStatus, shouldShowInCoachStudentList } from '../utils/studentList';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
@@ -81,6 +81,12 @@ const StudentManager = ({ onImpersonate }) => {
         try {
             // 모든 시트에서 해당 학생의 스케줄 삭제
             await clearStudentScheduleAllSheets(student['이름']);
+            // 이탈 통계용 종료 기록 (실패해도 종료 처리는 유지)
+            try {
+                await createStudentTermination(student['이름']);
+            } catch (recErr) {
+                console.warn('종료 기록 저장 실패:', recErr);
+            }
             if (refresh) await refresh();
             alert('수강 종료 처리되었습니다. (모든 시트에서 스케줄 삭제)');
         } catch (err) {
