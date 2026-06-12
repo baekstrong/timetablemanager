@@ -450,7 +450,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 | Google Sheets 저장 | `YYMMDD` | `260111` |
 | JavaScript 내부 | `YYYY-MM-DD` | `2026-01-11` |
 | 특이사항 결석 기록 | `YY.M.D` | `26.2.10` |
-| Solapi 예약 발송 | `YYYY-MM-DD HH:mm:ss` (KST) | `2026-02-13 09:00:00` |
+| Solapi 예약 발송 | `YYYY-MM-DDTHH:mm:ss+09:00` (ISO 8601, 오프셋 필수) | `2026-02-13T09:00:00+09:00` |
 
 ## SMS 시스템 (Solapi)
 
