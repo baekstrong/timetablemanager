@@ -129,9 +129,9 @@ src/
 │   ├── firebaseService.js           # Firestore CRUD (~1123줄)
 │   ├── smsService.js                # Solapi SMS 발송 (sendManualSMS 포함)
 │   ├── analyticsService.js          # 매출·통계 집계 로직
-│   └── makeupWaitlistService.js     # 보강 대기 Firestore CRUD + 자리 발생 트리거
+│   └── makeupWaitlistService.js     # 보강 대기 자리 발생 감지·순차 SMS 알림 오케스트레이션 (CRUD는 firebaseService)
 ├── utils/
-│   └── makeupWaitlist.js            # 보강 대기 순번 처리·SMS 발송·만료 로직
+│   └── makeupWaitlist.js            # 보강 대기 순번/만료 판정 순수 로직 (1시간·수업시작 마감)
 ├── components/
 │   ├── Login.jsx                    # 로그인 (Firestore 평문 비밀번호 비교)
 │   ├── Dashboard.jsx                # 대시보드 (커뮤니티 게시판)
@@ -142,11 +142,11 @@ src/
 │   ├── HoldingManager.jsx           # 홀딩/결석 신청
 │   ├── HolidayManager.jsx           # 코치용 공휴일 관리
 │   ├── MakeupRequestManager.jsx     # 보강 관리
-│   ├── MakeupWaitlistModal.jsx      # 만석 슬롯 보강 대기 신청 모달
 │   ├── CoachNewStudents.jsx         # 신규 신청 승인/거절
 │   ├── ContractView.jsx            # 재등록 계약 동의 페이지 (학생용)
 │   ├── ContractHistory.jsx         # 계약 이력 모달 (코치/학생 공용)
 │   ├── NewStudentRegistration.jsx   # 신규 수강생 7단계 위자드 (외부 접근: ?register=true)
+│   ├── schedule/                    # 시간표 분리 컴포넌트 (CoachSchedule, StudentSchedule, MakeupModal, MakeupWaitlistModal=대기 수락/거절 모달, ScheduleCell 등)
 │   ├── MonthSelector.jsx            # 월 선택 드롭다운 (6개월전~3개월후)
 │   ├── BottomNav.jsx                # 하단 네비게이션 (코치/학생 탭 다름)
 │   ├── Ranking.jsx                  # 랭킹·내 PR·성장 그래프 페이지 (3 탭)
@@ -403,7 +403,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 
 ### 만석 슬롯 보강 대기 흐름 (makeupWaitlists)
 
-만석 슬롯 클릭 시 대기 신청 모달(`MakeupWaitlistModal`)에서 원래 수업을 선택해 `makeupWaitlists` 컬렉션에 등록한다. 자리 발생 트리거(홀딩 신청/결석 신청/보강 취소·거절 + 코치 시간표 로드 백스톱)가 실행되면 대기 1순위에게 자리 안내 SMS를 발송하고 status를 `notified`로 변경한다. 수강생은 시간표의 '보강승인중' 칩을 클릭해 1시간(수업 시작이 더 가까우면 그때까지) 내에 수락 또는 거절할 수 있다. 수락 시 정식 보강(`makeupRequests`)으로 확정되고 종료일이 재계산된다. 거절하거나 시간 초과로 만료되면 다음 순번에게 동일하게 안내한다. 대기 신청은 주간 보강 쿼터를 미리 소진하지 않으며, 수락 시점에 쿼터를 검증한다.
+만석 슬롯 클릭 시 대기 신청 모달(`MakeupModal` 재사용)에서 원래 수업을 선택해 `makeupWaitlists` 컬렉션에 등록한다. 자리 발생 트리거(홀딩 신청/결석 신청/보강 취소·거절 + 코치 시간표 로드 백스톱)가 실행되면 대기 1순위에게 자리 안내 SMS를 발송하고 status를 `notified`로 변경한다. 수강생은 시간표의 '보강승인중' 칩을 클릭해 1시간(수업 시작이 더 가까우면 그때까지) 내에 수락 또는 거절할 수 있다. 수락 시 정식 보강(`makeupRequests`)으로 확정되고 종료일이 재계산된다. 거절하거나 시간 초과로 만료되면 다음 순번에게 동일하게 안내한다. 대기 신청은 주간 보강 쿼터를 미리 소진하지 않으며, 수락 시점에 쿼터를 검증한다.
 
 ### WeeklySchedule 수강생 상태
 

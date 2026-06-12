@@ -359,6 +359,14 @@ export default function StudentSchedule({
             await reloadMyWaitlists();
             return;
         }
+        // 원래 수업이 이미 시작/종료된 경우 — 출석한 수업을 보강으로 옮길 수 없음
+        if (isClassWithinMinutes(entry.originalClass.date, entry.originalClass.period, 0)) {
+            alert('옮기려던 원래 수업이 이미 시작되어 수락할 수 없습니다.');
+            updateMakeupWaitlistStatus(entry.id, 'expired').catch(() => {});
+            setRespondingWaitlist(null);
+            await reloadMyWaitlists();
+            return;
+        }
         if (!forceMode && myWeekMakeupHistory.length >= makeupWeeklyLimit) {
             alert(`보강은 주 ${makeupWeeklyLimit}회까지 가능합니다.\n이번 주 보강 한도를 모두 사용해 수락할 수 없습니다.`);
             return;
