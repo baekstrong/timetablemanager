@@ -6,6 +6,7 @@ import { getCoachStudentListStatus, shouldShowInCoachStudentList } from '../util
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
+import SmsSendModal from './SmsSendModal';
 import './StudentManager.css';
 
 const StudentManager = ({ onImpersonate, onNavigate }) => {
@@ -39,6 +40,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     const [holdingDateInput, setHoldingDateInput] = useState(''); // 날짜 입력
     const [holdingProcessing, setHoldingProcessing] = useState(false);
     const [searchQuery, setSearchQuery] = useState(''); // 수강생 검색어
+    const [showSmsModal, setShowSmsModal] = useState(false);
 
     const getCountedHolidayMakeupDates = async (studentName) => {
         const makeups = await getActiveMakeupRequests(studentName).catch(() => []);
@@ -299,6 +301,20 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         });
     }, [activeStudents, searchQuery]);
 
+    // 문자 발송 수신자 목록 — 같은 이름 여러 행이면 전화번호 있는 행 우선
+    const smsRecipients = useMemo(() => {
+        const seen = new Map();
+        activeStudents.forEach(s => {
+            const name = s['이름'];
+            if (!name) return;
+            const phone = String(getStudentField(s, '핸드폰') || '').trim();
+            if (!seen.has(name) || (!seen.get(name).phone && phone)) {
+                seen.set(name, { name, phone });
+            }
+        });
+        return Array.from(seen.values());
+    }, [activeStudents]);
+
     // 시트 임베드 모드인 경우
     if (viewMode === 'sheet') {
         return <GoogleSheetsEmbed onBack={() => setViewMode('table')} />;
@@ -341,6 +357,13 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                       onClick={() => onNavigate && onNavigate('analytics')}
                     >
                       📈 매출·통계
+                    </button>
+                    <button
+                        type="button"
+                        className="view-switch-btn"
+                        onClick={() => setShowSmsModal(true)}
+                    >
+                        ✉️ 문자 보내기
                     </button>
                     <div className="student-count">총 {activeStudents.length}명</div>
                 </div>
@@ -622,6 +645,13 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {showSmsModal && (
+                <SmsSendModal
+                    recipients={smsRecipients}
+                    onClose={() => setShowSmsModal(false)}
+                />
             )}
 
             {/* 홀딩 처리 모달 */}

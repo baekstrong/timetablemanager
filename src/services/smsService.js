@@ -449,6 +449,30 @@ export const sendRegistrationNotifications = async (studentPhone, studentName, d
 };
 
 // ============================================
+// 코치 수동 문자 발송 (수강생 관리 → 문자 보내기)
+// ============================================
+/**
+ * 여러 수신자에게 같은 내용 발송, 수신자별 성공/실패 결과 반환.
+ * sendBatchSMS는 그룹 단위 결과만 반환하므로 개별 sendSMS를 병렬 호출한다.
+ * @param {Array<{name: string, phone: string}>} recipients
+ * @param {string} text
+ * @returns {Promise<Array<{name, phone, success, error}>>}
+ */
+export const sendManualSMS = async (recipients, text) => {
+  const results = await Promise.allSettled(
+    recipients.map(r => sendSMS(r.phone, text))
+  );
+  return recipients.map((r, i) => ({
+    name: r.name,
+    phone: r.phone,
+    success: results[i].status === 'fulfilled',
+    error: results[i].status === 'rejected'
+      ? (results[i].reason?.message || '발송 실패')
+      : null,
+  }));
+};
+
+// ============================================
 // 대기(만석) 수강생에게 여석 안내 SMS
 // ============================================
 /**
