@@ -118,6 +118,26 @@ async function safeWrite(fn) {
 }
 
 // ============================================
+// USERS (계정)
+// ============================================
+
+/**
+ * users/{userName} 비밀번호 변경 — 현재 비밀번호 일치 검증 후 갱신.
+ */
+export const updateUserPassword = async (userName, currentPassword, newPassword) => {
+    return safeWrite(async () => {
+        const userRef = doc(db, 'users', userName);
+        const userDoc = await getDoc(userRef);
+        if (!userDoc.exists()) throw new Error('계정을 찾을 수 없습니다.');
+        if (userDoc.data().password !== currentPassword) {
+            throw new Error('현재 비밀번호가 올바르지 않습니다.');
+        }
+        await updateDoc(userRef, { password: newPassword, updatedAt: serverTimestamp() });
+        return { success: true };
+    });
+};
+
+// ============================================
 // MAKEUP REQUEST FUNCTIONS (보강)
 // ============================================
 
