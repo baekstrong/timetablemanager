@@ -88,14 +88,14 @@ export default function SmsSendModal({ recipients, onClose }) {
                     <div style={{ display: 'flex', gap: '8px' }}>
                         {failed.length > 0 && (
                             <button
-                                onClick={() => { setResults(null); handleSend(failed.map(f => ({ name: f.name, phone: f.phone }))); }}
+                                onClick={() => handleSend(failed.map(f => ({ name: f.name, phone: f.phone })))}
                                 disabled={sending}
-                                style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #E94E584D', background: '#E94E581A', color: '#E94E58', fontWeight: 700, cursor: 'pointer' }}
+                                style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #E94E584D', background: '#E94E581A', color: '#E94E58', fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.6 : 1 }}
                             >
-                                실패자만 재발송 ({failed.length}명)
+                                {sending ? '재발송 중...' : `실패자만 재발송 (${failed.length}명)`}
                             </button>
                         )}
-                        <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', background: 'var(--cta-dark)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+                        <button onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', background: 'var(--cta-dark)', color: '#fff', fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.6 : 1 }}>
                             닫기
                         </button>
                     </div>
