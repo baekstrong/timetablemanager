@@ -3,9 +3,10 @@ import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 // isExpiringSoon, isExpired 사용하지 않음 - 추후 필요시 복원
 import { getActiveMakeupRequests, getHoldingHistory, getHolidays } from '../services/firebaseService';
 import ContractHistory from './ContractHistory';
+import PasswordChangeCard from './PasswordChangeCard';
 import './StudentInfo.css';
 
-const StudentInfo = ({ user, studentData, onBack }) => {
+const StudentInfo = ({ user, studentData, isImpersonating = false, onBack }) => {
     const { calculateMembershipStats, generateAttendanceHistory } = useGoogleSheets();
     const [activeMakeups, setActiveMakeups] = useState([]);
     const [holdingHistory, setHoldingHistory] = useState([]);
@@ -329,6 +330,9 @@ const StudentInfo = ({ user, studentData, onBack }) => {
                         계약 이력 보기
                     </button>
                 </div>
+
+                {/* 비밀번호 변경 (빙의 모드에서는 숨김) */}
+                {!isImpersonating && <PasswordChangeCard userName={user.username} />}
             </div>
 
             {showContractHistory && (

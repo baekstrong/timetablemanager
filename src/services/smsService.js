@@ -449,6 +449,30 @@ export const sendRegistrationNotifications = async (studentPhone, studentName, d
 };
 
 // ============================================
+// 코치 수동 문자 발송 (수강생 관리 → 문자 보내기)
+// ============================================
+/**
+ * 여러 수신자에게 같은 내용 발송, 수신자별 성공/실패 결과 반환.
+ * sendBatchSMS는 그룹 단위 결과만 반환하므로 개별 sendSMS를 병렬 호출한다.
+ * @param {Array<{name: string, phone: string}>} recipients
+ * @param {string} text
+ * @returns {Promise<Array<{name, phone, success, error}>>}
+ */
+export const sendManualSMS = async (recipients, text) => {
+  const results = await Promise.allSettled(
+    recipients.map(r => sendSMS(r.phone, text))
+  );
+  return recipients.map((r, i) => ({
+    name: r.name,
+    phone: r.phone,
+    success: results[i].status === 'fulfilled',
+    error: results[i].status === 'rejected'
+      ? (results[i].reason?.message || '발송 실패')
+      : null,
+  }));
+};
+
+// ============================================
 // 대기(만석) 수강생에게 여석 안내 SMS
 // ============================================
 /**
@@ -531,4 +555,23 @@ export const sendApprovalNotifications = async (studentPhone, studentName, detai
   }
 
   return results;
+};
+
+// ============================================
+// 만석 슬롯 보강 대기 — 자리 발생 안내 SMS
+// ============================================
+/**
+ * 대기 순번이 된 수강생에게 자리 발생 안내 발송.
+ * "1시간 내" + "앱 시간표에서 수락" 문구를 반드시 포함한다.
+ */
+export const sendMakeupSeatAvailableSMS = async (studentPhone, studentName, dateText, periodLabel) => {
+  const text = `[근력학교] ${studentName}님, 대기 신청하신 ${dateText} ${periodLabel} 수업에 자리가 났습니다.\n1시간 내에 앱 시간표에서 [보강승인중] 칸을 눌러 수락해주세요.\n미응답 시 다음 대기자에게 순번이 넘어갑니다.`;
+  try {
+    await sendSMS(studentPhone, text);
+    console.log('보강 대기 자리 안내 SMS 발송 완료:', studentName);
+    return true;
+  } catch (error) {
+    console.error('보강 대기 자리 안내 SMS 발송 실패:', studentName, '-', error.message);
+    return false;
+  }
 };

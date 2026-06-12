@@ -3,9 +3,11 @@ import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets } from '../services/googleSheetsService';
 import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination } from '../services/firebaseService';
 import { getCoachStudentListStatus, shouldShowInCoachStudentList } from '../utils/studentList';
+import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
+import SmsSendModal from './SmsSendModal';
 import './StudentManager.css';
 
 const StudentManager = ({ onImpersonate, onNavigate }) => {
@@ -38,6 +40,8 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     const [holdingDates, setHoldingDates] = useState([]); // 홀딩 날짜 목록
     const [holdingDateInput, setHoldingDateInput] = useState(''); // 날짜 입력
     const [holdingProcessing, setHoldingProcessing] = useState(false);
+    const [searchQuery, setSearchQuery] = useState(''); // 수강생 검색어
+    const [showSmsModal, setShowSmsModal] = useState(false);
 
     const getCountedHolidayMakeupDates = async (studentName) => {
         const makeups = await getActiveMakeupRequests(studentName).catch(() => []);
@@ -143,6 +147,14 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                 await getCountedHolidayMakeupDates(absenceTarget['이름'])
             );
             alert(`✅ 결석 처리 완료!\n\n수업일 결석: ${result.validAbsenceCount}일\n새 종료날짜: ${result.newEndDate}\n특이사항: ${result.notesText}`);
+
+            // 빠진 자리의 보강 대기자에게 순차 알림 (실패해도 처리 자체에는 영향 없음)
+            try {
+                await onSeatsFreedForDates(absenceDates, absenceTarget['요일 및 시간'] || '');
+            } catch (e) {
+                console.error('보강 대기 알림 트리거 실패:', e);
+            }
+
             setAbsenceTarget(null);
             setAbsenceDates([]);
             if (refresh) refresh();
@@ -267,6 +279,14 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             );
 
             alert(`홀딩 처리 완료!\n\n홀딩 기간: ${startDate} ~ ${endDate}\n새 종료날짜: ${result.newEndDate}\n홀딩 상태: ${result.holdingStatus}`);
+
+            // 빠진 자리의 보강 대기자에게 순차 알림 (실패해도 처리 자체에는 영향 없음)
+            try {
+                await onSeatsFreedForDates(sortedDates, holdingTarget['요일 및 시간'] || '');
+            } catch (e) {
+                console.error('보강 대기 알림 트리거 실패:', e);
+            }
+
             setHoldingTarget(null);
             setHoldingDates([]);
             if (refresh) refresh();
@@ -283,6 +303,34 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             .filter(shouldShowInCoachStudentList)
             .sort((a, b) => (a['이름'] || '').localeCompare(b['이름'] || '', 'ko'));
     }, [students]);
+
+    // 이름 부분 일치 + 전화번호 숫자 부분 일치 필터
+    const filteredStudents = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return activeStudents;
+        const qDigits = q.replace(/\D/g, '');
+        return activeStudents.filter(s => {
+            const name = (s['이름'] || '').toLowerCase();
+            if (name.includes(q)) return true;
+            if (!qDigits) return false;
+            const phone = String(getStudentField(s, '핸드폰') || '').replace(/\D/g, '');
+            return phone.includes(qDigits);
+        });
+    }, [activeStudents, searchQuery]);
+
+    // 문자 발송 수신자 목록 — 같은 이름 여러 행이면 전화번호 있는 행 우선
+    const smsRecipients = useMemo(() => {
+        const seen = new Map();
+        activeStudents.forEach(s => {
+            const name = s['이름'];
+            if (!name) return;
+            const phone = String(getStudentField(s, '핸드폰') || '').trim();
+            if (!seen.has(name) || (!seen.get(name).phone && phone)) {
+                seen.set(name, { name, phone });
+            }
+        });
+        return Array.from(seen.values());
+    }, [activeStudents]);
 
     // 시트 임베드 모드인 경우
     if (viewMode === 'sheet') {
@@ -327,8 +375,33 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                     >
                       📈 매출·통계
                     </button>
+                    <button
+                        type="button"
+                        className="view-switch-btn"
+                        onClick={() => setShowSmsModal(true)}
+                    >
+                        ✉️ 문자 보내기
+                    </button>
                     <div className="student-count">총 {activeStudents.length}명</div>
                 </div>
+                <input
+                    type="search"
+                    aria-label="수강생 검색"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="이름·전화번호 검색"
+                    style={{
+                        width: '100%',
+                        marginTop: '8px',
+                        padding: '8px 12px',
+                        fontSize: '0.9rem',
+                        border: '1px solid var(--hairline)',
+                        borderRadius: '8px',
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        boxSizing: 'border-box',
+                    }}
+                />
             </div>
 
             {error && (
@@ -360,14 +433,14 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {activeStudents.length === 0 ? (
+                                {filteredStudents.length === 0 ? (
                                     <tr>
                                         <td colSpan="9" className="empty-message">
-                                            등록된 수강생이 없습니다.
+                                            {searchQuery.trim() ? '검색 결과가 없습니다.' : '등록된 수강생이 없습니다.'}
                                         </td>
                                     </tr>
                                 ) : (
-                                    activeStudents.map((student, index) => (
+                                    filteredStudents.map((student, index) => (
                                         <tr key={index} className={editingStudent === index ? 'editing' : ''}>
                                             <td className="student-name">{student['이름'] || '-'}</td>
 
@@ -589,6 +662,13 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {showSmsModal && (
+                <SmsSendModal
+                    recipients={smsRecipients}
+                    onClose={() => setShowSmsModal(false)}
+                />
             )}
 
             {/* 홀딩 처리 모달 */}

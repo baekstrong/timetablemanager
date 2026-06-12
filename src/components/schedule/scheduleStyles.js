@@ -11,6 +11,10 @@ export const TAG_STYLES = {
     holding: { backgroundColor: '#F8D2D5', color: '#991b1b', border: '1px solid #E89BA1', textDecoration: 'line-through' },
     newStudent: { backgroundColor: '#C9E3F8', color: '#1f6699', border: '1px solid #93C5EC' },
     delayed: { backgroundColor: '#C9E8D2', color: '#166534', border: '1px solid #97CFA6', textDecoration: 'line-through' },
+    // 보강승인중: 대기자에게 자리 안내 문자가 나간 상태 (수락 대기)
+    makeupPending: { backgroundColor: '#329BE71A', color: '#327AB8', border: '1px solid #329BE74D' },
+    // 보강대기: 만석 슬롯 대기열에 등록된 상태
+    waitingSeat: { backgroundColor: '#EDBC401A', color: '#9a7a12', border: '1px solid #EDBC404D' },
 };
 
 export const SECTION_STYLES = {

@@ -118,6 +118,26 @@ async function safeWrite(fn) {
 }
 
 // ============================================
+// USERS (계정)
+// ============================================
+
+/**
+ * users/{userName} 비밀번호 변경 — 현재 비밀번호 일치 검증 후 갱신.
+ */
+export const updateUserPassword = async (userName, currentPassword, newPassword) => {
+    return safeWrite(async () => {
+        const userRef = doc(db, 'users', userName);
+        const userDoc = await getDoc(userRef);
+        if (!userDoc.exists()) throw new Error('계정을 찾을 수 없습니다.');
+        if (userDoc.data().password !== currentPassword) {
+            throw new Error('현재 비밀번호가 올바르지 않습니다.');
+        }
+        await updateDoc(userRef, { password: newPassword, updatedAt: serverTimestamp() });
+        return { success: true };
+    });
+};
+
+// ============================================
 // MAKEUP REQUEST FUNCTIONS (보강)
 // ============================================
 
@@ -998,6 +1018,76 @@ export const cancelContract = async (contractId) => {
         });
         console.log('계약 취소 완료:', contractId);
     });
+};
+
+// ============================================
+// MAKEUP WAITLIST (만석 슬롯 보강 대기)
+// ============================================
+// status: waiting → notified → accepted | declined | expired | cancelled
+
+export const createMakeupWaitlist = async (studentName, phone, slot, originalClass) => {
+    return safeWrite(async () => {
+        const existing = await queryDocs('makeupWaitlists',
+            where('studentName', '==', studentName),
+            where('date', '==', slot.date),
+            where('period', '==', slot.period),
+            where('status', 'in', ['waiting', 'notified'])
+        );
+        if (existing.length > 0) throw new Error('이미 이 시간에 보강 대기를 신청했습니다.');
+        return createDoc('makeupWaitlists', {
+            studentName,
+            phone: phone || '',
+            date: slot.date,
+            day: slot.day,
+            period: slot.period,
+            periodName: slot.periodName,
+            originalClass: {
+                date: originalClass.date,
+                day: originalClass.day,
+                period: originalClass.period,
+                periodName: originalClass.periodName,
+            },
+            status: 'waiting',
+            notifiedAt: null,
+            respondedAt: null,
+            updatedAt: serverTimestamp(),
+        });
+    });
+};
+
+export const getMakeupWaitlistsByStudent = async (studentName) => {
+    return safeRead([], () => queryDocs('makeupWaitlists',
+        where('studentName', '==', studentName),
+        where('status', 'in', ['waiting', 'notified'])
+    ));
+};
+
+export const getActiveMakeupWaitlists = async () => {
+    return safeRead([], () => queryDocs('makeupWaitlists',
+        where('status', 'in', ['waiting', 'notified'])
+    ));
+};
+
+export const updateMakeupWaitlistStatus = async (id, status) => {
+    return safeWrite(() => updateDocStatus('makeupWaitlists', id, { status }));
+};
+
+export const notifyMakeupWaitlist = async (id) => {
+    return safeWrite(() => updateDocStatus('makeupWaitlists', id, {
+        status: 'notified', notifiedAt: serverTimestamp(),
+    }));
+};
+
+export const acceptMakeupWaitlist = async (id) => {
+    return safeWrite(() => updateDocStatus('makeupWaitlists', id, {
+        status: 'accepted', respondedAt: serverTimestamp(),
+    }));
+};
+
+export const declineMakeupWaitlist = async (id) => {
+    return safeWrite(() => updateDocStatus('makeupWaitlists', id, {
+        status: 'declined', respondedAt: serverTimestamp(),
+    }));
 };
 
 // ============================================

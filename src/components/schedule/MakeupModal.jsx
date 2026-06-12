@@ -2,6 +2,9 @@ import { PERIODS } from '../../data/mockData';
 import { weekDateToISO, isClassWithinMinutes } from '../../utils/scheduleUtils';
 
 export default function MakeupModal({
+    title = '보강 신청',
+    submitLabel = '보강 신청',
+    submittingLabel = '신청 중...',
     selectedMakeupSlot,
     selectedOriginalClass,
     setSelectedOriginalClass,
@@ -20,7 +23,7 @@ export default function MakeupModal({
     return (
         <div className="makeup-modal-overlay" onClick={onClose}>
             <div className="makeup-modal" onClick={(e) => e.stopPropagation()}>
-                <h2>보강 신청</h2>
+                <h2>{title}</h2>
                 <p className="makeup-modal-subtitle">
                     선택한 시간: <strong>{selectedMakeupSlot.day}요일 {selectedMakeupSlot.periodName}</strong>
                 </p>
@@ -115,7 +118,7 @@ export default function MakeupModal({
                         onClick={onSubmit}
                         disabled={!selectedOriginalClass || isSubmittingMakeup}
                     >
-                        {isSubmittingMakeup ? '신청 중...' : '보강 신청'}
+                        {isSubmittingMakeup ? submittingLabel : submitLabel}
                     </button>
                 </div>
             </div>

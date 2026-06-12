@@ -8,6 +8,7 @@ import {
     cancelWaitlistRequest,
     checkWaitlistAvailability,
     updateWaitlistAvailability,
+    getActiveMakeupWaitlists,
 } from '../services/firebaseService';
 import { processScheduleTransfer } from '../services/googleSheetsService';
 import { getHolidays } from '../services/firebaseService';
@@ -16,7 +17,8 @@ import CoachWaitlistModal from './schedule/CoachWaitlistModal';
 import CoachSchedule from './schedule/CoachSchedule';
 import StudentSchedule from './schedule/StudentSchedule';
 import { useScheduleCore } from './schedule/useScheduleCore';
-import { buildUpdatedSchedule, parseSheetDate } from '../utils/scheduleUtils';
+import { buildUpdatedSchedule, parseSheetDate, weekDateToISO } from '../utils/scheduleUtils';
+import { syncMakeupWaitlists, normalizeWaitlistEntry } from '../services/makeupWaitlistService';
 import './WeeklySchedule.css';
 
 const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
@@ -80,6 +82,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         isMakeupHeld,
         lastDayStudents, delayedReregistrationStudents,
         getCellData, getHolidayInfo,
+        unpaidStudentNames,
     } = scheduleCore;
 
     // New student waitlist (coach only)
@@ -96,6 +99,9 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
     const [disabledClassesLoading, setDisabledClassesLoading] = useState(true);
     const [lockedSlots, setLockedSlots] = useState([]);
     const [lockedSlotsLoading, setLockedSlotsLoading] = useState(true);
+
+    // 만석 보강 대기 — 코치 시간표 표시용
+    const [coachMakeupWaitlist, setCoachMakeupWaitlist] = useState([]);
 
     // Manual refresh state
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -176,6 +182,26 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             }));
         }
     }, [user, newStudentWaitlist.length, scheduleData, disabledClasses, pendingRegistrations]);
+
+    // 만석 보강 대기 백스톱 — 코치 시간표 로드 시 실제 여석 기준으로 만료/승급 처리 + 표시용 로드
+    useEffect(() => {
+        if (user?.role !== 'coach' || mode !== 'coach' || !scheduleData) return;
+        let cancelled = false;
+        (async () => {
+            await syncMakeupWaitlists((date, day, period) => {
+                // 이번 주 시간표 범위 밖이면 여석 판단 불가 → 건너뜀 (이벤트 트리거가 처리)
+                const expectedDate = weekDates[day] ? weekDateToISO(weekDates[day]) : null;
+                if (expectedDate !== date) return null;
+                const periodObj = PERIODS.find(p => p.id === period);
+                if (!periodObj || periodObj.type === 'free') return null;
+                return getCellData(day, periodObj).availableSeats;
+            });
+            const list = await getActiveMakeupWaitlists().catch(() => []);
+            if (!cancelled) setCoachMakeupWaitlist(list.map(normalizeWaitlistEntry));
+        })();
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user, mode, scheduleData]);
 
     // ── Handlers ──
 
@@ -472,6 +498,8 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     lockedSlots={lockedSlots}
                     setLockedSlots={setLockedSlots}
                     onNavigate={onNavigate}
+                    unpaidStudentNames={unpaidStudentNames}
+                    makeupWaitlists={coachMakeupWaitlist}
                 />
             )}
 

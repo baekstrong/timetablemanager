@@ -370,7 +370,7 @@ function AppContent() {
         return <HoldingManager user={user} studentData={studentData} isLoading={isStudentDataLoading} onBack={handleBackToDashboard} />;
 
       case 'myinfo':
-        return <StudentInfo user={user} studentData={studentData} onBack={handleBackToDashboard} />;
+        return <StudentInfo user={user} studentData={studentData} isImpersonating={Boolean(impersonationOrigin)} onBack={handleBackToDashboard} />;
 
       case 'students':
         return <StudentManager user={user} onBack={handleBackToDashboard} onImpersonate={handleStartImpersonation} onNavigate={handleNavigate} />;

@@ -42,6 +42,41 @@ export const shouldShowInCoachStudentList = (student) => {
   return schedule.length > 0;
 };
 
+/**
+ * 결제유무(K열)가 'X'인 수강생 이름 집합.
+ * 같은 이름의 등록 행이 여러 개면(현재 + 미리 등록) 오늘 기준 활성 행을 우선 판정하고,
+ * 활성 행이 없으면 시작날짜가 가장 늦은 행을 기준으로 한다.
+ */
+export const getUnpaidStudentNames = (students, referenceDate = new Date()) => {
+  const today = atStartOfDay(referenceDate);
+  const rowsByName = new Map();
+  (students || []).forEach(s => {
+    const name = getStudentValue(s, '이름');
+    if (!name || !shouldShowInCoachStudentList(s)) return;
+    if (!rowsByName.has(name)) rowsByName.set(name, []);
+    rowsByName.get(name).push(s);
+  });
+
+  const unpaid = new Set();
+  rowsByName.forEach((rows, name) => {
+    const active = rows.find(r => {
+      const start = parseSheetDate(getStudentValue(r, '시작날짜'));
+      const end = parseSheetDate(getStudentValue(r, '종료날짜'));
+      return start && end && atStartOfDay(start) <= today && today <= atStartOfDay(end);
+    });
+    const target = active || rows.reduce((latest, r) => {
+      if (!latest) return r;
+      const start = parseSheetDate(getStudentValue(r, '시작날짜'));
+      const latestStart = parseSheetDate(getStudentValue(latest, '시작날짜'));
+      return (start && (!latestStart || start > latestStart)) ? r : latest;
+    }, null);
+    if (target && String(getStudentValue(target, '결제유무')).trim() === 'X') {
+      unpaid.add(name);
+    }
+  });
+  return unpaid;
+};
+
 export const getCoachStudentListStatus = (student, referenceDate = new Date()) => {
   if (!shouldShowInCoachStudentList(student)) return 'ended';
 
