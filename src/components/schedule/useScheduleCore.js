@@ -15,6 +15,7 @@ import {
     getScheduleSortKey,
 } from '../../utils/scheduleUtils';
 import { MOCK_DATA, MAX_CAPACITY, KOREAN_HOLIDAYS } from '../../data/mockData';
+import { getUnpaidStudentNames } from '../../utils/studentList';
 
 /**
  * 코치/학생 시간표 양쪽이 쓰는 파생 데이터와 헬퍼를 한 훅으로 집중.
@@ -76,6 +77,12 @@ export function useScheduleCore({
         if (!students || students.length === 0) return MOCK_DATA;
         return transformGoogleSheetsData(students);
     }, [students]);
+
+    // 미결제(K열=X) 수강생 이름 집합 — 코치 시간표 배지용
+    const unpaidStudentNames = useMemo(() => {
+        if (user?.role !== 'coach') return new Set();
+        return getUnpaidStudentNames(students || []);
+    }, [user, students]);
 
     // Week dates (Mon-Fri) as { '월': 'M/D', ... }
     const weekDates = useMemo(() => {
@@ -431,5 +438,6 @@ export function useScheduleCore({
         delayedReregistrationStudents,
         getCellData,
         getHolidayInfo,
+        unpaidStudentNames,
     };
 }

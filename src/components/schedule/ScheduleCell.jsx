@@ -1,11 +1,28 @@
 import { TAG_STYLES } from './scheduleStyles';
 
 /** Styled student tag with status-specific styling. */
-export function StudentTag({ name, status, label }) {
+export function StudentTag({ name, status, label, unpaid = false }) {
     const style = TAG_STYLES[status] || {};
     const suffix = label ? `(${label})` : '';
     const className = status === 'makeup' ? 'student-tag substitute' : 'student-tag';
-    return <span className={className} style={style}>{name}{suffix}</span>;
+    return <span className={className} style={style}>{name}{suffix}{unpaid && <UnpaidBadge />}</span>;
+}
+
+/** 미결제(K열=X) 상태 배지 — 코치 시간표 전용. */
+export function UnpaidBadge() {
+    return (
+        <span style={{
+            marginLeft: '3px',
+            padding: '0 4px',
+            fontSize: '0.62rem',
+            fontWeight: 700,
+            color: '#E94E58',
+            backgroundColor: '#E94E581A',
+            border: '1px solid #E94E584D',
+            borderRadius: '4px',
+            verticalAlign: 'middle',
+        }}>미결제</span>
+    );
 }
 
 /** Available seats display cell (reused in student mode). */

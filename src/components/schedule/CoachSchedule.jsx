@@ -3,7 +3,7 @@ import { PERIODS, DAYS } from '../../data/mockData';
 import { toggleDisabledClass, toggleLockedSlot } from '../../services/firebaseService';
 import { weekDateToISO, getWaitlistCountForSlot, isPeriodImminentOrOngoing } from '../../utils/scheduleUtils';
 import CoachWaitlistPanel from './CoachWaitlistPanel';
-import { StudentTag } from './ScheduleCell';
+import { StudentTag, UnpaidBadge } from './ScheduleCell';
 import { SECTION_STYLES } from './scheduleStyles';
 
 /** Coach info banner section (last day / delayed re-registration). */
@@ -46,6 +46,7 @@ export default function CoachSchedule({
     lockedSlots,
     setLockedSlots,
     onNavigate,
+    unpaidStudentNames = new Set(),
 }) {
     // 현재 시각 — 진행 중/임박 수업 강조용 (60초마다 갱신)
     const [now, setNow] = useState(() => new Date());
@@ -233,34 +234,35 @@ export default function CoachSchedule({
                 {/* Student list */}
                 <div className="student-list">
                     {data.regularStudentsPresent.map(name => {
+                        const unpaid = unpaidStudentNames.has(name);
                         if (data.makeupMovedStudents.includes(name)) {
-                            return <StudentTag key={name} name={name} status="makeupMoved" label="보강이동" />;
+                            return <StudentTag key={name} name={name} status="makeupMoved" label="보강이동" unpaid={unpaid} />;
                         }
                         if (data.agreedAbsenceStudents.includes(name)) {
-                            return <StudentTag key={name} name={name} status="agreedAbsent" label="합의결석" />;
+                            return <StudentTag key={name} name={name} status="agreedAbsent" label="합의결석" unpaid={unpaid} />;
                         }
                         if (data.absenceStudents.includes(name)) {
-                            return <StudentTag key={name} name={name} status="absent" label="결석" />;
+                            return <StudentTag key={name} name={name} status="absent" label="결석" unpaid={unpaid} />;
                         }
-                        return <span key={name} className="student-tag">{name}</span>;
+                        return <span key={name} className="student-tag">{name}{unpaid && <UnpaidBadge />}</span>;
                     })}
                     {data.makeupStudents.map(name => (
-                        <StudentTag key={`makeup-${name}`} name={name} status="makeup" label="보강" />
+                        <StudentTag key={`makeup-${name}`} name={name} status="makeup" label="보강" unpaid={unpaidStudentNames.has(name)} />
                     ))}
                     {data.makeupHeldStudents.map(name => (
-                        <StudentTag key={`makeup-held-${name}`} name={name} status="holding" label="보강홀딩" />
+                        <StudentTag key={`makeup-held-${name}`} name={name} status="holding" label="보강홀딩" unpaid={unpaidStudentNames.has(name)} />
                     ))}
                     {data.makeupAbsentOnMakeupSlot.map(name => (
-                        <StudentTag key={`makeup-absent-slot-${name}`} name={name} status="makeupAbsent" label="보강결석" />
+                        <StudentTag key={`makeup-absent-slot-${name}`} name={name} status="makeupAbsent" label="보강결석" unpaid={unpaidStudentNames.has(name)} />
                     ))}
                     {data.holdingStudents.map(name => (
-                        <StudentTag key={`holding-${name}`} name={name} status="holding" label="홀딩" />
+                        <StudentTag key={`holding-${name}`} name={name} status="holding" label="홀딩" unpaid={unpaidStudentNames.has(name)} />
                     ))}
                     {data.newStudents.map(name => (
-                        <StudentTag key={`new-${name}`} name={name} status="newStudent" label="신규" />
+                        <StudentTag key={`new-${name}`} name={name} status="newStudent" label="신규" unpaid={unpaidStudentNames.has(name)} />
                     ))}
                     {data.delayedStartStudents.map(name => (
-                        <StudentTag key={`delayed-${name}`} name={name} status="delayed" label="시작지연" />
+                        <StudentTag key={`delayed-${name}`} name={name} status="delayed" label="시작지연" unpaid={unpaidStudentNames.has(name)} />
                     ))}
                     {data.subs.map(sub => (
                         <span key={sub.name} className="student-tag substitute">{sub.name}</span>

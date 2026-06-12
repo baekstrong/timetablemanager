@@ -80,6 +80,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         isMakeupHeld,
         lastDayStudents, delayedReregistrationStudents,
         getCellData, getHolidayInfo,
+        unpaidStudentNames,
     } = scheduleCore;
 
     // New student waitlist (coach only)
@@ -472,6 +473,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     lockedSlots={lockedSlots}
                     setLockedSlots={setLockedSlots}
                     onNavigate={onNavigate}
+                    unpaidStudentNames={unpaidStudentNames}
                 />
             )}
 

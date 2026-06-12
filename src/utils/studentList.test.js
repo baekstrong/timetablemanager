@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getCoachStudentListStatus, shouldShowInCoachStudentList } from './studentList';
+import { getCoachStudentListStatus, shouldShowInCoachStudentList, getUnpaidStudentNames } from './studentList';
 
 describe('shouldShowInCoachStudentList', () => {
   it('hides a student when coach ended class by clearing schedule even if end date is in the future', () => {
@@ -25,6 +25,34 @@ describe('shouldShowInCoachStudentList', () => {
       종료날짜: '',
     })).toBe(true);
   });
+});
+
+describe('getUnpaidStudentNames', () => {
+    const ref = new Date(2026, 5, 12); // 2026-06-12
+    it('결제유무 X인 활성 수강생을 미결제로 판정한다', () => {
+        const students = [
+            { '이름': '김미납', '요일 및 시간': '월1수1', '시작날짜': '260601', '종료날짜': '260630', '결제유무': 'X' },
+            { '이름': '박완납', '요일 및 시간': '화5목5', '시작날짜': '260601', '종료날짜': '260630', '결제유무': 'O' },
+        ];
+        const result = getUnpaidStudentNames(students, ref);
+        expect(result.has('김미납')).toBe(true);
+        expect(result.has('박완납')).toBe(false);
+    });
+    it('같은 이름 여러 행이면 오늘 기준 활성 행으로 판정한다 (미리 등록 무시)', () => {
+        const students = [
+            { '이름': '이중복', '요일 및 시간': '월1수1', '시작날짜': '260601', '종료날짜': '260630', '결제유무': 'O' },
+            { '이름': '이중복', '요일 및 시간': '월1수1', '시작날짜': '260701', '종료날짜': '260731', '결제유무': 'X' },
+        ];
+        expect(getUnpaidStudentNames(students, ref).has('이중복')).toBe(false);
+    });
+    it('빈 값/스케줄 없는 행은 미결제로 취급하지 않는다', () => {
+        const students = [
+            { '이름': '김빈값', '요일 및 시간': '월1', '시작날짜': '260601', '종료날짜': '260630', '결제유무': '' },
+            { '이름': '박종료', '요일 및 시간': '', '시작날짜': '260501', '종료날짜': '260531', '결제유무': 'X' },
+        ];
+        const result = getUnpaidStudentNames(students, ref);
+        expect(result.size).toBe(0);
+    });
 });
 
 describe('getCoachStudentListStatus', () => {
