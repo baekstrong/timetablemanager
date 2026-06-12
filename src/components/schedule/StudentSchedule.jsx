@@ -7,8 +7,15 @@ import {
     cancelMakeupRequest,
     completeMakeupRequest,
     getHolidays,
+    createMakeupWaitlist,
+    getMakeupWaitlistsByStudent,
+    updateMakeupWaitlistStatus,
+    acceptMakeupWaitlist,
+    declineMakeupWaitlist,
 } from '../../services/firebaseService';
-import { processHolidayMakeupEndDate } from '../../services/googleSheetsService';
+import { normalizeWaitlistEntry, onSeatFreed } from '../../services/makeupWaitlistService';
+import { isNotificationExpired } from '../../utils/makeupWaitlist';
+import { processHolidayMakeupEndDate, getStudentField } from '../../services/googleSheetsService';
 import {
     weekDateToISO,
     isClassWithinMinutes,
@@ -17,6 +24,7 @@ import {
 } from '../../utils/scheduleUtils';
 import { getMakeupWeeklyLimit } from '../../utils/makeupQuota';
 import MakeupModal from './MakeupModal';
+import MakeupWaitlistResponseModal from './MakeupWaitlistModal';
 import { StudentTag, AvailableSeatsCell, HolidayCell } from './ScheduleCell';
 
 /**
@@ -66,6 +74,19 @@ export default function StudentSchedule({
     );
     const [isSubmittingMakeup, setIsSubmittingMakeup] = useState(false);
 
+    // ── 만석 슬롯 보강 대기 ──
+    const [myWaitlists, setMyWaitlists] = useState([]);
+    const [showWaitlistRequest, setShowWaitlistRequest] = useState(false);
+    const [waitlistSlot, setWaitlistSlot] = useState(null);            // { day, period, periodName, date }
+    const [waitlistOriginalClass, setWaitlistOriginalClass] = useState(null);
+    const [respondingWaitlist, setRespondingWaitlist] = useState(null); // notified 항목
+    const [isSubmittingWaitlist, setIsSubmittingWaitlist] = useState(false);
+
+    async function reloadMyWaitlists() {
+        const list = await getMakeupWaitlistsByStudent(user.username);
+        setMyWaitlists(list.map(normalizeWaitlistEntry));
+    }
+
     async function syncHolidayMakeupEndDate(makeupRequests, referenceDate = null) {
         // active 보강만 카운트 (completed는 과거에 이미 처리되었거나 레거시 데이터일 가능성 높아 재적용 시 종료일이 중복 당겨지는 것을 방지)
         const countedHolidayDates = (makeupRequests || [])
@@ -112,6 +133,7 @@ export default function StudentSchedule({
                 const { start, end } = getThisWeekRange();
                 const thisWeekMakeups = await getWeekMakeupRequests(user.username, start, end);
                 setMyWeekMakeupHistory(thisWeekMakeups);
+                await reloadMyWaitlists();
             } catch (error) {
                 console.error('Failed to load student makeup data:', error);
             }
@@ -248,6 +270,132 @@ export default function StudentSchedule({
         }
     }
 
+    // ── 보강 대기 핸들러 ──
+    function openWaitlistRequest(day, periodId, date) {
+        if (isSlotLocked(day, periodId)) {
+            alert('해당 시간은 코치에 의해 보강이 차단되었습니다.');
+            return;
+        }
+        if (!forceMode && isMyHoldingDate?.(date)) {
+            alert('홀딩 기간 중에는 보강 대기를 신청할 수 없습니다.');
+            return;
+        }
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (new Date(date + 'T00:00:00') < today) {
+            alert('과거 날짜로는 대기 신청을 할 수 없습니다.');
+            return;
+        }
+        if (isClassWithinMinutes(date, periodId, 0)) {
+            alert('이미 시작된 수업입니다.');
+            return;
+        }
+        if (isMyClass(day, periodId)) {
+            alert('본인의 정규 수업 시간에는 대기 신청을 할 수 없습니다.');
+            return;
+        }
+        const period = PERIODS.find(p => p.id === periodId);
+        if (!confirm(`이 시간은 현재 만석입니다.\n${day}요일 ${period?.name}에 보강 대기를 신청하시겠습니까?\n자리가 나면 선착순으로 문자 안내를 드립니다.`)) return;
+        setWaitlistSlot({ day, period: periodId, periodName: period?.name || '', date });
+        setWaitlistOriginalClass(null);
+        setShowWaitlistRequest(true);
+    }
+
+    async function handleWaitlistRequestSubmit() {
+        if (!waitlistOriginalClass || !waitlistSlot) return;
+        setIsSubmittingWaitlist(true);
+        try {
+            const phone = String(getStudentField(studentData, '핸드폰') || '').trim();
+            await createMakeupWaitlist(user.username, phone, waitlistSlot, waitlistOriginalClass);
+            alert(`보강 대기 신청 완료!\n자리가 나면 문자로 안내드립니다 (선착순).`);
+            setShowWaitlistRequest(false);
+            setWaitlistSlot(null);
+            setWaitlistOriginalClass(null);
+            await reloadMyWaitlists();
+        } catch (error) {
+            alert(`대기 신청 실패: ${error.message}`);
+        } finally {
+            setIsSubmittingWaitlist(false);
+        }
+    }
+
+    function handleWaitlistChipClick(entry) {
+        if (entry.status === 'notified' && !isNotificationExpired(entry)) {
+            setRespondingWaitlist(entry);
+            return;
+        }
+        if (entry.status === 'waiting') {
+            if (confirm('이 시간의 보강 대기를 취소하시겠습니까?')) {
+                updateMakeupWaitlistStatus(entry.id, 'cancelled')
+                    .then(reloadMyWaitlists)
+                    .catch(err => alert(`대기 취소 실패: ${err.message}`));
+            }
+        }
+    }
+
+    async function handleWaitlistAccept() {
+        const entry = respondingWaitlist;
+        if (!entry) return;
+        if (isNotificationExpired(entry)) {
+            alert('수락 가능 시간이 지났습니다. 다음 기회에 다시 신청해주세요.');
+            setRespondingWaitlist(null);
+            await reloadMyWaitlists();
+            return;
+        }
+        if (!forceMode && myWeekMakeupHistory.length >= makeupWeeklyLimit) {
+            alert(`보강은 주 ${makeupWeeklyLimit}회까지 가능합니다.\n이번 주 보강 한도를 모두 사용해 수락할 수 없습니다.`);
+            return;
+        }
+        // 이번 주 시간표 범위면 여석 재확인 (그 사이 다시 만석이 됐을 수 있음)
+        const expectedDate = weekDates[entry.day] ? weekDateToISO(weekDates[entry.day]) : null;
+        if (expectedDate === entry.date) {
+            const periodObj = PERIODS.find(p => p.id === entry.period);
+            if (periodObj && getCellData(entry.day, periodObj).isFull) {
+                alert('그 사이 자리가 다시 찼습니다. 자리가 나면 다시 안내드리겠습니다.');
+                return;
+            }
+        }
+        setIsSubmittingWaitlist(true);
+        try {
+            await createMakeupRequest(user.username, entry.originalClass, {
+                date: entry.date, day: entry.day, period: entry.period, periodName: entry.periodName,
+            });
+            await acceptMakeupWaitlist(entry.id);
+            try {
+                const activeAndCompleted = await getActiveMakeupRequests(user.username);
+                await syncHolidayMakeupEndDate(activeAndCompleted, entry.originalClass.date);
+            } catch (endDateError) {
+                console.error('보강 대기 수락 후 종료일 재계산 실패:', endDateError);
+            }
+            alert(`보강이 확정되었습니다!\n${entry.originalClass.day}요일 ${entry.originalClass.periodName} → ${entry.day}요일 ${entry.periodName} (${entry.date})`);
+            setRespondingWaitlist(null);
+            await reloadMyWaitlists();
+            await reloadStudentMakeups();
+            await loadWeeklyData();
+        } catch (error) {
+            alert(`수락 실패: ${error.message}`);
+        } finally {
+            setIsSubmittingWaitlist(false);
+        }
+    }
+
+    async function handleWaitlistDecline() {
+        const entry = respondingWaitlist;
+        if (!entry) return;
+        if (!confirm('이 보강 자리를 거절하시겠습니까?\n다음 대기자에게 순번이 넘어갑니다.')) return;
+        setIsSubmittingWaitlist(true);
+        try {
+            await declineMakeupWaitlist(entry.id);
+            await onSeatFreed(entry.date, entry.day, entry.period); // 다음 순번에게 즉시 알림
+            setRespondingWaitlist(null);
+            await reloadMyWaitlists();
+        } catch (error) {
+            alert(`거절 처리 실패: ${error.message}`);
+        } finally {
+            setIsSubmittingWaitlist(false);
+        }
+    }
+
     function handleCellClick(day, periodObj, cellData) {
         if (periodObj.type === 'free') return;
 
@@ -256,7 +404,18 @@ export default function StudentSchedule({
             return;
         }
         if (cellData.isFull) {
-            alert('만석입니다.\n자리가 나면 코치에게 문의해주세요.');
+            const dateStr = weekDates[day];
+            if (!dateStr) return;
+            const date = weekDateToISO(dateStr);
+            const myWait = myWaitlists.find(w =>
+                w.date === date && w.day === day && w.period === periodObj.id &&
+                (w.status === 'waiting' || w.status === 'notified')
+            );
+            if (myWait) {
+                handleWaitlistChipClick(myWait);
+                return;
+            }
+            openWaitlistRequest(day, periodObj.id, date);
         } else {
             const dateStr = weekDates[day];
             if (dateStr) {
@@ -347,6 +506,34 @@ export default function StudentSchedule({
                         ) : (
                             <span className="my-class-badge">MY</span>
                         )}
+                    </div>
+                </div>
+            );
+        }
+
+        // 보강 대기 칩 (만석 슬롯에서 대기중/보강승인중 표시)
+        const waitCellDate = weekDates[day] ? weekDateToISO(weekDates[day]) : null;
+        const myWaitHere = waitCellDate ? myWaitlists.find(w =>
+            w.date === waitCellDate && w.day === day && w.period === periodObj.id &&
+            (w.status === 'waiting' || (w.status === 'notified' && !isNotificationExpired(w)))
+        ) : null;
+        if (myWaitHere && !myClass) {
+            const isNotified = myWaitHere.status === 'notified';
+            return (
+                <div
+                    className="schedule-cell cell-available"
+                    onClick={() => handleWaitlistChipClick(myWaitHere)}
+                    style={isNotified
+                        ? { borderColor: 'var(--accent)', borderWidth: '2px', backgroundColor: 'var(--accent-10)' }
+                        : { borderColor: '#EDBC40', borderWidth: '2px', backgroundColor: '#EDBC401A' }}
+                >
+                    <div className="cell-content">
+                        <span className="seat-count">{data.availableSeats}/{MAX_CAPACITY}</span>
+                        <span className="my-class-badge" style={isNotified
+                            ? { backgroundColor: 'var(--accent)', color: '#fff', fontSize: '0.65rem' }
+                            : { backgroundColor: '#EDBC40', color: '#5c4a0e', fontSize: '0.7rem' }}>
+                            {isNotified ? '보강승인중' : '대기중'}
+                        </span>
                     </div>
                 </div>
             );
@@ -461,6 +648,7 @@ export default function StudentSchedule({
                     <strong>이용 안내</strong>
                     <div style={{ marginTop: '4px' }}>
                         · 여석이 있는 칸을 눌러 <strong>보강 신청</strong>할 수 있습니다 (1회성 수업 이동)<br/>
+                        · 만석(Full) 칸을 누르면 <strong>보강 대기</strong>를 신청할 수 있습니다 — 자리가 나면 문자로 안내드립니다<br/>
                         · 시간표 변경은 코치에게 문의해주세요
                     </div>
                     <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #329BE74D' }}>
@@ -566,6 +754,42 @@ export default function StudentSchedule({
                         setSelectedMakeupSlot(null);
                         setSelectedOriginalClass(null);
                     }}
+                />
+            )}
+
+            {/* 보강 대기 신청 모달 (만석 슬롯) — MakeupModal 재사용 */}
+            {showWaitlistRequest && isRealStudent && waitlistSlot && (
+                <MakeupModal
+                    title="보강 대기 신청"
+                    submitLabel="대기 신청"
+                    submittingLabel="신청 중..."
+                    selectedMakeupSlot={waitlistSlot}
+                    selectedOriginalClass={waitlistOriginalClass}
+                    setSelectedOriginalClass={setWaitlistOriginalClass}
+                    studentSchedule={studentSchedule}
+                    weekDates={weekDates}
+                    activeMakeupRequests={activeMakeupRequests}
+                    isSubmittingMakeup={isSubmittingWaitlist}
+                    getHolidayInfo={getHolidayInfo}
+                    isMyHoldingDate={isMyHoldingDate}
+                    forceMode={forceMode}
+                    onSubmit={handleWaitlistRequestSubmit}
+                    onClose={() => {
+                        setShowWaitlistRequest(false);
+                        setWaitlistSlot(null);
+                        setWaitlistOriginalClass(null);
+                    }}
+                />
+            )}
+
+            {/* 보강 대기 수락/거절 모달 */}
+            {respondingWaitlist && isRealStudent && (
+                <MakeupWaitlistResponseModal
+                    entry={respondingWaitlist}
+                    isSubmitting={isSubmittingWaitlist}
+                    onAccept={handleWaitlistAccept}
+                    onDecline={handleWaitlistDecline}
+                    onClose={() => setRespondingWaitlist(null)}
                 />
             )}
 
