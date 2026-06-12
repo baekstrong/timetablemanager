@@ -29,7 +29,7 @@ function generateAuthHeaders() {
  * Solapi API를 통해 SMS 발송
  * @param {string} to - 수신 번호 (하이픈 포함 가능)
  * @param {string} text - 메시지 내용
- * @param {string|null} scheduledDate - 예약 발송 시간 (YYYY-MM-DD HH:mm:ss, KST)
+ * @param {string|null} scheduledDate - 예약 발송 시간 (ISO 8601, +09:00 오프셋 필수 — 없으면 Solapi가 UTC로 해석)
  */
 async function sendSMS(to, text, scheduledDate = null) {
   const from = process.env.SOLAPI_SENDER_PHONE;

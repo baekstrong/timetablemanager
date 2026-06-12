@@ -139,8 +139,10 @@ const sendBatchSMS = async (messages) => {
 
 /**
  * KST 날짜 포맷 (Solapi 예약 발송용)
- * @param {Date} date
- * @returns {string} "YYYY-MM-DD HH:mm:ss"
+ * ⚠ 반드시 +09:00 오프셋을 명시해야 한다 — 시간대 없는 "YYYY-MM-DD HH:mm:ss"는
+ * Solapi가 UTC로 해석해 9시간 늦게(오전 9시 예약 → 오후 6시) 발송되는 버그가 있었음.
+ * @param {Date} date - 로컬(KST) 기준 Date
+ * @returns {string} "YYYY-MM-DDTHH:mm:ss+09:00" (ISO 8601)
  */
 const formatScheduleDate = (date) => {
   const year = date.getFullYear();
@@ -149,7 +151,7 @@ const formatScheduleDate = (date) => {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   const seconds = String(date.getSeconds()).padStart(2, '0');
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+09:00`;
 };
 
 // ============================================
