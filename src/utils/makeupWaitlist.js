@@ -36,6 +36,10 @@ function splitQueue(entries, now) {
  * 자리가 freedSeats개 새로 빠졌을 때 (홀딩/결석/보강취소/거절 트리거).
  * 만료된 notified가 반납한 자리도 함께 다음 순번에게 배정한다.
  * 반환: { toExpire: entry[], toNotify: entry[] }
+ *
+ * 호출자 계약: entries는 반드시 같은 슬롯(date+day+period)의 대기열이어야 한다.
+ * 반환된 toNotify의 status는 여전히 'waiting' — 호출자가 SMS 발송 후
+ * 'notified' 전환 + notifiedAt 기록을 책임진다. toExpire도 마찬가지로 'expired' 전환은 호출자 몫.
  */
 export function resolveAfterSeatFreed(entries, now = new Date(), freedSeats = 1) {
     const { toExpire, waiting } = splitQueue(entries, now);
