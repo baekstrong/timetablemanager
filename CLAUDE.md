@@ -127,18 +127,22 @@ src/
 ├── services/
 │   ├── googleSheetsService.js       # Google Sheets API 호출 (~1768줄)
 │   ├── firebaseService.js           # Firestore CRUD (~1123줄)
-│   ├── smsService.js                # Solapi SMS 발송
-│   └── analyticsService.js          # 매출·통계 집계 로직
+│   ├── smsService.js                # Solapi SMS 발송 (sendManualSMS 포함)
+│   ├── analyticsService.js          # 매출·통계 집계 로직
+│   └── makeupWaitlistService.js     # 보강 대기 Firestore CRUD + 자리 발생 트리거
+├── utils/
+│   └── makeupWaitlist.js            # 보강 대기 순번 처리·SMS 발송·만료 로직
 ├── components/
 │   ├── Login.jsx                    # 로그인 (Firestore 평문 비밀번호 비교)
 │   ├── Dashboard.jsx                # 대시보드 (커뮤니티 게시판)
-│   ├── WeeklySchedule.jsx           # 주간 시간표 (~1719줄, 핵심 컴포넌트)
-│   ├── StudentManager.jsx           # 코치용 수강생 목록/관리
+│   ├── WeeklySchedule.jsx           # 주간 시간표 (핵심 컴포넌트; 진행중/임박 셀 강조, 미결제 배지)
+│   ├── StudentManager.jsx           # 코치용 수강생 목록/관리 (이름·전화번호 검색 포함)
 │   ├── StudentRegistrationModal.jsx # 코치용 직접 등록 모달 (신규/재등록)
 │   ├── StudentInfo.jsx              # 학생용 내 정보 조회
 │   ├── HoldingManager.jsx           # 홀딩/결석 신청
 │   ├── HolidayManager.jsx           # 코치용 공휴일 관리
 │   ├── MakeupRequestManager.jsx     # 보강 관리
+│   ├── MakeupWaitlistModal.jsx      # 만석 슬롯 보강 대기 신청 모달
 │   ├── CoachNewStudents.jsx         # 신규 신청 승인/거절
 │   ├── ContractView.jsx            # 재등록 계약 동의 페이지 (학생용)
 │   ├── ContractHistory.jsx         # 계약 이력 모달 (코치/학생 공용)
@@ -148,6 +152,8 @@ src/
 │   ├── Ranking.jsx                  # 랭킹·내 PR·성장 그래프 페이지 (3 탭)
 │   ├── PRSubmitModal.jsx            # 공식 PR 측정 등록 모달 (prType별 동적 폼)
 │   ├── AnalyticsDashboard.jsx       # 매출·통계 대시보드 (코치용)
+│   ├── SmsSendModal.jsx             # 코치 수동 문자 발송 모달 (수신자 선택 + 발송 결과 상태창)
+│   ├── PasswordChangeCard.jsx       # 수강생 비밀번호 변경 카드 (내 정보 하단)
 │   ├── GoogleSheetsSync.jsx         # Sheets 동기화 UI
 │   ├── GoogleSheetsEmbed.jsx        # Sheets 임베드
 │   └── GoogleSheetsTest.jsx         # Sheets 연결 테스트
@@ -169,6 +175,9 @@ netlify/functions/
 functions/
 ├── server.js    # 로컬 개발용 Express (Sheets + SMS API)
 └── package.json
+
+scripts/
+└── post-update-notice.js  # 관리자봇 업데이트 공지 게시 스크립트
 
 public/training-log/   # 훈련일지 서브앱 (별도 Vanilla JS SPA)
 ├── index.html
@@ -201,6 +210,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 - Firestore `users/{이름}` 문서에서 평문 비밀번호 직접 비교
 - `isCoach` 필드로 코치/학생 역할 구분
 - 자동 로그인: `localStorage.login_credentials`, `localStorage.savedUser`
+- 수강생은 내 정보에서 비밀번호 변경 가능 (`firebaseService.updateUserPassword`, localStorage 자격증명 동기화)
 
 ## Google Sheets 구조
 
@@ -295,6 +305,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `renewalContracts` | 재등록 계약 (status: pending/agreed/cancelled) |
 | `personalBests` | 공식 PR 측정 결과 (`prType`별 비교 룰; doc id: `{userName}__{exercise}` 또는 `{userName}__{exercise}__{intensity}{unit}` for `weightThenReps`) |
 | `studentTerminations` | 코치가 '종료' 버튼으로 수강 종료한 기록 (이탈 통계용). `{studentName, terminatedBy:'coach', reason, terminatedAt}` |
+| `makeupWaitlists` | 만석 슬롯 보강 대기 (status: waiting/notified/accepted/declined/expired/cancelled). 자리 발생 시 선착순 1명에게 SMS → 1시간(수업 시작이 더 가까우면 그때까지) 내 앱 시간표 '보강승인중' 칩에서 수락, 무응답/거절 시 다음 순번. 트리거: 홀딩/결석/보강취소/거절 + 코치 시간표 로드 백스톱 |
 
 ### `personalBests` 상세
 
@@ -390,6 +401,10 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - 신청 데드라인: 원본 수업과 보강 대상 수업 모두 시작 **1시간** 전까지
 - 취소 데드라인: 보강 수업 시작 **30분** 전까지
 
+### 만석 슬롯 보강 대기 흐름 (makeupWaitlists)
+
+만석 슬롯 클릭 시 대기 신청 모달(`MakeupWaitlistModal`)에서 원래 수업을 선택해 `makeupWaitlists` 컬렉션에 등록한다. 자리 발생 트리거(홀딩 신청/결석 신청/보강 취소·거절 + 코치 시간표 로드 백스톱)가 실행되면 대기 1순위에게 자리 안내 SMS를 발송하고 status를 `notified`로 변경한다. 수강생은 시간표의 '보강승인중' 칩을 클릭해 1시간(수업 시작이 더 가까우면 그때까지) 내에 수락 또는 거절할 수 있다. 수락 시 정식 보강(`makeupRequests`)으로 확정되고 종료일이 재계산된다. 거절하거나 시간 초과로 만료되면 다음 순번에게 동일하게 안내한다. 대기 신청은 주간 보강 쿼터를 미리 소진하지 않으며, 수락 시점에 쿼터를 검증한다.
+
 ### WeeklySchedule 수강생 상태
 
 | 상태 | 설명 |
@@ -402,6 +417,8 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 | `new` | 신규 수강생 |
 | `agreed-absent` | 합의 결석 |
 | `absent` | 결석 신청 처리됨 |
+| `makeup-pending`(보강승인중) | 만석 대기 중 자리 안내 문자를 받고 수락 대기 중 |
+| 보강대기 | 만석 슬롯 대기열 등록 상태 (코치 시간표 칩) |
 
 ### 신규 수강생 등록 → 승인
 
@@ -442,6 +459,8 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 | 신규 신청 | 코치 | 신청 알림 + 정보 |
 | 승인 | 학생 | 승인 확인 + 준비 메시지 + 결제 링크 |
 | 승인 (예약) | 학생 | 입학반 3일 전 오전 9시 리마인더 |
+| 수동 발송 | 코치가 선택한 수강생 | 수강생 관리 → 문자 보내기 (수신자별 성공/실패 상태창) |
+| 보강 대기 자리 발생 | 대기 1순위 수강생 | 자리 발생 시 자동, 1시간 내 시간표에서 수락 안내, 무응답 시 다음 순번 |
 
 ## Google Calendar 연동 (입학반 일정)
 
