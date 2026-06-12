@@ -13,6 +13,7 @@ import {
     getActiveMakeupRequests
 } from '../services/firebaseService';
 import { cancelHoldingInSheets } from '../services/googleSheetsService';
+import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import './HoldingManager.css';
 
 // 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (timezone 문제 방지)
@@ -719,6 +720,13 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                 // Reload data
                 const absenceList = await getAbsencesByStudent(user.username);
                 setAbsences(absenceList);
+            }
+
+            // 빠진 자리의 보강 대기자에게 순차 알림 (실패해도 신청 자체에는 영향 없음)
+            try {
+                await onSeatsFreedForDates(sortedDates, getStudentField(studentData, '요일 및 시간'));
+            } catch (e) {
+                console.error('보강 대기 알림 트리거 실패:', e);
             }
 
             setSelectedDates([]);

@@ -47,6 +47,7 @@ export default function CoachSchedule({
     setLockedSlots,
     onNavigate,
     unpaidStudentNames = new Set(),
+    makeupWaitlists = [],
 }) {
     // 현재 시각 — 진행 중/임박 수업 강조용 (60초마다 갱신)
     const [now, setNow] = useState(() => new Date());
@@ -267,6 +268,16 @@ export default function CoachSchedule({
                     {data.subs.map(sub => (
                         <span key={sub.name} className="student-tag substitute">{sub.name}</span>
                     ))}
+                    {/* 만석 보강 대기 — 문자 발송됨(보강승인중) / 대기중 */}
+                    {(() => {
+                        const slotDateISO = weekDates[day] ? weekDateToISO(weekDates[day]) : null;
+                        if (!slotDateISO) return null;
+                        return makeupWaitlists
+                            .filter(w => w.date === slotDateISO && w.day === day && w.period === periodObj.id)
+                            .map(w => w.status === 'notified'
+                                ? <StudentTag key={`mw-${w.id}`} name={w.studentName} status="makeupPending" label="보강승인중" />
+                                : <StudentTag key={`mw-${w.id}`} name={w.studentName} status="waitingSeat" label="보강대기" />);
+                    })()}
                 </div>
             </div>
         );

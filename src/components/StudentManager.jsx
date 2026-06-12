@@ -3,6 +3,7 @@ import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets } from '../services/googleSheetsService';
 import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination } from '../services/firebaseService';
 import { getCoachStudentListStatus, shouldShowInCoachStudentList } from '../utils/studentList';
+import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
@@ -146,6 +147,14 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                 await getCountedHolidayMakeupDates(absenceTarget['이름'])
             );
             alert(`✅ 결석 처리 완료!\n\n수업일 결석: ${result.validAbsenceCount}일\n새 종료날짜: ${result.newEndDate}\n특이사항: ${result.notesText}`);
+
+            // 빠진 자리의 보강 대기자에게 순차 알림 (실패해도 처리 자체에는 영향 없음)
+            try {
+                await onSeatsFreedForDates(absenceDates, absenceTarget['요일 및 시간'] || '');
+            } catch (e) {
+                console.error('보강 대기 알림 트리거 실패:', e);
+            }
+
             setAbsenceTarget(null);
             setAbsenceDates([]);
             if (refresh) refresh();
@@ -270,6 +279,14 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             );
 
             alert(`홀딩 처리 완료!\n\n홀딩 기간: ${startDate} ~ ${endDate}\n새 종료날짜: ${result.newEndDate}\n홀딩 상태: ${result.holdingStatus}`);
+
+            // 빠진 자리의 보강 대기자에게 순차 알림 (실패해도 처리 자체에는 영향 없음)
+            try {
+                await onSeatsFreedForDates(sortedDates, holdingTarget['요일 및 시간'] || '');
+            } catch (e) {
+                console.error('보강 대기 알림 트리거 실패:', e);
+            }
+
             setHoldingTarget(null);
             setHoldingDates([]);
             if (refresh) refresh();

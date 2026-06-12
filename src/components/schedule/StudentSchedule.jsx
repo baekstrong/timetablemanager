@@ -262,6 +262,16 @@ export default function StudentSchedule({
         if (!confirm('이 보강 신청을 취소하시겠습니까?')) return;
         try {
             await cancelMakeupRequest(makeupId);
+
+            // 보강 취소로 빠진 자리 → 대기자 알림
+            if (makeup) {
+                try {
+                    await onSeatFreed(makeup.makeupClass.date, makeup.makeupClass.day, makeup.makeupClass.period);
+                } catch (e) {
+                    console.error('보강 대기 알림 트리거 실패:', e);
+                }
+            }
+
             alert('보강 신청이 취소되었습니다.');
             await reloadStudentMakeups();
             await loadWeeklyData();
