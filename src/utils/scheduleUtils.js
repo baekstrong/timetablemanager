@@ -235,3 +235,18 @@ export function getWaitlistCountForSlot(day, periodId, weekWaitlist, newStudentW
     }).length;
     return existingCount + newCount;
 }
+
+/** 교시 종료 시각(분). time 문자열("19:50 ~ 21:20")의 끝 시간 기준, 파싱 실패 시 시작+90분. */
+export function getPeriodEndMinutes(period) {
+    const m = (period.time || '').match(/~\s*(\d{1,2}):(\d{2})/);
+    if (m) return parseInt(m[1]) * 60 + parseInt(m[2]);
+    return period.startHour * 60 + period.startMinute + 90;
+}
+
+/** 지금이 수업 시작 30분 전 ~ 종료 시각 사이인지 (오늘 요일 셀 강조용). */
+export function isPeriodImminentOrOngoing(period, now = new Date()) {
+    const startMin = period.startHour * 60 + period.startMinute;
+    const endMin = getPeriodEndMinutes(period);
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    return nowMin >= startMin - 30 && nowMin <= endMin;
+}

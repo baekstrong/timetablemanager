@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react';
 import { PERIODS, DAYS } from '../../data/mockData';
 import { toggleDisabledClass, toggleLockedSlot } from '../../services/firebaseService';
-import { weekDateToISO, getWaitlistCountForSlot } from '../../utils/scheduleUtils';
+import { weekDateToISO, getWaitlistCountForSlot, isPeriodImminentOrOngoing } from '../../utils/scheduleUtils';
 import CoachWaitlistPanel from './CoachWaitlistPanel';
 import { StudentTag } from './ScheduleCell';
 import { SECTION_STYLES } from './scheduleStyles';
@@ -46,6 +47,14 @@ export default function CoachSchedule({
     setLockedSlots,
     onNavigate,
 }) {
+    // 현재 시각 — 진행 중/임박 수업 강조용 (60초마다 갱신)
+    const [now, setNow] = useState(() => new Date());
+    useEffect(() => {
+        const timer = setInterval(() => setNow(new Date()), 60 * 1000);
+        return () => clearInterval(timer);
+    }, []);
+    const todayDayName = ['일', '월', '화', '수', '목', '금', '토'][now.getDay()];
+
     // ── 헬퍼 ──
     function isClassDisabled(day, periodId) {
         return disabledClasses.includes(`${day}-${periodId}`);
@@ -99,6 +108,7 @@ export default function CoachSchedule({
     // ── 셀 렌더 ──
     function renderCoachCell(day, periodObj) {
         const data = getCellData(day, periodObj);
+        const isOngoingNow = day === todayDayName && isPeriodImminentOrOngoing(periodObj, now);
         const classDisabled = isClassDisabled(day, periodObj.id);
         const holidayReason = getHolidayInfo(day);
         const isHoliday = holidayReason !== null;
@@ -181,6 +191,7 @@ export default function CoachSchedule({
                     alignItems: 'flex-start',
                     justifyContent: 'flex-start',
                     padding: '8px',
+                    ...(isOngoingNow ? { backgroundColor: 'var(--accent-10)', border: '1px solid var(--accent)' } : {}),
                     ...(isHoliday ? { backgroundColor: '#E94E581A' } : {})
                 }}
             >
