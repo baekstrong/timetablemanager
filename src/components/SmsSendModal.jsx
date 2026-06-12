@@ -63,7 +63,7 @@ export default function SmsSendModal({ recipients, onClose }) {
     if (results) {
         const failed = results.filter(r => !r.success);
         return (
-            <div style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+            <div style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget && !sending) onClose(); }}>
                 <div style={modalStyle}>
                     <h2 style={{ margin: '0 0 4px', fontSize: '1.15rem' }}>발송 결과</h2>
                     <p style={{ margin: '0 0 12px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
