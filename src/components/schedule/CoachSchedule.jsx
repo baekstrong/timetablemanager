@@ -108,10 +108,11 @@ export default function CoachSchedule({
     // ── 셀 렌더 ──
     function renderCoachCell(day, periodObj) {
         const data = getCellData(day, periodObj);
-        const isOngoingNow = day === todayDayName && isPeriodImminentOrOngoing(periodObj, now);
         const classDisabled = isClassDisabled(day, periodObj.id);
         const holidayReason = getHolidayInfo(day);
         const isHoliday = holidayReason !== null;
+        // 휴일에는 진행 중 강조를 하지 않음 (휴일 표시가 우선)
+        const isOngoingNow = !isHoliday && day === todayDayName && isPeriodImminentOrOngoing(periodObj, now);
 
         // Disabled class
         if (classDisabled) {
