@@ -412,6 +412,13 @@ export default function StudentSchedule({
                 (w.status === 'waiting' || w.status === 'notified')
             );
             if (myWait) {
+                if (myWait.status === 'notified' && isNotificationExpired(myWait)) {
+                    // 만료된 자리 안내 — 정리하고 재신청 가능 상태로 전환
+                    updateMakeupWaitlistStatus(myWait.id, 'expired').catch(() => {});
+                    setMyWaitlists(prev => prev.filter(w => w.id !== myWait.id));
+                    alert('이전 자리 안내의 수락 시간이 지나 만료되었습니다.\n만석 칸을 다시 누르면 새로 대기 신청할 수 있습니다.');
+                    return;
+                }
                 handleWaitlistChipClick(myWait);
                 return;
             }
