@@ -38,6 +38,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     const [holdingDates, setHoldingDates] = useState([]); // 홀딩 날짜 목록
     const [holdingDateInput, setHoldingDateInput] = useState(''); // 날짜 입력
     const [holdingProcessing, setHoldingProcessing] = useState(false);
+    const [searchQuery, setSearchQuery] = useState(''); // 수강생 검색어
 
     const getCountedHolidayMakeupDates = async (studentName) => {
         const makeups = await getActiveMakeupRequests(studentName).catch(() => []);
@@ -284,8 +285,6 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             .sort((a, b) => (a['이름'] || '').localeCompare(b['이름'] || '', 'ko'));
     }, [students]);
 
-    const [searchQuery, setSearchQuery] = useState('');
-
     // 이름 부분 일치 + 전화번호 숫자 부분 일치 필터
     const filteredStudents = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
@@ -347,6 +346,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                 </div>
                 <input
                     type="search"
+                    aria-label="수강생 검색"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="이름·전화번호 검색"
