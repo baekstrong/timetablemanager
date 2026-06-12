@@ -38,11 +38,12 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-// 1. 기존 관리자봇 업데이트 공지 소프트 삭제
+// 1. 기존 관리자봇 공지 전체 소프트 삭제
+// (isUpdateNotice 필드로 거르지 않음 — 앱에서 직접 작성한 예전 관리자봇 공지에는
+//  이 필드가 없어 안 내려가는 문제가 있었음. 관리자봇 글은 항상 최신 1건만 유지한다.)
 const existing = await getDocs(query(
     collection(db, 'posts'),
     where('author', '==', '관리자봇'),
-    where('isUpdateNotice', '==', true),
 ));
 for (const d of existing.docs) {
     if (!d.data().deleted) {
