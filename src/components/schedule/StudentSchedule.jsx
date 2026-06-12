@@ -320,7 +320,14 @@ export default function StudentSchedule({
     }
 
     function handleWaitlistChipClick(entry) {
-        if (entry.status === 'notified' && !isNotificationExpired(entry)) {
+        // 만료된 자리 안내 — 어느 경로로 클릭되든 정리 후 재신청 가능 상태로 전환
+        if (entry.status === 'notified' && isNotificationExpired(entry)) {
+            updateMakeupWaitlistStatus(entry.id, 'expired').catch(() => {});
+            setMyWaitlists(prev => prev.filter(w => w.id !== entry.id));
+            alert('이전 자리 안내의 수락 시간이 지나 만료되었습니다.\n만석 칸을 다시 누르면 새로 대기 신청할 수 있습니다.');
+            return;
+        }
+        if (entry.status === 'notified') {
             setRespondingWaitlist(entry);
             return;
         }
@@ -346,6 +353,17 @@ export default function StudentSchedule({
             alert(`보강은 주 ${makeupWeeklyLimit}회까지 가능합니다.\n이번 주 보강 한도를 모두 사용해 수락할 수 없습니다.`);
             return;
         }
+        // 같은 원래 수업으로 이미 보강을 신청한 경우 중복 생성 방지
+        const duplicateOriginal = activeMakeupRequests.some(m =>
+            m.status === 'active' &&
+            m.originalClass.date === entry.originalClass.date &&
+            m.originalClass.day === entry.originalClass.day &&
+            m.originalClass.period === entry.originalClass.period
+        );
+        if (duplicateOriginal) {
+            alert('이 원래 수업은 이미 다른 보강으로 옮겨져 있습니다.\n대기를 거절 처리해주세요.');
+            return;
+        }
         // 이번 주 시간표 범위면 여석 재확인 (그 사이 다시 만석이 됐을 수 있음)
         const expectedDate = weekDates[entry.day] ? weekDateToISO(weekDates[entry.day]) : null;
         if (expectedDate === entry.date) {
@@ -360,7 +378,12 @@ export default function StudentSchedule({
             await createMakeupRequest(user.username, entry.originalClass, {
                 date: entry.date, day: entry.day, period: entry.period, periodName: entry.periodName,
             });
-            await acceptMakeupWaitlist(entry.id);
+            try {
+                await acceptMakeupWaitlist(entry.id);
+            } catch (statusError) {
+                // 보강은 이미 확정됨 — 대기 상태 전환 실패는 치명적이지 않음 (백스톱이 정리)
+                console.error('보강 대기 accepted 전환 실패 (보강은 생성됨):', entry.id, statusError);
+            }
             try {
                 const activeAndCompleted = await getActiveMakeupRequests(user.username);
                 await syncHolidayMakeupEndDate(activeAndCompleted, entry.originalClass.date);
@@ -382,6 +405,13 @@ export default function StudentSchedule({
     async function handleWaitlistDecline() {
         const entry = respondingWaitlist;
         if (!entry) return;
+        if (isNotificationExpired(entry)) {
+            alert('수락 가능 시간이 이미 지나 자동 만료되었습니다.');
+            updateMakeupWaitlistStatus(entry.id, 'expired').catch(() => {});
+            setRespondingWaitlist(null);
+            await reloadMyWaitlists();
+            return;
+        }
         if (!confirm('이 보강 자리를 거절하시겠습니까?\n다음 대기자에게 순번이 넘어갑니다.')) return;
         setIsSubmittingWaitlist(true);
         try {
@@ -412,13 +442,6 @@ export default function StudentSchedule({
                 (w.status === 'waiting' || w.status === 'notified')
             );
             if (myWait) {
-                if (myWait.status === 'notified' && isNotificationExpired(myWait)) {
-                    // 만료된 자리 안내 — 정리하고 재신청 가능 상태로 전환
-                    updateMakeupWaitlistStatus(myWait.id, 'expired').catch(() => {});
-                    setMyWaitlists(prev => prev.filter(w => w.id !== myWait.id));
-                    alert('이전 자리 안내의 수락 시간이 지나 만료되었습니다.\n만석 칸을 다시 누르면 새로 대기 신청할 수 있습니다.');
-                    return;
-                }
                 handleWaitlistChipClick(myWait);
                 return;
             }
