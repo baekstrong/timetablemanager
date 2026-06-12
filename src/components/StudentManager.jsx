@@ -284,6 +284,22 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             .sort((a, b) => (a['이름'] || '').localeCompare(b['이름'] || '', 'ko'));
     }, [students]);
 
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // 이름 부분 일치 + 전화번호 숫자 부분 일치 필터
+    const filteredStudents = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return activeStudents;
+        const qDigits = q.replace(/\D/g, '');
+        return activeStudents.filter(s => {
+            const name = (s['이름'] || '').toLowerCase();
+            if (name.includes(q)) return true;
+            if (!qDigits) return false;
+            const phone = String(getStudentField(s, '핸드폰') || '').replace(/\D/g, '');
+            return phone.includes(qDigits);
+        });
+    }, [activeStudents, searchQuery]);
+
     // 시트 임베드 모드인 경우
     if (viewMode === 'sheet') {
         return <GoogleSheetsEmbed onBack={() => setViewMode('table')} />;
@@ -329,6 +345,23 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                     </button>
                     <div className="student-count">총 {activeStudents.length}명</div>
                 </div>
+                <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="이름·전화번호 검색"
+                    style={{
+                        width: '100%',
+                        marginTop: '8px',
+                        padding: '8px 12px',
+                        fontSize: '0.9rem',
+                        border: '1px solid var(--hairline)',
+                        borderRadius: '8px',
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        boxSizing: 'border-box',
+                    }}
+                />
             </div>
 
             {error && (
@@ -360,14 +393,14 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {activeStudents.length === 0 ? (
+                                {filteredStudents.length === 0 ? (
                                     <tr>
                                         <td colSpan="9" className="empty-message">
-                                            등록된 수강생이 없습니다.
+                                            {searchQuery.trim() ? '검색 결과가 없습니다.' : '등록된 수강생이 없습니다.'}
                                         </td>
                                     </tr>
                                 ) : (
-                                    activeStudents.map((student, index) => (
+                                    filteredStudents.map((student, index) => (
                                         <tr key={index} className={editingStudent === index ? 'editing' : ''}>
                                             <td className="student-name">{student['이름'] || '-'}</td>
 
