@@ -51,13 +51,17 @@ for (const d of existing.docs) {
     }
 }
 
-// 2. 새 공지 등록 (firebaseService.createPost와 동일 스키마)
+// 2. 새 공지 등록 (PostForm 작성 글과 동일 스키마)
+// isCoach: 작성자 이름 하늘색 표시, pinned: 공지 노란 배경 + 상단 고정
 const ref = await addDoc(collection(db, 'posts'), {
     title,
     content,
     category: 'notice',
     author: '관리자봇',
+    isCoach: true,
+    pinned: true,
     isUpdateNotice: true,
+    images: [],
     likes: [],
     commentCount: 0,
     deleted: false,
