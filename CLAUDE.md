@@ -101,6 +101,21 @@ git -C /Users/baeggwanjangjadonghwa/workspace/repos/timetablemanager pull --ff-o
 - pull 실패, 로컬 변경 충돌, fast-forward 불가 상태면 수정하지 말고 원인과 필요한 선택지를 보고한다.
 - 버그 원인 분석/수정안 제안은 가능하지만 실제 수정·push·배포는 백관장 승인 후 진행한다.
 
+## 업데이트 공지 규칙 (관리자봇)
+
+main에 푸시(배포)하는 변경이 **수강생이 체감하는 변경**(새 기능, 화면/동작 변화)이면:
+
+1. Claude가 공지 초안(제목+본문)을 터미널에 제시하고 **백관장 승인을 받는다**. 승인 전에는 절대 게시하지 않는다.
+2. 승인 시 아래 스크립트를 실행한다. 기존 관리자봇 업데이트 공지는 자동으로 내려가고 새 공지로 교체된다.
+
+```bash
+node --env-file=.env scripts/post-update-notice.js "제목" "본문"
+```
+
+3. 거절 시 공지 없이 배포만 진행한다.
+4. 내부 리팩토링·마이너 버그 픽스는 공지 제안 자체를 하지 않는다.
+5. Node 20.6 미만 환경에서는 `set -a; source .env; set +a; node scripts/post-update-notice.js ...`로 실행한다.
+
 ## 디렉토리 구조
 
 ```
