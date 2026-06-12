@@ -12,6 +12,7 @@ export function StudentTag({ name, status, label, unpaid = false }) {
 export function UnpaidBadge() {
     return (
         <span style={{
+            display: 'inline-block',
             marginLeft: '3px',
             padding: '0 4px',
             fontSize: '0.62rem',
