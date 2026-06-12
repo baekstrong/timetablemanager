@@ -556,3 +556,22 @@ export const sendApprovalNotifications = async (studentPhone, studentName, detai
 
   return results;
 };
+
+// ============================================
+// 만석 슬롯 보강 대기 — 자리 발생 안내 SMS
+// ============================================
+/**
+ * 대기 순번이 된 수강생에게 자리 발생 안내 발송.
+ * "1시간 내" + "앱 시간표에서 수락" 문구를 반드시 포함한다.
+ */
+export const sendMakeupSeatAvailableSMS = async (studentPhone, studentName, dateText, periodLabel) => {
+  const text = `[근력학교] ${studentName}님, 대기 신청하신 ${dateText} ${periodLabel} 수업에 자리가 났습니다.\n1시간 내에 앱 시간표에서 [보강승인중] 칸을 눌러 수락해주세요.\n미응답 시 다음 대기자에게 순번이 넘어갑니다.`;
+  try {
+    await sendSMS(studentPhone, text);
+    console.log('보강 대기 자리 안내 SMS 발송 완료:', studentName);
+    return true;
+  } catch (error) {
+    console.error('보강 대기 자리 안내 SMS 발송 실패:', studentName, '-', error.message);
+    return false;
+  }
+};

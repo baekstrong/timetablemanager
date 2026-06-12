@@ -1021,6 +1021,76 @@ export const cancelContract = async (contractId) => {
 };
 
 // ============================================
+// MAKEUP WAITLIST (만석 슬롯 보강 대기)
+// ============================================
+// status: waiting → notified → accepted | declined | expired | cancelled
+
+export const createMakeupWaitlist = async (studentName, phone, slot, originalClass) => {
+    return safeWrite(async () => {
+        const existing = await queryDocs('makeupWaitlists',
+            where('studentName', '==', studentName),
+            where('date', '==', slot.date),
+            where('period', '==', slot.period),
+            where('status', 'in', ['waiting', 'notified'])
+        );
+        if (existing.length > 0) throw new Error('이미 이 시간에 보강 대기를 신청했습니다.');
+        return createDoc('makeupWaitlists', {
+            studentName,
+            phone: phone || '',
+            date: slot.date,
+            day: slot.day,
+            period: slot.period,
+            periodName: slot.periodName,
+            originalClass: {
+                date: originalClass.date,
+                day: originalClass.day,
+                period: originalClass.period,
+                periodName: originalClass.periodName,
+            },
+            status: 'waiting',
+            notifiedAt: null,
+            respondedAt: null,
+            updatedAt: serverTimestamp(),
+        });
+    });
+};
+
+export const getMakeupWaitlistsByStudent = async (studentName) => {
+    return safeRead([], () => queryDocs('makeupWaitlists',
+        where('studentName', '==', studentName),
+        where('status', 'in', ['waiting', 'notified'])
+    ));
+};
+
+export const getActiveMakeupWaitlists = async () => {
+    return safeRead([], () => queryDocs('makeupWaitlists',
+        where('status', 'in', ['waiting', 'notified'])
+    ));
+};
+
+export const updateMakeupWaitlistStatus = async (id, status) => {
+    return safeWrite(() => updateDocStatus('makeupWaitlists', id, { status }));
+};
+
+export const notifyMakeupWaitlist = async (id) => {
+    return safeWrite(() => updateDocStatus('makeupWaitlists', id, {
+        status: 'notified', notifiedAt: serverTimestamp(),
+    }));
+};
+
+export const acceptMakeupWaitlist = async (id) => {
+    return safeWrite(() => updateDocStatus('makeupWaitlists', id, {
+        status: 'accepted', respondedAt: serverTimestamp(),
+    }));
+};
+
+export const declineMakeupWaitlist = async (id) => {
+    return safeWrite(() => updateDocStatus('makeupWaitlists', id, {
+        status: 'declined', respondedAt: serverTimestamp(),
+    }));
+};
+
+// ============================================
 // BOARD - POSTS
 // ============================================
 
