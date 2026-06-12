@@ -1,4 +1,4 @@
-import { SMS_TYPES, smsChip, isReminderExpected } from '../utils/smsStatus';
+import { SMS_TYPES, smsChip, isReminderExpected, expectedReminderAt } from '../utils/smsStatus';
 
 // 칩 종류별 색 (플랫 코발트 디자인 — 가독성 강화 톤)
 const CHIP_STYLE = {
@@ -27,7 +27,12 @@ export default function SmsStatusChips({ reg, onResend, resendDisabledReason }) 
                 if (key === 'reminder' && !isReminderExpected(reg)) return null;
                 // 승인/리마인더는 승인 전이면 '대기'로 흐리게
                 const notYet = (key === 'approval' || key === 'reminder') && reg.status !== 'approved';
-                const chip = smsChip(log[key]);
+                let chip = smsChip(log[key]);
+                // 과거 데이터(scheduledAt 미기록) 폴백: 입학반 3일 전 9시 규칙으로 예약 시각 추정
+                if (key === 'reminder' && chip.kind === 'scheduled' && !log[key]?.scheduledAt) {
+                    const fallbackAt = expectedReminderAt(reg);
+                    if (fallbackAt) chip = { ...chip, label: `${fallbackAt} 문자 예약됨` };
+                }
                 const showResend = !notYet && (chip.kind === 'failed' || chip.kind === 'none');
                 const disabledReason = showResend && resendDisabledReason ? resendDisabledReason(reg, key) : null;
                 return (

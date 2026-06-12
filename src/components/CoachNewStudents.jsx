@@ -399,11 +399,16 @@ const CoachNewStudents = ({ user, onBack }) => {
                     };
                     if (smsResults.reminderSMS) {
                         sent.push('입학반 리마인더');
-                        smsLogUpdate['smsLog.reminder'] = {
-                            status: 'scheduled',
-                            at: Date.now(),
-                            ...(groupId ? { groupId } : {}),
-                        };
+                        const reminderScheduledAt = smsResults.reminderSMS?.scheduledAt;
+                        // scheduledAt이 있으면 예약 발송, 없으면(입학반 3일 이내) 즉시 발송됨
+                        smsLogUpdate['smsLog.reminder'] = reminderScheduledAt
+                            ? {
+                                status: 'scheduled',
+                                at: Date.now(),
+                                scheduledAt: reminderScheduledAt,
+                                ...(groupId ? { groupId } : {}),
+                            }
+                            : { status: 'sent', at: Date.now() };
                         // 예약 SMS groupId 저장 (취소용, 기존 필드 하위호환 유지)
                         if (groupId) smsLogUpdate.reminderGroupId = groupId;
                     } else if (reg.entranceDate && reg.entranceClassDate) {
@@ -587,8 +592,15 @@ const CoachNewStudents = ({ user, onBack }) => {
             } else if (typeKey === 'reminder') {
                 const res = await scheduleEntranceReminderSMS(reg.phone, reg.name, details);
                 const groupId = res?.groupId;
+                const scheduledAt = res?.scheduledAt;
+                // scheduledAt 있으면 예약, 없는데 성공이면 즉시 발송(입학반 3일 이내)
+                const reminderEntry = !res
+                    ? { status: 'failed', at: Date.now() }
+                    : scheduledAt
+                        ? { status: 'scheduled', at: Date.now(), scheduledAt, ...(groupId ? { groupId } : {}) }
+                        : { status: 'sent', at: Date.now() };
                 await updateNewStudentRegistration(reg.id, {
-                    'smsLog.reminder': { status: res ? 'scheduled' : 'failed', at: Date.now(), ...(groupId ? { groupId } : {}) },
+                    'smsLog.reminder': reminderEntry,
                     ...(groupId ? { reminderGroupId: groupId } : {}),
                 });
             }

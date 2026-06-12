@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SMS_TYPES, smsChip, isReminderExpected, smsIssueCount, isReminderResendable } from './smsStatus';
+import { SMS_TYPES, smsChip, isReminderExpected, smsIssueCount, isReminderResendable, formatScheduledAt, expectedReminderAt } from './smsStatus';
 
 describe('smsChip', () => {
   it('엔트리 없으면 미발송', () => {
@@ -8,11 +8,40 @@ describe('smsChip', () => {
   it('sent → 나감', () => {
     expect(smsChip({ status: 'sent', at: 1 })).toEqual({ kind: 'sent', label: '나감' });
   });
-  it('scheduled → 예약됨', () => {
+  it('scheduled(시각 미기록) → 예약됨', () => {
     expect(smsChip({ status: 'scheduled', at: 1 })).toEqual({ kind: 'scheduled', label: '예약됨' });
+  });
+  it('scheduled + scheduledAt → 예약 시각 표시', () => {
+    expect(smsChip({ status: 'scheduled', at: 1, scheduledAt: '2026-06-13 09:00:00' }))
+      .toEqual({ kind: 'scheduled', label: '6/13 09:00 문자 예약됨' });
   });
   it('failed → 실패', () => {
     expect(smsChip({ status: 'failed', at: 1 })).toEqual({ kind: 'failed', label: '실패' });
+  });
+});
+
+describe('formatScheduledAt', () => {
+  it('YYYY-MM-DD HH:mm:ss → M/D HH:mm', () => {
+    expect(formatScheduledAt('2026-06-13 09:00:00')).toBe('6/13 09:00');
+    expect(formatScheduledAt('2026-12-03 18:30:00')).toBe('12/3 18:30');
+  });
+  it('파싱 실패 시 null', () => {
+    expect(formatScheduledAt('')).toBe(null);
+    expect(formatScheduledAt('이상한값')).toBe(null);
+    expect(formatScheduledAt(null)).toBe(null);
+  });
+});
+
+describe('expectedReminderAt', () => {
+  const now = new Date(2026, 5, 10, 12, 0); // 2026-06-10 12:00
+  it('입학반 3일 전 오전 9시가 미래면 추정 시각 반환', () => {
+    expect(expectedReminderAt({ entranceDate: '2026-06-20' }, now)).toBe('6/17 09:00');
+  });
+  it('추정 시각이 이미 지났으면 null (즉시 발송됐을 수 있음)', () => {
+    expect(expectedReminderAt({ entranceDate: '2026-06-12' }, now)).toBe(null);
+  });
+  it('입학반 날짜 없으면 null', () => {
+    expect(expectedReminderAt({}, now)).toBe(null);
   });
 });
 
