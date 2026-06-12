@@ -8,7 +8,7 @@ import {
     completeMakeupRequest,
     getHolidays,
     createMakeupWaitlist,
-    getMakeupWaitlistsByStudent,
+    getActiveMakeupWaitlists,
     updateMakeupWaitlistStatus,
     acceptMakeupWaitlist,
     declineMakeupWaitlist,
@@ -75,16 +75,30 @@ export default function StudentSchedule({
     const [isSubmittingMakeup, setIsSubmittingMakeup] = useState(false);
 
     // ── 만석 슬롯 보강 대기 ──
-    const [myWaitlists, setMyWaitlists] = useState([]);
+    const [activeWaitlists, setActiveWaitlists] = useState([]); // 전체 활성 대기 (슬롯별 대기 인원 표시용)
     const [showWaitlistRequest, setShowWaitlistRequest] = useState(false);
     const [waitlistSlot, setWaitlistSlot] = useState(null);            // { day, period, periodName, date }
     const [waitlistOriginalClass, setWaitlistOriginalClass] = useState(null);
     const [respondingWaitlist, setRespondingWaitlist] = useState(null); // notified 항목
     const [isSubmittingWaitlist, setIsSubmittingWaitlist] = useState(false);
 
+    const myWaitlists = useMemo(
+        () => activeWaitlists.filter(w => w.studentName === user?.username),
+        [activeWaitlists, user]
+    );
+
     async function reloadMyWaitlists() {
-        const list = await getMakeupWaitlistsByStudent(user.username);
-        setMyWaitlists(list.map(normalizeWaitlistEntry));
+        const list = await getActiveMakeupWaitlists();
+        setActiveWaitlists(list.map(normalizeWaitlistEntry));
+    }
+
+    // 해당 슬롯(날짜+요일+교시)의 유효 대기 인원 수
+    function getSeatWaitCount(date, day, periodId) {
+        if (!date) return 0;
+        return activeWaitlists.filter(w =>
+            w.date === date && w.day === day && w.period === periodId &&
+            (w.status === 'waiting' || (w.status === 'notified' && !isNotificationExpired(w)))
+        ).length;
     }
 
     async function syncHolidayMakeupEndDate(makeupRequests, referenceDate = null) {
@@ -333,7 +347,7 @@ export default function StudentSchedule({
         // 만료된 자리 안내 — 어느 경로로 클릭되든 정리 후 재신청 가능 상태로 전환
         if (entry.status === 'notified' && isNotificationExpired(entry)) {
             updateMakeupWaitlistStatus(entry.id, 'expired').catch(() => {});
-            setMyWaitlists(prev => prev.filter(w => w.id !== entry.id));
+            setActiveWaitlists(prev => prev.filter(w => w.id !== entry.id));
             alert('이전 자리 안내의 수락 시간이 지나 만료되었습니다.\n만석 칸을 다시 누르면 새로 대기 신청할 수 있습니다.');
             return;
         }
@@ -567,6 +581,7 @@ export default function StudentSchedule({
         ) : null;
         if (myWaitHere && !myClass) {
             const isNotified = myWaitHere.status === 'notified';
+            const seatWaitCount = getSeatWaitCount(waitCellDate, day, periodObj.id);
             return (
                 <div
                     className="schedule-cell cell-available"
@@ -582,6 +597,11 @@ export default function StudentSchedule({
                             : { backgroundColor: '#EDBC40', color: '#5c4a0e', fontSize: '0.7rem' }}>
                             {isNotified ? '보강승인중' : '대기중'}
                         </span>
+                        {seatWaitCount > 0 && (
+                            <span style={{ fontSize: '0.65rem', color: '#9a7a12', fontWeight: 700, marginTop: '2px' }}>
+                                대기 {seatWaitCount}명
+                            </span>
+                        )}
                     </div>
                 </div>
             );
@@ -654,12 +674,16 @@ export default function StudentSchedule({
         // Full
         if (data.isFull) {
             const waitCount = getWaitlistCountForSlot(day, periodObj.id, weekWaitlist, newStudentWaitlist);
+            const seatWaitCount = getSeatWaitCount(waitCellDate, day, periodObj.id);
             return (
                 <div className="schedule-cell cell-full" onClick={cellClick}>
                     <span className="cell-full-text">Full</span>
                     <span style={{ fontSize: '0.8em' }}>(만석)</span>
                     {waitCount > 0 && user?.role === 'coach' && (
                         <span style={{ fontSize: '0.7em', color: '#fff', fontWeight: 'bold' }}>대기 {waitCount}명</span>
+                    )}
+                    {isRealStudent && seatWaitCount > 0 && (
+                        <span style={{ fontSize: '0.7em', color: '#fff', fontWeight: 'bold' }}>보강 대기 {seatWaitCount}명</span>
                     )}
                 </div>
             );
