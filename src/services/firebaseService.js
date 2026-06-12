@@ -1142,24 +1142,43 @@ export const getPostsPage = async (category = 'all', pageSize = 10, cursor = nul
             ))
             : Promise.resolve({ docs: [] });
 
-        const pageConstraints = [
-            ...baseConstraints,
-            orderBy('createdAt', 'desc'),
-            ...(cursor ? [startAfter(cursor)] : []),
-            queryLimit(pageSize + 1),
-        ];
-        const q = query(collection(db, 'posts'), ...pageConstraints);
-        const [snapshot, pinnedSnapshot] = await Promise.all([getDocs(q), pinnedSnapshotPromise]);
-        const pageDocs = snapshot.docs.slice(0, pageSize);
-        const pagePosts = pageDocs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .filter(p => !p.deleted);
+        // 삭제 글/고정 공지를 건너뛰면서 표시 가능한 글을 정확히 pageSize개 채운다.
+        // - 삭제 글: 쿼리 결과에서 슬롯만 차지하고 화면에서 빠지면 페이지당 글 수가 줄어드는 문제 방지
+        // - 고정 공지: 첫 페이지 상단에서만 노출하고 날짜순 목록에서는 제외 (페이지 중간 중복 노출 방지)
+        const isDisplayable = (data) => !data.deleted && !(data.pinned && data.category === 'notice');
+
+        const displayDocs = [];      // 화면에 표시할 문서 (pageSize + 1개까지 — 마지막 1개는 다음 페이지 존재 판정용)
+        let probeDoc = cursor;       // 다음 배치 조회 시작점
+        let exhausted = false;
+        while (displayDocs.length < pageSize + 1 && !exhausted) {
+            const batchQuery = query(
+                collection(db, 'posts'),
+                ...baseConstraints,
+                orderBy('createdAt', 'desc'),
+                ...(probeDoc ? [startAfter(probeDoc)] : []),
+                queryLimit(pageSize + 1)
+            );
+            const snapshot = await getDocs(batchQuery);
+            for (const d of snapshot.docs) {
+                if (isDisplayable(d.data())) {
+                    displayDocs.push(d);
+                    if (displayDocs.length >= pageSize + 1) break;
+                }
+            }
+            probeDoc = snapshot.docs[snapshot.docs.length - 1] || probeDoc;
+            exhausted = snapshot.docs.length < pageSize + 1;
+        }
+
+        const hasNextPage = displayDocs.length > pageSize;
+        const pageDocs = displayDocs.slice(0, pageSize);
+        const pagePosts = pageDocs.map(d => ({ id: d.id, ...d.data() }));
+
+        const pinnedSnapshot = await pinnedSnapshotPromise;
         const pinnedPosts = pinnedSnapshot.docs
             .map(d => ({ id: d.id, ...d.data() }))
             .filter(p => !p.deleted)
             .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-        const pinnedIds = new Set(pinnedPosts.map(p => p.id));
-        const posts = [...pinnedPosts, ...pagePosts.filter(p => !p.pinned || p.category !== 'notice' || !pinnedIds.has(p.id))]
+        const posts = [...pinnedPosts, ...pagePosts]
             .map((post) => {
                 const images = post.images;
                 const likes = post.likes;
@@ -1176,8 +1195,9 @@ export const getPostsPage = async (category = 'all', pageSize = 10, cursor = nul
 
         return {
             posts,
+            // 다음 페이지는 "이번 페이지 마지막 표시 글" 이후부터 — 사이에 끼인 삭제/고정 글은 다음 호출에서 다시 건너뜀
             nextCursor: pageDocs[pageDocs.length - 1] || null,
-            hasNextPage: snapshot.docs.length > pageSize,
+            hasNextPage,
         };
     });
 };
