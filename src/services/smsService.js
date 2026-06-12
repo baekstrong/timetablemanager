@@ -391,9 +391,9 @@ export const scheduleEntranceReminderSMS = async (studentPhone, studentName, det
     try {
       const result = await sendSMS(studentPhone, text, scheduledDate);
       console.log('수강생 안내문자 3 예약 완료:', studentName, scheduledDate, '| 서버 응답:', result);
-      // groupId 반환 (예약 취소용)
+      // groupId(예약 취소용) + scheduledAt(상황판 예약 시각 표시용) 반환
       const groupId = result?.result?.groupId || null;
-      return { sent: true, groupId };
+      return { sent: true, groupId, scheduledAt: scheduledDate };
     } catch (error) {
       console.error('수강생 안내문자 3 예약 실패:', error.message);
       return false;
