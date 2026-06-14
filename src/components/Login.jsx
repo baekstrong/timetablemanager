@@ -185,6 +185,7 @@ const Login = ({ onLogin }) => {
                             className="login-input"
                             disabled={loading}
                         />
+                        <p className="input-hint">💡 초기 비밀번호는 전화번호 뒷자리 4자리입니다.</p>
                     </div>
 
                     <div className="checkbox-group">
@@ -227,7 +228,7 @@ const Login = ({ onLogin }) => {
                 </form>
 
                 <div className="login-footer">
-                    <p>처음이신가요? 이름과 비밀번호를 입력하면<br />자동으로 새 계정이 생성됩니다.</p>
+                    <p>비밀번호는 로그인 후 '내 정보'에서<br />원하는 비밀번호로 바꿀 수 있어요.</p>
                 </div>
             </div>
         </div>
