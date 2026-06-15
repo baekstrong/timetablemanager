@@ -285,7 +285,7 @@ export default function CoachSchedule({
 
     return (
         <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'stretch', marginBottom: '1rem' }}>
             <CoachInfoSection
                 title="오늘 마지막 수업"
                 items={lastDayStudents}
