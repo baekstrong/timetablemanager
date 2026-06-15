@@ -14,7 +14,7 @@ function CoachInfoSection({ title, items, style, titleColor, itemColor, renderIt
             <div style={{ fontWeight: '700', fontSize: '1rem', color: titleColor, marginBottom: '0.5rem' }}>
                 {title}
             </div>
-            <div style={{ color: itemColor, fontSize: '0.95rem', display: 'flex', flexWrap: 'wrap', columnGap: '20px', rowGap: '6px' }}>
+            <div style={{ color: itemColor, fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {items.map(renderItem)}
             </div>
         </section>
@@ -285,10 +285,11 @@ export default function CoachSchedule({
 
     return (
         <>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
             <CoachInfoSection
                 title="오늘 마지막 수업"
                 items={lastDayStudents}
-                style={SECTION_STYLES.lastDay}
+                style={{ ...SECTION_STYLES.lastDay, flex: '1 1 280px', minWidth: 0, marginBottom: 0 }}
                 titleColor="#166534"
                 itemColor="#166534"
                 renderItem={(s) => {
@@ -318,7 +319,7 @@ export default function CoachSchedule({
             <CoachInfoSection
                 title="재등록 지연"
                 items={delayedReregistrationStudents}
-                style={SECTION_STYLES.delayedRereg}
+                style={{ ...SECTION_STYLES.delayedRereg, flex: '1 1 280px', minWidth: 0, marginBottom: 0 }}
                 titleColor="#92400e"
                 itemColor="#92400e"
                 renderItem={(s) => (
@@ -343,8 +344,10 @@ export default function CoachSchedule({
                     showWaitlistDeleteMode={showWaitlistDeleteMode}
                     setShowWaitlistDeleteMode={setShowWaitlistDeleteMode}
                     scheduleData={scheduleData}
+                    style={{ flex: '1 1 280px', minWidth: 0, marginBottom: 0 }}
                 />
             )}
+            </div>
 
             <div className="schedule-grid">
                 <div className="grid-header"></div>
