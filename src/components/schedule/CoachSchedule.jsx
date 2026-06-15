@@ -14,7 +14,7 @@ function CoachInfoSection({ title, items, style, titleColor, itemColor, renderIt
             <div style={{ fontWeight: '700', fontSize: '1rem', color: titleColor, marginBottom: '0.5rem' }}>
                 {title}
             </div>
-            <div style={{ color: itemColor, fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ color: itemColor, fontSize: '0.95rem', display: 'flex', flexWrap: 'wrap', columnGap: '20px', rowGap: '6px' }}>
                 {items.map(renderItem)}
             </div>
         </section>

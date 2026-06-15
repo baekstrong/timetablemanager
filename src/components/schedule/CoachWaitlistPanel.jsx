@@ -56,7 +56,7 @@ export default function CoachWaitlistPanel({
                     {showWaitlistDeleteMode ? '완료' : '삭제'}
                 </button>
             </div>
-            <div style={{ color: '#9a7a12', fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <div style={{ color: '#9a7a12', fontSize: '0.9rem', display: 'flex', flexWrap: 'wrap', columnGap: '20px', rowGap: '6px' }}>
                 {weekWaitlist.map(w => {
                     const desiredP = PERIODS.find(p => p.id === w.desiredSlot.period);
                     const currentP = PERIODS.find(p => p.id === w.currentSlot.period);
@@ -65,7 +65,7 @@ export default function CoachWaitlistPanel({
                     );
                     const hasSpace = (slot ? slot.names.length : 0) < MAX_CAPACITY;
                     return (
-                        <div key={w.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div key={w.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span>
                                 {w.studentName}
                                 <span style={{ fontSize: '0.8rem', color: '#9a7a12', marginLeft: '4px' }}>
@@ -152,7 +152,7 @@ export default function CoachWaitlistPanel({
                         ? slots.map(s => `${s.day}${s.period}`).join('')
                         : (r.scheduleString || '');
                     return (
-                        <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span>
                                 {r.name}
                                 <span style={{ fontSize: '0.8rem', color: '#9a7a12', marginLeft: '4px' }}>{slotStr}</span>
