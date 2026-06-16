@@ -1108,19 +1108,20 @@ const CoachNewStudents = ({ user, onBack }) => {
         setAddStudentLoading(true);
         try {
             const allRegs = await getNewStudentRegistrations(null);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            // 후보: 승인됨/대기/미승인 신청 중, 이 입학반에 아직 없고,
-            // 입학반을 이미 지난(=입학 완료한 기존 수강생) 사람은 제외 → 신규만 표시
+            // 시트에서 현재 '신규'(F열)인 이름만 = 진짜 신규 수강생 (기존/재등록 수강생 제외)
+            const newNamesInSheet = new Set(
+                (allStudents || [])
+                    .filter(s => String(getStudentField(s, '신규/재등록') || '').trim() === '신규')
+                    .map(s => s['이름'])
+            );
+            // 후보: 이 입학반에 아직 없고,
+            //  - 승인됨: 시트에서 '신규'로 남아있는 사람만 (오래된 승인 문서가 남은 기존 수강생 제외)
+            //  - 대기/미승인: 아직 시트에 없으니 그대로 후보
             const candidates = allRegs.filter(r => {
                 if (!r.name) return false;
-                if (!['approved', 'pending', 'waitlist'].includes(r.status)) return false;
                 if (r.entranceClassId === ec.id) return false;
-                if (r.entranceDate) {
-                    const d = new Date(r.entranceDate + 'T23:59:59');
-                    if (d < today) return false; // 입학반 날짜가 지난 기존 수강생 제외
-                }
-                return true;
+                if (r.status === 'approved') return newNamesInSheet.has(r.name);
+                return ['pending', 'waitlist'].includes(r.status);
             });
             setSheetNewStudents(candidates);
         } catch (err) {
