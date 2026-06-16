@@ -4,6 +4,7 @@ import {
   shiftEndDateBySessions,
   filterEffectiveHolidayDeltaDates,
 } from './holidayEndDateDelta.js';
+import { PERIODS } from '../data/mockData';
 
 // Backend Functions URL
 // 로컬 테스트: http://localhost:5001
@@ -1463,6 +1464,8 @@ export const updateStudentData = async (rowIndex, studentData, year = null, mont
   const columnMap = {
     '주횟수': 'C',
     '요일 및 시간': 'D',
+    '시작날짜': 'G',
+    '종료날짜': 'H',
     '홀딩 사용여부': 'M',
     '홀딩\n사용여부': 'M',
     '홀딩 시작일': 'N',
@@ -1481,6 +1484,82 @@ export const updateStudentData = async (rowIndex, studentData, year = null, mont
   }
 
   console.log(`✨ Successfully updated student data for row ${actualRow}`);
+};
+
+// ─── 일시정지 (수강 일시정지) ───
+
+/**
+ * from~end(양끝 포함) 사이 수업일 수. 공휴일 제외.
+ * ponytail: 미래 홀딩 범위는 미고려 — 드묾, 코치가 숫자 보정. 필요시 holdingRanges 인자 추가.
+ */
+export const countRemainingSessions = (fromDate, endDate, scheduleStr, firebaseHolidays = []) => {
+  const classDays = getClassDays(scheduleStr);
+  if (!classDays.length || !fromDate || !endDate) return 0;
+  const cur = new Date(fromDate); cur.setHours(0, 0, 0, 0);
+  const end = new Date(endDate); end.setHours(0, 0, 0, 0);
+  let count = 0, guard = 0;
+  while (cur <= end && guard++ < 400) {
+    if (classDays.includes(cur.getDay()) && !isHolidayDate(cur, firebaseHolidays)) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+};
+
+/**
+ * 오늘 그 수강생 수업이 이미 끝났는지 (오늘 마지막 교시 종료시각 경과 여부).
+ * 오늘이 수업일이 아니면 false.
+ */
+export const todaySessionDone = (scheduleStr, now = new Date()) => {
+  const todays = parseScheduleString(scheduleStr).filter(s => DAY_MAP[s.day] === now.getDay());
+  if (!todays.length) return false;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const lastEnd = Math.max(...todays.map(s => {
+    const p = PERIODS.find(x => x.id === s.period);
+    if (!p) return 0;
+    const dur = p.type === 'free' ? 120 : 90;  // 3교시(자율)만 2시간, 나머지 90분
+    return p.startHour * 60 + p.startMinute + dur;
+  }));
+  return nowMin >= lastEnd;
+};
+
+/**
+ * 한 등록 행 일시정지: 주횟수·요일/시간 비우고 종료날짜를 "N회"로 기록.
+ * 아직 시작 전(미리 등록) 행은 시작날짜도 비우고 시작일부터 풀카운트.
+ * 이미 시작한 행은 오늘 수업이 끝났으면 오늘 제외하고 카운트.
+ */
+const pauseRow = async (row, firebaseHolidays = []) => {
+  const schedule = getStudentField(row, '요일 및 시간');
+  const start = parseSheetDate(getStudentField(row, '시작날짜'));
+  const end = parseSheetDate(getStudentField(row, '종료날짜'));
+  const now = new Date();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const notStarted = !!(start && start > today);
+
+  let countFrom;
+  if (notStarted) {
+    countFrom = start;
+  } else {
+    countFrom = new Date(today);
+    if (todaySessionDone(schedule, now)) countFrom.setDate(countFrom.getDate() + 1);
+  }
+  const n = countRemainingSessions(countFrom, end, schedule, firebaseHolidays);
+
+  const studentData = { '주횟수': '', '요일 및 시간': '', '종료날짜': `${n}회` };
+  if (notStarted) studentData['시작날짜'] = '';
+  if (row._foundSheetName) studentData._foundSheetName = row._foundSheetName;
+  await updateStudentData(row._rowIndex, studentData, null, null);
+  return { n, notStarted };
+};
+
+/**
+ * 수강생 일시정지 — 활성 등록 + 미리 등록(_nextRegistration) 모두 처리.
+ * @returns {Promise<Array<{n:number, notStarted:boolean}>>}
+ */
+export const pauseStudent = async (student, firebaseHolidays = []) => {
+  const rows = [student, student._nextRegistration].filter(r => r && getStudentField(r, '요일 및 시간'));
+  const results = [];
+  for (const row of rows) results.push(await pauseRow(row, firebaseHolidays));
+  return results;
 };
 
 // ─── 홀딩 신청/취소 ───

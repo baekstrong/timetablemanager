@@ -145,6 +145,12 @@
     border: 1px solid #f59e0b;
 }
 
+.student-status-badge.paused {
+    background: #ccfbf1;
+    color: #0f766e;
+    border: 1px solid #0d9488;
+}
+
 .not-connected-message {
     background: white;
     border-radius: var(--r-card);
@@ -414,6 +420,22 @@
 
 .end-class-btn:hover {
     background: #4b5563;
+}
+
+.pause-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: #0d9488;
+    color: white;
+}
+
+.pause-btn:hover {
+    background: #0f766e;
 }
 
 /* 결석 모달 */
