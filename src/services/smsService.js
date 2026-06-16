@@ -341,7 +341,7 @@ export const sendStudentApprovalSMS = async (studentPhone, studentName, details)
  * - 입학반이 1~3일 남은 경우: 즉시 발송
  * - 입학반이 이미 지난 경우: 발송하지 않음
  */
-export const scheduleEntranceReminderSMS = async (studentPhone, studentName, details) => {
+export const scheduleEntranceReminderSMS = async (studentPhone, studentName, details, customReminderAt = null) => {
   // 날짜/시간 포맷: "2026-02-28" → "2월 28일(토)", 시간은 entranceClassDate에서 추출
   let dateTimeStr = details.entranceClassDate || '';
   try {
@@ -381,10 +381,19 @@ export const scheduleEntranceReminderSMS = async (studentPhone, studentName, det
     return false;
   }
 
-  // 3일 전 오전 9시
-  const reminderDate = new Date(entranceDate);
-  reminderDate.setDate(reminderDate.getDate() - 3);
-  reminderDate.setHours(9, 0, 0, 0);
+  // 예약 시각: 커스텀 지정 있으면 그 시각, 없으면 입학반 3일 전 오전 9시
+  let reminderDate;
+  if (customReminderAt) {
+    reminderDate = new Date(customReminderAt);
+    if (isNaN(reminderDate.getTime())) {
+      console.error('커스텀 예약 시각 파싱 실패:', customReminderAt);
+      return false;
+    }
+  } else {
+    reminderDate = new Date(entranceDate);
+    reminderDate.setDate(reminderDate.getDate() - 3);
+    reminderDate.setHours(9, 0, 0, 0);
+  }
 
   if (reminderDate > now) {
     // 3일 이상 남음 → 예약 발송

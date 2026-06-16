@@ -70,9 +70,14 @@ const CoachNewStudents = ({ user, onBack }) => {
     const [editingEntrance, setEditingEntrance] = useState(null);
     const [entranceForm, setEntranceForm] = useState({ date: '', time: '', description: '', maxCapacity: 6 });
     const [showAddStudentModal, setShowAddStudentModal] = useState(null); // 수동 추가 대상 입학반
-    const [sheetNewStudents, setSheetNewStudents] = useState([]);
-    const [selectedNewStudents, setSelectedNewStudents] = useState(new Set());
+    const [sheetNewStudents, setSheetNewStudents] = useState([]);          // 후보 신청(reg) 목록
+    const [selectedNewStudents, setSelectedNewStudents] = useState(new Set()); // 선택한 reg.id 집합
+    const [addTempName, setAddTempName] = useState('');                    // 목록에 없는 임시 이름(메모용)
     const [addStudentLoading, setAddStudentLoading] = useState(false);
+
+    // === 예약 리마인더 일정 변경 모달 ===
+    const [reminderModal, setReminderModal] = useState(null); // 대상 reg
+    const [reminderAt, setReminderAt] = useState('');         // datetime-local 값
     const [showPastEntrance, setShowPastEntrance] = useState(false);
     const [directRegEntrance, setDirectRegEntrance] = useState(null);
 
@@ -371,9 +376,14 @@ const CoachNewStudents = ({ user, onBack }) => {
                                 entranceDate: finalEntranceDate
                             });
                         }
-                        await updateEntranceClass(reg.entranceClassId, {
-                            currentCount: (ec.currentCount || 0) + 1
-                        });
+                        if (reg.entranceCounted) {
+                            // 승인 전에 미리 명단에 올려 이미 자리를 차지함 → 중복 카운트 방지, 플래그만 해제
+                            await updateNewStudentRegistration(reg.id, { entranceCounted: false });
+                        } else {
+                            await updateEntranceClass(reg.entranceClassId, {
+                                currentCount: (ec.currentCount || 0) + 1
+                            });
+                        }
                     }
                 } catch (err) {
                     console.warn('입학반 인원 업데이트 실패:', err);
@@ -833,7 +843,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                 setEntranceModal(null);
                 await handleApprove(updatedReg);
             } else {
-                await handleChangeEntrance(reg);
+                await handleChangeEntrance(reg, buildEntranceTarget());
                 setEntranceModal(null);
             }
         } catch (err) {
@@ -842,43 +852,44 @@ const CoachNewStudents = ({ user, onBack }) => {
         setEntSaving(false);
     };
 
-    // 승인된 수강생의 입학반 변경 — 시트 시작/종료날짜 + Firestore + 예약문자 일정·내용 모두 갱신
-    const handleChangeEntrance = async (reg) => {
-        const holidays = await getHolidays().catch(() => []);
+    // 모달 상태(entKind/entEcId/entDate)로부터 배정 대상 입학반 도출
+    const buildEntranceTarget = () => entKind === 'existing'
+        ? { kind: 'existing', ec: entranceClasses.find(c => c.id === entEcId) }
+        : { kind: 'new', date: entDate };
 
-        // 1. 새 입학반 결정 (기존 선택 / 새로 생성)
+    // 핵심: 승인된 reg를 특정 입학반에 배정 — 이전 입학반 인원 -1, 새 입학반 +1(또는 새로 생성),
+    // 시트 시작/종료날짜 재계산, 예약 리마인더 취소+재예약, Firestore 갱신. (알럿/리로드 없음, classDateStr 반환)
+    const applyEntranceAssignment = async (reg, target, holidays) => {
+        // 1. 새 입학반 결정
         let newEcId, newDate, newTime = '10:00', newEndTime = '13:00';
-        if (entKind === 'existing') {
-            const ec = entranceClasses.find(c => c.id === entEcId);
+        if (target.kind === 'existing') {
+            const ec = target.ec;
             if (!ec) throw new Error('선택한 입학반을 찾을 수 없습니다.');
             newEcId = ec.id; newDate = ec.date; newTime = ec.time || '10:00'; newEndTime = ec.endTime || '13:00';
         } else {
-            const ecRes = await createEntranceClass({ date: entDate, time: '10:00', endTime: '13:00', description: '', maxCapacity: 6 });
-            newEcId = ecRes.id; newDate = entDate;
-            const eventId = await createCalendarEvent(entDate, '10:00', '13:00');
+            const ecRes = await createEntranceClass({ date: target.date, time: '10:00', endTime: '13:00', description: '', maxCapacity: 6 });
+            newEcId = ecRes.id; newDate = target.date;
+            const eventId = await createCalendarEvent(target.date, '10:00', '13:00');
             await updateEntranceClass(newEcId, eventId ? { currentCount: 1, calendarEventId: eventId } : { currentCount: 1 });
         }
         const classDateStr = `${formatEntranceDate(newDate)} ${newTime}${newEndTime ? ' ~ ' + newEndTime : ''}`.trim();
 
-        // 2. 이전 입학반 인원 차감 (입학반이 실제로 바뀐 경우)
-        if (reg.entranceClassId && reg.entranceClassId !== newEcId) {
-            try {
-                const classes = await getEntranceClasses(false);
-                const oldEc = classes.find(c => c.id === reg.entranceClassId);
+        // 2. 인원 증감 (DB 최신값 기준 — 연속 배정 시 누락 방지)
+        if (reg.entranceClassId !== newEcId) {
+            const fresh = await getEntranceClasses(false);
+            if (reg.entranceClassId) {
+                const oldEc = fresh.find(c => c.id === reg.entranceClassId);
                 if (oldEc && (oldEc.currentCount || 0) > 0) {
                     await updateEntranceClass(oldEc.id, { currentCount: (oldEc.currentCount || 0) - 1 });
                 }
-            } catch (err) { console.warn('이전 입학반 인원 차감 실패:', err); }
-        }
-        // 3. 기존 입학반으로 옮기는 경우 인원 증가 (새로 생성한 경우는 이미 1로 설정됨)
-        if (entKind === 'existing' && reg.entranceClassId !== newEcId) {
-            try {
-                const ec = entranceClasses.find(c => c.id === newEcId);
-                await updateEntranceClass(newEcId, { currentCount: (ec?.currentCount || 0) + 1 });
-            } catch (err) { console.warn('새 입학반 인원 증가 실패:', err); }
+            }
+            if (target.kind === 'existing') {
+                const ecFresh = fresh.find(c => c.id === newEcId);
+                await updateEntranceClass(newEcId, { currentCount: (ecFresh?.currentCount || 0) + 1 });
+            }
         }
 
-        // 4. 시트 시작/종료날짜 재계산 + 업데이트
+        // 3. 시트 시작/종료날짜 재계산 + 업데이트
         try {
             const { startDate } = calculateStartEndDates(newDate, reg.requestedSlots);
             const startYY = convertToYYMMDD(startDate);
@@ -889,17 +900,14 @@ const CoachNewStudents = ({ user, onBack }) => {
                 : '';
             const { targetSheet, targetRow } = await findApprovedStudentRow(reg);
             if (targetRow > 0) {
-                if (endYY) {
-                    await writeSheetData(`${targetSheet}!G${targetRow}:H${targetRow}`, [[startYY, endYY]]);
-                } else {
-                    await writeSheetData(`${targetSheet}!G${targetRow}`, [[startYY]]);  // 종료일 계산 실패 시 시작일만
-                }
+                if (endYY) await writeSheetData(`${targetSheet}!G${targetRow}:H${targetRow}`, [[startYY, endYY]]);
+                else await writeSheetData(`${targetSheet}!G${targetRow}`, [[startYY]]);
             } else {
                 console.warn('시트에서 수강생 행을 찾지 못함:', reg.name);
             }
         } catch (err) { console.warn('시트 시작/종료날짜 업데이트 실패:', err); }
 
-        // 5. 예약 입학반 리마인더 취소 + 새 날짜로 재예약
+        // 4. 예약 리마인더 취소 + 새 날짜로 재예약
         const oldGroupId = reg.reminderGroupId || reg.smsLog?.reminder?.groupId;
         if (oldGroupId) {
             try { await cancelScheduledSMS(oldGroupId); } catch (err) { console.warn('기존 예약문자 취소 실패:', err); }
@@ -926,17 +934,82 @@ const CoachNewStudents = ({ user, onBack }) => {
             }
         }
 
-        // 6. Firestore 등록 문서 갱신
+        // 5. Firestore 등록 문서 갱신
         const update = { entranceClassId: newEcId, entranceDate: newDate, entranceClassDate: classDateStr, entranceInquiry: '' };
         if (reminderEntry) {
             update['smsLog.reminder'] = reminderEntry;
             update.reminderGroupId = newGroupId || '';
         }
         await updateNewStudentRegistration(reg.id, update);
+        return classDateStr;
+    };
 
+    // 승인된 수강생의 입학반 변경 (입학반 변경 모달에서 호출)
+    const handleChangeEntrance = async (reg, target) => {
+        const holidays = await getHolidays().catch(() => []);
+        const classDateStr = await applyEntranceAssignment(reg, target, holidays);
         await refreshSheets();
         await loadRegistrations();
         alert(`"${reg.name}" 입학반을 변경했습니다.\n\n입학반: ${classDateStr}`);
+    };
+
+    // ── 입학반 리마인더 예약 일정 변경 ──
+    const toLocalInput = (d) => {
+        const p = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    };
+
+    const openReminderModal = (reg) => {
+        if (!reg.phone) { alert('연락처가 없어 예약 문자를 설정할 수 없습니다.'); return; }
+        let local = '';
+        const prev = reg.smsLog?.reminder?.scheduledAt;
+        if (prev) {
+            const d = new Date(prev);
+            if (!isNaN(d.getTime())) local = toLocalInput(d);
+        }
+        if (!local && reg.entranceDate) {
+            const d = new Date(reg.entranceDate + 'T00:00:00');
+            d.setDate(d.getDate() - 3); d.setHours(9, 0, 0, 0);
+            local = toLocalInput(d);
+        }
+        setReminderAt(local);
+        setReminderModal(reg);
+    };
+
+    const handleReminderReschedule = async () => {
+        const reg = reminderModal;
+        if (!reg) return;
+        if (!reminderAt) { alert('예약 시각을 입력해주세요.'); return; }
+        const when = new Date(reminderAt);
+        if (isNaN(when.getTime())) { alert('시각 형식이 올바르지 않습니다.'); return; }
+
+        setEntSaving(true);
+        try {
+            const oldGroupId = reg.reminderGroupId || reg.smsLog?.reminder?.groupId;
+            if (oldGroupId) {
+                try { await cancelScheduledSMS(oldGroupId); } catch (err) { console.warn('기존 예약문자 취소 실패:', err); }
+            }
+            const res = await scheduleEntranceReminderSMS(reg.phone, reg.name, {
+                paymentMethod: reg.paymentMethod,
+                weeklyFrequency: reg.weeklyFrequency,
+                scheduleString: reg.scheduleString || '',
+                entranceDate: reg.entranceDate,
+                entranceClassDate: reg.entranceClassDate,
+            }, when);
+            const newGroupId = res?.groupId || null;
+            const reminderEntry = !res
+                ? { status: 'failed', at: Date.now() }
+                : res.scheduledAt
+                    ? { status: 'scheduled', at: Date.now(), scheduledAt: res.scheduledAt, ...(newGroupId ? { groupId: newGroupId } : {}) }
+                    : { status: 'sent', at: Date.now() };
+            await updateNewStudentRegistration(reg.id, { 'smsLog.reminder': reminderEntry, reminderGroupId: newGroupId || '' });
+            setReminderModal(null);
+            await loadRegistrations();
+            alert(!res ? '예약에 실패했습니다.' : res.scheduledAt ? `예약 변경 완료\n\n${res.scheduledAt}` : '지정 시각이 임박/경과하여 즉시 발송되었습니다.');
+        } catch (err) {
+            alert('예약 변경 실패: ' + err.message);
+        }
+        setEntSaving(false);
     };
 
     const handleDeleteFromEntrance = async (reg, ec) => {
@@ -1012,8 +1085,8 @@ const CoachNewStudents = ({ user, onBack }) => {
                     console.warn('예약 SMS 취소 실패:', smsErr);
                 }
             }
-            // 승인된 등록이었으면 입학반 인원 차감
-            if (isApproved && ec && (ec.currentCount || 0) > 0) {
+            // 자리를 차지하던 등록이면 입학반 인원 차감 (승인됨 또는 미승인/메모로 미리 자리 차지한 경우)
+            if ((isApproved || reg.entranceCounted) && ec && (ec.currentCount || 0) > 0) {
                 await updateEntranceClass(ec.id, {
                     currentCount: (ec.currentCount || 0) - 1
                 });
@@ -1027,112 +1100,109 @@ const CoachNewStudents = ({ user, onBack }) => {
         }
     };
 
-    // ─── 입학반 수동 수강생 추가 ─────────────────────
+    // ─── 입학반에 수강생 추가 (신청 목록에서 선택 / 임시 이름) ─────────────────────
     const handleOpenAddStudent = async (ec) => {
         setShowAddStudentModal(ec);
         setSelectedNewStudents(new Set());
+        setAddTempName('');
         setAddStudentLoading(true);
         try {
-            const targetSheet = getCurrentSheetName();
-            const [rows, allRegs] = await Promise.all([
-                readSheetData(`${targetSheet}!A:R`),
-                getNewStudentRegistrations(null).catch(() => [])
-            ]);
-
-            // 이미 지난 입학반에 배정된 적 있는 신규 학생 이름 수집
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const completedEntranceNames = new Set();
-            for (const r of allRegs) {
-                if (!r.name || !r.entranceClassId || !r.entranceDate) continue;
-                const d = new Date(r.entranceDate + 'T23:59:59');
-                if (d < today) completedEntranceNames.add(r.name);
-            }
-
-            // 이미 이 입학반에 등록된 수강생 이름 목록
-            const existingNames = new Set(
-                entranceRegs.filter(r => r.entranceClassId === ec.id).map(r => r.name)
+            const allRegs = await getNewStudentRegistrations(null);
+            // 후보: 승인됨/대기/미승인 신청 중, 이 입학반에 아직 없는 사람
+            const candidates = allRegs.filter(r =>
+                r.name &&
+                ['approved', 'pending', 'waitlist'].includes(r.status) &&
+                r.entranceClassId !== ec.id
             );
-
-            // F열(index 5)이 '신규'인 수강생 필터링
-            const newStudents = [];
-            for (let i = 2; i < rows.length; i++) {
-                const row = rows[i];
-                if (!row || !row[1]) continue; // B열(이름) 없으면 스킵
-                if (row[5] !== '신규') continue;
-                const name = row[1];
-                if (existingNames.has(name)) continue;
-                if (completedEntranceNames.has(name)) continue;
-                newStudents.push({
-                    rowIndex: i,
-                    name,
-                    weeklyFrequency: row[2] || '',
-                    schedule: row[3] || '',
-                    startDate: row[6] || '',
-                    phone: row[15] || ''
-                });
-            }
-            setSheetNewStudents(newStudents);
+            setSheetNewStudents(candidates);
         } catch (err) {
-            console.error('신규 수강생 목록 로드 실패:', err);
-            alert('신규 수강생 목록을 불러오지 못했습니다.');
+            console.error('신청 목록 로드 실패:', err);
+            alert('신청 목록을 불러오지 못했습니다.');
             setShowAddStudentModal(null);
         }
         setAddStudentLoading(false);
     };
 
-    const handleToggleStudent = (rowIndex) => {
+    const handleToggleStudent = (regId) => {
         setSelectedNewStudents(prev => {
             const next = new Set(prev);
-            if (next.has(rowIndex)) next.delete(rowIndex);
-            else next.add(rowIndex);
+            if (next.has(regId)) next.delete(regId);
+            else next.add(regId);
             return next;
         });
     };
 
     const handleAddStudentsToEntrance = async () => {
         const ec = showAddStudentModal;
-        if (!ec || selectedNewStudents.size === 0) return;
+        if (!ec) return;
+        const selected = sheetNewStudents.filter(r => selectedNewStudents.has(r.id));
+        const tempName = addTempName.trim();
+        if (selected.length === 0 && !tempName) return;
 
-        const selected = sheetNewStudents.filter(s => selectedNewStudents.has(s.rowIndex));
         const remaining = (ec.maxCapacity || 0) - (ec.currentCount || 0);
-        if (selected.length > remaining) {
-            alert(`잔여 자리가 ${remaining}명입니다. ${selected.length}명을 추가할 수 없습니다.`);
+        const adding = selected.length + (tempName ? 1 : 0);
+        if (adding > remaining) {
+            alert(`잔여 자리가 ${remaining}명입니다. ${adding}명을 추가할 수 없습니다.`);
             return;
         }
 
-        const names = selected.map(s => s.name).join(', ');
-        if (!confirm(`${selected.length}명(${names})을 이 입학반에 추가하시겠습니까?`)) return;
+        const names = [...selected.map(s => s.name), ...(tempName ? [`${tempName}(임시)`] : [])].join(', ');
+        if (!confirm(`${adding}명(${names})을 이 입학반에 추가하시겠습니까?`)) return;
 
         const ecClassDate = `${formatEntranceDate(ec.date)} ${ec.time || ''}${ec.endTime ? ' ~ ' + ec.endTime : ''}`.trim();
+        const holidays = await getHolidays().catch(() => []);
+
+        // 입학반 인원 한 명 차지 (DB 최신값 기준)
+        const reserveSeat = async () => {
+            const fresh = await getEntranceClasses(false);
+            const ecFresh = fresh.find(c => c.id === ec.id);
+            await updateEntranceClass(ec.id, { currentCount: (ecFresh?.currentCount || 0) + 1 });
+        };
 
         try {
-            const regRef = collection(db, 'newStudentRegistrations');
-            for (const student of selected) {
-                await addDoc(regRef, {
-                    name: student.name,
-                    phone: student.phone,
-                    weeklyFrequency: parseInt(student.weeklyFrequency) || 0,
-                    scheduleString: student.schedule,
-                    entranceClassId: ec.id,
-                    entranceClassDate: ecClassDate,
-                    entranceDate: ec.date,
-                    status: 'approved',
-                    source: 'manual',
-                    approvedAt: new Date().toISOString(),
-                    createdAt: serverTimestamp()
-                });
+            for (const reg of selected) {
+                if (reg.status === 'approved') {
+                    // 승인된 사람: 시트 날짜 재계산 + 예약문자 재발송까지 (이전 입학반 인원 자동 정리)
+                    await applyEntranceAssignment(reg, { kind: 'existing', ec }, holidays);
+                } else {
+                    // 미승인(대기 포함): 명단에만 올리고 자리 차지. 시트·문자 없음. 승인 시 중복카운트 방지 플래그.
+                    if (reg.entranceClassId && reg.entranceClassId !== ec.id && reg.entranceCounted) {
+                        const fresh = await getEntranceClasses(false);
+                        const oldEc = fresh.find(c => c.id === reg.entranceClassId);
+                        if (oldEc && (oldEc.currentCount || 0) > 0) {
+                            await updateEntranceClass(oldEc.id, { currentCount: (oldEc.currentCount || 0) - 1 });
+                        }
+                    }
+                    await updateNewStudentRegistration(reg.id, {
+                        entranceClassId: ec.id, entranceDate: ec.date, entranceClassDate: ecClassDate, entranceCounted: true
+                    });
+                    await reserveSeat();
+                }
             }
 
-            await updateEntranceClass(ec.id, {
-                currentCount: (ec.currentCount || 0) + selected.length
-            });
+            // 목록에 없는 임시 이름: 메모용 문서(이름만). 문자/시트 없음, 자리만 차지.
+            if (tempName) {
+                await addDoc(collection(db, 'newStudentRegistrations'), {
+                    name: tempName,
+                    status: 'memo',
+                    source: 'memo',
+                    entranceClassId: ec.id,
+                    entranceDate: ec.date,
+                    entranceClassDate: ecClassDate,
+                    entranceCounted: true,
+                    createdAt: serverTimestamp()
+                });
+                await reserveSeat();
+            }
 
-            alert(`${selected.length}명이 입학반에 추가되었습니다.`);
+            alert(`${adding}명이 입학반에 추가되었습니다.`);
             setShowAddStudentModal(null);
             setSheetNewStudents([]);
             setSelectedNewStudents(new Set());
+            setAddTempName('');
             await loadEntranceClasses();
+            await loadRegistrations();
+            refreshSheets();
         } catch (err) {
             console.error('수강생 추가 실패:', err);
             alert('수강생 추가에 실패했습니다: ' + err.message);
@@ -1466,6 +1536,15 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                         입학반 변경
                                                     </button>
                                                 )}
+                                                {regFilter === 'approved' && reg.phone && (
+                                                    <button
+                                                        className="cns-action-btn"
+                                                        style={{ background: '#0d9488', color: '#fff' }}
+                                                        onClick={() => openReminderModal(reg)}
+                                                    >
+                                                        문자예약 변경
+                                                    </button>
+                                                )}
                                                 <button
                                                     className="cns-action-btn delete"
                                                     onClick={() => regFilter === 'waitlist' ? handleWaitlistDelete(reg) : handleDelete(reg)}
@@ -1592,7 +1671,8 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                     {ecRegs.map(r => (
                                                         <span key={r.id} className={`cns-entrance-student-tag ${r.status}`}>
                                                             {r.name}
-                                                            {r.status === 'pending' && <small>(대기)</small>}
+                                                            {r.status === 'pending' && <small>(미승인)</small>}
+                                                            {r.status === 'memo' && <small>(메모)</small>}
                                                             <button
                                                                 className="cns-entrance-student-remove"
                                                                 onClick={() => handleDeleteFromEntrance(r, ec)}
@@ -1671,37 +1751,53 @@ const CoachNewStudents = ({ user, onBack }) => {
                                 <div className="cns-modal" onClick={(e) => e.stopPropagation()}>
                                     <h3>수강생 추가</h3>
                                     <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '0.75rem' }}>
-                                        {formatEntranceDate(showAddStudentModal.date)} 입학반에 추가할 신규 수강생을 선택하세요.
+                                        {formatEntranceDate(showAddStudentModal.date)} 입학반에 추가할 사람을 선택하세요. (승인됨은 시트 날짜·예약문자도 자동 반영)
                                     </p>
                                     {addStudentLoading ? (
                                         <div className="cns-loading">불러오는 중...</div>
                                     ) : sheetNewStudents.length === 0 ? (
-                                        <div className="cns-empty">추가 가능한 신규 수강생이 없습니다.</div>
+                                        <div className="cns-empty">추가 가능한 신청이 없습니다.</div>
                                     ) : (
                                         <div className="cns-add-student-list">
-                                            {sheetNewStudents.map(s => (
-                                                <div
-                                                    key={s.rowIndex}
-                                                    className={`cns-add-student-item${selectedNewStudents.has(s.rowIndex) ? ' selected' : ''}`}
-                                                    onClick={() => handleToggleStudent(s.rowIndex)}
-                                                >
-                                                    <div className="cns-add-student-check">
-                                                        {selectedNewStudents.has(s.rowIndex) ? '✓' : ''}
-                                                    </div>
-                                                    <div>
-                                                        <div className="cns-add-student-name">{s.name}</div>
-                                                        <div className="cns-add-student-info">
-                                                            주{s.weeklyFrequency}회 · {s.schedule}
+                                            {sheetNewStudents.map(s => {
+                                                const statusLabel = s.status === 'approved' ? '승인됨' : s.status === 'waitlist' ? '대기' : '미승인';
+                                                return (
+                                                    <div
+                                                        key={s.id}
+                                                        className={`cns-add-student-item${selectedNewStudents.has(s.id) ? ' selected' : ''}`}
+                                                        onClick={() => handleToggleStudent(s.id)}
+                                                    >
+                                                        <div className="cns-add-student-check">
+                                                            {selectedNewStudents.has(s.id) ? '✓' : ''}
+                                                        </div>
+                                                        <div>
+                                                            <div className="cns-add-student-name">
+                                                                {s.name} <small style={{ color: s.status === 'approved' ? '#166534' : '#92400e', fontWeight: 600 }}>[{statusLabel}]</small>
+                                                            </div>
+                                                            <div className="cns-add-student-info">
+                                                                주{s.weeklyFrequency || '-'}회 · {s.scheduleString || '시간표 미정'}
+                                                                {s.entranceClassId && s.entranceDate ? ` · 현재 입학반 ${formatEntranceDate(s.entranceDate)}` : ''}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     )}
+                                    <div className="cns-form-field" style={{ marginTop: '12px' }}>
+                                        <label>목록에 없는 사람 — 이름만 임시 등록 (메모용, 문자·시트 없음)</label>
+                                        <input
+                                            type="text"
+                                            value={addTempName}
+                                            onChange={(e) => setAddTempName(e.target.value)}
+                                            placeholder="이름 입력"
+                                            className="cns-form-input"
+                                        />
+                                    </div>
                                     <div className="cns-modal-actions">
                                         <button
                                             className="cns-modal-btn cancel"
-                                            onClick={() => { setShowAddStudentModal(null); setSheetNewStudents([]); setSelectedNewStudents(new Set()); }}
+                                            onClick={() => { setShowAddStudentModal(null); setSheetNewStudents([]); setSelectedNewStudents(new Set()); setAddTempName(''); }}
                                         >
                                             취소
                                         </button>
@@ -1713,6 +1809,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                 setShowAddStudentModal(null);
                                                 setSheetNewStudents([]);
                                                 setSelectedNewStudents(new Set());
+                                                setAddTempName('');
                                                 setDirectRegEntrance(ec);
                                             }}
                                         >
@@ -1721,9 +1818,9 @@ const CoachNewStudents = ({ user, onBack }) => {
                                         <button
                                             className="cns-modal-btn save"
                                             onClick={handleAddStudentsToEntrance}
-                                            disabled={selectedNewStudents.size === 0}
+                                            disabled={selectedNewStudents.size === 0 && !addTempName.trim()}
                                         >
-                                            추가 ({selectedNewStudents.size}명)
+                                            추가 ({selectedNewStudents.size + (addTempName.trim() ? 1 : 0)}명)
                                         </button>
                                     </div>
                                 </div>
@@ -2123,6 +2220,36 @@ const CoachNewStudents = ({ user, onBack }) => {
                     </div>
                 );
             })()}
+
+            {/* === 입학반 리마인더 예약 변경 모달 === */}
+            {reminderModal && (
+                <div className="cns-modal-overlay" onClick={() => !entSaving && setReminderModal(null)}>
+                    <div className="cns-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+                        <h3>입학반 리마인더 예약 변경</h3>
+                        <p style={{ fontSize: '0.9rem', color: '#666', margin: '4px 0 12px' }}>
+                            "{reminderModal.name}" — 입학반: <b>{reminderModal.entranceClassDate || formatEntranceDate(reminderModal.entranceDate)}</b>
+                        </p>
+                        <div className="cns-form-field">
+                            <label>예약 발송 시각</label>
+                            <input
+                                type="datetime-local"
+                                value={reminderAt}
+                                onChange={(e) => setReminderAt(e.target.value)}
+                                className="cns-form-input"
+                            />
+                        </div>
+                        <p style={{ fontSize: '0.78rem', color: '#92400e', margin: '8px 0 4px', lineHeight: 1.5 }}>
+                            기존 예약을 취소하고 이 시각으로 다시 예약합니다. 시각이 임박/경과했으면 즉시 발송됩니다.
+                        </p>
+                        <div className="cns-modal-actions">
+                            <button className="cns-modal-btn cancel" disabled={entSaving} onClick={() => setReminderModal(null)}>취소</button>
+                            <button className="cns-modal-btn save" disabled={entSaving} onClick={handleReminderReschedule}>
+                                {entSaving ? '처리 중...' : '예약 변경'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* === 시간표 편집 모달 === */}
             {editSlotsReg && (
