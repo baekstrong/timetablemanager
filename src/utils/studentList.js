@@ -37,9 +37,16 @@ const atStartOfDay = (date) => {
   return result;
 };
 
+/** 일시정지 상태: 요일및시간(D) 비고 종료날짜(H)가 "N회" 형식. */
+export const isPausedRegistration = (student) => {
+  const schedule = String(getStudentValue(student, '요일 및 시간') || '').trim();
+  const end = String(getStudentValue(student, '종료날짜') || '').trim();
+  return schedule.length === 0 && /^\d+\s*회$/.test(end);
+};
+
 export const shouldShowInCoachStudentList = (student) => {
   const schedule = String(getStudentValue(student, '요일 및 시간') || '').trim();
-  return schedule.length > 0;
+  return schedule.length > 0 || isPausedRegistration(student);
 };
 
 /**
@@ -79,6 +86,7 @@ export const getUnpaidStudentNames = (students, referenceDate = new Date()) => {
 
 export const getCoachStudentListStatus = (student, referenceDate = new Date()) => {
   if (!shouldShowInCoachStudentList(student)) return 'ended';
+  if (isPausedRegistration(student)) return 'paused';
 
   const endDate = parseSheetDate(getStudentValue(student, '종료날짜'));
   if (endDate && endDate < atStartOfDay(referenceDate)) return 'expired';

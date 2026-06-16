@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { countRemainingSessions, todaySessionDone } from './googleSheetsService';
+import { countRemainingSessions, todaySessionDone, firstClassDayOnOrAfter } from './googleSheetsService';
 
 describe('countRemainingSessions (양끝 포함, 공휴일 제외)', () => {
   it('화/목 주2회, 6/17~6/30 → 18·23·25·30 = 4회', () => {
@@ -23,5 +23,16 @@ describe('todaySessionDone (오늘 교시 종료 여부)', () => {
   });
   it('오늘(화) 수업 없으면 false', () => {
     expect(todaySessionDone('월5목5', new Date('2026-06-16T23:00:00'))).toBe(false);
+  });
+});
+
+describe('firstClassDayOnOrAfter (재개 시작일 보정)', () => {
+  it('화(6/16)에서 월/수 스케줄 → 다음 수업일 수(6/17)', () => {
+    const d = firstClassDayOnOrAfter(new Date('2026-06-16T00:00:00'), '월5수5');
+    expect([d.getMonth() + 1, d.getDate()]).toEqual([6, 17]);
+  });
+  it('이미 수업일이면 그 날 그대로', () => {
+    const d = firstClassDayOnOrAfter(new Date('2026-06-17T00:00:00'), '월5수5'); // 6/17=수
+    expect([d.getMonth() + 1, d.getDate()]).toEqual([6, 17]);
   });
 });

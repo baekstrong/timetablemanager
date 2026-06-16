@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets, pauseStudent } from '../services/googleSheetsService';
+import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets, pauseStudent, resumeStudent } from '../services/googleSheetsService';
 import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination } from '../services/firebaseService';
-import { getCoachStudentListStatus, shouldShowInCoachStudentList } from '../utils/studentList';
+import { getCoachStudentListStatus, shouldShowInCoachStudentList, isPausedRegistration } from '../utils/studentList';
 import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
@@ -99,22 +99,47 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         }
     };
 
-    // 일시정지 (주횟수·요일/시간 비우고 종료날짜를 "N회"로)
+    // 일시정지 (주횟수·요일/시간 비우고 종료날짜를 "N회"로 — 모든 시트의 등록 행)
     const handlePause = async (student) => {
         if (!confirm(`${student['이름']} 수강생을 일시정지하시겠습니까?\n\n- 주횟수, 요일 및 시간을 비웁니다.\n- 종료날짜에 남은 횟수(예: "5회")를 기록합니다.\n- 오늘 수업이 끝난 후면 오늘은 횟수에서 제외됩니다.\n- 미리 등록이 있으면 함께 정지(시작날짜도 비움)됩니다.`)) {
             return;
         }
         try {
             const holidaysArray = holidays.map(h => typeof h === 'string' ? { date: h } : h);
-            const results = await pauseStudent(student, holidaysArray);
+            const results = await pauseStudent(student['이름'], holidaysArray);
             if (refresh) await refresh();
             const summary = results
-                .map((r, i) => `${i === 0 ? '현재 등록' : '미리 등록'}: ${r.n}회${r.notStarted ? ' (시작 전)' : ''}`)
+                .map(r => `${r.notStarted ? '미리 등록' : '현재 등록'}: ${r.n}회${r.notStarted ? ' (시작 전)' : ''}`)
                 .join('\n');
             alert(`일시정지 처리 완료!\n\n${summary}`);
         } catch (err) {
             console.error('일시정지 실패:', err);
             alert('일시정지 처리에 실패했습니다: ' + err.message);
+        }
+    };
+
+    // 재개 (정지된 등록을 복원 + 재시작일부터 종료날짜 재계산)
+    const handleResume = async (student) => {
+        const today = new Date();
+        const defaultDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const input = prompt(`${student['이름']} 수강생을 재개합니다.\n재시작 날짜를 입력하세요 (YYYY-MM-DD):`, defaultDate);
+        if (!input) return;
+        const restart = new Date(input.trim() + 'T00:00:00');
+        if (isNaN(restart.getTime())) {
+            alert('날짜 형식이 올바르지 않습니다. 예: 2026-07-01');
+            return;
+        }
+        try {
+            const holidaysArray = holidays.map(h => typeof h === 'string' ? { date: h } : h);
+            const results = await resumeStudent(student['이름'], restart, holidaysArray);
+            if (refresh) await refresh();
+            const summary = results
+                .map(r => `${r.schedule} (${r.n}회): ${r.start} ~ ${r.end}`)
+                .join('\n');
+            alert(`재개 처리 완료!\n\n${summary}`);
+        } catch (err) {
+            console.error('재개 실패:', err);
+            alert('재개 처리에 실패했습니다: ' + err.message);
         }
     };
 
@@ -498,7 +523,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                             {/* 종료날짜 */}
                                             <td>
                                                 {student['종료날짜'] || '-'}
-                                                {!getStudentField(student, '요일 및 시간') && /^\s*\d+\s*회\s*$/.test(student['종료날짜'] || '') && (
+                                                {isPausedRegistration(student) && (
                                                     <span className="student-status-badge paused">일시정지</span>
                                                 )}
                                                 {getCoachStudentListStatus(student) === 'expired' && (
@@ -577,9 +602,15 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                                         <button onClick={() => setContractHistoryTarget(student['이름'])} className="contract-btn" title="계약 이력">
                                                             계약
                                                         </button>
-                                                        <button onClick={() => handlePause(student)} className="pause-btn" title="일시정지 (남은 횟수 기록 후 시간표에서 제거)">
-                                                            일시정지
-                                                        </button>
+                                                        {isPausedRegistration(student) ? (
+                                                            <button onClick={() => handleResume(student)} className="resume-btn" title="재개 (정지 해제 + 종료날짜 재계산)">
+                                                                재개
+                                                            </button>
+                                                        ) : (
+                                                            <button onClick={() => handlePause(student)} className="pause-btn" title="일시정지 (남은 횟수 기록 후 시간표에서 제거)">
+                                                                일시정지
+                                                            </button>
+                                                        )}
                                                         <button onClick={() => handleEndClass(student)} className="end-class-btn" title="수강 종료 (시간표에서 제거)">
                                                             종료
                                                         </button>

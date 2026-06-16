@@ -1522,43 +1522,150 @@ export const todaySessionDone = (scheduleStr, now = new Date()) => {
   return nowMin >= lastEnd;
 };
 
-/**
- * 한 등록 행 일시정지: 주횟수·요일/시간 비우고 종료날짜를 "N회"로 기록.
- * 아직 시작 전(미리 등록) 행은 시작날짜도 비우고 시작일부터 풀카운트.
- * 이미 시작한 행은 오늘 수업이 끝났으면 오늘 제외하고 카운트.
- */
-const pauseRow = async (row, firebaseHolidays = []) => {
-  const schedule = getStudentField(row, '요일 및 시간');
-  const start = parseSheetDate(getStudentField(row, '시작날짜'));
-  const end = parseSheetDate(getStudentField(row, '종료날짜'));
-  const now = new Date();
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const notStarted = !!(start && start > today);
-
-  let countFrom;
-  if (notStarted) {
-    countFrom = start;
-  } else {
-    countFrom = new Date(today);
-    if (todaySessionDone(schedule, now)) countFrom.setDate(countFrom.getDate() + 1);
+/** date 이후(포함) scheduleStr의 첫 수업일. (재개 시작일 보정) */
+export const firstClassDayOnOrAfter = (date, scheduleStr) => {
+  const classDays = getClassDays(scheduleStr);
+  const cur = new Date(date); cur.setHours(0, 0, 0, 0);
+  for (let i = 0; i < 14 && classDays.length; i++) {
+    if (classDays.includes(cur.getDay())) return new Date(cur);
+    cur.setDate(cur.getDate() + 1);
   }
-  const n = countRemainingSessions(countFrom, end, schedule, firebaseHolidays);
+  return new Date(date);
+};
 
-  const studentData = { '주횟수': '', '요일 및 시간': '', '종료날짜': `${n}회` };
-  if (notStarted) studentData['시작날짜'] = '';
-  if (row._foundSheetName) studentData._foundSheetName = row._foundSheetName;
-  await updateStudentData(row._rowIndex, studentData, null, null);
-  return { n, notStarted };
+const fmtYYMMDD = (d) => {
+  const yy = String(d.getFullYear()).slice(2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yy}${mm}${dd}`;
+};
+
+// 정지 시 원래 일정을 특이사항(E)에 보존하는 태그: [정지:주횟수/요일및시간/원래시작YYMMDD]
+const PAUSE_TAG_RE = /\s*\[정지:([^/\]]*)\/([^/\]]*)\/([^\]]*)\]/;
+
+/** 이름으로 모든 등록생 시트의 해당 행을 순회 (헤더 인덱스 동봉). */
+const eachStudentRowAcrossSheets = async (studentName, cb) => {
+  const allSheets = await getAllSheetNames();
+  const studentSheets = allSheets.filter(name => name.startsWith('등록생 목록('));
+  for (const sheetName of studentSheets) {
+    let rows;
+    try { rows = await readSheetData(`${sheetName}!A:R`); } catch { continue; }
+    if (!rows || rows.length < 2) continue;
+    const headers = rows[1];
+    const col = (names) => { for (const n of names) { const i = headers.indexOf(n); if (i !== -1) return i; } return -1; };
+    const idx = {
+      name: col(['이름']),
+      weekly: col(['주횟수']),
+      schedule: col(['요일 및 시간', '요일 및\n시간', '요일및시간']),
+      start: col(['시작날짜']),
+      end: col(['종료날짜']),
+      notes: col(['특이사항']),
+    };
+    if (idx.name === -1) continue;
+    for (let r = 2; r < rows.length; r++) {
+      if ((rows[r][idx.name] || '') !== studentName) continue;
+      await cb({ sheetName, rowIdx: r, row: rows[r], idx });
+    }
+  }
 };
 
 /**
- * 수강생 일시정지 — 활성 등록 + 미리 등록(_nextRegistration) 모두 처리.
- * @returns {Promise<Array<{n:number, notStarted:boolean}>>}
+ * 수강생 일시정지 — 이름으로 모든 시트를 훑어 스케줄이 있는 등록 행을 전부 정지.
+ * (현재 등록 + 다른 월 시트의 미리 등록까지 포함)
+ * 각 행: 주횟수(C)·요일및시간(D) 비우고, 종료날짜(H)=남은 "N회", 특이사항(E)에 복원 태그 보존.
+ * 미시작(미리등록) 행은 시작날짜(G)도 비움. 이미 시작한 행은 오늘 수업이 끝났으면 오늘 제외.
+ * @returns {Promise<Array<{n:number, notStarted:boolean, sheetName:string}>>}
  */
-export const pauseStudent = async (student, firebaseHolidays = []) => {
-  const rows = [student, student._nextRegistration].filter(r => r && getStudentField(r, '요일 및 시간'));
+export const pauseStudent = async (studentName, firebaseHolidays = []) => {
+  const now = new Date();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
   const results = [];
-  for (const row of rows) results.push(await pauseRow(row, firebaseHolidays));
+
+  await eachStudentRowAcrossSheets(studentName, async ({ sheetName, rowIdx, row, idx }) => {
+    const schedule = idx.schedule !== -1 ? String(row[idx.schedule] || '') : '';
+    if (!schedule.trim()) return;  // 스케줄 없는 행(이미 정지/종료)은 대상 아님
+
+    const startStr = idx.start !== -1 ? row[idx.start] : '';
+    const weekly = idx.weekly !== -1 ? String(row[idx.weekly] || '') : '';
+    const start = parseSheetDate(startStr);
+    const end = parseSheetDate(idx.end !== -1 ? row[idx.end] : '');
+    const notStarted = !!(start && start > today);
+    if (end && end < today && !notStarted) return;  // 이미 종료된 과거 등록은 정지 대상 아님
+
+    let countFrom;
+    if (notStarted) {
+      countFrom = start;
+    } else {
+      countFrom = new Date(today);
+      if (todaySessionDone(schedule, now)) countFrom.setDate(countFrom.getDate() + 1);
+    }
+    const n = countRemainingSessions(countFrom, end, schedule, firebaseHolidays);
+
+    const sheetRow = rowIdx + 1;
+    const prevNotes = idx.notes !== -1 ? String(row[idx.notes] || '').replace(PAUSE_TAG_RE, '').trim() : '';
+    const origStartDigits = startStr ? String(startStr).replace(/\D/g, '') : '';
+    const taggedNotes = `${prevNotes}${prevNotes ? ' ' : ''}[정지:${weekly}/${schedule}/${origStartDigits}]`;
+    const cell = (i, v) => ({ range: `${sheetName}!${getColumnLetter(i)}${sheetRow}`, values: [[v]] });
+
+    const updates = [cell(idx.schedule, '')];
+    if (idx.weekly !== -1) updates.push(cell(idx.weekly, ''));
+    if (idx.end !== -1) updates.push(cell(idx.end, `${n}회`));
+    if (idx.notes !== -1) updates.push(cell(idx.notes, taggedNotes));
+    if (notStarted && idx.start !== -1) updates.push(cell(idx.start, ''));
+    await batchUpdateSheet(updates);
+    results.push({ n, notStarted, sheetName });
+  });
+
+  if (!results.length) throw new Error('정지할 등록을 찾지 못했습니다.');
+  return results;
+};
+
+/**
+ * 수강생 재개 — 정지된(스케줄 비고 종료날짜 "N회") 행을 복원.
+ * 특이사항 태그에서 원래 주횟수/요일및시간을 되살리고, restartDate부터 종료날짜 재계산.
+ * 여러 등록이면 원래 시작일 순으로 이어붙임(앞 등록 종료 다음날부터 다음 등록 시작).
+ * @returns {Promise<Array<{start:string, end:string, n:number, schedule:string}>>}
+ */
+export const resumeStudent = async (studentName, restartDate, firebaseHolidays = []) => {
+  const collected = [];
+  await eachStudentRowAcrossSheets(studentName, async ({ sheetName, rowIdx, row, idx }) => {
+    const schedule = idx.schedule !== -1 ? String(row[idx.schedule] || '') : '';
+    const endStr = idx.end !== -1 ? String(row[idx.end] || '') : '';
+    if (schedule.trim()) return;                 // 스케줄 있으면 정지 상태 아님
+    if (!/^\s*\d+\s*회\s*$/.test(endStr)) return; // H가 "N회" 아니면 스킵
+    const notes = idx.notes !== -1 ? String(row[idx.notes] || '') : '';
+    const m = notes.match(PAUSE_TAG_RE);
+    if (!m) return;                               // 복원 태그 없으면 원래 일정 모름 → 스킵
+    collected.push({
+      sheetName, sheetRow: rowIdx + 1, idx,
+      origWeekly: m[1], origSchedule: m[2], origStartDigits: m[3] || '99999999',
+      n: parseInt(endStr, 10),
+      restNotes: notes.replace(PAUSE_TAG_RE, '').trim(),
+    });
+  });
+
+  if (!collected.length) throw new Error('재개할 정지 등록을 찾지 못했습니다.');
+  collected.sort((a, b) => a.origStartDigits.localeCompare(b.origStartDigits));
+
+  let cursor = new Date(restartDate); cursor.setHours(0, 0, 0, 0);
+  const results = [];
+  for (const c of collected) {
+    const start = firstClassDayOnOrAfter(cursor, c.origSchedule);
+    const end = calculateEndDate(start, c.n, c.origSchedule, null, firebaseHolidays);
+    const startStr = fmtYYMMDD(start);
+    const endStr = end ? fmtYYMMDD(end) : '';
+    const cell = (i, v) => ({ range: `${c.sheetName}!${getColumnLetter(i)}${c.sheetRow}`, values: [[v]] });
+
+    const updates = [cell(c.idx.schedule, c.origSchedule)];
+    if (c.idx.weekly !== -1) updates.push(cell(c.idx.weekly, c.origWeekly));
+    if (c.idx.start !== -1) updates.push(cell(c.idx.start, startStr));
+    if (c.idx.end !== -1) updates.push(cell(c.idx.end, endStr));
+    if (c.idx.notes !== -1) updates.push(cell(c.idx.notes, c.restNotes));
+    await batchUpdateSheet(updates);
+
+    results.push({ start: startStr, end: endStr, n: c.n, schedule: c.origSchedule });
+    if (end) { cursor = new Date(end); cursor.setDate(cursor.getDate() + 1); }
+  }
   return results;
 };
 

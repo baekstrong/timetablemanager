@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getCoachStudentListStatus, shouldShowInCoachStudentList, getUnpaidStudentNames } from './studentList';
+import { getCoachStudentListStatus, shouldShowInCoachStudentList, getUnpaidStudentNames, isPausedRegistration } from './studentList';
 
 describe('shouldShowInCoachStudentList', () => {
   it('hides a student when coach ended class by clearing schedule even if end date is in the future', () => {
@@ -24,6 +24,19 @@ describe('shouldShowInCoachStudentList', () => {
       '요일 및 시간': '화6목6',
       종료날짜: '',
     })).toBe(true);
+  });
+
+  it('일시정지(스케줄 비고 종료날짜 "N회")는 목록에 계속 표시', () => {
+    const paused = { 이름: '정지학생', '요일 및 시간': '', 종료날짜: '5회' };
+    expect(isPausedRegistration(paused)).toBe(true);
+    expect(shouldShowInCoachStudentList(paused)).toBe(true);
+    expect(getCoachStudentListStatus(paused)).toBe('paused');
+  });
+
+  it('종료(스케줄 비고 종료날짜가 날짜)는 정지 아님 → 숨김', () => {
+    const ended = { 이름: '종료학생', '요일 및 시간': '', 종료날짜: '260630' };
+    expect(isPausedRegistration(ended)).toBe(false);
+    expect(shouldShowInCoachStudentList(ended)).toBe(false);
   });
 });
 
