@@ -1108,12 +1108,20 @@ const CoachNewStudents = ({ user, onBack }) => {
         setAddStudentLoading(true);
         try {
             const allRegs = await getNewStudentRegistrations(null);
-            // 후보: 승인됨/대기/미승인 신청 중, 이 입학반에 아직 없는 사람
-            const candidates = allRegs.filter(r =>
-                r.name &&
-                ['approved', 'pending', 'waitlist'].includes(r.status) &&
-                r.entranceClassId !== ec.id
-            );
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            // 후보: 승인됨/대기/미승인 신청 중, 이 입학반에 아직 없고,
+            // 입학반을 이미 지난(=입학 완료한 기존 수강생) 사람은 제외 → 신규만 표시
+            const candidates = allRegs.filter(r => {
+                if (!r.name) return false;
+                if (!['approved', 'pending', 'waitlist'].includes(r.status)) return false;
+                if (r.entranceClassId === ec.id) return false;
+                if (r.entranceDate) {
+                    const d = new Date(r.entranceDate + 'T23:59:59');
+                    if (d < today) return false; // 입학반 날짜가 지난 기존 수강생 제외
+                }
+                return true;
+            });
             setSheetNewStudents(candidates);
         } catch (err) {
             console.error('신청 목록 로드 실패:', err);
