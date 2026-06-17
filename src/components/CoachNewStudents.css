@@ -420,6 +420,20 @@
     font-size: 0.65rem;
 }
 
+/* 결제 상태 점: 결제완료(녹색) / 미결제(적색) */
+.cns-pay-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.cns-pay-dot.paid {
+    background: var(--success, #31A552);
+}
+.cns-pay-dot.unpaid {
+    background: var(--error, #E94E58);
+}
+
 .cns-entrance-student-remove {
     background: none;
     border: none;

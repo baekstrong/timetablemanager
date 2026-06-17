@@ -1677,8 +1677,15 @@ const CoachNewStudents = ({ user, onBack }) => {
                                             if (ecRegs.length === 0) return null;
                                             return (
                                                 <div className="cns-entrance-students">
-                                                    {ecRegs.map(r => (
+                                                    {ecRegs.map(r => {
+                                                        // 결제 상태 점: 결제유무 O + 결제일 기록 있음 → 녹색, 그 외(미결제/결제일 없음) → 적색
+                                                        const sheetStudent = allStudents.find(s => (s['이름'] || getStudentField(s, '이름')) === r.name);
+                                                        const 결제유무 = sheetStudent ? String(getStudentField(sheetStudent, '결제유무') || '').trim().toUpperCase() : '';
+                                                        const 결제일 = sheetStudent ? String(getStudentField(sheetStudent, '결제일') || '').trim() : '';
+                                                        const isPaid = 결제유무 === 'O' && 결제일 !== '';
+                                                        return (
                                                         <span key={r.id} className={`cns-entrance-student-tag ${r.status}`}>
+                                                            <span className={`cns-pay-dot ${isPaid ? 'paid' : 'unpaid'}`} title={isPaid ? '결제완료' : '미결제'} />
                                                             {r.name}
                                                             {r.status === 'pending' && <small>(미승인)</small>}
                                                             {r.status === 'memo' && <small>(메모)</small>}
@@ -1688,7 +1695,8 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                                 title="삭제"
                                                             >×</button>
                                                         </span>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             );
                                         })()}
