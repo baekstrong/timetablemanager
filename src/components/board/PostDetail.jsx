@@ -254,22 +254,22 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                             📢 공지로 전환
                         </button>
                     )}
-                    {user?.role === 'coach' && post.category === 'notice' && (
+                    {user?.role === 'coach' && post.category === 'notice' && post.pinned && (
                         <button
                             className="post-action-btn"
                             style={{ fontSize: '0.8rem', color: '#6b7280' }}
                             onClick={async () => {
-                                if (!confirm('공지를 해제하시겠습니까? 자유 게시글로 전환됩니다.')) return;
+                                if (!confirm('상단 고정을 해제하시겠습니까? 공지 카테고리에는 그대로 유지됩니다.')) return;
                                 try {
-                                    await updatePost(postId, { category: 'free', pinned: false });
+                                    await updatePost(postId, { pinned: false });
                                     const updated = await getPost(postId);
                                     setPost(updated);
                                 } catch (err) {
-                                    alert('공지 해제 실패: ' + err.message);
+                                    alert('상단 고정 해제 실패: ' + err.message);
                                 }
                             }}
                         >
-                            공지 해제
+                            상단 고정 해제
                         </button>
                     )}
                 </div>
