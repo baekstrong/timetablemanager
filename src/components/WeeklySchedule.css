@@ -219,6 +219,13 @@
     white-space: nowrap;
 }
 
+/* 재등록 지연 표시 — 사용자 요청으로 보라색 사용 (디자인 토큰 예외) */
+.rereg-x {
+    color: #7C3AED;
+    font-weight: 700;
+    margin-left: 2px;
+}
+
 /* Highlighted Students (e.g. Substitutes or Special) */
 .student-tag.special {
     background-color: var(--caution);

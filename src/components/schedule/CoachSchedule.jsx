@@ -57,6 +57,9 @@ export default function CoachSchedule({
     }, []);
     const todayDayName = ['일', '월', '화', '수', '목', '금', '토'][now.getDay()];
 
+    // 재등록 지연 명단(코치) — 이름 옆 "(재등록X)" 표시용
+    const delayedReregNames = new Set((delayedReregistrationStudents || []).map(s => s.name));
+
     // ── 헬퍼 ──
     function isClassDisabled(day, periodId) {
         return disabledClasses.includes(`${day}-${periodId}`);
@@ -245,7 +248,7 @@ export default function CoachSchedule({
                         if (data.absenceStudents.includes(name)) {
                             return <StudentTag key={name} name={name} status="absent" label="결석" unpaid={unpaid} />;
                         }
-                        return <span key={name} className="student-tag">{name}{unpaid && <UnpaidBadge />}</span>;
+                        return <span key={name} className="student-tag">{name}{delayedReregNames.has(name) && <span className="rereg-x">(재등록X)</span>}{unpaid && <UnpaidBadge />}</span>;
                     })}
                     {data.makeupStudents.map(name => (
                         <StudentTag key={`makeup-${name}`} name={name} status="makeup" label="보강" unpaid={unpaidStudentNames.has(name)} />
