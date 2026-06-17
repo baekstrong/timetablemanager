@@ -219,9 +219,9 @@
     white-space: nowrap;
 }
 
-/* 재등록 지연 표시 — 사용자 요청으로 보라색 사용 (디자인 토큰 예외) */
+/* 재등록 지연 표시 — 기존 '재등록 지연' 패널과 동일한 호박색 */
 .rereg-x {
-    color: #7C3AED;
+    color: #92400e;
     font-weight: 700;
     margin-left: 2px;
 }
