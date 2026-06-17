@@ -219,11 +219,18 @@
     white-space: nowrap;
 }
 
-/* 재등록 지연 표시 — 기존 '재등록 지연' 패널과 동일한 호박색 */
+/* 재등록 지연 표시 — 호박색 배지(자체 배경+테두리)로 보강 파란 태그 위에서도 잘 보이게 */
 .rereg-x {
-    color: #92400e;
+    display: inline-block;
+    margin-left: 3px;
+    padding: 0 4px;
+    font-size: 0.62rem;
     font-weight: 700;
-    margin-left: 2px;
+    color: #92400e;
+    background-color: #FEF3C7;
+    border: 1px solid #92400e;
+    border-radius: 4px;
+    vertical-align: middle;
 }
 
 /* 마지막 수업 표시 — 녹색 배지(자체 배경+테두리)로 보강 파란 태그 위에서도 잘 보이게 */
