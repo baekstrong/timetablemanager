@@ -496,6 +496,84 @@ export const batchReadSheetData = async (ranges) => {
   return data.valueRanges || [];
 };
 
+// ─── 학생 시트 읽기 캐시 + 동시요청 합치기 (Sheets 읽기 할당량 절약) ───
+// findStudentAcrossSheets / getAllStudentsFromAllSheets / getAllStudents 가 같은 월 시트를
+// 짧은 시간에 반복·동시 호출 → 캐시(30초) + in-flight dedup + batchGet 묶음으로 읽기 횟수를 줄인다.
+const _studentSheetCache = new Map();    // sheetName -> { time, students }
+const _studentSheetInflight = new Map(); // sheetName -> Promise<students>
+const STUDENT_SHEET_CACHE_TTL = 30 * 1000;
+
+// 시트에 쓰기가 발생하면 캐시를 비워 read-after-write 정합성을 유지한다.
+export const invalidateStudentSheetCache = () => {
+  _studentSheetCache.clear();
+  _studentSheetInflight.clear();
+};
+
+// 미스인 시트들을 1회 batchGet으로 읽고(실패 시 개별 읽기 폴백) 파싱·캐싱한다.
+const _fetchStudentSheets = async (names) => {
+  let valueRanges = [];
+  try {
+    valueRanges = await batchReadSheetData(names.map(n => `${n}!A:R`));
+  } catch (e) {
+    console.warn('⚠️ batchGet 실패 — 개별 읽기로 폴백:', e);
+    valueRanges = [];
+  }
+  const map = new Map();
+  await Promise.all(names.map(async (name, i) => {
+    let rows = valueRanges[i]?.values;
+    if (!rows) {
+      try { rows = await readSheetData(`${name}!A:R`); } catch { rows = []; }
+    }
+    const students = parseStudentData(rows);
+    students.forEach(s => { s._foundSheetName = name; });
+    _studentSheetCache.set(name, { time: Date.now(), students });
+    map.set(name, students);
+  }));
+  return map;
+};
+
+/**
+ * 여러 학생 시트(월별)를 캐시·dedup·batchGet으로 읽어 시트별 파싱 학생 배열 맵 반환.
+ * 캐시에 있으면 재사용, 진행 중이면 그 요청을 공유, 미스인 시트만 묶어 읽는다.
+ * 반환 객체는 호출자별 얕은 복제본이라 자유롭게 변형해도 캐시가 오염되지 않는다.
+ * @param {Array<string>} sheetNames
+ * @returns {Promise<Map<string, Array>>}
+ */
+const readStudentSheets = async (sheetNames) => {
+  const now = Date.now();
+  const promiseByName = new Map();
+  const toFetch = [];
+
+  for (const name of sheetNames) {
+    if (promiseByName.has(name)) continue; // 중복 입력 무시
+    const cached = _studentSheetCache.get(name);
+    if (cached && (now - cached.time) < STUDENT_SHEET_CACHE_TTL) {
+      promiseByName.set(name, Promise.resolve(cached.students));
+    } else if (_studentSheetInflight.has(name)) {
+      promiseByName.set(name, _studentSheetInflight.get(name)); // 진행 중 요청 공유
+    } else {
+      toFetch.push(name);
+    }
+  }
+
+  if (toFetch.length > 0) {
+    const batchPromise = _fetchStudentSheets(toFetch)
+      .finally(() => { toFetch.forEach(n => _studentSheetInflight.delete(n)); });
+    toFetch.forEach(name => {
+      const p = batchPromise.then(map => map.get(name) || []);
+      _studentSheetInflight.set(name, p);
+      promiseByName.set(name, p);
+    });
+  }
+
+  const result = new Map();
+  await Promise.all([...promiseByName.keys()].map(async name => {
+    const students = await promiseByName.get(name);
+    result.set(name, (students || []).map(s => ({ ...s }))); // 호출자별 복제본
+  }));
+  return result;
+};
+
 /**
  * Write data to Google Sheets
  * @param {string} range - The A1 notation of the range to update
@@ -504,6 +582,7 @@ export const batchReadSheetData = async (ranges) => {
  */
 export const writeSheetData = async (range, values) => {
   const data = await apiPost('/write', { range, values }, 'write sheet data');
+  invalidateStudentSheetCache();
   console.log('Sheet updated:', data);
   return data;
 };
@@ -516,6 +595,7 @@ export const writeSheetData = async (range, values) => {
  */
 export const appendSheetData = async (range, values) => {
   const data = await apiPost('/append', { range, values }, 'append sheet data');
+  invalidateStudentSheetCache();
   console.log('Data appended:', data);
   return data;
 };
@@ -527,6 +607,7 @@ export const appendSheetData = async (range, values) => {
  */
 export const batchUpdateSheet = async (updates) => {
   const data = await apiPost('/batchUpdate', { data: updates }, 'batch update sheet');
+  invalidateStudentSheetCache();
   console.log('Batch update completed:', data);
   return data;
 };
@@ -1005,22 +1086,17 @@ export const findStudentAcrossSheets = async (studentName) => {
     searchMonths.push({ year: searchDate.getFullYear(), month: searchDate.getMonth() + 1 });
   }
 
-  const results = await Promise.allSettled(
-    searchMonths.map(async ({ year, month }) => {
-      const students = await getAllStudents(year, month);
-      const matches = students.filter(s => s['이름'] === studentName);
-      const foundSheetName = getSheetNameByYearMonth(year, month);
-      return matches.map(student => {
+  // 윈도우 5개 시트를 캐시·dedup·batchGet으로 1회에 읽음 (기존: 5회 개별 읽기)
+  const windowSheetNames = searchMonths.map(({ year, month }) => getSheetNameByYearMonth(year, month));
+  const windowMap = await readStudentSheets(windowSheetNames);
+  searchMonths.forEach(({ year, month }) => {
+    const foundSheetName = getSheetNameByYearMonth(year, month);
+    (windowMap.get(foundSheetName) || [])
+      .filter(s => s['이름'] === studentName)
+      .forEach(student => {
         student._foundSheetName = foundSheetName;
-        return { student, year, month, foundSheetName };
+        allMatches.push({ student, year, month, foundSheetName });
       });
-    })
-  );
-
-  results.forEach(result => {
-    if (result.status === 'fulfilled') {
-      allMatches.push(...result.value);
-    }
   });
 
   // 장기(2~3개월) 등록의 행은 "등록(결제)한 달" 시트에 남아 있어, 현재 월에서 2개월 넘게
@@ -1032,30 +1108,24 @@ export const findStudentAcrossSheets = async (studentName) => {
     console.warn(`⚠️ "${studentName}" ±2개월 윈도우에 오늘 활성 등록 없음 — 전체 시트 스캔으로 보강`);
     try {
       const allSheets = await getAllSheetNames();
-      const windowSheetNames = new Set(searchMonths.map(({ year, month }) => getSheetNameByYearMonth(year, month)));
+      const windowSet = new Set(windowSheetNames); // 윈도우에서 이미 읽은 시트 제외(중복 방지)
       const studentSheets = allSheets
         .filter(name => name.startsWith('등록생 목록('))
-        .filter(name => !windowSheetNames.has(name)); // 윈도우에서 이미 읽은 시트는 제외(중복 방지)
+        .filter(name => !windowSet.has(name));
 
-      const fallbackResults = await Promise.allSettled(
-        studentSheets.map(async (foundSheetName) => {
-          const match = foundSheetName.match(/등록생 목록\((\d+)년(\d+)월\)/);
-          if (!match) return [];
-          const year = parseInt(match[1]) + 2000;
-          const month = parseInt(match[2]);
-          const students = await getAllStudents(year, month);
-          const matches = students.filter(s => s['이름'] === studentName);
-          return matches.map(student => {
+      // 남은 시트들도 캐시·dedup·batchGet으로 1회에 읽음 (기존: 시트당 개별 읽기)
+      const fallbackMap = await readStudentSheets(studentSheets);
+      studentSheets.forEach(foundSheetName => {
+        const match = foundSheetName.match(/등록생 목록\((\d+)년(\d+)월\)/);
+        if (!match) return;
+        const year = parseInt(match[1]) + 2000;
+        const month = parseInt(match[2]);
+        (fallbackMap.get(foundSheetName) || [])
+          .filter(s => s['이름'] === studentName)
+          .forEach(student => {
             student._foundSheetName = foundSheetName;
-            return { student, year, month, foundSheetName };
+            allMatches.push({ student, year, month, foundSheetName });
           });
-        })
-      );
-
-      fallbackResults.forEach(result => {
-        if (result.status === 'fulfilled') {
-          allMatches.push(...result.value);
-        }
       });
     } catch (err) {
       console.warn('전체 시트 폴백 검색 실패:', err);
@@ -1094,17 +1164,10 @@ export const findStudentAcrossSheets = async (studentName) => {
  */
 export const getAllStudents = async (year = null, month = null) => {
   const foundSheetName = resolveSheetName(year, month);
-
   console.log(`📖 Reading data from sheet: "${foundSheetName}"`);
-  const range = `${foundSheetName}!A:R`;
-  console.log(`📍 Full range: ${range}`);
-
-  const rows = await readSheetData(range);
-  console.log(`📦 Raw data received (${rows.length} rows):`, rows.slice(0, 3));
-
-  const parsedData = parseStudentData(rows);
+  const map = await readStudentSheets([foundSheetName]);
+  const parsedData = map.get(foundSheetName) || [];
   console.log(`✨ Parsed ${parsedData.length} students`);
-
   return parsedData;
 };
 
@@ -1126,33 +1189,9 @@ export const getAllStudentsFromAllSheets = async () => {
     return [];
   }
 
-  // 모든 월별 시트를 한 번의 batchGet 요청으로 읽음 (할당량 절약: N개 요청 → 1개)
-  let valueRanges = [];
-  try {
-    valueRanges = await batchReadSheetData(studentSheets.map(name => `${name}!A:R`));
-  } catch (error) {
-    console.warn('⚠️ batchGet 실패 — 개별 읽기로 폴백:', error);
-    valueRanges = [];
-  }
-
-  const studentsArrays = await Promise.all(
-    studentSheets.map(async (foundSheetName, i) => {
-      try {
-        // batchGet 결과는 입력 순서대로. 실패/누락 시 개별 읽기로 폴백.
-        const rows = valueRanges[i]?.values ?? await readSheetData(`${foundSheetName}!A:R`);
-        const parsedData = parseStudentData(rows);
-        parsedData.forEach(student => {
-          student._foundSheetName = foundSheetName;
-        });
-        return parsedData;
-      } catch (error) {
-        console.warn(`⚠️ Failed to load sheet ${foundSheetName}:`, error);
-        return [];
-      }
-    })
-  );
-
-  const allStudents = studentsArrays.flat();
+  // 캐시·dedup·batchGet 묶음 읽기 (할당량 절약)
+  const sheetMap = await readStudentSheets(studentSheets);
+  const allStudents = studentSheets.flatMap(name => sheetMap.get(name) || []);
   console.log(`✨ Total students loaded from all sheets: ${allStudents.length}`);
 
   // 같은 이름의 수강생이 여러 시트/행에 있으면 현재 활성 등록을 우선 유지
