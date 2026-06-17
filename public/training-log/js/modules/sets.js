@@ -15,7 +15,16 @@ export function renderSets() {
         });
     }
 
-    let html = '';
+    let html = `
+        <div class="flex items-center gap-2 mb-3">
+            <label class="text-sm font-semibold text-gray-700">세트 수</label>
+            <select onchange="setSetCount(this.value)" class="px-3 py-2 border rounded-lg text-sm bg-white">
+                ${Array.from({ length: 20 }, (_, i) => i + 1).map(n =>
+                    `<option value="${n}" ${state.currentSets.length === n ? 'selected' : ''}>${n}세트</option>`
+                ).join('')}
+            </select>
+        </div>
+    `;
     state.currentSets.forEach((set, index) => {
         // 하위 호환
         if (typeof set.weight === 'string' || typeof set.reps === 'string') {
@@ -142,85 +151,28 @@ export function normalizeSet(set) {
     return normalized;
 }
 
-export function addSet() {
-    state.currentSets.push({
-        intensity: { value: '', unit: 'kg' },
-        reps: { value: '', unit: '회' }
-    });
+// 세트 수 드롭다운: 늘리면 마지막 세트를 복제, 줄이면 뒤에서부터 제거
+export function setSetCount(n) {
+    n = parseInt(n, 10);
+    if (isNaN(n) || n < 1) n = 1;
+    if (n > 20) n = 20;
+    const cur = state.currentSets.length;
+    if (n > cur) {
+        const template = cur > 0
+            ? normalizeSet(state.currentSets[cur - 1])
+            : { intensity: { value: '', unit: 'kg' }, reps: { value: '', unit: '회' } };
+        for (let i = cur; i < n; i++) {
+            state.currentSets.push(JSON.parse(JSON.stringify(template)));
+        }
+    } else if (n < cur) {
+        state.currentSets.length = n;
+    }
     renderSets();
     if (window.autoSaveFormData) window.autoSaveFormData();
 }
 
 export function removeSet(index) {
     state.currentSets.splice(index, 1);
-    renderSets();
-    if (window.autoSaveFormData) window.autoSaveFormData();
-}
-
-export function addSameSet() {
-    if (state.currentSets.length === 0) {
-        state.currentSets.push({
-            intensity: { value: '', unit: 'kg' },
-            reps: { value: '', unit: '회' }
-        });
-        renderSets();
-        return;
-    }
-
-    const lastSet = state.currentSets[state.currentSets.length - 1];
-    const normalized = normalizeSet(lastSet);
-
-    if (!normalized.intensity.value && !normalized.reps.value) {
-        alert('마지막 세트의 강도와 횟수를 먼저 입력해주세요!');
-        return;
-    }
-
-    // 모달 HTML 생성
-    const modalHTML = `
-        <div id="addSetModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000;">
-            <div style="background: white; border-radius: 16px; padding: 24px; max-width: 300px; width: 90%;">
-                <h3 style="text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 20px;">세트 추가</h3>
-                <div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 20px;">
-                    <button onclick="changeAddSetCount(-1)" style="width: 50px; height: 50px; font-size: 24px; background: #e5e7eb; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; touch-action: manipulation; -webkit-user-select: none; user-select: none;">−</button>
-                    <span id="addSetCountDisplay" style="font-size: 32px; font-weight: bold; min-width: 50px; text-align: center; -webkit-user-select: none; user-select: none;">${state.addSetCount}</span>
-                    <button onclick="changeAddSetCount(1)" style="width: 50px; height: 50px; font-size: 24px; background: #e5e7eb; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; touch-action: manipulation; -webkit-user-select: none; user-select: none;">+</button>
-                </div>
-                <div style="display: flex; gap: 10px;">
-                    <button onclick="confirmAddSameSet()" style="flex: 1; background: #329BE7; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">확인</button>
-                    <button onclick="closeAddSetModal()" style="flex: 1; background: #6b7280; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">취소</button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    const modalDiv = document.createElement('div');
-    modalDiv.innerHTML = modalHTML;
-    document.body.appendChild(modalDiv.firstElementChild);
-}
-
-export function changeAddSetCount(delta) {
-    state.addSetCount += delta;
-    if (state.addSetCount < 1) state.addSetCount = 1;
-    if (state.addSetCount > 20) state.addSetCount = 20;
-    const display = document.getElementById('addSetCountDisplay');
-    if (display) display.textContent = state.addSetCount;
-}
-
-export function closeAddSetModal() {
-    const modal = document.getElementById('addSetModal');
-    if (modal) modal.remove();
-    state.addSetCount = 1;
-}
-
-export function confirmAddSameSet() {
-    const lastSet = state.currentSets[state.currentSets.length - 1];
-    const normalized = normalizeSet(lastSet);
-
-    for (let i = 0; i < state.addSetCount; i++) {
-        state.currentSets.push(JSON.parse(JSON.stringify(normalized)));
-    }
-
-    closeAddSetModal();
     renderSets();
     if (window.autoSaveFormData) window.autoSaveFormData();
 }

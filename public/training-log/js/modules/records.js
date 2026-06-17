@@ -395,7 +395,16 @@ export function renderEditSets() {
     const container = document.getElementById('editSetsContainer');
     if (!container) return;
 
-    let html = '';
+    let html = `
+        <div class="flex items-center gap-2 mb-3">
+            <label class="text-sm font-semibold text-gray-700">세트 수</label>
+            <select onchange="setEditSetCount(this.value)" class="px-3 py-2 border rounded-lg text-sm bg-white">
+                ${Array.from({ length: 20 }, (_, i) => i + 1).map(n =>
+                    `<option value="${n}" ${state.editingSets.length === n ? 'selected' : ''}>${n}세트</option>`
+                ).join('')}
+            </select>
+        </div>
+    `;
     state.editingSets.forEach((set, index) => {
         const normalized = normalizeSet(set);
         state.editingSets[index] = normalized;
@@ -491,14 +500,25 @@ export function renderEditSets() {
     container.innerHTML = html;
 }
 
-// 편집 세트 관리
-export function addEditSet() {
-    state.editingSets.push({
-        intensity: { value: '', unit: 'kg' },
-        reps: { value: '', unit: '회' }
-    });
+// 편집 세트 관리 — 세트 수 드롭다운 (늘리면 마지막 세트 복제, 줄이면 뒤에서 제거)
+export function setEditSetCount(n) {
+    n = parseInt(n, 10);
+    if (isNaN(n) || n < 1) n = 1;
+    if (n > 20) n = 20;
+    const cur = state.editingSets.length;
+    if (n > cur) {
+        const template = cur > 0
+            ? JSON.parse(JSON.stringify(normalizeSet(state.editingSets[cur - 1])))
+            : { intensity: { value: '', unit: 'kg' }, reps: { value: '', unit: '회' } };
+        for (let i = cur; i < n; i++) {
+            state.editingSets.push(JSON.parse(JSON.stringify(template)));
+        }
+    } else if (n < cur) {
+        state.editingSets.length = n;
+    }
     renderEditSets();
 }
+window.setEditSetCount = setEditSetCount;
 
 
 
@@ -707,63 +727,6 @@ export async function removeCoachComment(exerciseName) {
     }
 }
 window.removeCoachComment = removeCoachComment;
-
-// Add Same Set Modal Logic for Edit Mode
-export function addSameEditSet() {
-    if (state.editingSets.length === 0) {
-        alert('최소 1개의 세트가 필요합니다!');
-        return;
-    }
-
-    // Open Modal
-    const modalHTML = `
-        <div id="addEditSetModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2005;">
-            <div style="background: white; border-radius: 16px; padding: 24px; max-width: 300px; width: 90%;">
-                <h3 style="text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 20px;">세트 추가</h3>
-                <div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 20px;">
-                    <button onclick="changeAddEditSetCount(-1)" style="width: 50px; height: 50px; font-size: 24px; background: #e5e7eb; border: none; border-radius: 8px;">−</button>
-                    <span id="addEditSetCountDisplay" style="font-size: 32px; font-weight: bold; min-width: 50px; text-align: center;">${state.addSetCount || 1}</span>
-                    <button onclick="changeAddEditSetCount(1)" style="width: 50px; height: 50px; font-size: 24px; background: #e5e7eb; border: none; border-radius: 8px;">+</button>
-                </div>
-                <div style="display: flex; gap: 10px;">
-                    <button onclick="confirmAddSameEditSet()" style="flex: 1; background: #329BE7; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold;">확인</button>
-                    <button onclick="closeAddEditSetModal()" style="flex: 1; background: #6b7280; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold;">취소</button>
-                </div>
-            </div>
-        </div>
-    `;
-    const d = document.createElement('div');
-    d.innerHTML = modalHTML;
-    document.body.appendChild(d.firstElementChild);
-    state.addSetCount = 1; // Reset
-}
-
-export function changeAddEditSetCount(delta) {
-    state.addSetCount = (state.addSetCount || 1) + delta;
-    if (state.addSetCount < 1) state.addSetCount = 1;
-    if (state.addSetCount > 20) state.addSetCount = 20;
-    const disp = document.getElementById('addEditSetCountDisplay');
-    if (disp) disp.textContent = state.addSetCount;
-}
-window.changeAddEditSetCount = changeAddEditSetCount;
-
-export function closeAddEditSetModal() {
-    const m = document.getElementById('addEditSetModal');
-    if (m) m.remove();
-}
-window.closeAddEditSetModal = closeAddEditSetModal;
-
-export function confirmAddSameEditSet() {
-    const lastSet = state.editingSets[state.editingSets.length - 1];
-    const normalized = JSON.parse(JSON.stringify(lastSet));
-
-    for (let i = 0; i < state.addSetCount; i++) {
-        state.editingSets.push(JSON.parse(JSON.stringify(normalized)));
-    }
-    renderEditSets();
-    closeAddEditSetModal();
-}
-window.confirmAddSameEditSet = confirmAddSameEditSet;
 
 export function removePinnedExercise(index) {
     if (confirm('이 고정 메모를 해제하시겠습니까?')) {

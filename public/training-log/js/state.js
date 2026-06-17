@@ -23,8 +23,6 @@ export const state = {
     recordsFilter: false,
 
     // UI state
-    addSetCount: 1,
-    addEditSetCount: 1,
     deleteMode: false
 };
 

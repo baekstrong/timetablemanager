@@ -103,18 +103,9 @@ export function renderStudentScreen() {
                         </div>
                     </div>
 
-                    <!-- 세트별 입력 -->
+                    <!-- 세트별 입력 (세트 수 드롭다운은 setsContainer 상단에서 렌더) -->
                     <div id="setsContainer"></div>
-                    
-                    <div class="grid grid-cols-2 gap-2">
-                        <button onclick="addSet()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg">
-                            + 세트 추가
-                        </button>
-                        <button onclick="addSameSet()" class="bg-[#329BE7] hover:bg-[#327AB8] text-white py-2 rounded-lg">
-                            ↻ 같은 세트 추가
-                        </button>
-                    </div>
-                    
+
                     <!-- 통증 체크박스 -->
                     <div class="flex items-center space-x-2 p-3 bg-red-50 rounded-lg">
                         <input type="checkbox" id="painCheck" class="w-5 h-5">
@@ -308,14 +299,6 @@ export function renderEditModalContent(data, docId) {
             <div>
                 <label class="block text-sm font-semibold mb-2">세트별 기록</label>
                 <div id="editSetsContainer"></div>
-                <div class="flex gap-2 mt-2">
-                    <button onclick="addEditSet()" type="button" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg text-sm">
-                        + 세트 추가
-                    </button>
-                    <button onclick="addSameEditSet()" type="button" class="flex-1 bg-[#329BE7] hover:bg-[#327AB8] text-white py-2 rounded-lg text-sm">
-                        ↻ 같은 세트 추가
-                    </button>
-                </div>
             </div>
             
             <div class="flex items-center space-x-2 p-3 bg-red-50 rounded-lg">
