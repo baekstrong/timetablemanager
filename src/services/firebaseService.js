@@ -1127,10 +1127,49 @@ export const getPosts = async (category = null, limitCount = 20) => {
 };
 
 export const getPostsPage = async (category = 'all', pageSize = 10, cursor = null) => {
+    const toSummary = (post) => {
+        const images = post.images;
+        const likes = post.likes;
+        const summary = { ...post };
+        delete summary.content;
+        delete summary.images;
+        delete summary.likes;
+        return {
+            ...summary,
+            imageCount: Array.isArray(images) ? images.length : 0,
+            likeCount: Array.isArray(likes) ? likes.length : 0,
+        };
+    };
+
     return safeRead({ posts: [], nextCursor: null, hasNextPage: false }, async () => {
-        const baseConstraints = category && category !== 'all'
-            ? [where('category', '==', category)]
-            : [];
+        // 특정 카테고리: where(category)+orderBy(createdAt) 복합 인덱스가 필요해 에러가 났었음.
+        // 동등 필터로만 읽고 정렬·페이지네이션을 클라이언트에서 처리해 인덱스 의존성을 제거한다.
+        // (단일 스튜디오 게시판 규모에선 카테고리 전체를 읽어도 비용이 작다)
+        if (category && category !== 'all') {
+            const snapshot = await getDocs(query(
+                collection(db, 'posts'),
+                where('category', '==', category)
+            ));
+            const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => !p.deleted);
+            const byNewest = (a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0);
+
+            // 공지 카테고리: 고정 공지는 상단(첫 페이지)에서만, 날짜순 목록에서는 제외
+            const pinned = category === 'notice' ? all.filter(p => p.pinned).sort(byNewest) : [];
+            const pinnedIds = new Set(pinned.map(p => p.id));
+            const rest = all.filter(p => !pinnedIds.has(p.id)).sort(byNewest);
+
+            const start = typeof cursor === 'number' ? cursor : 0;
+            const pageSlice = rest.slice(start, start + pageSize);
+            const hasNextPage = rest.length > start + pageSize;
+            const combined = [...(start === 0 ? pinned : []), ...pageSlice];
+            return {
+                posts: combined.map(toSummary),
+                nextCursor: hasNextPage ? start + pageSize : null,
+                hasNextPage,
+            };
+        }
+
+        const baseConstraints = [];
 
         const includePinnedNotices = !cursor && (category === 'all' || category === 'notice');
         const pinnedSnapshotPromise = includePinnedNotices
@@ -1178,20 +1217,7 @@ export const getPostsPage = async (category = 'all', pageSize = 10, cursor = nul
             .map(d => ({ id: d.id, ...d.data() }))
             .filter(p => !p.deleted)
             .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-        const posts = [...pinnedPosts, ...pagePosts]
-            .map((post) => {
-                const images = post.images;
-                const likes = post.likes;
-                const summary = { ...post };
-                delete summary.content;
-                delete summary.images;
-                delete summary.likes;
-                return {
-                    ...summary,
-                    imageCount: Array.isArray(images) ? images.length : 0,
-                    likeCount: Array.isArray(likes) ? likes.length : 0,
-                };
-            });
+        const posts = [...pinnedPosts, ...pagePosts].map(toSummary);
 
         return {
             posts,
