@@ -240,33 +240,33 @@ export default function CoachSchedule({
                     {data.regularStudentsPresent.map(name => {
                         const unpaid = unpaidStudentNames.has(name);
                         if (data.makeupMovedStudents.includes(name)) {
-                            return <StudentTag key={name} name={name} status="makeupMoved" label="보강이동" unpaid={unpaid} />;
+                            return <StudentTag key={name} name={name} status="makeupMoved" label="보강이동" unpaid={unpaid} reregX={delayedReregNames.has(name)} />;
                         }
                         if (data.agreedAbsenceStudents.includes(name)) {
-                            return <StudentTag key={name} name={name} status="agreedAbsent" label="합의결석" unpaid={unpaid} />;
+                            return <StudentTag key={name} name={name} status="agreedAbsent" label="합의결석" unpaid={unpaid} reregX={delayedReregNames.has(name)} />;
                         }
                         if (data.absenceStudents.includes(name)) {
-                            return <StudentTag key={name} name={name} status="absent" label="결석" unpaid={unpaid} />;
+                            return <StudentTag key={name} name={name} status="absent" label="결석" unpaid={unpaid} reregX={delayedReregNames.has(name)} />;
                         }
                         return <span key={name} className="student-tag">{name}{delayedReregNames.has(name) && <span className="rereg-x">(재등록X)</span>}{unpaid && <UnpaidBadge />}</span>;
                     })}
                     {data.makeupStudents.map(name => (
-                        <StudentTag key={`makeup-${name}`} name={name} status="makeup" label="보강" unpaid={unpaidStudentNames.has(name)} />
+                        <StudentTag key={`makeup-${name}`} name={name} status="makeup" label="보강" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} />
                     ))}
                     {data.makeupHeldStudents.map(name => (
-                        <StudentTag key={`makeup-held-${name}`} name={name} status="holding" label="보강홀딩" unpaid={unpaidStudentNames.has(name)} />
+                        <StudentTag key={`makeup-held-${name}`} name={name} status="holding" label="보강홀딩" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} />
                     ))}
                     {data.makeupAbsentOnMakeupSlot.map(name => (
-                        <StudentTag key={`makeup-absent-slot-${name}`} name={name} status="makeupAbsent" label="보강결석" unpaid={unpaidStudentNames.has(name)} />
+                        <StudentTag key={`makeup-absent-slot-${name}`} name={name} status="makeupAbsent" label="보강결석" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} />
                     ))}
                     {data.holdingStudents.map(name => (
-                        <StudentTag key={`holding-${name}`} name={name} status="holding" label="홀딩" unpaid={unpaidStudentNames.has(name)} />
+                        <StudentTag key={`holding-${name}`} name={name} status="holding" label="홀딩" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} />
                     ))}
                     {data.newStudents.map(name => (
-                        <StudentTag key={`new-${name}`} name={name} status="newStudent" label="신규" unpaid={unpaidStudentNames.has(name)} />
+                        <StudentTag key={`new-${name}`} name={name} status="newStudent" label="신규" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} />
                     ))}
                     {data.delayedStartStudents.map(name => (
-                        <StudentTag key={`delayed-${name}`} name={name} status="delayed" label="시작지연" unpaid={unpaidStudentNames.has(name)} />
+                        <StudentTag key={`delayed-${name}`} name={name} status="delayed" label="시작지연" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} />
                     ))}
                     {data.subs.map(sub => (
                         <span key={sub.name} className="student-tag substitute">{sub.name}</span>
@@ -278,8 +278,8 @@ export default function CoachSchedule({
                         return makeupWaitlists
                             .filter(w => w.date === slotDateISO && w.day === day && w.period === periodObj.id)
                             .map(w => w.status === 'notified'
-                                ? <StudentTag key={`mw-${w.id}`} name={w.studentName} status="makeupPending" label="보강승인중" />
-                                : <StudentTag key={`mw-${w.id}`} name={w.studentName} status="waitingSeat" label="보강대기" />);
+                                ? <StudentTag key={`mw-${w.id}`} name={w.studentName} status="makeupPending" label="보강승인중" reregX={delayedReregNames.has(w.studentName)} />
+                                : <StudentTag key={`mw-${w.id}`} name={w.studentName} status="waitingSeat" label="보강대기" reregX={delayedReregNames.has(w.studentName)} />);
                     })()}
                 </div>
             </div>
