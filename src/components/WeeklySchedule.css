@@ -226,6 +226,13 @@
     margin-left: 2px;
 }
 
+/* 마지막 수업 표시 — 기존 '오늘 마지막 수업' 패널과 동일한 녹색 */
+.last-class {
+    color: #166534;
+    font-weight: 700;
+    margin-left: 2px;
+}
+
 /* Highlighted Students (e.g. Substitutes or Special) */
 .student-tag.special {
     background-color: var(--caution);

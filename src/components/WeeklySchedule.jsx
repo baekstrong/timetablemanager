@@ -80,7 +80,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         studentSchedule, scheduleData, weekDates,
         isMyHoldingDate,
         isMakeupHeld,
-        lastDayStudents, delayedReregistrationStudents,
+        lastDayStudents, delayedReregistrationStudents, lastClassByName,
         getCellData, getHolidayInfo,
         unpaidStudentNames,
     } = scheduleCore;
@@ -487,6 +487,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     setWeekWaitlist={setWeekWaitlist}
                     lastDayStudents={lastDayStudents}
                     delayedReregistrationStudents={delayedReregistrationStudents}
+                    lastClassByName={lastClassByName}
                     getCellData={getCellData}
                     getHolidayInfo={getHolidayInfo}
                     newStudentWaitlist={newStudentWaitlist}

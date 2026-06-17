@@ -212,6 +212,46 @@ export function useScheduleCore({
         }).filter(Boolean).sort((a, b) => a.todayPeriod - b.todayPeriod);
     }, [user, students, weekMakeupRequests, getEffectiveEndDate]);
 
+    // 이름 → 마지막 수업 { 날짜ISO, 교시 }. 셀에서 "(마지막)" 표기용.
+    // effectiveEnd(보강 반영 종료일)이 떨어지는 날짜의 교시(보강이면 보강 교시, 아니면 정규 교시).
+    const lastClassByName = useMemo(() => {
+        const map = new Map();
+        if (user?.role !== 'coach' || !students || students.length === 0) return map;
+        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+        students.forEach(student => {
+            const name = student['이름'];
+            if (!name) return;
+            const endDateStr = student['종료날짜'];
+            if (!endDateStr) return;
+            const endDate = parseSheetDate(endDateStr);
+            if (!endDate) return;
+            endDate.setHours(0, 0, 0, 0);
+            const effectiveEnd = getEffectiveEndDate(student, endDate);
+            effectiveEnd.setHours(0, 0, 0, 0);
+            const dateISO = formatDateISO(effectiveEnd);
+
+            const makeup = weekMakeupRequests && weekMakeupRequests.find(m =>
+                m.studentName === name &&
+                m.makeupClass?.date === dateISO &&
+                (m.status === 'active' || m.status === 'completed')
+            );
+            let period;
+            if (makeup) {
+                period = makeup.makeupClass.period;
+            } else {
+                const parsed = parseScheduleString(student['요일 및 시간'] || '');
+                const cls = parsed.find(p => p.day === dayNames[effectiveEnd.getDay()]);
+                period = cls ? cls.period : null;
+            }
+            if (period == null) return;
+
+            // 같은 이름 여러 등록 → 가장 늦은 마지막 수업만 유지
+            const prev = map.get(name);
+            if (!prev || dateISO > prev.dateISO) map.set(name, { dateISO, period });
+        });
+        return map;
+    }, [user, students, weekMakeupRequests, getEffectiveEndDate]);
+
     const delayedReregistrationStudents = useMemo(() => {
         if (user?.role !== 'coach' || !students || students.length === 0) return [];
         const today = new Date();
@@ -436,6 +476,7 @@ export function useScheduleCore({
         getEffectiveEndDate,
         lastDayStudents,
         delayedReregistrationStudents,
+        lastClassByName,
         getCellData,
         getHolidayInfo,
         unpaidStudentNames,

@@ -35,6 +35,7 @@ export default function CoachSchedule({
     setWeekWaitlist,
     lastDayStudents,
     delayedReregistrationStudents,
+    lastClassByName = new Map(),
     getCellData,
     getHolidayInfo,
     newStudentWaitlist,
@@ -189,6 +190,14 @@ export default function CoachSchedule({
 
         const locked = isSlotLocked(day, periodObj.id);
 
+        // 이 칸이 해당 학생의 마지막 수업인지 — "(마지막)" 표기용
+        const cellDateISO = weekDates[day] ? weekDateToISO(weekDates[day]) : null;
+        const isLastClass = (name) => {
+            if (!cellDateISO) return false;
+            const lc = lastClassByName.get(name);
+            return !!lc && lc.dateISO === cellDateISO && lc.period === periodObj.id;
+        };
+
         return (
             <div
                 className="schedule-cell"
@@ -240,33 +249,33 @@ export default function CoachSchedule({
                     {data.regularStudentsPresent.map(name => {
                         const unpaid = unpaidStudentNames.has(name);
                         if (data.makeupMovedStudents.includes(name)) {
-                            return <StudentTag key={name} name={name} status="makeupMoved" label="보강이동" unpaid={unpaid} reregX={delayedReregNames.has(name)} />;
+                            return <StudentTag key={name} name={name} status="makeupMoved" label="보강이동" unpaid={unpaid} reregX={delayedReregNames.has(name)} lastClass={isLastClass(name)} />;
                         }
                         if (data.agreedAbsenceStudents.includes(name)) {
-                            return <StudentTag key={name} name={name} status="agreedAbsent" label="합의결석" unpaid={unpaid} reregX={delayedReregNames.has(name)} />;
+                            return <StudentTag key={name} name={name} status="agreedAbsent" label="합의결석" unpaid={unpaid} reregX={delayedReregNames.has(name)} lastClass={isLastClass(name)} />;
                         }
                         if (data.absenceStudents.includes(name)) {
-                            return <StudentTag key={name} name={name} status="absent" label="결석" unpaid={unpaid} reregX={delayedReregNames.has(name)} />;
+                            return <StudentTag key={name} name={name} status="absent" label="결석" unpaid={unpaid} reregX={delayedReregNames.has(name)} lastClass={isLastClass(name)} />;
                         }
-                        return <span key={name} className="student-tag">{name}{delayedReregNames.has(name) && <span className="rereg-x">(재등록X)</span>}{unpaid && <UnpaidBadge />}</span>;
+                        return <span key={name} className="student-tag">{name}{isLastClass(name) && <span className="last-class">(마지막)</span>}{delayedReregNames.has(name) && <span className="rereg-x">(재등록X)</span>}{unpaid && <UnpaidBadge />}</span>;
                     })}
                     {data.makeupStudents.map(name => (
-                        <StudentTag key={`makeup-${name}`} name={name} status="makeup" label="보강" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} />
+                        <StudentTag key={`makeup-${name}`} name={name} status="makeup" label="보강" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} lastClass={isLastClass(name)} />
                     ))}
                     {data.makeupHeldStudents.map(name => (
-                        <StudentTag key={`makeup-held-${name}`} name={name} status="holding" label="보강홀딩" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} />
+                        <StudentTag key={`makeup-held-${name}`} name={name} status="holding" label="보강홀딩" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} lastClass={isLastClass(name)} />
                     ))}
                     {data.makeupAbsentOnMakeupSlot.map(name => (
-                        <StudentTag key={`makeup-absent-slot-${name}`} name={name} status="makeupAbsent" label="보강결석" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} />
+                        <StudentTag key={`makeup-absent-slot-${name}`} name={name} status="makeupAbsent" label="보강결석" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} lastClass={isLastClass(name)} />
                     ))}
                     {data.holdingStudents.map(name => (
-                        <StudentTag key={`holding-${name}`} name={name} status="holding" label="홀딩" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} />
+                        <StudentTag key={`holding-${name}`} name={name} status="holding" label="홀딩" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} lastClass={isLastClass(name)} />
                     ))}
                     {data.newStudents.map(name => (
-                        <StudentTag key={`new-${name}`} name={name} status="newStudent" label="신규" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} />
+                        <StudentTag key={`new-${name}`} name={name} status="newStudent" label="신규" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} lastClass={isLastClass(name)} />
                     ))}
                     {data.delayedStartStudents.map(name => (
-                        <StudentTag key={`delayed-${name}`} name={name} status="delayed" label="시작지연" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} />
+                        <StudentTag key={`delayed-${name}`} name={name} status="delayed" label="시작지연" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} lastClass={isLastClass(name)} />
                     ))}
                     {data.subs.map(sub => (
                         <span key={sub.name} className="student-tag substitute">{sub.name}</span>
