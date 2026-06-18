@@ -402,6 +402,10 @@ export default function StudentSchedule({
             const periodObj = PERIODS.find(p => p.id === entry.period);
             if (periodObj && getCellData(entry.day, periodObj).isFull) {
                 alert('그 사이 자리가 다시 찼습니다. 자리가 나면 다시 안내드리겠습니다.');
+                // notified로 두면 만석인데도 수락 프롬프트가 계속 떠 반복 실패하므로 대기 상태로 되돌림.
+                await updateMakeupWaitlistStatus(entry.id, 'waiting').catch(() => {});
+                setRespondingWaitlist(null);
+                await reloadMyWaitlists();
                 return;
             }
         }
@@ -448,7 +452,13 @@ export default function StudentSchedule({
         setIsSubmittingWaitlist(true);
         try {
             await declineMakeupWaitlist(entry.id);
-            await onSeatFreed(entry.date, entry.day, entry.period); // 다음 순번에게 즉시 알림
+            // 거절은 실제로 자리를 비우지 않으므로(거절자는 자리를 점유한 적 없음) 실제 여석 기준으로만 다음 순번 알림.
+            const dPeriodObj = PERIODS.find(p => p.id === entry.period);
+            const dExpectedDate = weekDates[entry.day] ? weekDateToISO(weekDates[entry.day]) : null;
+            const dSeats = (dPeriodObj && dExpectedDate === entry.date)
+                ? getCellData(entry.day, dPeriodObj).availableSeats
+                : null;
+            await onSeatFreed(entry.date, entry.day, entry.period, dSeats);
             setRespondingWaitlist(null);
             await reloadMyWaitlists();
         } catch (error) {

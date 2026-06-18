@@ -53,12 +53,16 @@ async function applyResolution({ toExpire, toNotify }) {
  * 특정 날짜+슬롯에서 자리가 1개 빠졌을 때 호출.
  * 트리거: 홀딩 처리, 결석 처리, 보강 취소, 대기 거절.
  */
-export async function onSeatFreed(date, day, period) {
+export async function onSeatFreed(date, day, period, availableSeats = null) {
     try {
         const all = (await getActiveMakeupWaitlists()).map(normalizeWaitlistEntry);
         const slotEntries = all.filter(e => e.date === date && e.day === day && e.period === period);
         if (slotEntries.length === 0) return 0;
-        return await applyResolution(resolveAfterSeatFreed(slotEntries, new Date(), 1));
+        // 실제 여석 수를 알면 그 기준으로(만석이면 0명 알림), 모르면 종전대로 1자리 가정.
+        const resolution = typeof availableSeats === 'number'
+            ? resolveToTarget(slotEntries, new Date(), availableSeats)
+            : resolveAfterSeatFreed(slotEntries, new Date(), 1);
+        return await applyResolution(resolution);
     } catch (err) {
         console.error('보강 대기 자리 알림 처리 실패:', err);
         return 0;

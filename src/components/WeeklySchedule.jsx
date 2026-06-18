@@ -82,7 +82,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         isMakeupHeld,
         lastDayStudents, delayedReregistrationStudents, lastClassByName,
         getCellData, getHolidayInfo,
-        unpaidStudentNames,
+        unpaidStudentNames, weeklyDataLoaded,
     } = scheduleCore;
 
     // New student waitlist (coach only)
@@ -185,7 +185,8 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
     // 만석 보강 대기 백스톱 — 코치 시간표 로드 시 실제 여석 기준으로 만료/승급 처리 + 표시용 로드
     useEffect(() => {
-        if (user?.role !== 'coach' || mode !== 'coach' || !scheduleData) return;
+        // 주간 데이터(보강 인원 등) 로드 완료 전에는 여석을 과대 계산해 만석에도 오알림이 나가므로 대기.
+        if (user?.role !== 'coach' || mode !== 'coach' || !scheduleData || !weeklyDataLoaded) return;
         let cancelled = false;
         (async () => {
             await syncMakeupWaitlists((date, day, period) => {
@@ -201,7 +202,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         })();
         return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user, mode, scheduleData]);
+    }, [user, mode, scheduleData, weeklyDataLoaded]);
 
     // ── Handlers ──
 

@@ -26,6 +26,9 @@ export function useWeeklyData({ user, students, mode, refresh }) {
     const [weekAbsences, setWeekAbsences] = useState([]);
     const [weekHolidays, setWeekHolidays] = useState([]);
     const [weekWaitlist, setWeekWaitlist] = useState([]);
+    // 주간 Firebase 데이터(보강/홀딩/결석 등) 최초 로드 완료 여부 — 보강대기 백스톱이 여석을
+    // 잘못 계산(보강 인원 0으로)하지 않도록 게이트하는 데 사용.
+    const [weeklyDataLoaded, setWeeklyDataLoaded] = useState(false);
 
     const loadWeeklyData = useCallback(async () => {
         try {
@@ -122,6 +125,7 @@ export function useWeeklyData({ user, students, mode, refresh }) {
             setWeekAbsences(allAbsences || []);
             setWeekHolidays(holidays || []);
             setWeekWaitlist(waitlist || []);
+            setWeeklyDataLoaded(true);
         } catch (error) {
             console.error('Failed to load weekly data:', error);
             setWeekMakeupRequests([]);
@@ -155,6 +159,7 @@ export function useWeeklyData({ user, students, mode, refresh }) {
     }, [user, mode, refresh, loadWeeklyData]);
 
     return {
+        weeklyDataLoaded,
         weekMakeupRequests,
         setWeekMakeupRequests,
         weekHoldings,
