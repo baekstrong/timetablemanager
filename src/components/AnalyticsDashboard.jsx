@@ -130,6 +130,17 @@ const AnalyticsDashboard = ({ onBack }) => {
             </ResponsiveContainer>
           </ChartCard>
 
+          <ChartCard title="신규 유입수">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={trends.months.map(m => ({ name: `${m.month}월`, 신규: trends.newByMonth?.[ymKey(m.year, m.month)] || 0 }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#EFEFF0" />
+                <XAxis dataKey="name" /><YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="신규" fill="#329BE7" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
           <ChartCard title="환불 추세">
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={trends.refundTrend.map(m => ({ name: `${m.month}월`, 환불: m.refund }))}>

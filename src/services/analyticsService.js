@@ -239,8 +239,13 @@ export async function getAllRawRows() {
     valueRanges = await batchReadSheetData(studentSheets.map((n) => `${n}!A:R`));
   } catch { valueRanges = []; }
   const arrays = await Promise.all(studentSheets.map(async (name, i) => {
-    try { return parseStudentData(valueRanges[i]?.values ?? await readSheetData(`${name}!A:R`)); }
-    catch { return []; }
+    const m = name.match(/등록생 목록\((\d+)년(\d+)월\)/);
+    const ym = m ? `${2000 + parseInt(m[1])}-${String(parseInt(m[2])).padStart(2, '0')}` : null;
+    try {
+      const parsed = parseStudentData(valueRanges[i]?.values ?? await readSheetData(`${name}!A:R`));
+      parsed.forEach((s) => { s._ym = ym; });
+      return parsed;
+    } catch { return []; }
   }));
   return arrays.flat();
 }
@@ -274,7 +279,17 @@ export async function getTrends(monthsCount = 6, baseDate = new Date()) {
   const todayMidnight = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate()).getTime();
   const churnByMonth = computeChurnByMonth(rawRows, terms, windowKeys, todayMidnight);
 
-  return { months, revenueTrend, refundTrend, churnByMonth };
+  // 월별 신규 유입수 (각 달 시트에서 F열='신규' 행 수) — getAllRawRows의 batchGet 결과 재사용(추가 읽기 없음)
+  const newByMonth = {};
+  windowKeys.forEach((k) => { newByMonth[k] = 0; });
+  (rawRows || []).forEach((s) => {
+    if (s._ym && newByMonth[s._ym] !== undefined &&
+        (getStudentField(s, '신규/재등록') || '').trim() === '신규') {
+      newByMonth[s._ym] += 1;
+    }
+  });
+
+  return { months, revenueTrend, refundTrend, churnByMonth, newByMonth };
 }
 
 // 선택한 달 현황. registrations는 호출측에서 1회 로드해 전달.
