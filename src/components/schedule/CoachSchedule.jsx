@@ -257,7 +257,7 @@ export default function CoachSchedule({
                         if (data.absenceStudents.includes(name)) {
                             return <StudentTag key={name} name={name} status="absent" label="결석" unpaid={unpaid} reregX={delayedReregNames.has(name)} lastClass={isLastClass(name)} />;
                         }
-                        return <span key={name} className="student-tag">{name}{isLastClass(name) && <span className="last-class">(마지막)</span>}{delayedReregNames.has(name) && <span className="rereg-x">(재등록X)</span>}{unpaid && <UnpaidBadge />}</span>;
+                        return <span key={name} className="student-tag">{name}{isLastClass(name) && <span className="last-class">마지막</span>}{delayedReregNames.has(name) && <span className="rereg-x">재등록X</span>}{unpaid && <UnpaidBadge />}</span>;
                     })}
                     {data.makeupStudents.map(name => (
                         <StudentTag key={`makeup-${name}`} name={name} status="makeup" label="보강" unpaid={unpaidStudentNames.has(name)} reregX={delayedReregNames.has(name)} lastClass={isLastClass(name)} />

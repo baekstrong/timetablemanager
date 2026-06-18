@@ -1,11 +1,22 @@
 import { TAG_STYLES } from './scheduleStyles';
 
-/** Styled student tag with status-specific styling. */
+// 이름에 취소선을 긋는 '빠짐/결석류' 상태 (결석·합의결석·보강결석·보강이동·홀딩·시작지연)
+const AWAY_STATUSES = new Set(['makeupMoved', 'makeupAbsent', 'agreedAbsent', 'absent', 'holding', 'delayed']);
+
+/** 이름은 중립 회색 칩, 상태는 작은 색 뱃지로 표기. 결석류는 이름에 취소선 유지. */
 export function StudentTag({ name, status, label, unpaid = false, reregX = false, lastClass = false }) {
-    const style = TAG_STYLES[status] || {};
-    const suffix = label ? `(${label})` : '';
-    const className = status === 'makeup' ? 'student-tag substitute' : 'student-tag';
-    return <span className={className} style={style}>{name}{suffix}{lastClass && <span className="last-class">(마지막)</span>}{reregX && <span className="rereg-x">(재등록X)</span>}{unpaid && <UnpaidBadge />}</span>;
+    const away = AWAY_STATUSES.has(status);
+    const badgeStyle = TAG_STYLES[status] ? { ...TAG_STYLES[status] } : {};
+    delete badgeStyle.textDecoration; // 취소선은 이름에만 적용
+    return (
+        <span className="student-tag">
+            <span style={away ? { textDecoration: 'line-through' } : undefined}>{name}</span>
+            {label && <span className="status-badge" style={badgeStyle}>{label}</span>}
+            {lastClass && <span className="last-class">마지막</span>}
+            {reregX && <span className="rereg-x">재등록X</span>}
+            {unpaid && <UnpaidBadge />}
+        </span>
+    );
 }
 
 /** 미결제(K열=X) 상태 배지 — 코치 시간표 전용. */

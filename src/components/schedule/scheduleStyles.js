@@ -1,6 +1,8 @@
 // 시간표 컴포넌트들이 공유하는 스타일 상수.
 
 export const TAG_STYLES = {
+    // 보강: 다른 시간에서 이 자리로 옴 (코발트 채움)
+    makeup: { backgroundColor: '#329BE7', color: '#ffffff', border: '1px solid #327AB8' },
     // 보강이동: 원래 자리에서 다른 시간으로 이동 (caution, 출석은 함)
     makeupMoved: { backgroundColor: '#FAEAC2', color: '#92400e', border: '1px solid #E8C766', textDecoration: 'line-through' },
     // 보강결석: 보강 자리에 오기로 했다가 결석 (error, 완전히 빠짐)
