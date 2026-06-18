@@ -1,11 +1,14 @@
 import { TAG_STYLES } from './scheduleStyles';
 
-// 뱃지 형태(이름칩 + 색 뱃지)로 표기하는 상태 — 나머지는 칩 배경 색 형태
-const BADGE_STATUSES = new Set(['makeup', 'newStudent', 'holding', 'makeupMoved']);
-// 이름에 취소선을 긋는 '빠짐/결석류' 상태
-const AWAY_STATUSES = new Set(['makeupMoved', 'makeupAbsent', 'agreedAbsent', 'absent', 'holding', 'delayed']);
-// 이름을 굵게 표시하는 상태 (보강·보강이동·결석·신규·홀딩)
-const BOLD_STATUSES = new Set(['makeup', 'makeupMoved', 'absent', 'newStudent', 'holding']);
+// 이름칩을 '파스텔 배경 + 검은 굵은 글씨 + 색 뱃지'로 표기하는 상태 (보강·보강이동·홀딩·신규·결석)
+// 값은 각 상태 색의 연한(파스텔) 톤.
+const NAME_PASTEL = {
+    makeup: '#E8F2FC',      // 파스텔 블루
+    newStudent: '#E8F2FC',  // 파스텔 블루
+    makeupMoved: '#FDF6E3', // 파스텔 앰버
+    absent: '#FDECEE',      // 파스텔 레드
+    holding: '#FDECEE',     // 파스텔 레드
+};
 
 const extraBadges = (lastClass, reregX, unpaid) => (
     <>
@@ -15,33 +18,31 @@ const extraBadges = (lastClass, reregX, unpaid) => (
     </>
 );
 
-/** 보강·신규·홀딩·보강이동은 뱃지 형태, 그 외는 칩 배경 색 형태. */
+/** 보강·보강이동·홀딩·신규·결석: 파스텔 이름칩(검은 굵은 글씨)+색 뱃지. 그 외: 칩 배경 색 형태. */
 export function StudentTag({ name, status, label, unpaid = false, reregX = false, lastClass = false }) {
     const tagStyle = TAG_STYLES[status] || {};
 
-    if (BADGE_STATUSES.has(status)) {
-        const badgeStyle = { ...tagStyle };
-        delete badgeStyle.textDecoration; // 취소선은 이름에만
-        const lightInk = tagStyle.color === '#ffffff' || tagStyle.color === '#fff';
-        const nameStyle = {
-            color: lightInk ? '#327AB8' : tagStyle.color,
-            textDecoration: AWAY_STATUSES.has(status) ? 'line-through' : undefined,
-            fontWeight: BOLD_STATUSES.has(status) ? 700 : undefined,
+    if (NAME_PASTEL[status]) {
+        const chipStyle = {
+            backgroundColor: NAME_PASTEL[status],
+            border: tagStyle.border,
+            color: 'var(--text)',
+            fontWeight: 700,
         };
+        const badgeStyle = { ...tagStyle };
+        delete badgeStyle.textDecoration; // 뱃지엔 취소선 없음
         return (
-            <span className="student-tag">
-                <span style={nameStyle}>{name}</span>
+            <span className="student-tag" style={chipStyle}>
+                {name}
                 {label && <span className="status-badge" style={badgeStyle}>{label}</span>}
                 {extraBadges(lastClass, reregX, unpaid)}
             </span>
         );
     }
 
-    // 칩 배경 색 형태(결석류·시작지연·보강대기·보강승인중)
-    const style = { ...tagStyle };
-    if (BOLD_STATUSES.has(status)) style.fontWeight = 700;
+    // 칩 배경 색 형태(합의결석·보강결석·시작지연·보강대기·보강승인중)
     return (
-        <span className="student-tag" style={style}>
+        <span className="student-tag" style={{ ...tagStyle }}>
             {name}{label ? ` ${label}` : ''}
             {extraBadges(lastClass, reregX, unpaid)}
         </span>
