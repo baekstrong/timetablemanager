@@ -136,7 +136,7 @@ const AnalyticsDashboard = ({ onBack }) => {
                 name: `${m.month}월`,
                 신규: trends.newByMonth?.[ymKey(m.year, m.month)] || 0,
                 이탈: trends.churnByMonth[ymKey(m.year, m.month)] || 0,
-                '총 수강생': trends.totalByMonth?.[ymKey(m.year, m.month)] || 0,
+                '총 수강생': trends.totalByMonth?.[ymKey(m.year, m.month)] ?? null,
               }))}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#EFEFF0" />
                 <XAxis dataKey="name" />
@@ -146,7 +146,7 @@ const AnalyticsDashboard = ({ onBack }) => {
                 <Legend />
                 <Bar yAxisId="left" dataKey="신규" fill="#329BE7" radius={[4, 4, 0, 0]} />
                 <Bar yAxisId="left" dataKey="이탈" fill="#A7A7AA" radius={[4, 4, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="총 수강생" stroke="#242428" strokeWidth={2} dot={{ r: 3 }} />
+                <Line yAxisId="right" type="monotone" dataKey="총 수강생" stroke="#242428" strokeWidth={2} dot={{ r: 3 }} connectNulls />
               </ComposedChart>
             </ResponsiveContainer>
           </ChartCard>

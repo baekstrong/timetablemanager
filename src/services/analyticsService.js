@@ -1,5 +1,6 @@
-import { getStudentField, getAllStudents, readSheetData, batchReadSheetData, getSheetNameByYearMonth, getAllSheetNames, parseStudentData } from './googleSheetsService';
-import { getTerminations } from './firebaseService';
+import { getStudentField, getAllStudents, getAllStudentsFromAllSheets, readSheetData, batchReadSheetData, getSheetNameByYearMonth, getAllSheetNames, parseStudentData } from './googleSheetsService';
+import { getTerminations, getStudentCountSnapshots, recordStudentCount } from './firebaseService';
+import { shouldShowInCoachStudentList } from '../utils/studentList';
 
 // ─── 직업 키워드 그룹핑 ───
 const OCCUPATION_RULES = [
@@ -279,16 +280,30 @@ export async function getTrends(monthsCount = 6, baseDate = new Date()) {
   const todayMidnight = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate()).getTime();
   const churnByMonth = computeChurnByMonth(rawRows, terms, windowKeys, todayMidnight);
 
-  // 월별 신규 유입수(F열='신규') / 총 수강생수(이름 있는 행) — getAllRawRows의 batchGet 결과 재사용(추가 읽기 없음)
+  // 월별 신규 유입수 (각 달 시트에서 F열='신규' 행 수) — getAllRawRows의 batchGet 결과 재사용(추가 읽기 없음)
   const newByMonth = {};
-  const totalByMonth = {};
-  windowKeys.forEach((k) => { newByMonth[k] = 0; totalByMonth[k] = 0; });
+  windowKeys.forEach((k) => { newByMonth[k] = 0; });
   (rawRows || []).forEach((s) => {
-    if (!s._ym || newByMonth[s._ym] === undefined) return;
-    if (!(s['이름'] || getStudentField(s, '이름') || '').trim()) return;
-    totalByMonth[s._ym] += 1;
-    if ((getStudentField(s, '신규/재등록') || '').trim() === '신규') newByMonth[s._ym] += 1;
+    if (s._ym && newByMonth[s._ym] !== undefined &&
+        (getStudentField(s, '신규/재등록') || '').trim() === '신규') {
+      newByMonth[s._ym] += 1;
+    }
   });
+
+  // 총 수강생수: 시트 등록행 수가 아니라 '수강생 관리' 활성 수강생 수(월별 스냅샷) 기준.
+  // 과거 달은 저장된 스냅샷만 표시(없으면 null=빈칸), 이번 달은 라이브 계산해 채우고 동시에 기록(앞으로 누적).
+  const snapshots = await getStudentCountSnapshots().catch(() => ({}));
+  const totalByMonth = {};
+  windowKeys.forEach((k) => { totalByMonth[k] = (snapshots[k] ?? null); });
+  const curYm = ymKey(baseDate.getFullYear(), baseDate.getMonth() + 1);
+  if (windowKeys.includes(curYm)) {
+    try {
+      const all = await getAllStudentsFromAllSheets();
+      const liveCount = (all || []).filter(shouldShowInCoachStudentList).length;
+      totalByMonth[curYm] = liveCount;
+      recordStudentCount(curYm, liveCount).catch(() => {});
+    } catch { /* 스냅샷/빈칸 유지 */ }
+  }
 
   return { months, revenueTrend, refundTrend, churnByMonth, newByMonth, totalByMonth };
 }

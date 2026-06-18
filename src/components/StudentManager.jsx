@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets, pauseStudent, resumeStudent } from '../services/googleSheetsService';
-import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination } from '../services/firebaseService';
+import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, recordStudentCount } from '../services/firebaseService';
 import { getCoachStudentListStatus, shouldShowInCoachStudentList, isPausedRegistration } from '../utils/studentList';
 import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
@@ -347,6 +347,14 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             .filter(shouldShowInCoachStudentList)
             .sort((a, b) => (a['이름'] || '').localeCompare(b['이름'] || '', 'ko'));
     }, [students]);
+
+    // 이번 달 총 수강생수(활성) 스냅샷 기록 — 매출 통계의 총 수강생 추세용 (앞으로 누적)
+    useEffect(() => {
+        if (activeStudents.length === 0) return; // 로딩 중 0 기록 방지
+        const now = new Date();
+        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        recordStudentCount(ym, activeStudents.length).catch(() => {});
+    }, [activeStudents.length]);
 
     // 이름 부분 일치 + 전화번호 숫자 부분 일치 필터
     const filteredStudents = useMemo(() => {

@@ -704,6 +704,24 @@ export const getTerminations = async () => {
     });
 };
 
+// ── 월별 총 수강생수 스냅샷 (수강생 관리 기준 활성 수강생 수를 매달 기록) ──
+// doc id = 'YYYY-MM'. 시트 등록행 수가 아니라 코치 화면의 활성 수강생 수를 보존하기 위함.
+export const recordStudentCount = async (ym, count) => {
+    return safeWrite(async () => {
+        return setDoc(doc(db, 'studentCountSnapshots', ym),
+            { ym, count, updatedAt: serverTimestamp() }, { merge: true });
+    });
+};
+
+export const getStudentCountSnapshots = async () => {
+    return safeRead({}, async () => {
+        const snap = await getDocs(collection(db, 'studentCountSnapshots'));
+        const out = {};
+        snap.forEach(d => { out[d.id] = d.data().count; });
+        return out;
+    });
+};
+
 // ============================================
 // ENTRANCE CLASS FUNCTIONS
 // ============================================
