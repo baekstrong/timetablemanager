@@ -41,6 +41,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     const [holdingDateInput, setHoldingDateInput] = useState(''); // 날짜 입력
     const [holdingProcessing, setHoldingProcessing] = useState(false);
     const [searchQuery, setSearchQuery] = useState(''); // 수강생 검색어
+    const [actionProcessing, setActionProcessing] = useState(''); // 작업(종료/일시정지/재개) 처리 중 메시지
     const [showSmsModal, setShowSmsModal] = useState(false);
 
     const getCountedHolidayMakeupDates = async (studentName) => {
@@ -82,6 +83,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             return;
         }
 
+        setActionProcessing('수강 종료 처리 중...');
         try {
             // 모든 시트에서 해당 학생의 스케줄 삭제
             await clearStudentScheduleAllSheets(student['이름']);
@@ -96,6 +98,8 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         } catch (err) {
             console.error('Failed to end class:', err);
             alert('수강 종료 처리에 실패했습니다.');
+        } finally {
+            setActionProcessing('');
         }
     };
 
@@ -104,6 +108,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         if (!confirm(`${student['이름']} 수강생을 일시정지하시겠습니까?\n\n- 주횟수, 요일 및 시간을 비웁니다.\n- 종료날짜에 남은 횟수(예: "5회")를 기록합니다.\n- 오늘 수업이 끝난 후면 오늘은 횟수에서 제외됩니다.\n- 미리 등록이 있으면 함께 정지(시작날짜도 비움)됩니다.`)) {
             return;
         }
+        setActionProcessing('일시정지 처리 중...');
         try {
             const holidaysArray = holidays.map(h => typeof h === 'string' ? { date: h } : h);
             const results = await pauseStudent(student['이름'], holidaysArray);
@@ -115,6 +120,8 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         } catch (err) {
             console.error('일시정지 실패:', err);
             alert('일시정지 처리에 실패했습니다: ' + err.message);
+        } finally {
+            setActionProcessing('');
         }
     };
 
@@ -129,6 +136,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             alert('날짜 형식이 올바르지 않습니다. 예: 2026-07-01');
             return;
         }
+        setActionProcessing('재개 처리 중...');
         try {
             const holidaysArray = holidays.map(h => typeof h === 'string' ? { date: h } : h);
             const results = await resumeStudent(student['이름'], restart, holidaysArray);
@@ -140,6 +148,8 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         } catch (err) {
             console.error('재개 실패:', err);
             alert('재개 처리에 실패했습니다: ' + err.message);
+        } finally {
+            setActionProcessing('');
         }
     };
 
@@ -406,6 +416,26 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
 
     return (
         <div className="student-manager-container">
+            {actionProcessing && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 3000,
+                    background: 'rgba(0,0,0,0.4)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <div style={{
+                        background: '#fff', borderRadius: '16px', padding: '28px 32px',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px',
+                        boxShadow: '0 8px 30px rgba(0,0,0,0.18)',
+                    }}>
+                        <div style={{
+                            width: '34px', height: '34px', borderRadius: '50%',
+                            border: '3px solid #EFEFF0', borderTopColor: '#329BE7',
+                            animation: 'spin 0.8s linear infinite',
+                        }} />
+                        <span style={{ fontWeight: 700, color: 'var(--text)' }}>{actionProcessing}</span>
+                    </div>
+                </div>
+            )}
             <div className="student-header">
                 <h1 className="student-title">수강생 관리</h1>
             </div>
