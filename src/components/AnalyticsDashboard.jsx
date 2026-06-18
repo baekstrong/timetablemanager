@@ -130,13 +130,19 @@ const AnalyticsDashboard = ({ onBack }) => {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="신규 유입수">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={trends.months.map(m => ({ name: `${m.month}월`, 신규: trends.newByMonth?.[ymKey(m.year, m.month)] || 0 }))}>
+          <ChartCard title="신규 유입 vs 이탈">
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={trends.months.map(m => ({
+                name: `${m.month}월`,
+                신규: trends.newByMonth?.[ymKey(m.year, m.month)] || 0,
+                이탈: trends.churnByMonth[ymKey(m.year, m.month)] || 0,
+              }))}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#EFEFF0" />
                 <XAxis dataKey="name" /><YAxis allowDecimals={false} />
                 <Tooltip />
+                <Legend />
                 <Bar dataKey="신규" fill="#329BE7" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="이탈" fill="#A7A7AA" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -152,19 +158,6 @@ const AnalyticsDashboard = ({ onBack }) => {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="이탈 추세">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={trends.months.map(m => ({
-                name: `${m.month}월`,
-                이탈: trends.churnByMonth[ymKey(m.year, m.month)] || 0,
-              }))}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#EFEFF0" />
-                <XAxis dataKey="name" /><YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="이탈" fill="#A7A7AA" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
         </>
       )}
     </div>
