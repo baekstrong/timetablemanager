@@ -2,6 +2,8 @@ import { TAG_STYLES } from './scheduleStyles';
 
 // 이름에 취소선을 긋는 '빠짐/결석류' 상태 (결석·합의결석·보강결석·보강이동·홀딩·시작지연)
 const AWAY_STATUSES = new Set(['makeupMoved', 'makeupAbsent', 'agreedAbsent', 'absent', 'holding', 'delayed']);
+// 이름을 굵게 표시하는 상태 (보강·보강이동·결석·신규·홀딩)
+const BOLD_STATUSES = new Set(['makeup', 'makeupMoved', 'absent', 'newStudent', 'holding']);
 
 /** 이름은 상태 색으로 표시(결석류는 취소선), 상태는 작은 색 뱃지로 표기. */
 export function StudentTag({ name, status, label, unpaid = false, reregX = false, lastClass = false }) {
@@ -14,6 +16,7 @@ export function StudentTag({ name, status, label, unpaid = false, reregX = false
     const nameStyle = {
         color: lightInk ? '#327AB8' : tagStyle.color,
         textDecoration: away ? 'line-through' : undefined,
+        fontWeight: BOLD_STATUSES.has(status) ? 700 : undefined,
     };
     return (
         <span className="student-tag">
