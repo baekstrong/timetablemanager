@@ -206,7 +206,7 @@ export default function CoachSchedule({
                     alignItems: 'flex-start',
                     justifyContent: 'flex-start',
                     padding: '8px',
-                    ...(isOngoingNow ? { backgroundColor: 'var(--accent-30)', border: '2px solid var(--accent)' } : {}),
+                    ...(isOngoingNow ? { backgroundColor: 'var(--accent-10)', border: '2px solid var(--accent)' } : {}),
                     ...(isHoliday ? { backgroundColor: '#E94E581A' } : {})
                 }}
             >
