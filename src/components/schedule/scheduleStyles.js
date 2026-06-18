@@ -11,7 +11,7 @@ export const TAG_STYLES = {
     agreedAbsent: { backgroundColor: '#F3D4EC', color: '#A32E92', border: '1px solid #DDA6CF', textDecoration: 'line-through' },
     absent: { backgroundColor: '#F8D2D5', color: '#991b1b', border: '1px solid #E89BA1', textDecoration: 'line-through' },
     holding: { backgroundColor: '#F8D2D5', color: '#991b1b', border: '1px solid #E89BA1', textDecoration: 'line-through' },
-    newStudent: { backgroundColor: '#C9E3F8', color: '#1f6699', border: '1px solid #93C5EC' },
+    newStudent: { backgroundColor: '#0E9B8E', color: '#ffffff', border: '1px solid #0B7E73' },
     delayed: { backgroundColor: '#C9E8D2', color: '#166534', border: '1px solid #97CFA6', textDecoration: 'line-through' },
     // 보강승인중: 대기자에게 자리 안내 문자가 나간 상태 (수락 대기)
     makeupPending: { backgroundColor: '#329BE71A', color: '#327AB8', border: '1px solid #329BE74D' },
