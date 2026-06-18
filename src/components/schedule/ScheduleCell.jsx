@@ -1,19 +1,49 @@
 import { TAG_STYLES } from './scheduleStyles';
 
+// 뱃지 형태(이름칩 + 색 뱃지)로 표기하는 상태 — 나머지는 칩 배경 색 형태
+const BADGE_STATUSES = new Set(['makeup', 'newStudent', 'holding', 'makeupMoved']);
+// 이름에 취소선을 긋는 '빠짐/결석류' 상태
+const AWAY_STATUSES = new Set(['makeupMoved', 'makeupAbsent', 'agreedAbsent', 'absent', 'holding', 'delayed']);
 // 이름을 굵게 표시하는 상태 (보강·보강이동·결석·신규·홀딩)
 const BOLD_STATUSES = new Set(['makeup', 'makeupMoved', 'absent', 'newStudent', 'holding']);
 
-/** 상태 색을 칩 전체에 입힘(이전 방식). 라벨은 칩 안 인라인. 마지막/재등록X/미결제는 별도 뱃지. */
+const extraBadges = (lastClass, reregX, unpaid) => (
+    <>
+        {lastClass && <span className="last-class">마지막</span>}
+        {reregX && <span className="rereg-x">재등록X</span>}
+        {unpaid && <UnpaidBadge />}
+    </>
+);
+
+/** 보강·신규·홀딩·보강이동은 뱃지 형태, 그 외는 칩 배경 색 형태. */
 export function StudentTag({ name, status, label, unpaid = false, reregX = false, lastClass = false }) {
-    const style = { ...(TAG_STYLES[status] || {}) };
+    const tagStyle = TAG_STYLES[status] || {};
+
+    if (BADGE_STATUSES.has(status)) {
+        const badgeStyle = { ...tagStyle };
+        delete badgeStyle.textDecoration; // 취소선은 이름에만
+        const lightInk = tagStyle.color === '#ffffff' || tagStyle.color === '#fff';
+        const nameStyle = {
+            color: lightInk ? '#327AB8' : tagStyle.color,
+            textDecoration: AWAY_STATUSES.has(status) ? 'line-through' : undefined,
+            fontWeight: BOLD_STATUSES.has(status) ? 700 : undefined,
+        };
+        return (
+            <span className="student-tag">
+                <span style={nameStyle}>{name}</span>
+                {label && <span className="status-badge" style={badgeStyle}>{label}</span>}
+                {extraBadges(lastClass, reregX, unpaid)}
+            </span>
+        );
+    }
+
+    // 칩 배경 색 형태(결석류·시작지연·보강대기·보강승인중)
+    const style = { ...tagStyle };
     if (BOLD_STATUSES.has(status)) style.fontWeight = 700;
-    const suffix = label ? ` ${label}` : '';
     return (
         <span className="student-tag" style={style}>
-            {name}{suffix}
-            {lastClass && <span className="last-class">마지막</span>}
-            {reregX && <span className="rereg-x">재등록X</span>}
-            {unpaid && <UnpaidBadge />}
+            {name}{label ? ` ${label}` : ''}
+            {extraBadges(lastClass, reregX, unpaid)}
         </span>
     );
 }
