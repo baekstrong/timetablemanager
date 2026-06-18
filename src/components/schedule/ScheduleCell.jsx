@@ -31,11 +31,9 @@ export function StudentTag({ name, status, label, unpaid = false, reregX = false
         };
         const badgeStyle = { ...tagStyle };
         delete badgeStyle.textDecoration; // 뱃지엔 취소선 없음
-        // 빠짐 상태(보강이동·홀딩·결석)는 이름에만 취소선
-        const strike = status === 'makeupMoved' || status === 'holding' || status === 'absent';
         return (
             <span className="student-tag" style={chipStyle}>
-                <span style={strike ? { textDecoration: 'line-through' } : undefined}>{name}</span>
+                {name}
                 {label && <span className="status-badge" style={badgeStyle}>{label}</span>}
                 {extraBadges(lastClass, reregX, unpaid)}
             </span>
@@ -43,8 +41,10 @@ export function StudentTag({ name, status, label, unpaid = false, reregX = false
     }
 
     // 칩 배경 색 형태(합의결석·보강결석·시작지연·보강대기·보강승인중)
+    const style = { ...tagStyle };
+    delete style.textDecoration; // 취소선 제거
     return (
-        <span className="student-tag" style={{ ...tagStyle }}>
+        <span className="student-tag" style={style}>
             {name}{label ? ` ${label}` : ''}
             {extraBadges(lastClass, reregX, unpaid)}
         </span>
