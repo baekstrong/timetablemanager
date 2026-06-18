@@ -233,17 +233,6 @@
     vertical-align: middle;
 }
 
-/* 상태 뱃지(보강·결석·홀딩 등) — 색상은 TAG_STYLES에서 인라인으로 덮어씀 */
-.status-badge {
-    display: inline-block;
-    margin-left: 3px;
-    padding: 0 4px;
-    font-size: 0.62rem;
-    font-weight: 700;
-    border-radius: 4px;
-    vertical-align: middle;
-}
-
 /* 마지막 수업 표시 — 녹색 배지(자체 배경+테두리)로 보강 파란 태그 위에서도 잘 보이게 */
 .last-class {
     display: inline-block;

@@ -1,27 +1,16 @@
 import { TAG_STYLES } from './scheduleStyles';
 
-// 이름에 취소선을 긋는 '빠짐/결석류' 상태 (결석·합의결석·보강결석·보강이동·홀딩·시작지연)
-const AWAY_STATUSES = new Set(['makeupMoved', 'makeupAbsent', 'agreedAbsent', 'absent', 'holding', 'delayed']);
 // 이름을 굵게 표시하는 상태 (보강·보강이동·결석·신규·홀딩)
 const BOLD_STATUSES = new Set(['makeup', 'makeupMoved', 'absent', 'newStudent', 'holding']);
 
-/** 이름은 상태 색으로 표시(결석류는 취소선), 상태는 작은 색 뱃지로 표기. */
+/** 상태 색을 칩 전체에 입힘(이전 방식). 라벨은 칩 안 인라인. 마지막/재등록X/미결제는 별도 뱃지. */
 export function StudentTag({ name, status, label, unpaid = false, reregX = false, lastClass = false }) {
-    const away = AWAY_STATUSES.has(status);
-    const tagStyle = TAG_STYLES[status] || {};
-    const badgeStyle = { ...tagStyle };
-    delete badgeStyle.textDecoration; // 취소선은 이름에만 적용
-    // 이름 글자색 = 상태 색. 단 흰색 잉크(보강)는 회색 칩 위에서 안 보이므로 진한 코발트로.
-    const lightInk = tagStyle.color === '#ffffff' || tagStyle.color === '#fff';
-    const nameStyle = {
-        color: lightInk ? '#327AB8' : tagStyle.color,
-        textDecoration: away ? 'line-through' : undefined,
-        fontWeight: BOLD_STATUSES.has(status) ? 700 : undefined,
-    };
+    const style = { ...(TAG_STYLES[status] || {}) };
+    if (BOLD_STATUSES.has(status)) style.fontWeight = 700;
+    const suffix = label ? ` ${label}` : '';
     return (
-        <span className="student-tag">
-            <span style={nameStyle}>{name}</span>
-            {label && <span className="status-badge" style={badgeStyle}>{label}</span>}
+        <span className="student-tag" style={style}>
+            {name}{suffix}
             {lastClass && <span className="last-class">마지막</span>}
             {reregX && <span className="rereg-x">재등록X</span>}
             {unpaid && <UnpaidBadge />}
