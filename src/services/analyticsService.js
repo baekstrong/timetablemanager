@@ -279,17 +279,18 @@ export async function getTrends(monthsCount = 6, baseDate = new Date()) {
   const todayMidnight = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate()).getTime();
   const churnByMonth = computeChurnByMonth(rawRows, terms, windowKeys, todayMidnight);
 
-  // 월별 신규 유입수 (각 달 시트에서 F열='신규' 행 수) — getAllRawRows의 batchGet 결과 재사용(추가 읽기 없음)
+  // 월별 신규 유입수(F열='신규') / 총 수강생수(이름 있는 행) — getAllRawRows의 batchGet 결과 재사용(추가 읽기 없음)
   const newByMonth = {};
-  windowKeys.forEach((k) => { newByMonth[k] = 0; });
+  const totalByMonth = {};
+  windowKeys.forEach((k) => { newByMonth[k] = 0; totalByMonth[k] = 0; });
   (rawRows || []).forEach((s) => {
-    if (s._ym && newByMonth[s._ym] !== undefined &&
-        (getStudentField(s, '신규/재등록') || '').trim() === '신규') {
-      newByMonth[s._ym] += 1;
-    }
+    if (!s._ym || newByMonth[s._ym] === undefined) return;
+    if (!(s['이름'] || getStudentField(s, '이름') || '').trim()) return;
+    totalByMonth[s._ym] += 1;
+    if ((getStudentField(s, '신규/재등록') || '').trim() === '신규') newByMonth[s._ym] += 1;
   });
 
-  return { months, revenueTrend, refundTrend, churnByMonth, newByMonth };
+  return { months, revenueTrend, refundTrend, churnByMonth, newByMonth, totalByMonth };
 }
 
 // 선택한 달 현황. registrations는 호출측에서 1회 로드해 전달.

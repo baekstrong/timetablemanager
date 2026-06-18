@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis,
+  BarChart, Bar, ComposedChart, Line, PieChart, Pie, Cell, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import { getTrends, getMonthSnapshot } from '../services/analyticsService';
@@ -130,20 +130,24 @@ const AnalyticsDashboard = ({ onBack }) => {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="신규 유입 vs 이탈">
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={trends.months.map(m => ({
+          <ChartCard title="신규 유입 · 이탈 · 총 수강생">
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={trends.months.map(m => ({
                 name: `${m.month}월`,
                 신규: trends.newByMonth?.[ymKey(m.year, m.month)] || 0,
                 이탈: trends.churnByMonth[ymKey(m.year, m.month)] || 0,
+                '총 수강생': trends.totalByMonth?.[ymKey(m.year, m.month)] || 0,
               }))}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#EFEFF0" />
-                <XAxis dataKey="name" /><YAxis allowDecimals={false} />
+                <XAxis dataKey="name" />
+                <YAxis yAxisId="left" allowDecimals={false} />
+                <YAxis yAxisId="right" orientation="right" allowDecimals={false} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="신규" fill="#329BE7" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="이탈" fill="#A7A7AA" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Bar yAxisId="left" dataKey="신규" fill="#329BE7" radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="left" dataKey="이탈" fill="#A7A7AA" radius={[4, 4, 0, 0]} />
+                <Line yAxisId="right" type="monotone" dataKey="총 수강생" stroke="#242428" strokeWidth={2} dot={{ r: 3 }} />
+              </ComposedChart>
             </ResponsiveContainer>
           </ChartCard>
 
