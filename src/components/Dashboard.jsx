@@ -638,7 +638,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                                                 textOverflow: 'ellipsis'
                                             }}
                                         >
-                                            <strong>{p.userName}</strong> — {p.exercise} {formatPRSummary(p)} <span style={{ color: 'var(--text-muted)' }}>{p.date}</span>
+                                            <TierBadge tier={tierMap[p.userName]} /><strong>{p.userName}</strong> — {p.exercise} {formatPRSummary(p)} <span style={{ color: 'var(--text-muted)' }}>{p.date}</span>
                                         </div>
                                     ))}
                                 </div>
