@@ -730,7 +730,11 @@ export default function StudentSchedule({
                 <div className="schedule-cell cell-free" style={{ flexDirection: 'column', gap: '4px' }}>
                     <div style={{ fontSize: '0.72rem', color: '#9a7a12', fontWeight: 700 }}>자율 운동</div>
                     {attended && (
-                        <span className="student-tag" style={{ background: '#31A5521A', borderColor: '#31A5524D', color: '#166534', fontWeight: 700 }}>출석</span>
+                        <span style={{
+                            display: 'inline-block', padding: '2px 10px', borderRadius: '8px',
+                            background: '#166534', color: '#fff', border: '1px solid #0f4424',
+                            fontSize: '0.72rem', fontWeight: 700,
+                        }}>출석</span>
                     )}
                 </div>
             );
