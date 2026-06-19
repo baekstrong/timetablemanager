@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters } from '../services/firebaseService';
+import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
 import { POST_LIMITS } from '../data/boardConstants';
 import PostList from './board/PostList';
 import PostDetail from './board/PostDetail';
 import PostForm from './board/PostForm';
+import TierBadge from './TierBadge';
+import TierChangeModal from './TierChangeModal';
 import './board/Board.css';
 import './Dashboard.css';
 
@@ -37,6 +39,35 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     const [editingPost, setEditingPost] = useState(null);
 
     const { students, refresh } = useGoogleSheets();
+
+    // 티어(출석 등급) — 게시판 뱃지용 이름→티어 맵 + 승급/강등 팝업
+    const [tierMap, setTierMap] = useState({});
+    const [tierChange, setTierChange] = useState(null);
+
+    useEffect(() => {
+        let cancel = false;
+        getTierMap().then(map => { if (!cancel) setTierMap(map); });
+        return () => { cancel = true; };
+    }, []);
+
+    // 새 달 첫 접속 시 지난달 활동으로 티어 재계산 → 변동 있으면 팝업.
+    // students 재로드로 effect가 재실행돼도 같은 달엔 changed:false라 중복 팝업 없음.
+    useEffect(() => {
+        if (!user || user.role === 'coach') return;
+        let cancel = false;
+        const row = students?.find(s => s['이름'] === user.username && s['요일 및 시간']);
+        refreshStudentTier({
+            userName: user.username,
+            scheduleStr: row?.['요일 및 시간'],
+            startYMD: row?.['시작날짜'],
+            endYMD: row?.['종료날짜'],
+        }).then(change => {
+            if (cancel || !change) return;
+            if (change.tier) setTierMap(prev => ({ ...prev, [user.username]: change.tier }));
+            if (change.changed) setTierChange(change);
+        });
+        return () => { cancel = true; };
+    }, [user, students]);
 
     // 수강생 대기 신청 목록
     const [studentWaitlist, setStudentWaitlist] = useState([]);
@@ -356,7 +387,9 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             <div className="dashboard-content">
                 <header className="dashboard-header">
                     <div className="header-left">
-                        <h1 className="dashboard-title">환영합니다, {user.username}님</h1>
+                        <h1 className="dashboard-title">
+                            환영합니다, {user.role !== 'coach' && <TierBadge tier={tierMap[user.username]} style={{ height: '20px', fontSize: '0.75rem' }} />}{user.username}님
+                        </h1>
                     </div>
                     <button onClick={onLogout} className="logout-button">
                         <span>로그아웃</span>
@@ -619,6 +652,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         currentPage={boardPage}
                         hasNextPage={boardHasNextPage}
                         onPageChange={setBoardPage}
+                        tierMap={tierMap}
                     />
                 ) : (
                     <PostDetail
@@ -626,6 +660,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         user={user}
                         onBack={handleBackToList}
                         onEdit={handleEditPost}
+                        tierMap={tierMap}
                     />
                 )}
 
@@ -639,6 +674,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                 )}
 
             </div>
+
+            <TierChangeModal change={tierChange} onClose={() => setTierChange(null)} />
         </div>
     );
 };

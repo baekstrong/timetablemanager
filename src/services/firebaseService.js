@@ -21,6 +21,7 @@ import {
     onSnapshot,
     startAfter
 } from 'firebase/firestore';
+import { scoreToTier, scheduledDatesInMonth, computeActiveScore, compareTiers } from '../utils/tiers';
 
 // ============================================
 // INTERNAL HELPERS
@@ -1707,5 +1708,81 @@ export const getMonthlyAttendanceHistory = async (userName, monthsBack = 12) => 
         return Array.from(byMonth.values())
             .map(e => ({ month: e.month, trainingDays: e.dates.size, volume: Math.round(e.volume) }))
             .sort((a, b) => a.month.localeCompare(b.month));
+    });
+};
+
+// ============================================
+// 티어(출석 등급) — 지난달 활동일 기반
+// ============================================
+
+// 지정 달(ym 'YYYY-MM')의 Firebase 활동 소스 수집.
+// records/freeWorkout은 복합 인덱스 회피를 위해 날짜 범위로만 쿼리 후 이름은 클라이언트 필터.
+const getMonthlyActivitySources = async (userName, ym) => {
+    return safeRead({ recordDates: new Set(), freeDates: new Set(), absenceDates: new Set(), holdingRanges: [] }, async () => {
+        const [y, m] = ym.split('-').map(Number);
+        const monthStart = `${ym}-01`;
+        const next = new Date(y, m, 1);
+        const nextStart = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`;
+        const name = (userName || '').trim();
+        const lower = name.toLowerCase();
+        const [records, free, absences, holdings] = await Promise.all([
+            queryDocs('records', where('date', '>=', monthStart), where('date', '<', nextStart)),
+            queryDocs('freeWorkoutAttendance', where('date', '>=', monthStart), where('date', '<', nextStart)),
+            queryDocs('absenceRequests', where('studentName', '==', name), where('status', '==', 'active')),
+            queryDocs('holdingRequests', where('studentName', '==', name), where('status', '==', 'active')),
+        ]);
+        const recordDates = new Set(records.filter(r => (r.userName || '').trim().toLowerCase() === lower).map(r => r.date).filter(Boolean));
+        const freeDates = new Set(free.filter(r => (r.studentName || '').trim() === name).map(r => r.date).filter(Boolean));
+        const absenceDates = new Set(absences.map(a => a.date).filter(d => d >= monthStart && d < nextStart));
+        const holdingRanges = holdings.filter(h => h.startDate && h.endDate).map(h => ({ start: h.startDate, end: h.endDate }));
+        return { recordDates, freeDates, absenceDates, holdingRanges };
+    });
+};
+
+// 새 달 첫 접속 시 지난달 활동으로 티어 재계산 → users/{이름}에 저장.
+// 같은 달에 이미 계산했으면 그냥 현재 티어 반환(팝업 없음). 첫 계산(이전 티어 없음)은 팝업 생략.
+export const refreshStudentTier = async ({ userName, scheduleStr, startYMD, endYMD }) => {
+    return safeRead({ changed: false, tier: null }, async () => {
+        const name = (userName || '').trim();
+        if (!name) return { changed: false, tier: null };
+        const userRef = doc(db, 'users', name);
+        const snap = await getDoc(userRef);
+        if (!snap.exists()) return { changed: false, tier: null };
+        const u = snap.data() || {};
+        const now = new Date();
+        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        if (u.tierMonth === ym && u.tier) return { changed: false, tier: u.tier };
+
+        const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastYm = `${lm.getFullYear()}-${String(lm.getMonth() + 1).padStart(2, '0')}`;
+        const src = await getMonthlyActivitySources(name, lastYm);
+        const scheduledDates = scheduleStr ? scheduledDatesInMonth(scheduleStr, startYMD, endYMD, lastYm) : new Set();
+        const score = computeActiveScore({ scheduledDates, ...src });
+        const tier = scoreToTier(score);
+        const prevTier = u.tier || null;
+        const isNew = !prevTier; // 첫 계산 → 등급 안내 팝업
+        const direction = prevTier ? compareTiers(prevTier, tier.key) : 0;
+        await setDoc(userRef, {
+            tier: tier.key, tierMonth: ym, tierScore: score,
+            prevTier, tierUpdatedAt: serverTimestamp(),
+        }, { merge: true });
+        // 첫 진입(isNew)이면 무조건 팝업, 이후엔 승급/강등 시에만.
+        return { changed: isNew || direction !== 0, isNew, direction, score, tier: tier.key, prevTier };
+    });
+};
+
+// 이름→티어키 맵(게시판 뱃지용). 5분 캐시.
+let tierMapCache = null;
+let tierMapFetchedAt = 0;
+export const getTierMap = async () => {
+    return safeRead({}, async () => {
+        const now = Date.now();
+        if (tierMapCache && now - tierMapFetchedAt < HOLIDAY_CACHE_TTL_MS) return tierMapCache;
+        const snap = await getDocs(collection(db, 'users'));
+        const map = {};
+        snap.forEach(d => { const t = d.data()?.tier; if (t) map[d.id] = t; });
+        tierMapCache = map;
+        tierMapFetchedAt = now;
+        return map;
     });
 };

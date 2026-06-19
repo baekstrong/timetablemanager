@@ -5,6 +5,7 @@ import { uploadToCloudinary } from '../../services/cloudinaryService';
 import { linkifyText } from '../../utils/linkify';
 import { formatLikeNames } from '../../utils/likeDisplay';
 import CommentItem from './CommentItem';
+import TierBadge from '../TierBadge';
 
 const formatDate = (timestamp) => {
     if (!timestamp) return '-';
@@ -17,7 +18,7 @@ const formatDate = (timestamp) => {
     return `${year}.${month}.${day} ${hours}:${minutes}`;
 };
 
-const PostDetail = ({ postId, user, onBack, onEdit }) => {
+const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {} }) => {
     const [post, setPost] = useState(null);
     const [comments, setComments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -219,6 +220,7 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                             {category.icon} {category.label}
                         </span>
                     )}
+                    {!post.isCoach && <TierBadge tier={tierMap[post.author]} />}
                     <span
                         className="post-detail-author"
                         style={post.isCoach ? { color: 'var(--accent)', fontWeight: 600 } : {}}
@@ -328,6 +330,7 @@ const PostDetail = ({ postId, user, onBack, onEdit }) => {
                             onEdit={handleEditComment}
                             replies={repliesByParent[c.id] || []}
                             repliesByParent={repliesByParent}
+                            tierMap={tierMap}
                         />
                     ))}
                 </div>

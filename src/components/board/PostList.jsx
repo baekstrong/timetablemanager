@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { BOARD_CATEGORIES, CATEGORY_MAP } from '../../data/boardConstants';
+import TierBadge from '../TierBadge';
 
 const SEARCH_MODES = [
     { key: 'title', label: '제목' },
@@ -25,6 +26,7 @@ const PostList = ({
     currentPage,
     hasNextPage,
     onPageChange,
+    tierMap = {},
 }) => {
     const [searchMode, setSearchMode] = useState('title');
     const [searchQuery, setSearchQuery] = useState('');
@@ -132,6 +134,7 @@ const PostList = ({
                         </div>
                         <div className="post-card-meta">
                             <span>
+                                {!post.isCoach && <TierBadge tier={tierMap[post.author]} />}
                                 <span style={post.isCoach ? { color: 'var(--accent)', fontWeight: 600 } : {}}>
                                     {post.author}
                                 </span>

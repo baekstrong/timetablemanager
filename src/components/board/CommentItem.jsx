@@ -3,8 +3,9 @@ import { POST_LIMITS } from '../../data/boardConstants';
 import { uploadToCloudinary } from '../../services/cloudinaryService';
 import { linkifyText } from '../../utils/linkify';
 import { formatLikeNames } from '../../utils/likeDisplay';
+import TierBadge from '../TierBadge';
 
-const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, replies = [], repliesByParent = {}, depth = 0 }) => {
+const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, replies = [], repliesByParent = {}, depth = 0, tierMap = {} }) => {
     const [showReplyInput, setShowReplyInput] = useState(false);
     const [replyText, setReplyText] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -146,6 +147,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                 <div className="comment-item-header">
                     <span className={`comment-author ${comment.isCoach ? 'comment-author-coach' : ''}`}>
                         {depth > 0 && <span style={{ color: '#9ca3af', marginRight: '4px' }}>↳</span>}
+                        {!comment.isCoach && <TierBadge tier={tierMap[comment.author]} />}
                         {comment.author}
                         {isToday && <span className="post-new-badge" style={{ marginLeft: '4px' }}>N</span>}
                     </span>
@@ -327,6 +329,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                     replies={repliesByParent[reply.id] || []}
                     repliesByParent={repliesByParent}
                     depth={depth + 1}
+                    tierMap={tierMap}
                 />
             ))}
         </>

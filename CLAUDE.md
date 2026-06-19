@@ -289,7 +289,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 
 | 컬렉션 | 용도 |
 | --- | --- |
-| `users` | 로그인 계정 `{password, isCoach, createdAt}` |
+| `users` | 로그인 계정 `{password, isCoach, createdAt}`. 티어(출석 등급) 필드 `{tier, tierMonth('YYYY-MM'), prevTier, tierScore, tierUpdatedAt}` — 새 달 첫 접속 시 `refreshStudentTier`가 갱신 (아래 '티어 시스템' 참고) |
 | `makeupRequests` | 보강 신청 (status: active/completed/cancelled) |
 | `holdingRequests` | 홀딩 신청 |
 | `absenceRequests` | 결석 신청 |
@@ -405,6 +405,16 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 ### 만석 슬롯 보강 대기 흐름 (makeupWaitlists)
 
 만석 슬롯 클릭 시 대기 신청 모달(`MakeupModal` 재사용)에서 원래 수업을 선택해 `makeupWaitlists` 컬렉션에 등록한다. 자리 발생 트리거(홀딩 신청/결석 신청/보강 취소·거절 + 코치 시간표 로드 백스톱)가 실행되면 대기 1순위에게 자리 안내 SMS를 발송하고 status를 `notified`로 변경한다. 수강생은 시간표의 '보강승인중' 칩을 클릭해 1시간(수업 시작이 더 가까우면 그때까지) 내에 수락 또는 거절할 수 있다. 수락 시 정식 보강(`makeupRequests`)으로 확정되고 종료일이 재계산된다. 거절하거나 시간 초과로 만료되면 다음 순번에게 동일하게 안내한다. 대기 신청은 주간 보강 쿼터를 미리 소진하지 않으며, 수락 시점에 쿼터를 검증한다.
+
+### 티어 시스템 (출석 등급 — 수강생 독려용)
+
+지난달 **활동일 수**로 5단계 티어를 매겨 게시판 이름 앞에 뱃지로 표시. 더 많은 운동·기록을 유도하는 게 목적.
+
+- **순수 로직**: `src/utils/tiers.js` — `TIERS`(철인/코어/열정/성실/입문, 경계 17/13/9/6/0일), `scoreToTier`, `scheduledDatesInMonth`, `computeActiveScore`, `compareTiers`.
+- **활동일** = 지난달 고유 날짜의 합집합: 예정 수업일(시간표−홀딩−결석−한국공휴일) ∪ 훈련일지 기록일(`records`) ∪ 자율운동일(`freeWorkoutAttendance`). 실제 운동 기록이 있는 날은 홀딩/결석과 무관하게 인정. 주2회 개근 ≈ 8일(성실), 추가 운동·기록이 상위 티어로 올림.
+- **저장/갱신**: `refreshStudentTier({userName, scheduleStr, startYMD, endYMD})` (firebaseService) — 새 달 첫 접속 시 지난달 기준 재계산해 `users/{이름}`에 기록. 같은 달 재실행은 no-op(중복 팝업 방지). 첫 계산(이전 티어 없음)은 팝업 생략.
+- **뱃지**: `TierBadge.jsx`. 게시판은 `getTierMap()`(이름→티어, 5분 캐시)을 Dashboard에서 한 번 읽어 PostList/PostDetail/CommentItem에 prop으로 전달. 코치는 뱃지 없음.
+- **팝업**: `TierChangeModal.jsx` — 새 달 첫 접속 시 승급(축하)/강등(분발) 안내. Dashboard 마운트 effect에서 트리거. ponytail: '첫 출석'이 아니라 '새 달 첫 앱 접속' 기준, Firebase 커스텀 공휴일은 미반영(버킷이 ±1일 흡수).
 
 ### WeeklySchedule 수강생 상태
 
