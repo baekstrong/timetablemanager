@@ -1718,24 +1718,26 @@ export const getMonthlyAttendanceHistory = async (userName, monthsBack = 12) => 
 // 지정 달(ym 'YYYY-MM')의 Firebase 활동 소스 수집.
 // records/freeWorkout은 복합 인덱스 회피를 위해 날짜 범위로만 쿼리 후 이름은 클라이언트 필터.
 const getMonthlyActivitySources = async (userName, ym) => {
-    return safeRead({ recordDates: new Set(), freeDates: new Set(), absenceDates: new Set(), holdingRanges: [] }, async () => {
+    return safeRead({ recordDates: new Set(), freeDates: new Set(), absenceDates: new Set(), holdingRanges: [], holidayDates: new Set() }, async () => {
         const [y, m] = ym.split('-').map(Number);
         const monthStart = `${ym}-01`;
         const next = new Date(y, m, 1);
         const nextStart = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`;
         const name = (userName || '').trim();
         const lower = name.toLowerCase();
-        const [records, free, absences, holdings] = await Promise.all([
+        const [records, free, absences, holdings, holidays] = await Promise.all([
             queryDocs('records', where('date', '>=', monthStart), where('date', '<', nextStart)),
             queryDocs('freeWorkoutAttendance', where('date', '>=', monthStart), where('date', '<', nextStart)),
             queryDocs('absenceRequests', where('studentName', '==', name), where('status', '==', 'active')),
             queryDocs('holdingRequests', where('studentName', '==', name), where('status', '==', 'active')),
+            getHolidays(),
         ]);
         const recordDates = new Set(records.filter(r => (r.userName || '').trim().toLowerCase() === lower).map(r => r.date).filter(Boolean));
         const freeDates = new Set(free.filter(r => (r.studentName || '').trim() === name).map(r => r.date).filter(Boolean));
         const absenceDates = new Set(absences.map(a => a.date).filter(d => d >= monthStart && d < nextStart));
         const holdingRanges = holdings.filter(h => h.startDate && h.endDate).map(h => ({ start: h.startDate, end: h.endDate }));
-        return { recordDates, freeDates, absenceDates, holdingRanges };
+        const holidayDates = new Set((holidays || []).map(h => h.date).filter(d => d >= monthStart && d < nextStart));
+        return { recordDates, freeDates, absenceDates, holdingRanges, holidayDates };
     });
 };
 
@@ -1756,7 +1758,7 @@ export const refreshStudentTier = async ({ userName, scheduleStr, startYMD, endY
         const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const lastYm = `${lm.getFullYear()}-${String(lm.getMonth() + 1).padStart(2, '0')}`;
         const src = await getMonthlyActivitySources(name, lastYm);
-        const scheduledDates = scheduleStr ? scheduledDatesInMonth(scheduleStr, startYMD, endYMD, lastYm) : new Set();
+        const scheduledDates = scheduleStr ? scheduledDatesInMonth(scheduleStr, startYMD, endYMD, lastYm, src.holidayDates) : new Set();
         const score = computeActiveScore({ scheduledDates, ...src });
         const tier = scoreToTier(score);
         const prevTier = u.tier || null;

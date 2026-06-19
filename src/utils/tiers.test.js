@@ -35,6 +35,12 @@ describe('scheduledDatesInMonth', () => {
         expect(set.has('2026-06-01')).toBe(false);
         expect(set.has('2026-06-15')).toBe(true);
     });
+    it('커스텀 공휴일(extraHolidays) 제외', () => {
+        const extra = new Set(['2026-06-08']); // 코치 임시 휴무
+        const set = scheduledDatesInMonth('월1', '260601', '260630', '2026-06', extra);
+        expect(set.has('2026-06-08')).toBe(false);
+        expect(set.has('2026-06-01')).toBe(true);
+    });
 });
 
 describe('computeActiveScore', () => {

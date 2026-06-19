@@ -34,9 +34,9 @@ export function compareTiers(prevKey, nextKey) {
 
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 
-// 지난달 예정 수업일('YYYY-MM-DD' Set): 요일 매칭 + 등록기간 내 + 한국 공휴일 제외.
-// ponytail: Firebase 커스텀 공휴일은 제외 — 5단계 버킷은 ±1일을 흡수. 필요하면 getHolidays를 인자로 받아 빼면 됨.
-export function scheduledDatesInMonth(scheduleStr, startYMD, endYMD, ym) {
+// 지난달 예정 수업일('YYYY-MM-DD' Set): 요일 매칭 + 등록기간 내 + 한국 공휴일 + Firebase 커스텀 공휴일 제외.
+// extraHolidays: 코치 커스텀 공휴일 'YYYY-MM-DD' Set (getHolidays의 h.date).
+export function scheduledDatesInMonth(scheduleStr, startYMD, endYMD, ym, extraHolidays) {
     const parsed = parseScheduleString(scheduleStr);
     if (parsed.length === 0) return new Set();
     const weekdays = new Set(parsed.map(p => p.day));
@@ -52,6 +52,7 @@ export function scheduledDatesInMonth(scheduleStr, startYMD, endYMD, ym) {
         if (end && date > end) continue;
         const iso = `${ym}-${String(d).padStart(2, '0')}`;
         if (KOREAN_HOLIDAYS[iso]) continue;
+        if (extraHolidays?.has(iso)) continue;
         out.add(iso);
     }
     return out;
