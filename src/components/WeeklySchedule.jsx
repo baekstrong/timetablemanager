@@ -445,31 +445,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 </button>
             </div>
 
-            {/* Mode toggle (coach only) */}
-            {user?.role === 'coach' && (
-                <div className="controls">
-                    <button
-                        className={`mode-toggle ${mode === 'student' ? 'active' : ''}`}
-                        onClick={() => { setMode('student'); setForceModeStudent(''); }}
-                    >
-                        신규 전용
-                    </button>
-                    <button
-                        className={`mode-toggle ${mode === 'coach' ? 'active' : ''}`}
-                        onClick={() => { setMode('coach'); setForceModeStudent(''); }}
-                    >
-                        코치 전용
-                    </button>
-                    <button
-                        className={`mode-toggle ${mode === 'studentForce' ? 'active' : ''}`}
-                        onClick={() => setMode('studentForce')}
-                    >
-                        수강생 전용
-                    </button>
-                </div>
-            )}
-
-            {/* Google Sheets 연동 상태 (코치 전용) — 게시판에서 이동 */}
+            {/* Google Sheets 연동 상태 (코치 전용) — 모드 토글 위 */}
             {user?.role === 'coach' && (
                 <section style={{ marginBottom: '1rem' }}>
                     <div
@@ -514,6 +490,30 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                         </div>
                     )}
                 </section>
+            )}
+
+            {/* Mode toggle (coach only) */}
+            {user?.role === 'coach' && (
+                <div className="controls">
+                    <button
+                        className={`mode-toggle ${mode === 'student' ? 'active' : ''}`}
+                        onClick={() => { setMode('student'); setForceModeStudent(''); }}
+                    >
+                        신규 전용
+                    </button>
+                    <button
+                        className={`mode-toggle ${mode === 'coach' ? 'active' : ''}`}
+                        onClick={() => { setMode('coach'); setForceModeStudent(''); }}
+                    >
+                        코치 전용
+                    </button>
+                    <button
+                        className={`mode-toggle ${mode === 'studentForce' ? 'active' : ''}`}
+                        onClick={() => setMode('studentForce')}
+                    >
+                        수강생 전용
+                    </button>
+                </div>
             )}
 
             {/* 수강생 전용 모드 — 수강생 선택 및 강제 모드 안내 */}
