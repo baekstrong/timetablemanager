@@ -3,7 +3,6 @@ import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
-import GoogleSheetsSync from './GoogleSheetsSync';
 import { POST_LIMITS } from '../data/boardConstants';
 import PostList from './board/PostList';
 import PostDetail from './board/PostDetail';
@@ -24,7 +23,6 @@ const formatPRSummary = (pr) => {
 };
 
 const Dashboard = ({ user, onNavigate, onLogout }) => {
-    const [sheetsExpanded, setSheetsExpanded] = useState(false);
     const [posts, setPosts] = useState([]);
     const [postsLoading, setPostsLoading] = useState(true);
     const [postsError, setPostsError] = useState(null);
@@ -38,7 +36,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     const [showPostForm, setShowPostForm] = useState(false);
     const [editingPost, setEditingPost] = useState(null);
 
-    const { students, isConnected, error: sheetsError, loading: sheetsLoading, refresh } = useGoogleSheets();
+    const { students, refresh } = useGoogleSheets();
 
     // 수강생 대기 신청 목록
     const [studentWaitlist, setStudentWaitlist] = useState([]);
@@ -398,96 +396,6 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         fontSize: '0.95rem'
                     }}>
                         수강 기간이 만료되었습니다. 재등록을 원하시면 코치에게 문의해주세요.
-                    </div>
-                )}
-
-                {/* Google Sheets 연동 (접기/펴기) */}
-                {user.role === 'coach' && (
-                    <section style={{ marginBottom: '1rem' }}>
-                        <div
-                            onClick={() => setSheetsExpanded(!sheetsExpanded)}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                padding: '0.75rem 1rem',
-                                background: 'var(--canvas)',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                userSelect: 'none',
-                                border: '1px solid var(--hairline)'
-                            }}
-                        >
-                            <span style={{ fontSize: '0.9rem' }}>{sheetsExpanded ? '▼' : '▶'}</span>
-                            <span style={{ fontWeight: '600', fontSize: '1rem' }}>Google Sheets 연동</span>
-                            {sheetsLoading ? (
-                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>동기화 중...</span>
-                            ) : sheetsError ? (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#dc2626', marginLeft: '0.5rem' }}>
-                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#dc2626', display: 'inline-block' }}></span>
-                                    연동 실패
-                                </span>
-                            ) : isConnected ? (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#16a34a', marginLeft: '0.5rem' }}>
-                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#16a34a', display: 'inline-block' }}></span>
-                                    연동 중
-                                </span>
-                            ) : null}
-                        </div>
-                        {sheetsExpanded && (
-                            <div style={{ marginTop: '0.5rem' }}>
-                                <GoogleSheetsSync />
-                                <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-                                    <button
-                                        onClick={() => onNavigate('test')}
-                                        style={{
-                                            padding: '0.75rem 1.5rem',
-                                            background: 'var(--accent)',
-                                            color: 'white',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            fontSize: '1rem',
-                                            fontWeight: '600',
-                                            cursor: 'pointer',
-                                            transition: 'transform 0.2s'
-                                        }}
-                                        onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
-                                        onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
-                                    >
-                                        🧪 Google Sheets 연동 테스트
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </section>
-                )}
-
-                {/* 코치 전용: 휴일설정 버튼 */}
-                {user.role === 'coach' && (
-                    <div style={{ marginBottom: '1rem' }}>
-                        <button
-                            onClick={() => onNavigate('holidays')}
-                            style={{
-                                width: '100%',
-                                padding: '0.75rem 1rem',
-                                background: 'var(--canvas)',
-                                border: '1px solid var(--hairline)',
-                                borderRadius: '8px',
-                                fontSize: '0.95rem',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                color: 'var(--text)'
-                            }}
-                        >
-                            <span>🗓️</span>
-                            <span>휴일설정</span>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: '16px', height: '16px', marginLeft: 'auto', color: 'var(--text-muted)' }}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                            </svg>
-                        </button>
                     </div>
                 )}
 

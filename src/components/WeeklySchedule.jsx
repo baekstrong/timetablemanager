@@ -15,6 +15,7 @@ import {
 import { processScheduleTransfer } from '../services/googleSheetsService';
 import { getHolidays } from '../services/firebaseService';
 import { PERIODS, MAX_CAPACITY } from '../data/mockData';
+import GoogleSheetsSync from './GoogleSheetsSync';
 import CoachWaitlistModal from './schedule/CoachWaitlistModal';
 import FreeWorkoutModal from './schedule/FreeWorkoutModal';
 import CoachSchedule from './schedule/CoachSchedule';
@@ -26,7 +27,7 @@ import './WeeklySchedule.css';
 
 const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
     const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student');
-    const { students, isAuthenticated, loading, refresh } = useGoogleSheets();
+    const { students, isAuthenticated, isConnected, error: sheetsError, loading, refresh } = useGoogleSheets();
 
     // Pending new student registrations (선언 위치: useScheduleCore에 전달 필요)
     const [pendingRegistrations, setPendingRegistrations] = useState([]);
@@ -100,6 +101,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
     const [freeSlot, setFreeSlot] = useState(null);   // 자율운동 관리 대상 { day, date }
     const [freeProcessing, setFreeProcessing] = useState(false);
+    const [sheetsExpanded, setSheetsExpanded] = useState(false); // 구글 시트 연동 섹션 펼침
 
     const handleFreeCellClick = (day) => {
         const date = weekDates[day] ? weekDateToISO(weekDates[day]) : null;
@@ -465,6 +467,53 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                         수강생 전용
                     </button>
                 </div>
+            )}
+
+            {/* Google Sheets 연동 상태 (코치 전용) — 게시판에서 이동 */}
+            {user?.role === 'coach' && (
+                <section style={{ marginBottom: '1rem' }}>
+                    <div
+                        onClick={() => setSheetsExpanded(!sheetsExpanded)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                            padding: '0.6rem 0.9rem', background: 'var(--canvas)',
+                            borderRadius: '8px', cursor: 'pointer', userSelect: 'none',
+                            border: '1px solid var(--hairline)',
+                        }}
+                    >
+                        <span style={{ fontSize: '0.9rem' }}>{sheetsExpanded ? '▼' : '▶'}</span>
+                        <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Google Sheets 연동</span>
+                        {loading ? (
+                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>동기화 중...</span>
+                        ) : sheetsError ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#dc2626', marginLeft: '0.5rem' }}>
+                                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#dc2626', display: 'inline-block' }}></span>
+                                연동 실패
+                            </span>
+                        ) : isConnected ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#16a34a', marginLeft: '0.5rem' }}>
+                                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#16a34a', display: 'inline-block' }}></span>
+                                연동 중
+                            </span>
+                        ) : null}
+                    </div>
+                    {sheetsExpanded && (
+                        <div style={{ marginTop: '0.5rem' }}>
+                            <GoogleSheetsSync />
+                            <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                                <button
+                                    onClick={() => onNavigate && onNavigate('test')}
+                                    style={{
+                                        padding: '0.6rem 1.2rem', background: 'var(--accent)', color: 'white',
+                                        border: 'none', borderRadius: '8px', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer',
+                                    }}
+                                >
+                                    🧪 Google Sheets 연동 테스트
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </section>
             )}
 
             {/* 수강생 전용 모드 — 수강생 선택 및 강제 모드 안내 */}

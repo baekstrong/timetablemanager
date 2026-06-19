@@ -458,6 +458,13 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                       📈 매출·통계
                     </button>
                     <button
+                      type="button"
+                      className="view-switch-btn"
+                      onClick={() => onNavigate && onNavigate('holidays')}
+                    >
+                      🗓️ 휴일설정
+                    </button>
+                    <button
                         type="button"
                         className="view-switch-btn"
                         onClick={() => setShowSmsModal(true)}
