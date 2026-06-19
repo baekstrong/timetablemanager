@@ -1753,7 +1753,14 @@ export const refreshStudentTier = async ({ userName, scheduleStr, startYMD, endY
         const u = snap.data() || {};
         const now = new Date();
         const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        if (u.tierMonth === ym && u.tier) return { changed: false, tier: u.tier };
+        if (u.tierMonth === ym) {
+            // 이번 달 등급은 이미 매겨짐. 단, 코치 백필로 매겨졌고 본인은 아직 안내 못 받았으면 인트로 팝업 1회.
+            if (u.tierIntroPending) {
+                await updateDoc(userRef, { tierIntroPending: false });
+                return { changed: true, isNew: true, direction: 0, tier: u.tier, prevTier: null };
+            }
+            return { changed: false, tier: u.tier };
+        }
 
         const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const lastYm = `${lm.getFullYear()}-${String(lm.getMonth() + 1).padStart(2, '0')}`;
@@ -1766,8 +1773,9 @@ export const refreshStudentTier = async ({ userName, scheduleStr, startYMD, endY
         const direction = prevTier ? compareTiers(prevTier, tier.key) : 0;
         await setDoc(userRef, {
             tier: tier.key, tierMonth: ym, tierScore: score,
-            prevTier, tierUpdatedAt: serverTimestamp(),
+            prevTier, tierIntroPending: false, tierUpdatedAt: serverTimestamp(),
         }, { merge: true });
+        clearTierMapCache();
         // 첫 진입(isNew)이면 무조건 팝업, 이후엔 승급/강등 시에만.
         return { changed: isNew || direction !== 0, isNew, direction, score, tier: tier.key, prevTier };
     });
@@ -1776,6 +1784,10 @@ export const refreshStudentTier = async ({ userName, scheduleStr, startYMD, endY
 // 이름→티어키 맵(게시판 뱃지용). 5분 캐시.
 let tierMapCache = null;
 let tierMapFetchedAt = 0;
+function clearTierMapCache() {
+    tierMapCache = null;
+    tierMapFetchedAt = 0;
+}
 export const getTierMap = async () => {
     return safeRead({}, async () => {
         const now = Date.now();
@@ -1786,5 +1798,79 @@ export const getTierMap = async () => {
         tierMapCache = map;
         tierMapFetchedAt = now;
         return map;
+    });
+};
+
+// 코치 1회 트리거: 이번 달 미계산인 모든 학생의 티어를 일괄 계산(게시판 뱃지가 전원 표시되도록).
+// 지난달 데이터를 컬렉션당 1회만 읽어 이름별로 그룹핑 → 학생별 점수 산정 → batch write.
+// 백필 대상은 tierIntroPending=true로 표시 → 본인이 다음 로그인 시 인트로 팝업을 보게 함.
+export const backfillTiersForMonth = async (students) => {
+    return safeRead({}, async () => {
+        if (!Array.isArray(students) || students.length === 0) return getTierMap();
+        const now = new Date();
+        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+        // 계정/현재 티어월 파악
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const userMeta = {};
+        usersSnap.forEach(d => { const x = d.data() || {}; userMeta[d.id] = { tier: x.tier || null, tierMonth: x.tierMonth }; });
+
+        // 이름별 대표 등록행(스케줄 있는 행 우선)
+        const byName = new Map();
+        for (const s of students) {
+            const nm = (s['이름'] || '').trim();
+            if (!nm) continue;
+            const hasSched = !!s['요일 및 시간'];
+            const cur = byName.get(nm);
+            if (!cur || (hasSched && !cur.hasSched)) {
+                byName.set(nm, { name: nm, sched: s['요일 및 시간'], start: s['시작날짜'], end: s['종료날짜'], hasSched });
+            }
+        }
+        // 계정 있고 이번 달 미계산인 학생만 대상
+        const targets = [...byName.values()].filter(t => userMeta[t.name] && userMeta[t.name].tierMonth !== ym);
+        if (targets.length === 0) return getTierMap();
+
+        // 지난달 데이터 일괄 조회
+        const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastYm = `${lm.getFullYear()}-${String(lm.getMonth() + 1).padStart(2, '0')}`;
+        const [ly, lmo] = lastYm.split('-').map(Number);
+        const monthStart = `${lastYm}-01`;
+        const next = new Date(ly, lmo, 1);
+        const nextStart = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`;
+        const [records, free, holdings, absences, holidays] = await Promise.all([
+            queryDocs('records', where('date', '>=', monthStart), where('date', '<', nextStart)),
+            queryDocs('freeWorkoutAttendance', where('date', '>=', monthStart), where('date', '<', nextStart)),
+            queryDocs('holdingRequests', where('status', '==', 'active')),
+            queryDocs('absenceRequests', where('status', '==', 'active')),
+            getHolidays(),
+        ]);
+        const holidayDates = new Set((holidays || []).map(h => h.date).filter(d => d >= monthStart && d < nextStart));
+
+        // 이름별 그룹핑(records/free는 대소문자 무시)
+        const addSet = (map, key, val) => { if (!key || !val) return; let s = map.get(key); if (!s) { s = new Set(); map.set(key, s); } s.add(val); };
+        const recByName = new Map(); records.forEach(r => addSet(recByName, (r.userName || '').trim().toLowerCase(), r.date));
+        const freeByName = new Map(); free.forEach(r => addSet(freeByName, (r.studentName || '').trim().toLowerCase(), r.date));
+        const absByName = new Map(); absences.forEach(a => { if (a.date >= monthStart && a.date < nextStart) addSet(absByName, (a.studentName || '').trim(), a.date); });
+        const holdByName = new Map(); holdings.forEach(h => { const k = (h.studentName || '').trim(); if (!k || !h.startDate || !h.endDate) return; (holdByName.get(k) || holdByName.set(k, []).get(k)).push({ start: h.startDate, end: h.endDate }); });
+
+        const batch = writeBatch(db);
+        for (const t of targets) {
+            const scheduledDates = t.sched ? scheduledDatesInMonth(t.sched, t.start, t.end, lastYm, holidayDates) : new Set();
+            const score = computeActiveScore({
+                scheduledDates,
+                recordDates: recByName.get(t.name.toLowerCase()) || new Set(),
+                freeDates: freeByName.get(t.name.toLowerCase()) || new Set(),
+                absenceDates: absByName.get(t.name) || new Set(),
+                holdingRanges: holdByName.get(t.name) || [],
+            });
+            const tier = scoreToTier(score);
+            batch.set(doc(db, 'users', t.name), {
+                tier: tier.key, tierMonth: ym, tierScore: score,
+                prevTier: userMeta[t.name].tier, tierIntroPending: true, tierUpdatedAt: serverTimestamp(),
+            }, { merge: true });
+        }
+        await batch.commit();
+        clearTierMapCache();
+        return getTierMap();
     });
 };

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier } from '../services/firebaseService';
+import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, backfillTiersForMonth } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
 import { POST_LIMITS } from '../data/boardConstants';
@@ -49,6 +49,15 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         getTierMap().then(map => { if (!cancel) setTierMap(map); });
         return () => { cancel = true; };
     }, []);
+
+    // 코치 진입 시: 이번 달 미계산 학생 전원 티어 일괄 계산 → 게시판 뱃지가 전원 표시되도록.
+    // 이미 전원 계산됐으면 users 1회 읽고 끝(저렴). 학생 본인 인트로 팝업은 보존됨.
+    useEffect(() => {
+        if (!user || user.role !== 'coach' || !students || students.length === 0) return;
+        let cancel = false;
+        backfillTiersForMonth(students).then(map => { if (!cancel && map) setTierMap(map); });
+        return () => { cancel = true; };
+    }, [user, students]);
 
     // 새 달 첫 접속 시 지난달 활동으로 티어 재계산 → 변동 있으면 팝업.
     // students 재로드로 effect가 재실행돼도 같은 달엔 changed:false라 중복 팝업 없음.
