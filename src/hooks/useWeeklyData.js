@@ -10,6 +10,7 @@ import {
     getHolidays,
     getAllActiveWaitlist,
     getHoldingsByWeek,
+    getFreeWorkoutByDateRange,
 } from '../services/firebaseService';
 import {
     parseSheetDate,
@@ -26,6 +27,7 @@ export function useWeeklyData({ user, students, mode, refresh }) {
     const [weekAbsences, setWeekAbsences] = useState([]);
     const [weekHolidays, setWeekHolidays] = useState([]);
     const [weekWaitlist, setWeekWaitlist] = useState([]);
+    const [weekFreeWorkout, setWeekFreeWorkout] = useState([]); // 이번 주 자율운동 출석
     // 주간 Firebase 데이터(보강/홀딩/결석 등) 최초 로드 완료 여부 — 보강대기 백스톱이 여석을
     // 잘못 계산(보강 인원 0으로)하지 않도록 게이트하는 데 사용.
     const [weeklyDataLoaded, setWeeklyDataLoaded] = useState(false);
@@ -84,12 +86,13 @@ export function useWeeklyData({ user, students, mode, refresh }) {
                 dates.push(formatDateISO(date));
             }
 
-            const [makeups, absenceArrays, holidays, waitlist, firebaseHoldings] = await Promise.all([
+            const [makeups, absenceArrays, holidays, waitlist, firebaseHoldings, freeWorkout] = await Promise.all([
                 getMakeupRequestsByWeek(startDate, endDate).catch(() => []),
                 Promise.all(dates.map(date => getAbsencesByDate(date).catch(() => []))),
                 getHolidays().catch(() => []),
                 getAllActiveWaitlist().catch(() => []),
-                getHoldingsByWeek(startDate, thisWeekEndDate).catch(() => [])
+                getHoldingsByWeek(startDate, thisWeekEndDate).catch(() => []),
+                getFreeWorkoutByDateRange(startDate, endDate).catch(() => [])
             ]);
 
             const allAbsences = absenceArrays.flat();
@@ -125,6 +128,7 @@ export function useWeeklyData({ user, students, mode, refresh }) {
             setWeekAbsences(allAbsences || []);
             setWeekHolidays(holidays || []);
             setWeekWaitlist(waitlist || []);
+            setWeekFreeWorkout(freeWorkout || []);
             setWeeklyDataLoaded(true);
         } catch (error) {
             console.error('Failed to load weekly data:', error);
@@ -132,6 +136,7 @@ export function useWeeklyData({ user, students, mode, refresh }) {
             setWeekHoldings([]);
             setWeekAbsences([]);
             setWeekWaitlist([]);
+            setWeekFreeWorkout([]);
         }
     }, [students]);
 
@@ -160,6 +165,7 @@ export function useWeeklyData({ user, students, mode, refresh }) {
 
     return {
         weeklyDataLoaded,
+        weekFreeWorkout,
         weekMakeupRequests,
         setWeekMakeupRequests,
         weekHoldings,

@@ -9,11 +9,14 @@ import {
     checkWaitlistAvailability,
     updateWaitlistAvailability,
     getActiveMakeupWaitlists,
+    addFreeWorkout,
+    removeFreeWorkout,
 } from '../services/firebaseService';
 import { processScheduleTransfer } from '../services/googleSheetsService';
 import { getHolidays } from '../services/firebaseService';
 import { PERIODS, MAX_CAPACITY } from '../data/mockData';
 import CoachWaitlistModal from './schedule/CoachWaitlistModal';
+import FreeWorkoutModal from './schedule/FreeWorkoutModal';
 import CoachSchedule from './schedule/CoachSchedule';
 import StudentSchedule from './schedule/StudentSchedule';
 import { useScheduleCore } from './schedule/useScheduleCore';
@@ -82,8 +85,50 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         isMakeupHeld,
         lastDayStudents, delayedReregistrationStudents, lastClassByName,
         getCellData, getHolidayInfo,
-        unpaidStudentNames, weeklyDataLoaded,
+        unpaidStudentNames, weeklyDataLoaded, weekFreeWorkout,
     } = scheduleCore;
+
+    // 자율운동 출석: 날짜(YYYY-MM-DD) → [{id, studentName}]
+    const freeWorkoutByDate = useMemo(() => {
+        const map = {};
+        (weekFreeWorkout || []).forEach(e => {
+            if (!map[e.date]) map[e.date] = [];
+            map[e.date].push({ id: e.id, studentName: e.studentName });
+        });
+        return map;
+    }, [weekFreeWorkout]);
+
+    const [freeSlot, setFreeSlot] = useState(null);   // 자율운동 관리 대상 { day, date }
+    const [freeProcessing, setFreeProcessing] = useState(false);
+
+    const handleFreeCellClick = (day) => {
+        const date = weekDates[day] ? weekDateToISO(weekDates[day]) : null;
+        if (date) setFreeSlot({ day, date });
+    };
+    const handleAddFreeWorkout = async (name) => {
+        if (!freeSlot || freeProcessing) return;
+        setFreeProcessing(true);
+        try {
+            await addFreeWorkout(name, freeSlot.date);
+            await loadWeeklyData();
+        } catch (e) {
+            alert('추가 실패: ' + e.message);
+        } finally {
+            setFreeProcessing(false);
+        }
+    };
+    const handleRemoveFreeWorkout = async (id) => {
+        if (freeProcessing) return;
+        setFreeProcessing(true);
+        try {
+            await removeFreeWorkout(id);
+            await loadWeeklyData();
+        } catch (e) {
+            alert('삭제 실패: ' + e.message);
+        } finally {
+            setFreeProcessing(false);
+        }
+    };
 
     // New student waitlist (coach only)
     const [newStudentWaitlist, setNewStudentWaitlist] = useState([]);
@@ -502,6 +547,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     onNavigate={onNavigate}
                     unpaidStudentNames={unpaidStudentNames}
                     makeupWaitlists={coachMakeupWaitlist}
+                    freeWorkoutByDate={freeWorkoutByDate}
                 />
             )}
 
@@ -526,6 +572,8 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     isSlotLocked={isSlotLocked}
                     newStudentWaitlist={newStudentWaitlist}
                     onCoachCellClick={handleCoachWaitlistCellClick}
+                    onFreeCellClick={handleFreeCellClick}
+                    freeWorkoutByDate={freeWorkoutByDate}
                 />
             )}
 
@@ -576,6 +624,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     isClassDisabled={isClassDisabled}
                     isSlotLocked={isSlotLocked}
                     forceMode={true}
+                    freeWorkoutByDate={freeWorkoutByDate}
                 />
             )}
 
@@ -594,6 +643,19 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     onWaitlistSubmit={handleWaitlistSubmit}
                     onWaitlistCancel={handleWaitlistCancel}
                     onClose={closeWaitlistModal}
+                />
+            )}
+
+            {/* 자율운동 출석 관리 모달 (코치 신규 전용 뷰에서 자율운동 셀 클릭 시) */}
+            {freeSlot && user?.role === 'coach' && (
+                <FreeWorkoutModal
+                    dateLabel={`${weekDates[freeSlot.day]} (${freeSlot.day})`}
+                    attendees={freeWorkoutByDate[freeSlot.date] || []}
+                    students={students}
+                    onAdd={handleAddFreeWorkout}
+                    onRemove={handleRemoveFreeWorkout}
+                    onClose={() => setFreeSlot(null)}
+                    processing={freeProcessing}
                 />
             )}
         </div>

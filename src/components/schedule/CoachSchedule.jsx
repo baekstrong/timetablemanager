@@ -49,6 +49,7 @@ export default function CoachSchedule({
     onNavigate,
     unpaidStudentNames = new Set(),
     makeupWaitlists = [],
+    freeWorkoutByDate = {},
 }) {
     // 현재 시각 — 진행 중/임박 수업 강조용 (60초마다 갱신)
     const [now, setNow] = useState(() => new Date());
@@ -378,7 +379,20 @@ export default function CoachSchedule({
                         {DAYS.map(day => (
                             <div key={`${day}-${period.id}`} style={{ display: 'contents' }}>
                                 {period.type === 'free'
-                                    ? <div className="schedule-cell cell-free">자율 운동</div>
+                                    ? (() => {
+                                        const dISO = weekDates[day] ? weekDateToISO(weekDates[day]) : null;
+                                        const names = (dISO && freeWorkoutByDate[dISO]) || [];
+                                        return (
+                                            <div className="schedule-cell cell-free" style={{ flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ fontSize: '0.72rem', color: '#9a7a12', fontWeight: 700 }}>자율 운동</div>
+                                                {names.length > 0 && (
+                                                    <div className="student-list" style={{ justifyContent: 'center' }}>
+                                                        {names.map(n => <span key={n.id} className="student-tag">{n.studentName}</span>)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()
                                     : renderCoachCell(day, period)}
                             </div>
                         ))}

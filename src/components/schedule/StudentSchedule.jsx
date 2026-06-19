@@ -54,6 +54,8 @@ export default function StudentSchedule({
     // 코치 신규 전용 연동
     newStudentWaitlist = [],
     onCoachCellClick,
+    onFreeCellClick,
+    freeWorkoutByDate = {},
     // 코치 "수강생 전용(강제)" 모드 — 시간 데드라인/주 1회/홀딩 제약 우회
     forceMode = false,
 }) {
@@ -705,7 +707,33 @@ export default function StudentSchedule({
 
     function renderCell(day, periodObj) {
         if (periodObj.type === 'free') {
-            return <div className="schedule-cell cell-free">자율 운동</div>;
+            const dISO = weekDates[day] ? weekDateToISO(weekDates[day]) : null;
+            const names = (dISO && freeWorkoutByDate[dISO]) || [];
+            // 코치 신규 전용: 클릭해 추가/관리 + 출석자 표시
+            const canManage = user?.role === 'coach' && typeof onFreeCellClick === 'function';
+            if (canManage) {
+                return (
+                    <div className="schedule-cell cell-free" style={{ flexDirection: 'column', gap: '4px', cursor: 'pointer' }}
+                         onClick={() => onFreeCellClick(day)}>
+                        <div style={{ fontSize: '0.72rem', color: '#9a7a12', fontWeight: 700 }}>자율 운동 +</div>
+                        {names.length > 0 && (
+                            <div className="student-list" style={{ justifyContent: 'center' }}>
+                                {names.map(n => <span key={n.id} className="student-tag">{n.studentName}</span>)}
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+            // 학생(또는 빙의): 본인 자율운동 출석 표시
+            const attended = names.some(n => n.studentName === user?.username);
+            return (
+                <div className="schedule-cell cell-free" style={{ flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#9a7a12', fontWeight: 700 }}>자율 운동</div>
+                    {attended && (
+                        <span className="student-tag" style={{ background: '#31A5521A', borderColor: '#31A5524D', color: '#166534', fontWeight: 700 }}>출석</span>
+                    )}
+                </div>
+            );
         }
         return renderStudentCell(day, periodObj);
     }

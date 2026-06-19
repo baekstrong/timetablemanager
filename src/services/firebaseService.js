@@ -722,6 +722,30 @@ export const getStudentCountSnapshots = async () => {
     });
 };
 
+// ── 자율운동(3교시) 출석 — 횟수 차감/종료일 영향 없음, 일시정지자도 가능 ──
+export const addFreeWorkout = async (studentName, date) => {
+    return safeWrite(async () => {
+        const existing = await queryDocs('freeWorkoutAttendance',
+            where('studentName', '==', studentName), where('date', '==', date));
+        if (existing.length > 0) return { success: true, id: existing[0].id, already: true };
+        return createDoc('freeWorkoutAttendance', { studentName, date });
+    });
+};
+
+export const removeFreeWorkout = async (id) => {
+    return safeWrite(async () => {
+        await firestoreDeleteDoc(doc(db, 'freeWorkoutAttendance', id));
+        return { success: true };
+    });
+};
+
+export const getFreeWorkoutByDateRange = async (startDate, endDate) => {
+    return safeRead([], async () => {
+        return queryDocs('freeWorkoutAttendance',
+            where('date', '>=', startDate), where('date', '<=', endDate));
+    });
+};
+
 // ============================================
 // ENTRANCE CLASS FUNCTIONS
 // ============================================
