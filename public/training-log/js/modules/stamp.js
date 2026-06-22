@@ -1,5 +1,4 @@
 import { state, db } from '../state.js';
-import { getKoreanInitial } from '../utils.js';
 import { STAMP_GRADES, STAMP_ORDER, prevMonthRange, computeStampStats, suggestGrade } from './stamp-logic.js';
 
 export function currentMonthStr() {
