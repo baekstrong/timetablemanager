@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db } from '../config/firebase';
-import { collection, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import './Login.css';
 
 const Login = ({ onLogin }) => {
@@ -76,17 +76,10 @@ const Login = ({ onLogin }) => {
 
                 isCoach = userData.isCoach || false;
             } else {
-                // Create new user if not exists
-                await setDoc(userRef, {
-                    password: pass,
-                    isCoach: false,
-                    createdAt: serverTimestamp()
-                });
-
-                isCoach = false;
-                if (!isAutoLogin) {
-                    alert('✅ 계정이 생성되었습니다! 환영합니다.');
-                }
+                // 자동가입 제거: 미등록 이름으로는 로그인 불가 (코치 승인으로만 계정 생성)
+                setError('❌ 등록되지 않은 계정입니다. 코치에게 문의해 주세요.');
+                setLoading(false);
+                return;
             }
 
             // Save credentials if remember me is checked
