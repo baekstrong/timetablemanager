@@ -6,7 +6,7 @@
 // 높은 티어가 배열 앞. scoreToTier는 위에서부터 첫 매칭을 고름.
 export const TIERS = [
     { key: 'iron', label: '철인', emoji: '🔥', min: 17, color: '#242428' },
-    { key: 'core', label: '코어', emoji: '💎', min: 13, color: '#EDBC40' },
+    { key: 'core', label: '코어', emoji: '💎', min: 13, color: '#A16207' }, // 진한 골드: 연한 뱃지 배경 위에서도 글자 읽히게(밝은 #EDBC40은 대비 부족)
     { key: 'passion', label: '열정', emoji: '🥇', min: 9, color: '#31A552' },
     { key: 'steady', label: '성실', emoji: '🥈', min: 6, color: '#329BE7' },
     { key: 'rookie', label: '입문', emoji: '🥉', min: 0, color: '#A7A7AA' },
