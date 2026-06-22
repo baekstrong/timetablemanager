@@ -1,10 +1,11 @@
 /**
  * 관리자봇 업데이트 공지 게시 스크립트
  *
- * 사용법: node --env-file=.env scripts/post-update-notice.js "제목" "본문"
+ * 사용법: node --env-file=.env scripts/post-update-notice.js "제목" "본문" [--add]
  *
  * 동작:
- * 1. posts에서 author='관리자봇' && isUpdateNotice=true인 기존 공지를 소프트 삭제
+ * 1. (기본) posts에서 author='관리자봇'인 기존 공지를 소프트 삭제 → 항상 최신 1건만 유지
+ *    --add 플래그를 주면 이 삭제를 건너뛰고 기존 공지를 그대로 둔 채 1건 추가만 한다.
  * 2. 새 공지를 notice 카테고리로 등록 (앱의 createPost와 동일 스키마)
  *
  * ※ 반드시 백관장 승인 후 실행할 것 (CLAUDE.md '업데이트 공지 규칙' 참고)
@@ -15,9 +16,11 @@ import {
     updateDoc, addDoc, doc, serverTimestamp,
 } from 'firebase/firestore';
 
-const [title, content] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const addOnly = args.includes('--add'); // 기존 공지 유지하고 1건만 추가
+const [title, content] = args.filter(a => !a.startsWith('--'));
 if (!title || !content) {
-    console.error('사용법: node --env-file=.env scripts/post-update-notice.js "제목" "본문"');
+    console.error('사용법: node --env-file=.env scripts/post-update-notice.js "제목" "본문" [--add]');
     process.exit(1);
 }
 
@@ -38,17 +41,21 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-// 1. 기존 관리자봇 공지 전체 소프트 삭제
+// 1. 기존 관리자봇 공지 전체 소프트 삭제 (--add 면 건너뜀)
 // (isUpdateNotice 필드로 거르지 않음 — 앱에서 직접 작성한 예전 관리자봇 공지에는
 //  이 필드가 없어 안 내려가는 문제가 있었음. 관리자봇 글은 항상 최신 1건만 유지한다.)
-const existing = await getDocs(query(
-    collection(db, 'posts'),
-    where('author', '==', '관리자봇'),
-));
-for (const d of existing.docs) {
-    if (!d.data().deleted) {
-        await updateDoc(doc(db, 'posts', d.id), { deleted: true, updatedAt: serverTimestamp() });
-        console.log(`기존 공지 내림: "${d.data().title}" (${d.id})`);
+if (addOnly) {
+    console.log('--add: 기존 공지를 유지하고 1건만 추가합니다.');
+} else {
+    const existing = await getDocs(query(
+        collection(db, 'posts'),
+        where('author', '==', '관리자봇'),
+    ));
+    for (const d of existing.docs) {
+        if (!d.data().deleted) {
+            await updateDoc(doc(db, 'posts', d.id), { deleted: true, updatedAt: serverTimestamp() });
+            console.log(`기존 공지 내림: "${d.data().title}" (${d.id})`);
+        }
     }
 }
 
