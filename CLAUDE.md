@@ -410,9 +410,9 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 
 지난달 **활동일 수**로 5단계 티어를 매겨 게시판 이름 앞에 뱃지로 표시. 더 많은 운동·기록을 유도하는 게 목적.
 
-- **순수 로직**: `src/utils/tiers.js` — `TIERS`(철인/코어/열정/성실/입문, 경계 17/13/9/6/0일), `scoreToTier`, `scheduledDatesInMonth`, `computeActiveScore`, `compareTiers`.
-- **활동일** = 지난달 고유 날짜의 합집합: 예정 수업일(시간표−홀딩−결석−한국공휴일−Firebase 커스텀 공휴일) ∪ 훈련일지 기록일(`records`) ∪ 자율운동일(`freeWorkoutAttendance`). 실제 운동 기록이 있는 날은 홀딩/결석과 무관하게 인정. 주2회 개근 ≈ 8일(성실), 추가 운동·기록이 상위 티어로 올림.
-- **저장/갱신(본인)**: `refreshStudentTier({userName, scheduleStr, startYMD, endYMD})` — 학생 접속 시 지난달 기준 재계산해 `users/{이름}`에 기록. 같은 달 재실행은 no-op. 첫 계산(이전 티어 없음)은 인트로 팝업.
+- **순수 로직**: `src/utils/tiers.js` — `TIERS`(철인/코어/열정/성실/입문, 경계 17/13/9/6/0일), `scoreToTier`, `computeActiveScore`, `compareTiers`.
+- **활동일** = 지난달 고유 날짜의 합집합: 훈련일지 기록일(`records`) ∪ 자율운동일(`freeWorkoutAttendance`). **실제 운동 기록이 있는 날만 인정** — 예정 수업일이라도 그날 기록이 없으면 불인정(결석신청 없이 안 나오는 노쇼 제외). 따라서 홀딩/결석/공휴일/시간표는 점수에 영향 없음. 주2회 기록 ≈ 8일(성실), 추가 운동·기록이 상위 티어로 올림.
+- **저장/갱신(본인)**: `refreshStudentTier({userName})` — 학생 접속 시 지난달 기준 재계산해 `users/{이름}`에 기록. 같은 달 재실행은 no-op. 첫 계산(이전 티어 없음)은 인트로 팝업.
 - **일괄 백필(코치)**: `backfillTiersForMonth(students)` — 코치 진입 시 이번 달 미계산 학생 전원을 일괄 계산(지난달 데이터를 컬렉션당 1회 읽어 그룹핑 → batch write). 게시판 뱃지가 전원 표시되도록. 백필 대상은 `tierIntroPending=true`로 표시 → 그 학생이 다음 접속할 때 `refreshStudentTier`가 인트로 팝업을 띄우고 플래그 해제. 전원 계산 완료 후엔 users 1회 읽고 종료(저렴).
 - **뱃지**: `TierBadge.jsx`. 게시판은 `getTierMap()`(이름→티어, 5분 캐시)을 Dashboard에서 읽어 PostList/PostDetail/CommentItem에 prop으로 전달. 코치는 뱃지 없음.
 - **팝업**: `TierChangeModal.jsx` — 첫 진입 시 등급 안내, 이후 새 달 첫 접속 시 승급(축하)/강등(분발) 안내. Dashboard 마운트 effect에서 트리거. ponytail: '첫 출석'이 아니라 '새 달 첫 앱 접속' 기준.

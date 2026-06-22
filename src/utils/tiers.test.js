@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scoreToTier, compareTiers, scheduledDatesInMonth, computeActiveScore } from './tiers';
+import { scoreToTier, compareTiers, computeActiveScore } from './tiers';
 
 describe('scoreToTier', () => {
     it('buckets by 활동일', () => {
@@ -21,45 +21,20 @@ describe('compareTiers', () => {
     });
 });
 
-describe('scheduledDatesInMonth', () => {
-    it('요일 매칭 + 기간/공휴일 제외', () => {
-        // 2026-06: 월=1,8,15,22,29 / 수=3,10,17,24. 현충일 6/6(토)은 영향 없음.
-        const set = scheduledDatesInMonth('월1수1', '260601', '260630', '2026-06');
-        expect(set.has('2026-06-01')).toBe(true);
-        expect(set.has('2026-06-03')).toBe(true);
-        expect(set.has('2026-06-02')).toBe(false); // 화요일
-        expect(set.size).toBe(9);
-    });
-    it('등록 기간 밖은 제외', () => {
-        const set = scheduledDatesInMonth('월1', '260615', '260630', '2026-06');
-        expect(set.has('2026-06-01')).toBe(false);
-        expect(set.has('2026-06-15')).toBe(true);
-    });
-    it('커스텀 공휴일(extraHolidays) 제외', () => {
-        const extra = new Set(['2026-06-08']); // 코치 임시 휴무
-        const set = scheduledDatesInMonth('월1', '260601', '260630', '2026-06', extra);
-        expect(set.has('2026-06-08')).toBe(false);
-        expect(set.has('2026-06-01')).toBe(true);
-    });
-});
-
 describe('computeActiveScore', () => {
-    it('예정+기록+자율 합집합, 중복 제거', () => {
+    it('기록∪자율 합집합, 중복 날짜는 1일', () => {
         const score = computeActiveScore({
-            scheduledDates: new Set(['2026-06-01', '2026-06-03']),
-            recordDates: new Set(['2026-06-01']), // 수업일과 겹침 → 1일
-            freeDates: new Set(['2026-06-07']), // 추가 운동 → +1
+            recordDates: new Set(['2026-06-01', '2026-06-03']),
+            freeDates: new Set(['2026-06-03', '2026-06-07']), // 06-03 중복
         });
-        expect(score).toBe(3);
+        expect(score).toBe(3); // 06-01, 06-03, 06-07
     });
-    it('홀딩/결석은 예정일에서만 제외, 기록 있으면 보호', () => {
-        const score = computeActiveScore({
-            scheduledDates: new Set(['2026-06-01', '2026-06-03', '2026-06-08']),
-            recordDates: new Set(['2026-06-08']), // 결석 신청일이지만 실제 기록 → 인정
-            absenceDates: new Set(['2026-06-01', '2026-06-08']),
-            holdingRanges: [{ start: '2026-06-03', end: '2026-06-03' }],
-        });
-        // 06-01 결석 제외, 06-03 홀딩 제외, 06-08 기록 보호 → 1
-        expect(score).toBe(1);
+    it('기록이 없으면 0 (예정 수업일은 인정 안 함)', () => {
+        expect(computeActiveScore({ recordDates: new Set(), freeDates: new Set() })).toBe(0);
+        expect(computeActiveScore({})).toBe(0);
+    });
+    it('자율운동만 있어도 인정', () => {
+        const score = computeActiveScore({ freeDates: new Set(['2026-06-10', '2026-06-11']) });
+        expect(score).toBe(2);
     });
 });

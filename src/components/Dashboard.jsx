@@ -60,23 +60,17 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     }, [user, students]);
 
     // 새 달 첫 접속 시 지난달 활동으로 티어 재계산 → 변동 있으면 팝업.
-    // students 재로드로 effect가 재실행돼도 같은 달엔 changed:false라 중복 팝업 없음.
+    // 같은 달엔 changed:false라 재실행돼도 중복 팝업 없음.
     useEffect(() => {
         if (!user || user.role === 'coach') return;
         let cancel = false;
-        const row = students?.find(s => s['이름'] === user.username && s['요일 및 시간']);
-        refreshStudentTier({
-            userName: user.username,
-            scheduleStr: row?.['요일 및 시간'],
-            startYMD: row?.['시작날짜'],
-            endYMD: row?.['종료날짜'],
-        }).then(change => {
+        refreshStudentTier({ userName: user.username }).then(change => {
             if (cancel || !change) return;
             if (change.tier) setTierMap(prev => ({ ...prev, [user.username]: change.tier }));
             if (change.changed) setTierChange(change);
         });
         return () => { cancel = true; };
-    }, [user, students]);
+    }, [user]);
 
     // 수강생 대기 신청 목록
     const [studentWaitlist, setStudentWaitlist] = useState([]);

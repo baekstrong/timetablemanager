@@ -21,7 +21,7 @@ import {
     onSnapshot,
     startAfter
 } from 'firebase/firestore';
-import { scoreToTier, scheduledDatesInMonth, computeActiveScore, compareTiers } from '../utils/tiers';
+import { scoreToTier, computeActiveScore, compareTiers } from '../utils/tiers';
 
 // ============================================
 // INTERNAL HELPERS
@@ -1718,32 +1718,26 @@ export const getMonthlyAttendanceHistory = async (userName, monthsBack = 12) => 
 // 지정 달(ym 'YYYY-MM')의 Firebase 활동 소스 수집.
 // records/freeWorkout은 복합 인덱스 회피를 위해 날짜 범위로만 쿼리 후 이름은 클라이언트 필터.
 const getMonthlyActivitySources = async (userName, ym) => {
-    return safeRead({ recordDates: new Set(), freeDates: new Set(), absenceDates: new Set(), holdingRanges: [], holidayDates: new Set() }, async () => {
+    return safeRead({ recordDates: new Set(), freeDates: new Set() }, async () => {
         const [y, m] = ym.split('-').map(Number);
         const monthStart = `${ym}-01`;
         const next = new Date(y, m, 1);
         const nextStart = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`;
         const name = (userName || '').trim();
         const lower = name.toLowerCase();
-        const [records, free, absences, holdings, holidays] = await Promise.all([
+        const [records, free] = await Promise.all([
             queryDocs('records', where('date', '>=', monthStart), where('date', '<', nextStart)),
             queryDocs('freeWorkoutAttendance', where('date', '>=', monthStart), where('date', '<', nextStart)),
-            queryDocs('absenceRequests', where('studentName', '==', name), where('status', '==', 'active')),
-            queryDocs('holdingRequests', where('studentName', '==', name), where('status', '==', 'active')),
-            getHolidays(),
         ]);
         const recordDates = new Set(records.filter(r => (r.userName || '').trim().toLowerCase() === lower).map(r => r.date).filter(Boolean));
         const freeDates = new Set(free.filter(r => (r.studentName || '').trim() === name).map(r => r.date).filter(Boolean));
-        const absenceDates = new Set(absences.map(a => a.date).filter(d => d >= monthStart && d < nextStart));
-        const holdingRanges = holdings.filter(h => h.startDate && h.endDate).map(h => ({ start: h.startDate, end: h.endDate }));
-        const holidayDates = new Set((holidays || []).map(h => h.date).filter(d => d >= monthStart && d < nextStart));
-        return { recordDates, freeDates, absenceDates, holdingRanges, holidayDates };
+        return { recordDates, freeDates };
     });
 };
 
 // 새 달 첫 접속 시 지난달 활동으로 티어 재계산 → users/{이름}에 저장.
 // 같은 달에 이미 계산했으면 그냥 현재 티어 반환(팝업 없음). 첫 계산(이전 티어 없음)은 팝업 생략.
-export const refreshStudentTier = async ({ userName, scheduleStr, startYMD, endYMD }) => {
+export const refreshStudentTier = async ({ userName }) => {
     return safeRead({ changed: false, tier: null }, async () => {
         const name = (userName || '').trim();
         if (!name) return { changed: false, tier: null };
@@ -1765,8 +1759,7 @@ export const refreshStudentTier = async ({ userName, scheduleStr, startYMD, endY
         const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const lastYm = `${lm.getFullYear()}-${String(lm.getMonth() + 1).padStart(2, '0')}`;
         const src = await getMonthlyActivitySources(name, lastYm);
-        const scheduledDates = scheduleStr ? scheduledDatesInMonth(scheduleStr, startYMD, endYMD, lastYm, src.holidayDates) : new Set();
-        const score = computeActiveScore({ scheduledDates, ...src });
+        const score = computeActiveScore(src);
         const tier = scoreToTier(score);
         const prevTier = u.tier || null;
         const isNew = !prevTier; // 첫 계산 → 등급 안내 팝업
@@ -1815,58 +1808,43 @@ export const backfillTiersForMonth = async (students) => {
         const userMeta = {};
         usersSnap.forEach(d => { const x = d.data() || {}; userMeta[d.id] = { tier: x.tier || null, tierMonth: x.tierMonth }; });
 
-        // 이름별 대표 등록행(스케줄 있는 행 우선)
-        const byName = new Map();
+        // 이름별 1건(고유 이름 집합)
+        const names = new Set();
         for (const s of students) {
             const nm = (s['이름'] || '').trim();
-            if (!nm) continue;
-            const hasSched = !!s['요일 및 시간'];
-            const cur = byName.get(nm);
-            if (!cur || (hasSched && !cur.hasSched)) {
-                byName.set(nm, { name: nm, sched: s['요일 및 시간'], start: s['시작날짜'], end: s['종료날짜'], hasSched });
-            }
+            if (nm) names.add(nm);
         }
         // 계정 있고 이번 달 미계산인 학생만 대상
-        const targets = [...byName.values()].filter(t => userMeta[t.name] && userMeta[t.name].tierMonth !== ym);
+        const targets = [...names].filter(nm => userMeta[nm] && userMeta[nm].tierMonth !== ym);
         if (targets.length === 0) return getTierMap();
 
-        // 지난달 데이터 일괄 조회
+        // 지난달 데이터 일괄 조회(기록·자율운동만)
         const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const lastYm = `${lm.getFullYear()}-${String(lm.getMonth() + 1).padStart(2, '0')}`;
         const [ly, lmo] = lastYm.split('-').map(Number);
         const monthStart = `${lastYm}-01`;
         const next = new Date(ly, lmo, 1);
         const nextStart = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`;
-        const [records, free, holdings, absences, holidays] = await Promise.all([
+        const [records, free] = await Promise.all([
             queryDocs('records', where('date', '>=', monthStart), where('date', '<', nextStart)),
             queryDocs('freeWorkoutAttendance', where('date', '>=', monthStart), where('date', '<', nextStart)),
-            queryDocs('holdingRequests', where('status', '==', 'active')),
-            queryDocs('absenceRequests', where('status', '==', 'active')),
-            getHolidays(),
         ]);
-        const holidayDates = new Set((holidays || []).map(h => h.date).filter(d => d >= monthStart && d < nextStart));
 
         // 이름별 그룹핑(records/free는 대소문자 무시)
         const addSet = (map, key, val) => { if (!key || !val) return; let s = map.get(key); if (!s) { s = new Set(); map.set(key, s); } s.add(val); };
         const recByName = new Map(); records.forEach(r => addSet(recByName, (r.userName || '').trim().toLowerCase(), r.date));
         const freeByName = new Map(); free.forEach(r => addSet(freeByName, (r.studentName || '').trim().toLowerCase(), r.date));
-        const absByName = new Map(); absences.forEach(a => { if (a.date >= monthStart && a.date < nextStart) addSet(absByName, (a.studentName || '').trim(), a.date); });
-        const holdByName = new Map(); holdings.forEach(h => { const k = (h.studentName || '').trim(); if (!k || !h.startDate || !h.endDate) return; (holdByName.get(k) || holdByName.set(k, []).get(k)).push({ start: h.startDate, end: h.endDate }); });
 
         const batch = writeBatch(db);
-        for (const t of targets) {
-            const scheduledDates = t.sched ? scheduledDatesInMonth(t.sched, t.start, t.end, lastYm, holidayDates) : new Set();
+        for (const nm of targets) {
             const score = computeActiveScore({
-                scheduledDates,
-                recordDates: recByName.get(t.name.toLowerCase()) || new Set(),
-                freeDates: freeByName.get(t.name.toLowerCase()) || new Set(),
-                absenceDates: absByName.get(t.name) || new Set(),
-                holdingRanges: holdByName.get(t.name) || [],
+                recordDates: recByName.get(nm.toLowerCase()) || new Set(),
+                freeDates: freeByName.get(nm.toLowerCase()) || new Set(),
             });
             const tier = scoreToTier(score);
-            batch.set(doc(db, 'users', t.name), {
+            batch.set(doc(db, 'users', nm), {
                 tier: tier.key, tierMonth: ym, tierScore: score,
-                prevTier: userMeta[t.name].tier, tierIntroPending: true, tierUpdatedAt: serverTimestamp(),
+                prevTier: userMeta[nm].tier, tierIntroPending: true, tierUpdatedAt: serverTimestamp(),
             }, { merge: true });
         }
         await batch.commit();
