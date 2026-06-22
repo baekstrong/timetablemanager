@@ -122,14 +122,40 @@ export async function confirmAllStamps() {
 export function renderStampBadge(stamp) {
     if (!stamp || !STAMP_GRADES[stamp.grade]) return '';
     const g = STAMP_GRADES[stamp.grade];
-    const comment = stamp.comment
-        ? `<p class="text-sm text-gray-600 mt-1">${escapeHtml(stamp.comment)}</p>` : '';
+    const monthNum = parseInt((stamp.month || '').split('-')[1], 10) || '';
+    const note = stamp.comment
+        ? `<p class="stamp-note">“${escapeHtml(stamp.comment)}”<span class="stamp-note-by"> — 코치</span></p>` : '';
     return `
-        <div class="rounded-lg p-4 mb-4 text-center" style="border:2px solid ${g.color};background:${g.color}1A">
-            <div class="inline-block px-4 py-1 rounded-full font-bold text-white" style="background:${g.color}">
-                ${g.label}
+        <style>
+          @keyframes stamp-press {
+            0% { opacity:0; transform: rotate(-7deg) scale(1.6); }
+            60% { opacity:.9; transform: rotate(-7deg) scale(.94); }
+            100% { opacity:.9; transform: rotate(-7deg) scale(1); }
+          }
+          .stamp-wrap { text-align:center; margin:6px 0 18px; }
+          .stamp-seal { position:relative; display:inline-flex; align-items:center; justify-content:center;
+            width:128px; height:128px; border-radius:50%; border:3px solid var(--ink); color:var(--ink);
+            transform:rotate(-7deg); opacity:.9; mix-blend-mode:multiply;
+            box-shadow: inset 0 0 10px rgba(0,0,0,.06);
+            animation: stamp-press .5s cubic-bezier(.2,.8,.2,1.2) both; }
+          .stamp-seal::before { content:''; position:absolute; inset:8px; border-radius:50%;
+            border:1.5px dashed currentColor; opacity:.55; }
+          .stamp-core { display:flex; flex-direction:column; align-items:center; line-height:1.15; }
+          .stamp-star { font-size:11px; opacity:.8; }
+          .stamp-label { font-weight:800; font-size:16px; letter-spacing:-.5px; max-width:92px; text-align:center; padding:2px 0; }
+          .stamp-month { font-size:10px; font-weight:700; opacity:.75; letter-spacing:1px; }
+          .stamp-note { margin-top:12px; font-size:13.5px; color:#4b5563; font-style:italic; }
+          .stamp-note-by { color:#9ca3af; font-style:normal; font-size:12px; }
+        </style>
+        <div class="stamp-wrap">
+          <div class="stamp-seal" style="--ink:${g.color}">
+            <div class="stamp-core">
+              <span class="stamp-star">✦</span>
+              <span class="stamp-label">${g.label}</span>
+              <span class="stamp-month">${monthNum}월 근력학교</span>
             </div>
-            ${comment}
+          </div>
+          ${note}
         </div>`;
 }
 
