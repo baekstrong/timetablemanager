@@ -73,6 +73,9 @@ export function renderStudentScreen() {
                 </button>
             </div>
 
+            <!-- 이번 달 도장 -->
+            <div id="myStampContainer"></div>
+
             <!-- 고정된 메모 목록 (캘린더 바로 위) -->
             <div id="pinnedMemosContainer" class="mb-4"></div>
 
@@ -152,6 +155,9 @@ export function renderCoachScreen() {
 
             <!-- 어드민 메뉴 (운동 관리) -->
             <div class="mb-4 text-right flex justify-end gap-2">
+                <button onclick="openStampModal()" class="bg-[#E94E58] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition flex items-center inline-flex gap-2">
+                    📋 이달의 도장
+                </button>
                 <button onclick="openAdminModal()" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-900 transition flex items-center inline-flex gap-2">
                     ⚙️ 운동 종목 관리
                 </button>
@@ -262,7 +268,7 @@ export function renderAdminModalHTML() {
                     <h2 class="text-xl font-bold text-gray-800">⚙️ 운동 종목 관리</h2>
                     <button onclick="closeAdminModal()" class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
                 </div>
-                
+
                 <div class="mb-4 flex gap-2">
                     <input type="text" id="newExerciseInput" placeholder="새 운동 이름 입력"
                            class="flex-1 px-3 py-2 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7]"
@@ -279,6 +285,24 @@ export function renderAdminModalHTML() {
             </div>
         </div>
     `;
+}
+
+export function renderStampModalHTML() {
+    return `
+        <div id="stampModal" class="modal">
+            <div class="modal-content max-w-2xl w-full">
+                <div class="flex justify-between items-center mb-1">
+                    <h2 class="text-xl font-bold text-gray-800">📋 ${(() => { const n = new Date(); return `${n.getMonth() + 1}월의 도장`; })()}</h2>
+                    <button onclick="closeStampModal()" class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+                </div>
+                <p id="stampModalSubtitle" class="text-xs text-gray-500 mb-3"></p>
+                <div id="stampModalBody" class="max-h-[60vh] overflow-y-auto"></div>
+                <button id="stampConfirmBtn" onclick="confirmAllStamps()"
+                        class="mt-4 w-full bg-[#E94E58] hover:opacity-90 text-white py-3 rounded-lg font-bold">
+                    전체 확정
+                </button>
+            </div>
+        </div>`;
 }
 
 // 편집 모달 렌더링

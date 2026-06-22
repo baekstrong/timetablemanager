@@ -1,5 +1,5 @@
 import * as Admin from './modules/admin.js';
-import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminModalHTML } from './ui.js';
+import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminModalHTML, renderStampModalHTML } from './ui.js';
 
 import { state, db, firebaseInitialized } from './state.js';
 // Import all functions to expose to window
@@ -8,6 +8,7 @@ import * as Sets from './modules/sets.js';
 import * as Records from './modules/records.js';
 import * as Calendar from './modules/calendar.js';
 import * as Coach from './modules/coach.js';
+import * as Stamp from './modules/stamp.js';
 
 // ============================================
 // Auto Save Logic (DOM Dependent)
@@ -218,7 +219,7 @@ window.render = async function () {
     if (!state.currentUser) {
         app.innerHTML = renderLoginScreen();
     } else if (state.isCoach) {
-        app.innerHTML = renderCoachScreen() + renderAdminModalHTML();
+        app.innerHTML = renderCoachScreen() + renderAdminModalHTML() + renderStampModalHTML();
 
         // * Default Date: Set to Today
         const today = new Date();
@@ -250,6 +251,7 @@ window.render = async function () {
         ]);
 
         Records.updatePinnedDisplay();
+        Stamp.loadMyStamp();
         setTimeout(loadAutoSavedData, 100);
     }
 }
@@ -266,6 +268,7 @@ async function initApp() {
     Object.assign(window, Calendar);
     Object.assign(window, Coach);
     Object.assign(window, Admin);
+    Object.assign(window, Stamp);
 
     window.loadAutoSavedData = loadAutoSavedData; // Explicitly assign local function
 
