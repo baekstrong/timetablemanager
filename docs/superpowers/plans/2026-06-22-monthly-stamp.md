@@ -254,8 +254,13 @@ export async function openStampModal() {
     const existing = {};
     stampSnap.forEach(d => { existing[d.data().userName] = d.data(); });
 
+    // 3.5) 학생별 고정 메모 (전체 1회 조회)
+    const pmSnap = await db.collection('pinnedMemos').get();
+    const memosByStudent = {};
+    pmSnap.forEach(d => { memosByStudent[d.id] = (d.data().memos || []); });
+
     // 4) 행 렌더
-    const rows = students.map(name => {
+    const rows = students.map((name, idx) => {
         const stats = computeStampStats(byStudent[name] || []);
         const prefGrade = existing[name]?.grade || suggestGrade(stats.activeDays);
         const comment = existing[name]?.comment || '';
@@ -263,13 +268,21 @@ export async function openStampModal() {
         const options = STAMP_ORDER.map(g =>
             `<option value="${g}" ${g === prefGrade ? 'selected' : ''}>${STAMP_GRADES[g].label}</option>`
         ).join('');
+        const memos = memosByStudent[name] || [];
+        const memoBtn = `<button type="button" onclick="document.getElementById('stamp-memos-${idx}').classList.toggle('hidden')" class="text-xs text-[#329BE7] underline ${memos.length ? '' : 'opacity-40 pointer-events-none'}">📝 메모 ${memos.length}개</button>`;
+        const memoList = memos.length === 0 ? '' : `
+                <div id="stamp-memos-${idx}" class="hidden mt-1 pl-2 border-l-2 border-gray-200 space-y-1">
+                    ${memos.map(m => `<div class="text-xs text-gray-600">${m.pain ? '⚠️ ' : ''}<b>${escapeHtml(m.exercise)}</b> ${escapeHtml(m.memo)}</div>`).join('')}
+                </div>`;
         return `
             <div class="border-b border-gray-200 py-2" data-student="${escapeHtml(name)}">
                 <div class="flex items-center gap-2 flex-wrap">
                     <span class="font-bold text-gray-800 w-20">${escapeHtml(name)}</span>
                     <span class="text-xs text-gray-500">활동 ${stats.activeDays}일 · 일평균 ${stats.avgExercises}종목 ${warn ? '⚠️' : ''}</span>
+                    ${memoBtn}
                     <select class="stamp-grade-select ml-auto px-2 py-1 border rounded-lg text-sm">${options}</select>
                 </div>
+                ${memoList}
                 <input type="text" class="stamp-comment-input w-full mt-1 px-2 py-1 border rounded-lg text-sm"
                        placeholder="💬 한 줄 코멘트 (선택)" value="${escapeHtml(comment)}">
             </div>`;
@@ -485,7 +498,8 @@ import * as Stamp from './modules/stamp.js';
 npm run dev
 ```
 1. 코치로 훈련일지 진입 → "📋 이달의 도장" 버튼이 "운동 종목 관리" 왼쪽에 보임.
-2. 클릭 → 모달에 수강생 전원 + 활동일/일평균/등급 드롭다운(자동추천 채워짐) 표시.
+2. 클릭 → 모달에 수강생 전원 + 활동일/일평균/`📝 메모 N개`/등급 드롭다운(자동추천 채워짐) 표시.
+2-1. `📝 메모 N개` 클릭 → 그 학생의 고정 메모 목록(운동명+내용, 통증 ⚠️)이 펼쳐지고, 다시 클릭하면 접힘. 메모 0개면 비활성(흐릿).
 3. 등급 변경/코멘트 입력 후 [전체 확정] → "N명에게 도장을 찍었습니다" alert, 모달 닫힘.
 4. Firestore `monthlyStamps`에 `{이름}__{YYYY-MM}` 문서 생성 확인.
 
