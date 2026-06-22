@@ -14,6 +14,8 @@ import {
 import { getHolidays, createRenewalContract, createNewStudentRegistration, getEntranceClasses, updateEntranceClass, updateNewStudentRegistration } from '../services/firebaseService';
 import { sendApprovalNotifications } from '../services/smsService';
 import { formatEntranceDate } from '../utils/dateUtils';
+import { db } from '../config/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { CONTRACT_VERSION } from '../data/contractTerms';
 import './StudentRegistrationModal.css';
 
@@ -103,7 +105,8 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
         '홀딩 사용여부': 'X',
         핸드폰: '',
         성별: '',
-        직업: ''
+        직업: '',
+        비밀번호: ''
     });
 
     // 시트 목록 & 공휴일 로드
@@ -317,6 +320,11 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
             alert('필수 항목을 모두 입력해주세요.\n(이름, 주횟수, 요일 및 시간, 시작날짜, 대상 시트)');
             return;
         }
+        // 신규 등록은 로그인 계정 생성을 위해 비밀번호 필수
+        if (registrationType === 'new' && !form.비밀번호.trim()) {
+            alert('신규 등록은 로그인 비밀번호를 입력해야 합니다.');
+            return;
+        }
 
         setSubmitting(true);
         try {
@@ -382,6 +390,24 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
             ];
 
             await writeSheetData(`${targetSheet}!A${nextSheetRow}:R${nextSheetRow}`, [rowData]);
+
+            // 신규 등록: 로그인 계정 생성 (이미 있으면 비밀번호 덮어쓰지 않음)
+            if (registrationType === 'new') {
+                try {
+                    const userRef = doc(db, 'users', form.이름.trim());
+                    const existing = await getDoc(userRef);
+                    if (!existing.exists()) {
+                        await setDoc(userRef, {
+                            password: form.비밀번호.trim(),
+                            isCoach: false,
+                            createdAt: serverTimestamp()
+                        });
+                    }
+                } catch (acctErr) {
+                    console.warn('로그인 계정 생성 실패 (시트 등록은 완료):', acctErr);
+                    alert('⚠️ 시트 등록은 됐지만 로그인 계정 생성에 실패했습니다. 다시 시도하거나 코치에게 문의하세요.');
+                }
+            }
 
             // 서식 적용 (신규만 주황색, 미결제는 빨간색)
             try {
@@ -912,6 +938,15 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
                                     placeholder="직업"
                                 />
                             </div>
+                        </div>
+                        <div className="reg-field-group">
+                            <label>로그인 비밀번호 *</label>
+                            <input
+                                type="text"
+                                value={form.비밀번호}
+                                onChange={(e) => handleChange('비밀번호', e.target.value)}
+                                placeholder="수강생이 로그인할 비밀번호"
+                            />
                         </div>
                     </>
                 )}
