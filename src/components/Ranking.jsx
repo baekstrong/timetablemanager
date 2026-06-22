@@ -9,9 +9,11 @@ import {
     getMonthlyAttendanceHistory,
     getAllExerciseNames,
     deletePersonalBest,
-    updatePersonalBest
+    updatePersonalBest,
+    getTierMap
 } from '../services/firebaseService';
 import PRSubmitModal from './PRSubmitModal';
+import TierBadge from './TierBadge';
 import {
     Bar,
     Line,
@@ -109,6 +111,14 @@ const Ranking = ({ user, onBack }) => {
         return m;
     }, [students]);
 
+    // 이름 → 티어 맵 (users 컬렉션, 5분 캐시). 게시판과 동일 소스
+    const [tierMap, setTierMap] = useState({});
+    useEffect(() => {
+        let cancel = false;
+        getTierMap().then(map => { if (!cancel) setTierMap(map); });
+        return () => { cancel = true; };
+    }, []);
+
     const studentNames = useMemo(() => {
         const set = new Set();
         for (const s of (students || [])) {
@@ -166,6 +176,7 @@ const Ranking = ({ user, onBack }) => {
                         <RankingTab
                             exerciseSuggestions={exerciseSuggestions}
                             genderMap={genderMap}
+                            tierMap={tierMap}
                             refreshNonce={refreshNonce}
                         />
                     )}
@@ -209,7 +220,7 @@ const Ranking = ({ user, onBack }) => {
 // 랭킹 탭
 // ============================================
 
-const RankingTab = ({ exerciseSuggestions, genderMap, refreshNonce }) => {
+const RankingTab = ({ exerciseSuggestions, genderMap, tierMap, refreshNonce }) => {
     const [subTab, setSubTab] = useState('topn'); // 'topn' | 'monthly' | 'attendance'
     const [genderFilter, setGenderFilter] = useState('all'); // 'all' | '남' | '여'
     const [selectedExercise, setSelectedExercise] = useState('');
@@ -282,7 +293,7 @@ const RankingTab = ({ exerciseSuggestions, genderMap, refreshNonce }) => {
                                     ) : topNData.map((p, i) => (
                                         <li key={p.id} className="ranking-row">
                                             <span className="ranking-rank">{i + 1}</span>
-                                            <span className="ranking-name">{p.userName}</span>
+                                            <span className="ranking-name"><TierBadge tier={tierMap[p.userName]} />{p.userName}</span>
                                             <span className="ranking-value">{formatPRValue(p)}</span>
                                             <span className="ranking-date">{formatDate(p.date)}</span>
                                         </li>
@@ -294,13 +305,13 @@ const RankingTab = ({ exerciseSuggestions, genderMap, refreshNonce }) => {
                 </>
             )}
 
-            {subTab === 'monthly' && <MonthlyPRSection genderMap={genderMap} genderFilter={genderFilter} />}
-            {subTab === 'attendance' && <AttendanceSection genderMap={genderMap} genderFilter={genderFilter} />}
+            {subTab === 'monthly' && <MonthlyPRSection genderMap={genderMap} tierMap={tierMap} genderFilter={genderFilter} />}
+            {subTab === 'attendance' && <AttendanceSection genderMap={genderMap} tierMap={tierMap} genderFilter={genderFilter} />}
         </div>
     );
 };
 
-const MonthlyPRSection = ({ genderMap, genderFilter }) => {
+const MonthlyPRSection = ({ genderMap, tierMap = {}, genderFilter }) => {
     const [list, setList] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -325,7 +336,7 @@ const MonthlyPRSection = ({ genderMap, genderFilter }) => {
         <ul className="ranking-list">
             {filtered.map(p => (
                 <li key={p.id} className="ranking-row">
-                    <span className="ranking-name">{p.userName}</span>
+                    <span className="ranking-name"><TierBadge tier={tierMap[p.userName]} />{p.userName}</span>
                     <span className="ranking-exercise">{p.exercise}</span>
                     <span className="ranking-value">{formatPRValue(p)}</span>
                     <span className="ranking-date">{formatDate(p.date)}</span>
@@ -335,7 +346,7 @@ const MonthlyPRSection = ({ genderMap, genderFilter }) => {
     );
 };
 
-const AttendanceSection = ({ genderMap, genderFilter }) => {
+const AttendanceSection = ({ genderMap, tierMap = {}, genderFilter }) => {
     const monthOptions = useMemo(() => {
         const list = [];
         const now = new Date();
@@ -401,7 +412,7 @@ const AttendanceSection = ({ genderMap, genderFilter }) => {
                     {filtered.map((e, i) => (
                         <li key={e.userName} className="ranking-row">
                             <span className="ranking-rank">{i + 1}</span>
-                            <span className="ranking-name">{e.userName}</span>
+                            <span className="ranking-name"><TierBadge tier={tierMap[e.userName]} />{e.userName}</span>
                             <span className="ranking-value">
                                 {sortBy === 'days' ? `${e.trainingDays}일` : `${e.volume.toLocaleString()}kg`}
                             </span>
