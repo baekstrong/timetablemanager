@@ -18,7 +18,7 @@ import BottomNav from './components/BottomNav';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import UpdateBanner from './components/UpdateBanner';
 import { startVersionCheck } from './utils/versionCheck';
-import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent, getLatestPostCreatedAt, getNewStudentRegistrations } from './services/firebaseService';
+import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent, getLatestPostCreatedAt, getNewStudentRegistrations, isMonthlyStampDone } from './services/firebaseService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from './config/firebase';
 import './App.css';
@@ -45,6 +45,7 @@ function AppContent() {
   const [hasWaitlistNotification, setHasWaitlistNotification] = useState(false);
   const [hasContractNotification, setHasContractNotification] = useState(false);
   const [hasNewPostNotification, setHasNewPostNotification] = useState(false);
+  const [hasStampPendingNotification, setHasStampPendingNotification] = useState(false);
   const [isStudentDataLoading, setIsStudentDataLoading] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const { getStudentByName, findStudentAcrossSheets } = useGoogleSheets();
@@ -77,6 +78,32 @@ function AppContent() {
     checkPendingIfVisible();
     const interval = setInterval(checkPendingIfVisible, NOTIFICATION_POLL_INTERVAL);
     const onVisible = () => checkPendingIfVisible();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [user]);
+
+  // 코치: 이번 달 도장 미완료면 훈련일지 탭에 빨간점
+  useEffect(() => {
+    if (!user || user.role !== 'coach') return;
+
+    const checkStamp = async () => {
+      try {
+        const now = new Date();
+        const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const done = await isMonthlyStampDone(monthStr);
+        setHasStampPendingNotification(!done);
+      } catch {
+        // ignore polling errors
+      }
+    };
+
+    const checkIfVisible = () => { if (isPageVisible()) checkStamp(); };
+    checkIfVisible();
+    const interval = setInterval(checkIfVisible, NOTIFICATION_POLL_INTERVAL);
+    const onVisible = () => checkIfVisible();
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       clearInterval(interval);
@@ -423,6 +450,7 @@ function AppContent() {
           hasWaitlistNotification={hasWaitlistNotification}
           hasContractNotification={hasContractNotification}
           hasNewPostNotification={hasNewPostNotification}
+          hasStampPendingNotification={hasStampPendingNotification}
         />
       )}
     </div>

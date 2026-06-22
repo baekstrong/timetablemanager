@@ -1852,3 +1852,14 @@ export const backfillTiersForMonth = async (students) => {
         return getTierMap();
     });
 };
+
+// 이번 달 월간 도장 작업을 했는지 (문서 1개라도 있으면 완료로 간주)
+export async function isMonthlyStampDone(monthStr) {
+    const q = query(
+        collection(db, 'monthlyStamps'),
+        where('month', '==', monthStr),
+        queryLimit(1)
+    );
+    const snap = await getDocs(q);
+    return !snap.empty;
+}
