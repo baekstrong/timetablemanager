@@ -42,7 +42,7 @@ export default function TierChangeModal({ change, onClose }) {
                 </div>
                 <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                     {isNew
-                        ? '지난달 활동을 기준으로 등급이 매겨졌어요. 수업 출석에 운동 기록·개인 운동을 더할수록 등급이 올라갑니다! 💪'
+                        ? '지난달 활동을 기준으로 등급이 매겨졌어요. 수업에 출석해도 훈련일지를 작성하지 않으면 그날은 점수에 반영되지 않아요. 운동한 날엔 꼭 기록을 남겨야 등급이 올라갑니다! 💪'
                         : up
                             ? '지난달 정말 열심히 하셨어요! 이 기세 그대로 이어가요 💪'
                             : '이번 달은 조금 더 분발해봐요. 충분히 다시 올라갈 수 있어요!'}
