@@ -395,12 +395,50 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, fi
         `;
     }
 
-    // 2. 수강생 고정 메모 (하이라이트 메모 상단 정렬)
-    if (studentList.length > 0) {
+    // 2. 수강생 고정 메모 — 인라인(단일 종목): 버튼을 헤더줄로, 메모는 전체 폭
+    if (filterExercise && studentList.length > 0) {
+        const { pinned, idx } = studentList[0];
+        const memoEsc = (pinned.memo || '').replace(/`/g, '\\`').replace(/'/g, "\\'");
+        const isHighlighted = pinned.highlighted === true;
+        const starBtn = isHighlighted
+            ? `<button onclick="toggleStudentMemoHighlight(${idx})" class="text-yellow-400 hover:text-yellow-500 text-lg leading-none" title="중요 해제">★</button>`
+            : `<button onclick="toggleStudentMemoHighlight(${idx})" class="text-gray-300 hover:text-yellow-400 text-lg leading-none" title="중요 표시">☆</button>`;
+        html += `
+            <div class="bg-[#329BE71A] border-2 border-[#329BE7] rounded-lg p-4">
+                <div class="flex items-center justify-between mb-3 gap-2">
+                    <h3 class="text-sm font-bold text-[#327AB8] whitespace-nowrap">📌 운동 메모</h3>
+                    <div class="flex gap-1 flex-shrink-0">
+                        <button onclick="editStudentMemo('${pinned.exercise}', \`${memoEsc}\`)" class="text-xs px-2 py-1 bg-[#329BE71A] text-[#327AB8] rounded hover:bg-[#329BE7]/20 transition">수정</button>
+                        <button onclick="archiveWorkoutMemo(${idx})" class="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition">보관</button>
+                        <button onclick="removePinnedExercise(${idx});" class="text-xs px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 transition">삭제</button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg p-4 ${isHighlighted ? 'border-yellow-400 bg-yellow-50 ring-1 ring-yellow-200' : 'border border-[#EFEFF0]'}">
+                    <div class="flex items-center gap-2 mb-1">
+                        ${starBtn}
+                        <div class="text-base font-bold text-gray-800">${pinned.exercise}</div>
+                        ${pinned.pain ? '<span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-semibold">⚠️ 통증</span>' : ''}
+                        ${isHighlighted ? '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-semibold">중요</span>' : ''}
+                    </div>
+                    ${pinned.memo ? `<div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">${pinned.memo}</div>` : '<div class="text-sm text-gray-400 italic">메모 없음</div>'}
+                    ${pinned.coachComment && pinned.coachComment.trim() !== '' ? `
+                        <div class="mt-3 bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded-r-md group relative">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs font-bold text-yellow-800 bg-yellow-200 px-2 py-0.5 rounded">👨‍🏫 코치 코멘트</span>
+                                <button onclick="removeCoachComment('${pinned.exercise}')" class="text-xs text-red-400 hover:text-red-600 font-bold px-2 py-1 opacity-50 group-hover:opacity-100 transition">삭제</button>
+                            </div>
+                            <div class="text-sm text-yellow-900 whitespace-pre-wrap font-medium">${pinned.coachComment}</div>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    } else if (studentList.length > 0) {
+        // (전체 목록 모드 — 현재 미사용, 보존)
         html += `
             <div class="bg-[#329BE71A] border-2 border-[#329BE7] rounded-lg p-4">
                 <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-bold text-[#327AB8]">📌 운동 메모${filterExercise ? '' : ` (${studentList.length}개)`}</h3>
+                    <h3 class="text-sm font-bold text-[#327AB8]">📌 운동 메모 (${studentList.length}개)</h3>
                 </div>
                 <div class="space-y-4">
                      ${studentList.map(({ pinned, idx }) => {
