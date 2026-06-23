@@ -76,9 +76,6 @@ export function renderStudentScreen() {
             <!-- 이번 달 도장 -->
             <div id="myStampContainer"></div>
 
-            <!-- 고정된 메모 목록 (캘린더 바로 위) -->
-            <div id="pinnedMemosContainer" class="mb-4"></div>
-
             <!-- 달력 -->
             <div class="bg-white rounded-lg border border-[#EFEFF0] p-4 mb-4">
                 <h3 class="text-lg font-bold mb-3 text-gray-800">📅 출석 캘린더</h3>
@@ -96,8 +93,8 @@ export function renderStudentScreen() {
                     <div class="relative">
                         <input type="text" id="exercise" placeholder="운동 종목 (예: 벤치프레스)"
                                autocomplete="off"
-                               oninput="autoSaveFormData(); handleExerciseSearch(this.value);"
-                               onfocus="handleExerciseSearch(this.value)"
+                               oninput="autoSaveFormData(); handleExerciseSearch(this.value); renderExerciseMemo();"
+                               onfocus="handleExerciseSearch(this.value); renderExerciseMemo();"
                                class="w-full px-4 py-3 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7] text-gray-800 font-medium">
                         
                         <!-- Custom Autocomplete Dropdown -->
@@ -115,8 +112,9 @@ export function renderStudentScreen() {
                         <label for="painCheck" class="text-sm font-semibold text-red-700">⚠️ 운동 중 통증이 있었습니다</label>
                     </div>
                     
-                    <!-- 메모 고정 버튼 제거됨 (자동 저장) -->
-                    
+                    <!-- 선택한 종목의 저장된 메모 (이전 기록처럼 인라인 표시) -->
+                    <div id="exerciseMemoCard"></div>
+
                     <textarea id="memo" placeholder="운동 메모 (여기에 입력하면 자동으로 고정됩니다)" rows="2"
                               oninput="autoSaveFormData()"
                               class="w-full px-4 py-2 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7]"></textarea>
@@ -351,21 +349,34 @@ export function renderEditModalContent(data, docId) {
     `;
 }
 
-export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos) {
+// filterExercise 지정 시 해당 종목 메모만 렌더 (운동 기록 폼 인라인 표시용). 미지정 시 전체.
+export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, filterExercise = null) {
+    const coachList = filterExercise
+        ? (coachPinnedMemos || []).filter(m => m.exercise === filterExercise)
+        : (coachPinnedMemos || []);
+
+    // 원본 인덱스 보존 (수정/보관/삭제 핸들러가 인덱스 기반)
+    const indexedMemos = studentPinnedMemos.map((pinned, idx) => ({ pinned, idx }));
+    const studentList = filterExercise
+        ? indexedMemos.filter(({ pinned }) => pinned.exercise === filterExercise)
+        : indexedMemos.sort((a, b) => (b.pinned.highlighted ? 1 : 0) - (a.pinned.highlighted ? 1 : 0));
+
+    if (coachList.length === 0 && studentList.length === 0) return '';
+
     let html = '<div class="space-y-6">';
 
     // 1. 코치 고정 메모 렌더링 (최상단)
-    if (coachPinnedMemos && coachPinnedMemos.length > 0) {
+    if (coachList.length > 0) {
         html += `
-            <div class="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mb-6">
+            <div class="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 ${filterExercise ? '' : 'mb-6'}">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-sm font-bold text-yellow-800 flex items-center gap-2">
                         <span>👨‍🏫 코치 운동 메모</span>
-                        <span class="bg-yellow-200 text-yellow-800 text-xs px-2 py-0.5 rounded-full">${coachPinnedMemos.length}</span>
+                        ${filterExercise ? '' : `<span class="bg-yellow-200 text-yellow-800 text-xs px-2 py-0.5 rounded-full">${coachList.length}</span>`}
                     </h3>
                 </div>
                 <div class="space-y-4">
-                     ${coachPinnedMemos.map(memo => `
+                     ${coachList.map(memo => `
                         <div class="bg-white rounded-lg p-4 border border-yellow-200 relative group">
                             <div class="flex justify-between items-start mb-2">
                                 <div>
@@ -385,22 +396,14 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos) {
     }
 
     // 2. 수강생 고정 메모 (하이라이트 메모 상단 정렬)
-    if (studentPinnedMemos.length > 0) {
-        // 원본 인덱스 보존하면서 하이라이트 상단 정렬
-        const indexedMemos = studentPinnedMemos.map((pinned, idx) => ({ pinned, idx }));
-        indexedMemos.sort((a, b) => {
-            const aH = a.pinned.highlighted ? 1 : 0;
-            const bH = b.pinned.highlighted ? 1 : 0;
-            return bH - aH;
-        });
-
+    if (studentList.length > 0) {
         html += `
             <div class="bg-[#329BE71A] border-2 border-[#329BE7] rounded-lg p-4">
                 <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-bold text-[#327AB8]">📌 운동 메모 (${studentPinnedMemos.length}개)</h3>
+                    <h3 class="text-sm font-bold text-[#327AB8]">📌 운동 메모${filterExercise ? '' : ` (${studentList.length}개)`}</h3>
                 </div>
                 <div class="space-y-4">
-                     ${indexedMemos.map(({ pinned, idx }) => {
+                     ${studentList.map(({ pinned, idx }) => {
                         const isHighlighted = pinned.highlighted === true;
                         const borderClass = isHighlighted ? 'border-yellow-400 bg-yellow-50 ring-1 ring-yellow-200' : 'border-[#EFEFF0]';
                         const starBtn = isHighlighted

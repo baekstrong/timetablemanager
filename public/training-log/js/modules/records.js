@@ -61,6 +61,7 @@ export async function addRecord() {
         document.getElementById('painCheck').checked = false;
         state.currentSets = [];
         renderSets();
+        renderExerciseMemo();
 
 
         if (window.clearAutoSave) window.clearAutoSave();
@@ -563,30 +564,28 @@ export function updateEditSetRepsUnit(index, unit) {
 // ============================================
 
 export async function updatePinnedDisplay() {
-    const pinnedContainer = document.getElementById('pinnedMemosContainer');
-    if (!pinnedContainer) return;
-
-    // 코치 고정 메모 불러오기
+    // 코치 고정 메모 불러오기 (state 갱신)
     if (state.currentUser && firebaseInitialized && db && !state.isCoach) {
         try {
             const doc = await db.collection('coachPinnedMemos').doc(state.currentUser).get();
-            if (doc.exists) {
-                state.coachPinnedMemos = doc.data().memos || [];
-            } else {
-                state.coachPinnedMemos = [];
-            }
+            state.coachPinnedMemos = doc.exists ? (doc.data().memos || []) : [];
         } catch (error) {
             console.error('❌ 코치 고정 메모 불러오기 실패:', error);
         }
     }
-
-    if (state.pinnedExercises.length === 0 && state.coachPinnedMemos.length === 0) {
-        pinnedContainer.innerHTML = '';
-        return;
-    }
-
-    pinnedContainer.innerHTML = generatePinnedMemosHTML(state.coachPinnedMemos, state.pinnedExercises);
+    renderExerciseMemo();
 }
+
+// 현재 입력한 운동 종목의 저장된 메모만 폼 안에 표시 (이전: 페이지 상단 고정)
+export function renderExerciseMemo() {
+    const container = document.getElementById('exerciseMemoCard');
+    if (!container) return;
+    const exercise = (document.getElementById('exercise')?.value || '').trim();
+    container.innerHTML = exercise
+        ? generatePinnedMemosHTML(state.coachPinnedMemos, state.pinnedExercises, exercise)
+        : '';
+}
+window.renderExerciseMemo = renderExerciseMemo;
 
 export function saveWorkoutMemo(exercise, memo, showMessage = true, pain = false) {
     if (!exercise) return;

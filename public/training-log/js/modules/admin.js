@@ -161,6 +161,9 @@ export function selectExerciseSuggestion(name) {
     const suggestionBox = document.getElementById('exerciseSuggestions');
     if (suggestionBox) suggestionBox.classList.add('hidden');
 
+    // 저장된 메모 인라인 표시
+    if (window.renderExerciseMemo) window.renderExerciseMemo();
+
     // 이전 기록 불러오기 confirm
     if (window.loadPreviousRecord) window.loadPreviousRecord(name);
 }
