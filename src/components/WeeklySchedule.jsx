@@ -9,8 +9,9 @@ import {
     checkWaitlistAvailability,
     updateWaitlistAvailability,
     getActiveMakeupWaitlists,
-    addFreeWorkout,
     removeFreeWorkout,
+    addFreeWorkoutRosterMember,
+    removeFreeWorkoutRosterMember,
 } from '../services/firebaseService';
 import { processScheduleTransfer } from '../services/googleSheetsService';
 import { getHolidays } from '../services/firebaseService';
@@ -86,18 +87,28 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         isMakeupHeld,
         lastDayStudents, delayedReregistrationStudents, lastClassByName,
         getCellData, getHolidayInfo,
-        unpaidStudentNames, weeklyDataLoaded, weekFreeWorkout,
+        unpaidStudentNames, weeklyDataLoaded, weekFreeWorkout, freeWorkoutRoster,
     } = scheduleCore;
 
-    // 자율운동 출석: 날짜(YYYY-MM-DD) → [{id, studentName}]
+    // 자율운동 표시: 날짜(YYYY-MM-DD) → [{id, studentName, roster?}]
+    // 날짜별 출석(weekFreeWorkout) + 요일 고정 명단(freeWorkoutRoster)을 머지(이름 중복 제거).
     const freeWorkoutByDate = useMemo(() => {
         const map = {};
         (weekFreeWorkout || []).forEach(e => {
             if (!map[e.date]) map[e.date] = [];
             map[e.date].push({ id: e.id, studentName: e.studentName });
         });
+        // 고정 명단을 해당 요일의 이번 주 날짜 셀에 머지
+        (freeWorkoutRoster || []).forEach(r => {
+            const d = weekDates[r.day] ? weekDateToISO(weekDates[r.day]) : null;
+            if (!d) return;
+            if (!map[d]) map[d] = [];
+            if (!map[d].some(a => a.studentName === r.studentName)) {
+                map[d].push({ id: r.id, studentName: r.studentName, roster: true });
+            }
+        });
         return map;
-    }, [weekFreeWorkout]);
+    }, [weekFreeWorkout, freeWorkoutRoster, weekDates]);
 
     const [freeSlot, setFreeSlot] = useState(null);   // 자율운동 관리 대상 { day, date }
     const [freeProcessing, setFreeProcessing] = useState(false);
@@ -111,7 +122,8 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         if (!freeSlot || freeProcessing) return;
         setFreeProcessing(true);
         try {
-            await addFreeWorkout(name, freeSlot.date);
+            // 고정 명단(요일 기반)으로 추가 → 매주 자동 표시. 티어 활동일엔 미집계.
+            await addFreeWorkoutRosterMember(name, freeSlot.day);
             await loadWeeklyData();
         } catch (e) {
             alert('추가 실패: ' + e.message);
@@ -119,11 +131,13 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
             setFreeProcessing(false);
         }
     };
-    const handleRemoveFreeWorkout = async (id) => {
+    const handleRemoveFreeWorkout = async (entry) => {
         if (freeProcessing) return;
         setFreeProcessing(true);
         try {
-            await removeFreeWorkout(id);
+            // roster=고정 명단, 아니면 과거 날짜별 출석 기록
+            if (entry.roster) await removeFreeWorkoutRosterMember(entry.id);
+            else await removeFreeWorkout(entry.id);
             await loadWeeklyData();
         } catch (e) {
             alert('삭제 실패: ' + e.message);

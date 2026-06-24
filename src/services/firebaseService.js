@@ -747,6 +747,27 @@ export const getFreeWorkoutByDateRange = async (startDate, endDate) => {
     });
 };
 
+// ── 자율운동 고정 명단 — 요일 기반(매주 자동 표시). 화면 표시 전용, 티어 활동일 미집계 ──
+export const getFreeWorkoutRoster = async () => {
+    return safeRead([], async () => queryDocs('freeWorkoutRoster'));
+};
+
+export const addFreeWorkoutRosterMember = async (studentName, day) => {
+    return safeWrite(async () => {
+        const existing = await queryDocs('freeWorkoutRoster',
+            where('studentName', '==', studentName), where('day', '==', day));
+        if (existing.length > 0) return { success: true, id: existing[0].id, already: true };
+        return createDoc('freeWorkoutRoster', { studentName, day });
+    });
+};
+
+export const removeFreeWorkoutRosterMember = async (id) => {
+    return safeWrite(async () => {
+        await firestoreDeleteDoc(doc(db, 'freeWorkoutRoster', id));
+        return { success: true };
+    });
+};
+
 // ============================================
 // ENTRANCE CLASS FUNCTIONS
 // ============================================

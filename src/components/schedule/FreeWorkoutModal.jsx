@@ -40,7 +40,7 @@ export default function FreeWorkoutModal({ dateLabel, attendees, students, onAdd
                                 borderRadius: '8px', padding: '2px 4px 2px 8px', fontSize: '13px', fontWeight: 600,
                             }}>
                                 {a.studentName}
-                                <button onClick={() => onRemove(a.id)} disabled={processing} title="삭제" style={{
+                                <button onClick={() => onRemove(a)} disabled={processing} title="삭제" style={{
                                     border: 'none', background: 'none', cursor: 'pointer', color: '#E94E58',
                                     fontSize: '15px', lineHeight: 1, padding: '0 2px',
                                 }}>×</button>
