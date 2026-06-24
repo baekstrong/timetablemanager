@@ -783,19 +783,19 @@ const GradeGrowthBlock = ({ effectiveTarget, gender }) => {
 
             <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)', margin: '20px 0 8px' }}>
                 학년 사다리
+                <span style={{ fontWeight: 400, fontSize: '11px', color: 'var(--text-muted, #A7A7AA)', marginLeft: '8px' }}>
+                    현재 {curGrade.label}
+                </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '90px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px' }}>
                 {GRADES.map((g, i) => {
                     const reached = maxXp >= g.min;
                     const isCur = g.key === curGrade.key;
                     return (
                         <div key={g.key} style={{ flex: 1, textAlign: 'center' }}>
-                            {isCur && (
-                                <div style={{ fontSize: '9px', color: '#329BE7', fontWeight: 700, lineHeight: '12px' }}>YOU</div>
-                            )}
-                            {!isCur && (
-                                <div style={{ fontSize: '9px', lineHeight: '12px' }}>&nbsp;</div>
-                            )}
+                            <div style={{ fontSize: '9px', color: '#329BE7', fontWeight: 700, lineHeight: '12px' }}>
+                                {isCur ? 'YOU' : ' '}
+                            </div>
                             <div
                                 title={g.label}
                                 style={{
@@ -805,12 +805,14 @@ const GradeGrowthBlock = ({ effectiveTarget, gender }) => {
                                     border: reached ? 'none' : '1px dashed #A7A7AA',
                                 }}
                             />
+                            <div style={{
+                                fontSize: '8px', lineHeight: '11px', marginTop: '3px',
+                                color: isCur ? '#329BE7' : 'var(--text-muted, #A7A7AA)',
+                                fontWeight: isCur ? 700 : 400,
+                            }}>{g.short}</div>
                         </div>
                     );
                 })}
-            </div>
-            <div style={{ fontSize: '10px', color: '#A7A7AA', textAlign: 'center', marginTop: '6px' }}>
-                초등 → 중등 → 고등 → 대학(졸업)
             </div>
         </div>
     );
