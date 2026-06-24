@@ -155,6 +155,11 @@ export function selectExerciseSuggestion(name) {
     const input = document.getElementById('exercise');
     if (input) {
         input.value = name;
+        // 선택 후 이름 수정 불가 — 사람마다 같은 운동을 다르게 적어 데이터가 안 쌓이는 문제 방지
+        input.readOnly = true;
+        input.classList.add('bg-gray-100', 'cursor-not-allowed');
+        const clearBtn = document.getElementById('exerciseClearBtn');
+        if (clearBtn) clearBtn.classList.remove('hidden');
         if (window.autoSaveFormData) window.autoSaveFormData();
     }
 
@@ -166,6 +171,26 @@ export function selectExerciseSuggestion(name) {
 
     // 이전 기록 불러오기 confirm
     if (window.loadPreviousRecord) window.loadPreviousRecord(name);
+}
+
+// 선택 잠금 해제 — 다시 검색할 수 있게 입력칸 비우고 풀어줌
+export function clearExerciseSelection() {
+    const input = document.getElementById('exercise');
+    if (input) {
+        input.value = '';
+        input.readOnly = false;
+        input.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        input.focus();
+    }
+    const clearBtn = document.getElementById('exerciseClearBtn');
+    if (clearBtn) clearBtn.classList.add('hidden');
+    if (window.renderExerciseMemo) window.renderExerciseMemo();
+    if (window.autoSaveFormData) window.autoSaveFormData();
+}
+
+// 등록된 종목만 허용. 목록 로드 실패(캐시 비어있음) 시엔 막지 않음(완전 잠금 방지)
+export function isRegisteredExercise(name) {
+    return exercisesCache.length === 0 || exercisesCache.includes(name);
 }
 
 // Close suggestions on click outside

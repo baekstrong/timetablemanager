@@ -2,6 +2,7 @@ import { state, db, firebaseInitialized } from '../state.js';
 import { normalizeSet, renderSets } from './sets.js';
 import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js';
 import { formatDate } from '../utils.js';
+import { isRegisteredExercise, clearExerciseSelection } from './admin.js';
 
 // ============================================
 // 운동 기록 추가 (수강생)
@@ -14,6 +15,12 @@ export async function addRecord() {
 
     if (!exercise) {
         alert('운동 종목은 필수입니다!');
+        return;
+    }
+
+    // 등록된 종목만 허용 — 직접 타이핑한 임의 이름 차단(데이터 적재 위해)
+    if (!isRegisteredExercise(exercise)) {
+        alert('운동 목록에서 검색해 선택해주세요.\n직접 입력한 이름은 저장되지 않습니다.');
         return;
     }
 
@@ -56,7 +63,7 @@ export async function addRecord() {
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        document.getElementById('exercise').value = '';
+        clearExerciseSelection(); // 입력칸 비우고 잠금 해제
         document.getElementById('memo').value = '';
         document.getElementById('painCheck').checked = false;
         state.currentSets = [];

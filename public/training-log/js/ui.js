@@ -91,12 +91,14 @@ export function renderStudentScreen() {
                 <h3 class="text-lg font-bold mb-4 text-gray-800">🏋️ ${formatDate(state.selectedDate)} 운동 기록</h3>
                 <div class="space-y-3">
                     <div class="relative">
-                        <input type="text" id="exercise" placeholder="운동 종목 (예: 벤치프레스)"
+                        <input type="text" id="exercise" placeholder="운동 종목 검색 후 선택 (예: 벤치프레스)"
                                autocomplete="off"
                                oninput="autoSaveFormData(); handleExerciseSearch(this.value); renderExerciseMemo();"
                                onfocus="handleExerciseSearch(this.value); renderExerciseMemo();"
-                               class="w-full px-4 py-3 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7] text-gray-800 font-medium">
-                        
+                               class="w-full px-4 py-3 pr-10 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7] text-gray-800 font-medium">
+                        <button type="button" id="exerciseClearBtn" onclick="clearExerciseSelection()"
+                                class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+
                         <!-- Custom Autocomplete Dropdown -->
                         <div id="exerciseSuggestions" 
                              class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-[#EFEFF0] rounded-lg z-50 max-h-60 overflow-y-auto">
@@ -315,9 +317,9 @@ export function renderEditModalContent(data, docId) {
                        class="w-full px-3 py-2 border rounded-lg mb-2">
             </div>
             <div>
-                <label class="block text-sm font-semibold mb-1">운동 종목</label>
-                <input type="text" id="edit-exercise" value="${esc(data.exercise)}"
-                       class="w-full px-3 py-2 border rounded-lg">
+                <label class="block text-sm font-semibold mb-1">운동 종목 <span class="text-xs font-normal text-gray-400">(변경 불가)</span></label>
+                <input type="text" id="edit-exercise" value="${esc(data.exercise)}" readonly
+                       class="w-full px-3 py-2 border rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed">
             </div>
 
             <div>
