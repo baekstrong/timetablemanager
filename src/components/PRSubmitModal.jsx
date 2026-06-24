@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { submitPersonalBest } from '../services/firebaseService';
+import { submitPersonalBest, setPRCelebrationPending } from '../services/firebaseService';
 import './PRSubmitModal.css';
 
 const PR_TYPE_OPTIONS = [
@@ -27,6 +27,7 @@ const PRSubmitModal = ({ user, students, defaultStudent, exerciseSuggestions = [
     const [date, setDate] = useState(todayStr());
     const [note, setNote] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [celebration, setCelebration] = useState(null);
 
     useEffect(() => {
         if (prType === 'timeHold') setIntensityUnit('초');
@@ -43,6 +44,16 @@ const PRSubmitModal = ({ user, students, defaultStudent, exerciseSuggestions = [
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, []);
+
+    // 축하 배너 자동 닫기 (1800ms 후 모달 닫기)
+    useEffect(() => {
+        if (!celebration) return;
+        const t = setTimeout(() => {
+            setCelebration(null);
+            onClose();
+        }, 1800);
+        return () => clearTimeout(t);
+    }, [celebration, onClose]);
 
     const filteredExerciseOptions = useMemo(() => {
         const q = exercise.trim().toLowerCase();
@@ -91,10 +102,30 @@ const PRSubmitModal = ({ user, students, defaultStudent, exerciseSuggestions = [
                 date,
                 note: note.trim()
             });
-            if (result.updated) {
-                alert('🏆 신기록 등록 완료!');
+            const isSelf = studentName === user.username;
+            if (isSelf) {
+                if (result.milestone) {
+                    setCelebration(`🏆 ${exercise.trim()} 기준 통과! 다음 중량으로 올라가도 좋아요!`);
+                } else if (result.updated) {
+                    setCelebration('🎉 신기록 축하합니다!');
+                } else {
+                    // 기록됐지만 신기록 아님 — 조용히 닫기
+                    onSubmitted?.(result);
+                    onClose();
+                    return;
+                }
+            } else if (result.updated || result.milestone) {
+                await setPRCelebrationPending(studentName, {
+                    exercise: exercise.trim(),
+                    kind: result.milestone ? 'milestone' : 'record',
+                });
+                onSubmitted?.(result);
+                onClose();
+                return;
             } else {
-                alert('기록이 저장되었습니다 (이전 PR이 더 높음 — 이력에만 추가).');
+                onSubmitted?.(result);
+                onClose();
+                return;
             }
             onSubmitted?.(result);
         } catch (err) {
@@ -106,8 +137,36 @@ const PRSubmitModal = ({ user, students, defaultStudent, exerciseSuggestions = [
     };
 
     return (
-        <div className="pr-modal-overlay" onClick={onClose}>
-            <div className="pr-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="pr-modal-overlay" onClick={celebration ? undefined : onClose}>
+            <div className="pr-modal-content" onClick={(e) => e.stopPropagation()} style={{ position: 'relative', overflow: 'hidden' }}>
+                {celebration && (
+                    <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        zIndex: 10,
+                        backgroundColor: '#329BE7',
+                        borderRadius: 'var(--r-card, 20px)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '12px',
+                        padding: '32px',
+                    }}>
+                        <div style={{ fontSize: '2.5rem', lineHeight: 1 }}>
+                            {celebration.startsWith('🏆') ? '🏆' : '🎉'}
+                        </div>
+                        <div style={{
+                            fontSize: '1.1rem',
+                            fontWeight: 700,
+                            color: '#fff',
+                            textAlign: 'center',
+                            lineHeight: 1.4,
+                        }}>
+                            {celebration.replace(/^[🏆🎉]\s*/u, '')}
+                        </div>
+                    </div>
+                )}
                 <div className="pr-modal-header">
                     <h2 className="pr-modal-title">공식 측정 기록 등록</h2>
                     <button className="pr-modal-close" onClick={onClose}>×</button>

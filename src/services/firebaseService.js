@@ -23,6 +23,7 @@ import {
 } from 'firebase/firestore';
 import { scoreToTier, computeActiveScore, compareTiers } from '../utils/tiers';
 import { computeUserXp, xpToGrade } from '../utils/grades';
+import { PR_REP_THRESHOLDS } from '../data/mockData';
 
 // ============================================
 // INTERNAL HELPERS
@@ -1527,7 +1528,36 @@ export const submitPersonalBest = async ({ userName, exercise, prType, intensity
                 updatedAt: serverTimestamp()
             });
         }
-        return { docId, updated };
+        const threshold = PR_REP_THRESHOLDS[exercise];
+        const milestone = prType === 'weightThenReps' && threshold != null && Number(reps?.value) >= threshold;
+        return { docId, updated, milestone };
+    });
+};
+
+/**
+ * 코치가 학생 대신 PR 입력 시 해당 학생 다음 접속 때 보여줄 축하 팝업 플래그 저장.
+ */
+export const setPRCelebrationPending = async (userName, payload) => {
+    const name = (userName || '').trim();
+    if (!name) return;
+    await setDoc(doc(db, 'users', name), {
+        prCelebrationPending: { ...payload, at: serverTimestamp() },
+    }, { merge: true });
+};
+
+/**
+ * 학생 접속 시 팝업 플래그를 읽고 동시에 지운다 (1회 소비).
+ * @returns { exercise, kind } | null
+ */
+export const consumePRCelebration = async (userName) => {
+    return safeRead(null, async () => {
+        const name = (userName || '').trim();
+        if (!name) return null;
+        const ref = doc(db, 'users', name);
+        const snap = await getDoc(ref);
+        const p = snap.exists() ? snap.data()?.prCelebrationPending : null;
+        if (p) await updateDoc(ref, { prCelebrationPending: null });
+        return p || null;
     });
 };
 

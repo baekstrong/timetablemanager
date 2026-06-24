@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, backfillTiersForMonth, getGradeMap, backfillGradesForStudents, refreshStudentXP } from '../services/firebaseService';
+import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, backfillTiersForMonth, getGradeMap, backfillGradesForStudents, refreshStudentXP, consumePRCelebration } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
 import { POST_LIMITS } from '../data/boardConstants';
@@ -47,6 +47,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     // 학년(XP) — 인사말 GradeHero용 + 게시판/댓글 학년 뱃지용
     const [gradeMap, setGradeMap] = useState({});
     const [myXp, setMyXp] = useState(0);
+    // PR 축하 팝업 (코치 대리 입력 후 학생 첫 접속 시 1회)
+    const [prCelebration, setPrCelebration] = useState(null);
 
     useEffect(() => {
         let cancel = false;
@@ -79,6 +81,11 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             if (!cancel && res) setMyXp(res.xp);
         });
         getGradeMap().then(map => { if (!cancel && map) setGradeMap(map); });
+        consumePRCelebration(user.username).then(p => {
+            if (!cancel && p) setPrCelebration(p.kind === 'milestone'
+                ? `🏆 ${p.exercise} 기준 통과! 다음 중량으로!`
+                : `🎉 ${p.exercise} 신기록 축하합니다!`);
+        });
         return () => { cancel = true; };
     }, [user, students]);
 
@@ -692,6 +699,60 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             </div>
 
             <TierChangeModal change={tierChange} onClose={() => setTierChange(null)} />
+
+            {prCelebration && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: 9999,
+                    backgroundColor: 'rgba(0,0,0,0.45)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '24px',
+                }}>
+                    <div style={{
+                        backgroundColor: '#329BE7',
+                        borderRadius: '20px',
+                        padding: '40px 32px',
+                        maxWidth: '320px',
+                        width: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '16px',
+                    }}>
+                        <div style={{ fontSize: '3rem', lineHeight: 1 }}>
+                            {prCelebration.startsWith('🏆') ? '🏆' : '🎉'}
+                        </div>
+                        <div style={{
+                            fontSize: '1.1rem',
+                            fontWeight: 700,
+                            color: '#fff',
+                            textAlign: 'center',
+                            lineHeight: 1.5,
+                        }}>
+                            {prCelebration.replace(/^[🏆🎉]\s*/u, '')}
+                        </div>
+                        <button
+                            onClick={() => setPrCelebration(null)}
+                            style={{
+                                marginTop: '8px',
+                                padding: '8px 24px',
+                                borderRadius: '18px',
+                                border: '1.5px solid rgba(255,255,255,0.6)',
+                                backgroundColor: 'transparent',
+                                color: '#fff',
+                                fontWeight: 700,
+                                fontSize: '0.95rem',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            확인
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

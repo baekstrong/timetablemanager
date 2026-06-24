@@ -13,6 +13,14 @@ export const DAYS = ['월', '화', '수', '목', '금'];
 // Max capacity per slot setup
 export const MAX_CAPACITY = 7;
 
+// PR 반복 기준형 "다음 중량으로" 통과 기준 (종목명 정확 일치). ⚠️ 종목명 변경 시 깨짐.
+export const PR_REP_THRESHOLDS = {
+    '12분 맨메이커': 200,
+    '5분 한팔 스윙': 100,
+    '5분 하이풀': 100,
+    '5분 스내치': 100,
+};
+
 // Student Membership Information
 export const STUDENT_MEMBERSHIPS = [
     {
