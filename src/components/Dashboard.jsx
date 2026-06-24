@@ -82,7 +82,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         refreshStudentXP({ userName: user.username, gender: myGender }).then(res => {
             if (cancel || !res) return;
             setMyXp(res.xp);
-            if (res.promoted) setGradeChange({ from: res.fromGrade, to: res.grade });
+            if (res.isNew) setGradeChange({ from: null, to: res.grade, isNew: true });
+            else if (res.promoted) setGradeChange({ from: res.fromGrade, to: res.grade, isNew: false });
         });
         getGradeMap().then(map => { if (!cancel && map) setGradeMap(map); });
         consumePRCelebration(user.username).then(p => {

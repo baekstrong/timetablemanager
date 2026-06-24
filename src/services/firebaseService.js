@@ -1911,31 +1911,32 @@ export const backfillTiersForMonth = async (students) => {
 
 // 본인 records 전량 재계산 → users/{이름}에 xp/grade 저장. (본인 데이터로 경계됨, 폭증 아님)
 export const refreshStudentXP = async ({ userName, gender }) => {
-    return safeRead({ xp: 0, grade: null, promoted: false, fromGrade: null }, async () => {
+    return safeRead({ xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null }, async () => {
         const name = (userName || '').trim();
-        if (!name) return { xp: 0, grade: null, promoted: false, fromGrade: null };
+        if (!name) return { xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null };
         const userRef = doc(db, 'users', name);
         const snap = await getDoc(userRef);
-        if (!snap.exists()) return { xp: 0, grade: null, promoted: false, fromGrade: null };
+        if (!snap.exists()) return { xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null };
         const u = snap.data() || {};
         const records = await queryDocs('records', where('userName', '==', name));
         const xp = computeUserXp(records, gender);
         const grade = xpToGrade(xp).key;
-        // 승급 감지: 학생이 마지막으로 확인한 학년(gradeSeen) 대비 올랐으면 축하.
-        // 최초(gradeSeen 없음)는 기존 grade로 폴백 → 기준선만 잡고 팝업 없음(배포 시 일괄 오탐 방지).
-        const seenKey = u.gradeSeen || u.grade || null;
-        const seenRank = seenKey ? gradeRank(seenKey) : -1;
+        // gradeSeen = 학생이 팝업으로 확인한 학년. 한번도 없으면 첫 안내 대상(전원 1회 인트로).
+        const prevSeen = u.gradeSeen || null;
+        const firstTime = !prevSeen;
+        const seenRank = prevSeen ? gradeRank(prevSeen) : -1;
         const newRank = gradeRank(grade);
-        const promoted = seenRank >= 0 && newRank > seenRank;
+        // 첫 안내는 인트로만(승급 아님). 이후 gradeSeen 대비 오르면 승급 축하.
+        const promoted = !firstTime && seenRank >= 0 && newRank > seenRank;
         // gradeSeen은 최고 학년으로만 전진(강등돼도 내려가지 않음).
-        const gradeSeen = seenRank > newRank ? seenKey : grade;
+        const gradeSeen = seenRank > newRank ? prevSeen : grade;
         const now = new Date();
         const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         await setDoc(userRef, {
             xp, grade, gradeSeen, gradeMonth: ym, gradeUpdatedAt: serverTimestamp(),
         }, { merge: true });
         clearGradeMapCache();
-        return { xp, grade, promoted, fromGrade: promoted ? seenKey : null };
+        return { xp, grade, isNew: firstTime, promoted, fromGrade: promoted ? prevSeen : null };
     });
 };
 

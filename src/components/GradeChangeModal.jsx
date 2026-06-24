@@ -7,6 +7,7 @@ export default function GradeChangeModal({ change, onClose }) {
     const next = gradeByKey(change.to);
     const prev = gradeByKey(change.from);
     if (!next) return null;
+    const isNew = change.isNew; // 첫 안내(인트로) vs 승급 축하
 
     return (
         <div
@@ -28,10 +29,10 @@ export default function GradeChangeModal({ change, onClose }) {
             >
                 <div style={{ fontSize: '2.6rem', lineHeight: 1 }}>🎓</div>
                 <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text)' }}>
-                    학년 승급! 🎉
+                    {isNew ? '내 학년이 정해졌어요!' : '학년 승급! 🎉'}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.95rem' }}>
-                    {prev && (
+                    {prev && !isNew && (
                         <>
                             <span style={{ color: 'var(--text-muted)' }}>{prev.label}</span>
                             <span style={{ color: 'var(--text-muted)' }}>→</span>
@@ -40,7 +41,9 @@ export default function GradeChangeModal({ change, onClose }) {
                     <span style={{ color: ACCENT, fontWeight: 700 }}>🎓 {next.label}</span>
                 </div>
                 <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                    그동안 쌓은 운동량으로 학년이 올랐어요! 꾸준히 운동하고 일지를 쓸수록 더 높은 학년으로 올라갑니다 💪
+                    {isNew
+                        ? '훈련일지에 쌓인 누적 운동량으로 학년이 정해져요. 꾸준히 운동하고 일지를 쓸수록 학년이 올라갑니다! (초등 1학년 → … → 대학 4학년 졸업) 💪'
+                        : '그동안 쌓은 운동량으로 학년이 올랐어요! 꾸준히 운동하고 일지를 쓸수록 더 높은 학년으로 올라갑니다 💪'}
                 </p>
                 <button
                     onClick={onClose}
