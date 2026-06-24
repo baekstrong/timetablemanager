@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, backfillTiersForMonth } from '../services/firebaseService';
+import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, backfillTiersForMonth, getGradeMap, backfillGradesForStudents, refreshStudentXP } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
 import { POST_LIMITS } from '../data/boardConstants';
@@ -9,6 +9,7 @@ import PostDetail from './board/PostDetail';
 import PostForm from './board/PostForm';
 import TierBadge from './TierBadge';
 import TierChangeModal from './TierChangeModal';
+import GradeHero from './GradeHero';
 import './board/Board.css';
 import './Dashboard.css';
 
@@ -43,6 +44,10 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     // 티어(출석 등급) — 게시판 뱃지용 이름→티어 맵 + 승급/강등 팝업
     const [tierMap, setTierMap] = useState({});
     const [tierChange, setTierChange] = useState(null);
+    // 학년(XP) — 인사말 GradeHero용 (gradeMap은 향후 PostList 뱃지에 사용 예정)
+    // eslint-disable-next-line no-unused-vars
+    const [gradeMap, setGradeMap] = useState({});
+    const [myXp, setMyXp] = useState(0);
 
     useEffect(() => {
         let cancel = false;
@@ -56,6 +61,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         if (!user || user.role !== 'coach' || !students || students.length === 0) return;
         let cancel = false;
         backfillTiersForMonth(students).then(map => { if (!cancel && map) setTierMap(map); });
+        backfillGradesForStudents(students).then(map => { if (!cancel && map) setGradeMap(map); });
         return () => { cancel = true; };
     }, [user, students]);
 
@@ -69,8 +75,13 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             if (change.tier) setTierMap(prev => ({ ...prev, [user.username]: change.tier }));
             if (change.changed) setTierChange(change);
         });
+        const myGender = (students.find(s => (s['이름'] || '').trim() === user.username)?.['성별'] || '').trim();
+        refreshStudentXP({ userName: user.username, gender: myGender }).then(res => {
+            if (!cancel && res) setMyXp(res.xp);
+        });
+        getGradeMap().then(map => { if (!cancel && map) setGradeMap(map); });
         return () => { cancel = true; };
-    }, [user]);
+    }, [user, students]);
 
     // 수강생 대기 신청 목록
     const [studentWaitlist, setStudentWaitlist] = useState([]);
@@ -393,6 +404,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         <h1 className="dashboard-title">
                             환영합니다, {user.role !== 'coach' && <TierBadge tier={tierMap[user.username]} style={{ height: '20px', fontSize: '0.75rem' }} />}{user.username}님
                         </h1>
+                        {user.role !== 'coach' && <GradeHero xp={myXp} onClick={() => onNavigate('ranking')} />}
                     </div>
                     <button onClick={onLogout} className="logout-button">
                         <span>로그아웃</span>
