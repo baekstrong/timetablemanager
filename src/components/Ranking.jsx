@@ -84,9 +84,9 @@ const formatDate = (s) => {
 // Main Component
 // ============================================
 
-const Ranking = ({ user, onBack }) => {
+const Ranking = ({ user, onBack, initialTab = 'ranking' }) => {
     const { students } = useGoogleSheets();
-    const [tab, setTab] = useState('ranking'); // 'ranking' | 'mypr' | 'graph'
+    const [tab, setTab] = useState(initialTab); // 'ranking' | 'mypr' | 'graph'
     const [trainingLogExercises, setTrainingLogExercises] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshNonce, setRefreshNonce] = useState(0);
@@ -167,7 +167,7 @@ const Ranking = ({ user, onBack }) => {
                 <button
                     className={`ranking-tab ${tab === 'graph' ? 'active' : ''}`}
                     onClick={() => setTab('graph')}
-                >그래프</button>
+                >경험치 그래프</button>
             </nav>
 
             {loading ? (

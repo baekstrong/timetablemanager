@@ -410,7 +410,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         <h1 className="dashboard-title">
                             환영합니다, {user.role !== 'coach' && <TierBadge tier={tierMap[user.username]} style={{ height: '20px', fontSize: '0.75rem' }} />}{user.username}님
                         </h1>
-                        {user.role !== 'coach' && <GradeHero xp={myXp} onClick={() => onNavigate('ranking')} />}
+                        {user.role !== 'coach' && <GradeHero xp={myXp} onClick={() => onNavigate('ranking', 'graph')} />}
                     </div>
                     <button onClick={onLogout} className="logout-button">
                         <span>로그아웃</span>
