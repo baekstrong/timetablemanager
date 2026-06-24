@@ -151,16 +151,6 @@
     border: 1px solid #0d9488;
 }
 
-.student-status-badge.renewal {
-    display: block;
-    margin-left: 0;
-    margin-top: 0.25rem;
-    background: #329BE71A;
-    color: #327AB8;
-    border: 1px solid #329BE74D;
-    white-space: normal;
-}
-
 .not-connected-message {
     background: white;
     border-radius: var(--r-card);

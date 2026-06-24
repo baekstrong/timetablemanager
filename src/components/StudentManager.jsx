@@ -11,13 +11,6 @@ import SmsSendModal from './SmsSendModal';
 import GradeBadge from './GradeBadge';
 import './StudentManager.css';
 
-// YYMMDD → "M/D" (재등록 예정 시작일 표시용)
-const formatRenewalStart = (yymmdd) => {
-    const s = String(yymmdd || '').trim();
-    if (!/^\d{6}$/.test(s)) return '';
-    return `${parseInt(s.slice(2, 4), 10)}/${parseInt(s.slice(4, 6), 10)}`;
-};
-
 const StudentManager = ({ onImpersonate, onNavigate }) => {
     const {
         students,
@@ -586,12 +579,6 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                                     />
                                                 ) : (
                                                     student['요일 및 시간'] || '-'
-                                                )}
-                                                {editingStudent !== index && student._nextRegistration?.['요일 및 시간'] && (
-                                                    <span className="student-status-badge renewal">
-                                                        🔄 재등록 예정: {student._nextRegistration['요일 및 시간']}
-                                                        {formatRenewalStart(student._nextRegistration['시작날짜']) && ` (${formatRenewalStart(student._nextRegistration['시작날짜'])}~)`}
-                                                    </span>
                                                 )}
                                             </td>
 

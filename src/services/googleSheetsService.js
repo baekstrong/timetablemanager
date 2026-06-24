@@ -1248,13 +1248,20 @@ export const getAllStudentsFromAllSheets = async () => {
       return a._parsedStart - b._parsedStart;
     });
 
-    // 오늘이 수강 기간 내인 등록 찾기
+    // 오늘이 수강 기간 내인 등록 찾기.
+    // 여러 행이 오늘을 포함하면(옛 시트의 중복/예전 행 vs 현재 시트의 최신 행)
+    // "가장 최근 시트(=근본 소스)"의 등록을 우선 — 같은 시트면 더 늦게 시작한 등록.
+    // (옛 시트 행이 현재 시트의 최신 등록을 덮어써 날짜가 어긋나던 문제 해결)
     let activeIdx = -1;
     for (let i = 0; i < registrations.length; i++) {
       const { _parsedStart: start, _parsedEnd: end } = registrations[i];
-      if (start && end && today >= start && today <= end) {
+      if (!(start && end && today >= start && today <= end)) continue;
+      if (activeIdx === -1) { activeIdx = i; continue; }
+      const cur = registrations[activeIdx];
+      const curOrder = cur._sheetOrder || 0;
+      const iOrder = registrations[i]._sheetOrder || 0;
+      if (iOrder > curOrder || (iOrder === curOrder && registrations[i]._parsedStart > cur._parsedStart)) {
         activeIdx = i;
-        break;
       }
     }
 
@@ -1279,20 +1286,6 @@ export const getAllStudentsFromAllSheets = async () => {
       const prev = registrations[activeIdx - 1];
       active._prevEndDate = getStudentField(prev, '종료날짜');
       active._prevSchedule = getStudentField(prev, '요일 및 시간');
-    }
-
-    // 다음 등록(미리 등록/재등록 예정)이 있으면 보존 — 코치 화면 "재등록 예정" 표시용
-    // (현재 활성 등록이 끝나기 전 재등록을 미리 넣어두면 목록에서 빠지던 문제 해결)
-    if (activeIdx < registrations.length - 1) {
-      const next = registrations[activeIdx + 1];
-      active._nextRegistration = {
-        시작날짜: getStudentField(next, '시작날짜'),
-        종료날짜: getStudentField(next, '종료날짜'),
-        '요일 및 시간': getStudentField(next, '요일 및 시간'),
-        주횟수: getStudentField(next, '주횟수'),
-        _rowIndex: next._rowIndex,
-        _foundSheetName: next._foundSheetName,
-      };
     }
 
     latestByName[name] = active;
