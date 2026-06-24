@@ -103,31 +103,24 @@ const PRSubmitModal = ({ user, students, defaultStudent, exerciseSuggestions = [
                 note: note.trim()
             });
             const isSelf = studentName === user.username;
-            if (isSelf) {
-                if (result.milestone) {
-                    setCelebration(`🏆 ${exercise.trim()} 기준 통과! 다음 중량으로 올라가도 좋아요!`);
-                } else if (result.updated) {
-                    setCelebration('🎉 신기록 축하합니다!');
-                } else {
-                    // 기록됐지만 신기록 아님 — 조용히 닫기
-                    onSubmitted?.(result);
-                    onClose();
-                    return;
-                }
-            } else if (result.updated || result.milestone) {
+            if (isSelf && (result.milestone || result.updated)) {
+                // 본인 신기록/기준통과 → 축하 배너 표시. onClose는 자동닫기 effect가 호출.
+                setCelebration(result.milestone
+                    ? `🏆 ${exercise.trim()} 기준 통과! 다음 중량으로 올라가도 좋아요!`
+                    : '🎉 신기록 축하합니다!');
+                onSubmitted?.(result);
+                return;
+            }
+            if (!isSelf && (result.updated || result.milestone)) {
+                // 코치 대리입력 → 학생 다음 접속 때 축하 보이도록 플래그
                 await setPRCelebrationPending(studentName, {
                     exercise: exercise.trim(),
                     kind: result.milestone ? 'milestone' : 'record',
                 });
-                onSubmitted?.(result);
-                onClose();
-                return;
-            } else {
-                onSubmitted?.(result);
-                onClose();
-                return;
             }
+            // 신기록 아님(본인) 또는 플래그 저장 완료(코치) → 조용히 닫기
             onSubmitted?.(result);
+            onClose();
         } catch (err) {
             console.error(err);
             alert(`등록 실패: ${err.message}`);
