@@ -40,4 +40,9 @@ describe('recordVolume / computeUserXp', () => {
     expect(computeUserXp(recs, '남')).toBe(1000);
     expect(computeUserXp(recs, '여')).toBe(1500);
   });
+  it("시트값 '여자'도 ×1.5 (startsWith 정규화)", () => {
+    const recs = [rec([{ intensity: { value: '100', unit: 'kg' }, reps: { value: '10', unit: '회' } }])]; // 1000
+    expect(computeUserXp(recs, '여자')).toBe(1500);
+    expect(computeUserXp(recs, '남자')).toBe(1000);
+  });
 });

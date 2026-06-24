@@ -58,7 +58,7 @@ export function recordVolume(record) {
 
 // 본인 records 전량 → 보정 누적 XP.
 export function computeUserXp(records, gender) {
-    const coef = gender === '여' ? FEMALE_COEF : 1;
+    const coef = (gender || '').trim().startsWith('여') ? FEMALE_COEF : 1;
     let total = 0;
     for (const r of (records || [])) total += recordVolume(r);
     return Math.round(total * coef);

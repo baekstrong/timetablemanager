@@ -20,8 +20,8 @@ export default function GradeHero({ xp = 0, onClick }) {
                     borderRadius: 'var(--r-chip, 8px)', padding: '2px 8px',
                 }}>🎓 {grade.label}</span>
             </div>
-            <div style={{ height: '8px', borderRadius: '6px', background: 'var(--hairline, #EFEFF0)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${pct}%`, background: ACCENT, borderRadius: '6px' }} />
+            <div style={{ height: '8px', borderRadius: 'var(--r-chip, 8px)', background: 'var(--hairline, #EFEFF0)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: ACCENT, borderRadius: '9999px' }} />
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted, #A7A7AA)', marginTop: '5px' }}>
                 {next

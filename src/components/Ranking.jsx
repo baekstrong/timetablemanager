@@ -740,7 +740,7 @@ const GradeGrowthBlock = ({ effectiveTarget, gender }) => {
         return <div className="ranking-empty">최근 12개월 훈련 기록이 없습니다.</div>;
     }
 
-    const coef = gender === '여' ? FEMALE_COEF : 1;
+    const coef = (gender || '').trim().startsWith('여') ? FEMALE_COEF : 1;
     let acc = 0;
     const cumData = data.map(m => {
         acc += m.volume * coef;
