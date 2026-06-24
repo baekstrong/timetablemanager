@@ -778,7 +778,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                             <>
                                 <h3>홀딩 기능 안내</h3>
                                 <ul>
-                                    <li>홀딩 신청 시 해당 일수만큼 수강권 기간이 자동으로 연장됩니다.</li>
+                                    <li>홀딩 신청 시 해당 일수만큼 수강권 기간이 자동으로 연장됩니다. (그냥 못 나오는 '결석'과 달리 수업이 차감되지 않습니다)</li>
                                     <li>한 번 신청할 때 수업일은 최대 <strong>{weeklyFrequency}일</strong>까지 선택할 수 있습니다. (주 {weeklyFrequency}회 기준 한 주 분량)</li>
                                     <li>
                                         {nextHoldingInfo
@@ -810,7 +810,9 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                             <>
                                 <h3>결석 기능 안내</h3>
                                 <ul>
-                                    <li>결석한 날짜는 보강으로 대체할 수 없습니다.</li>
+                                    <li>결석은 그날 수업에 못 나오는 것을 미리 알리는 기능입니다.</li>
+                                    <li>결석한 수업은 <strong>보강으로 대체할 수 없고</strong>, 수강 기간도 연장되지 않습니다. (그날 수업은 차감됩니다)</li>
+                                    <li>수업을 미뤄서 나중에 채우고 싶다면 결석이 아니라 <strong>홀딩</strong>을 이용하세요. 홀딩은 미룬 일수만큼 수강 기간이 연장됩니다.</li>
                                 </ul>
                                 <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
                                     <strong>📌 결석 신청 조건</strong>
