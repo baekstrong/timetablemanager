@@ -24,8 +24,10 @@ import {
     Legend,
     ResponsiveContainer,
     Scatter,
-    ComposedChart
+    ComposedChart,
+    ReferenceLine
 } from 'recharts';
+import { GRADES, FEMALE_COEF, xpToGrade } from '../utils/grades';
 import './Ranking.css';
 
 // ============================================
@@ -194,6 +196,7 @@ const Ranking = ({ user, onBack }) => {
                             user={user}
                             studentNames={studentNames}
                             refreshNonce={refreshNonce}
+                            genderMap={genderMap}
                         />
                     )}
                 </>
@@ -713,14 +716,114 @@ const computePRMetric = (pr, h) => {
     return numVal(h.intensity?.value) || numVal(h.reps?.value);
 };
 
-const GraphTab = ({ user, studentNames, refreshNonce }) => {
+const GradeGrowthBlock = ({ effectiveTarget, gender }) => {
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!effectiveTarget) { setData([]); return; }
+        (async () => {
+            setLoading(true);
+            try {
+                const d = await getMonthlyAttendanceHistory(effectiveTarget, 12);
+                setData(d);
+            } catch (err) {
+                console.error('성장 곡선 데이터 로드 실패:', err);
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, [effectiveTarget]);
+
+    if (loading) return <div className="ranking-loading">불러오는 중...</div>;
+    if (!data.length || data.every(d => d.volume === 0)) {
+        return <div className="ranking-empty">최근 12개월 훈련 기록이 없습니다.</div>;
+    }
+
+    const coef = gender === '여' ? FEMALE_COEF : 1;
+    let acc = 0;
+    const cumData = data.map(m => {
+        acc += m.volume * coef;
+        return { month: m.month.slice(2), xp: Math.round(acc) };
+    });
+    const maxXp = cumData.length ? cumData[cumData.length - 1].xp : 0;
+    const bands = GRADES.filter(g => g.min > 0 && g.min <= maxXp * 1.4);
+    const curGrade = xpToGrade(maxXp);
+
+    return (
+        <div className="graph-wrapper">
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)', marginBottom: '8px' }}>
+                누적 경험치 곡선
+                <span style={{ fontWeight: 400, fontSize: '11px', color: 'var(--text-muted, #A7A7AA)', marginLeft: '8px' }}>
+                    현재 학년: {curGrade.label}
+                </span>
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+                <ComposedChart data={cumData} margin={{ top: 10, right: 60, left: 0, bottom: 0 }}>
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis
+                        tick={{ fontSize: 11 }}
+                        width={48}
+                        tickFormatter={(v) => `${Math.round(v / 1000)}t`}
+                    />
+                    <Tooltip formatter={(v) => [`${Number(v).toLocaleString()}kg`, '누적 XP']} />
+                    {bands.map(g => (
+                        <ReferenceLine
+                            key={g.key}
+                            y={g.min}
+                            stroke="#EFEFF0"
+                            strokeDasharray="3 3"
+                            label={{ value: g.short, position: 'right', fontSize: 10, fill: '#A7A7AA' }}
+                        />
+                    ))}
+                    <Line type="monotone" dataKey="xp" stroke="#329BE7" strokeWidth={2.5} dot={false} />
+                </ComposedChart>
+            </ResponsiveContainer>
+
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)', margin: '20px 0 8px' }}>
+                학년 사다리
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '90px' }}>
+                {GRADES.map((g, i) => {
+                    const reached = maxXp >= g.min;
+                    const isCur = g.key === curGrade.key;
+                    return (
+                        <div key={g.key} style={{ flex: 1, textAlign: 'center' }}>
+                            {isCur && (
+                                <div style={{ fontSize: '9px', color: '#329BE7', fontWeight: 700, lineHeight: '12px' }}>YOU</div>
+                            )}
+                            {!isCur && (
+                                <div style={{ fontSize: '9px', lineHeight: '12px' }}>&nbsp;</div>
+                            )}
+                            <div
+                                title={g.label}
+                                style={{
+                                    height: `${20 + i * 5}px`,
+                                    borderRadius: 'var(--r-chip, 8px)',
+                                    background: reached ? '#329BE7' : '#F7F7F8',
+                                    border: reached ? 'none' : '1px dashed #A7A7AA',
+                                }}
+                            />
+                        </div>
+                    );
+                })}
+            </div>
+            <div style={{ fontSize: '10px', color: '#A7A7AA', textAlign: 'center', marginTop: '6px' }}>
+                초등 → 중등 → 고등 → 대학(졸업)
+            </div>
+        </div>
+    );
+};
+
+const GraphTab = ({ user, studentNames, refreshNonce, genderMap }) => {
     const isCoach = user?.role === 'coach';
     const [selectedStudent, setSelectedStudent] = useState(isCoach ? '' : user.username);
-    const [graphMode, setGraphMode] = useState('exercise'); // 'exercise' | 'monthly'
+    const [graphMode, setGraphMode] = useState('growth'); // 'growth' | 'exercise' | 'monthly'
 
     const targetName = isCoach ? selectedStudent : user.username;
     const isValidStudent = !isCoach || studentNames.includes(targetName);
     const effectiveTarget = isValidStudent ? targetName : '';
+    const gender = genderMap?.[effectiveTarget] || '';
 
     return (
         <div className="ranking-content">
@@ -744,6 +847,10 @@ const GraphTab = ({ user, studentNames, refreshNonce }) => {
 
             <div className="ranking-subtabs">
                 <button
+                    className={`ranking-subtab ${graphMode === 'growth' ? 'active' : ''}`}
+                    onClick={() => setGraphMode('growth')}
+                >성장</button>
+                <button
                     className={`ranking-subtab ${graphMode === 'exercise' ? 'active' : ''}`}
                     onClick={() => setGraphMode('exercise')}
                 >운동별 추세</button>
@@ -755,6 +862,8 @@ const GraphTab = ({ user, studentNames, refreshNonce }) => {
 
             {!effectiveTarget ? (
                 <div className="ranking-empty">학생을 선택해주세요.</div>
+            ) : graphMode === 'growth' ? (
+                <GradeGrowthBlock effectiveTarget={effectiveTarget} gender={gender} />
             ) : graphMode === 'exercise' ? (
                 <ExerciseTrendBlock effectiveTarget={effectiveTarget} refreshNonce={refreshNonce} />
             ) : (
