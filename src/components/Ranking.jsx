@@ -84,7 +84,7 @@ const formatDate = (s) => {
 // Main Component
 // ============================================
 
-const Ranking = ({ user, onBack, initialTab = 'ranking' }) => {
+const Ranking = ({ user, onBack, initialTab = 'ranking', initialStudent = '' }) => {
     const { students } = useGoogleSheets();
     const [tab, setTab] = useState(initialTab); // 'ranking' | 'mypr' | 'graph'
     const [trainingLogExercises, setTrainingLogExercises] = useState([]);
@@ -197,6 +197,7 @@ const Ranking = ({ user, onBack, initialTab = 'ranking' }) => {
                             studentNames={studentNames}
                             refreshNonce={refreshNonce}
                             genderMap={genderMap}
+                            initialStudent={initialStudent}
                         />
                     )}
                 </>
@@ -815,9 +816,9 @@ const GradeGrowthBlock = ({ effectiveTarget, gender }) => {
     );
 };
 
-const GraphTab = ({ user, studentNames, refreshNonce, genderMap }) => {
+const GraphTab = ({ user, studentNames, refreshNonce, genderMap, initialStudent = '' }) => {
     const isCoach = user?.role === 'coach';
-    const [selectedStudent, setSelectedStudent] = useState(isCoach ? '' : user.username);
+    const [selectedStudent, setSelectedStudent] = useState(isCoach ? (initialStudent || '') : user.username);
     const [graphMode, setGraphMode] = useState('exercise'); // 'exercise' | 'monthly'
 
     const targetName = isCoach ? selectedStudent : user.username;

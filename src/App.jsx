@@ -41,6 +41,7 @@ function AppContent() {
   const [studentData, setStudentData] = useState(null);
   const [currentPage, setCurrentPage] = useState('login');
   const [rankingInitialTab, setRankingInitialTab] = useState('ranking');
+  const [rankingInitialStudent, setRankingInitialStudent] = useState('');
   const [impersonationOrigin, setImpersonationOrigin] = useState(null); // 코치 본체 (빙의 중일 때만 채워짐)
   const [hasNewStudentNotification, setHasNewStudentNotification] = useState(false);
   const [hasWaitlistNotification, setHasWaitlistNotification] = useState(false);
@@ -368,12 +369,15 @@ function AppContent() {
     setCurrentPage('login');
   };
 
-  const handleNavigate = (page, subTab) => {
+  const handleNavigate = (page, subTab, student) => {
     if (page === 'dashboard') {
       localStorage.setItem('board_last_seen', String(Date.now()));
       setHasNewPostNotification(false);
     }
-    if (page === 'ranking') setRankingInitialTab(subTab || 'ranking');
+    if (page === 'ranking') {
+      setRankingInitialTab(subTab || 'ranking');
+      setRankingInitialStudent(student || '');
+    }
     setCurrentPage(page);
     window.scrollTo(0, 0);
   };
@@ -414,7 +418,7 @@ function AppContent() {
         return <ContractView user={user} onBack={handleBackToDashboard} />;
 
       case 'ranking':
-        return <Ranking user={user} onBack={handleBackToDashboard} initialTab={rankingInitialTab} />;
+        return <Ranking user={user} onBack={handleBackToDashboard} initialTab={rankingInitialTab} initialStudent={rankingInitialStudent} />;
 
       case 'analytics':
         return <AnalyticsDashboard onBack={() => setCurrentPage('students')} />;

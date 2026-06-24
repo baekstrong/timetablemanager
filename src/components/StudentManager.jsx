@@ -1,13 +1,14 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets, pauseStudent, resumeStudent } from '../services/googleSheetsService';
-import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, recordStudentCount } from '../services/firebaseService';
+import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, recordStudentCount, getGradeMap } from '../services/firebaseService';
 import { getCoachStudentListStatus, shouldShowInCoachStudentList, isPausedRegistration } from '../utils/studentList';
 import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
 import SmsSendModal from './SmsSendModal';
+import GradeBadge from './GradeBadge';
 import './StudentManager.css';
 
 const StudentManager = ({ onImpersonate, onNavigate }) => {
@@ -43,6 +44,14 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     const [searchQuery, setSearchQuery] = useState(''); // 수강생 검색어
     const [actionProcessing, setActionProcessing] = useState(''); // 작업(종료/일시정지/재개) 처리 중 메시지
     const [showSmsModal, setShowSmsModal] = useState(false);
+    const [gradeMap, setGradeMap] = useState({}); // 이름→학년키 (수강생 레벨 표시용)
+
+    // 학년 맵 로드(게시판과 동일 캐시 소스). 코치 백필이 채운 grade를 읽음.
+    useEffect(() => {
+        let cancel = false;
+        getGradeMap().then(map => { if (!cancel && map) setGradeMap(map); });
+        return () => { cancel = true; };
+    }, []);
 
     const getCountedHolidayMakeupDates = async (studentName) => {
         const makeups = await getActiveMakeupRequests(studentName).catch(() => []);
@@ -531,7 +540,18 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                 ) : (
                                     filteredStudents.map((student, index) => (
                                         <tr key={index} className={editingStudent === index ? 'editing' : ''}>
-                                            <td className="student-name">{student['이름'] || '-'}</td>
+                                            <td className="student-name">
+                                                {student['이름'] || '-'}
+                                                {student['이름'] && <GradeBadge grade={gradeMap[student['이름']]} style={{ marginLeft: '4px', marginRight: 0 }} />}
+                                                {onNavigate && student['이름'] && (
+                                                    <button
+                                                        type="button"
+                                                        title="성장 그래프 보기"
+                                                        onClick={() => onNavigate('ranking', 'graph', student['이름'])}
+                                                        style={{ marginLeft: '4px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0, verticalAlign: 'middle' }}
+                                                    >📈</button>
+                                                )}
+                                            </td>
 
                                             {/* 주횟수 */}
                                             <td>
