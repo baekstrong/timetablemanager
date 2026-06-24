@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRADES, xpToGrade, gradeProgress, recordVolume, computeUserXp, FEMALE_COEF } from './grades';
+import { GRADES, xpToGrade, gradeProgress, recordVolume, computeUserXp, FEMALE_COEF, gradeRank } from './grades';
 
 describe('xpToGrade', () => {
   it('0 XP는 초등1', () => expect(xpToGrade(0).short).toBe('초1'));
@@ -10,6 +10,15 @@ describe('xpToGrade', () => {
   it('GRADES는 min 오름차순(단조 누진)', () => {
     for (let i = 1; i < GRADES.length; i++) expect(GRADES[i].min).toBeGreaterThan(GRADES[i - 1].min);
   });
+});
+
+describe('gradeRank (승급 비교)', () => {
+  it('낮은 학년 < 높은 학년 (key 기준)', () => {
+    expect(gradeRank('e1')).toBeLessThan(gradeRank('m1'));
+    expect(gradeRank('m1')).toBeLessThan(gradeRank('h3'));
+    expect(gradeRank('h3')).toBeLessThan(gradeRank('u4'));
+  });
+  it('없는 키는 -1', () => expect(gradeRank('없음')).toBe(-1));
 });
 
 describe('gradeProgress', () => {

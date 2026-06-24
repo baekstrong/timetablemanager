@@ -21,6 +21,11 @@ export const GRADES = [
 
 export const FEMALE_COEF = 1.5;
 
+// 학년 순위 인덱스(낮을수록 낮은 학년). 승급 비교용. 없는 키는 -1.
+export function gradeRank(key) {
+    return GRADES.findIndex(g => g.key === key);
+}
+
 const numVal = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
 
 export function gradeByKey(key) {

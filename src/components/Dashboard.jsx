@@ -9,6 +9,7 @@ import PostDetail from './board/PostDetail';
 import PostForm from './board/PostForm';
 import TierBadge from './TierBadge';
 import TierChangeModal from './TierChangeModal';
+import GradeChangeModal from './GradeChangeModal';
 import GradeHero from './GradeHero';
 import './board/Board.css';
 import './Dashboard.css';
@@ -44,6 +45,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     // 티어(출석 등급) — 게시판 뱃지용 이름→티어 맵 + 승급/강등 팝업
     const [tierMap, setTierMap] = useState({});
     const [tierChange, setTierChange] = useState(null);
+    const [gradeChange, setGradeChange] = useState(null);
     // 학년(XP) — 인사말 GradeHero용 + 게시판/댓글 학년 뱃지용
     const [gradeMap, setGradeMap] = useState({});
     const [myXp, setMyXp] = useState(0);
@@ -78,7 +80,9 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         });
         const myGender = (students.find(s => (s['이름'] || '').trim() === user.username)?.['성별'] || '').trim();
         refreshStudentXP({ userName: user.username, gender: myGender }).then(res => {
-            if (!cancel && res) setMyXp(res.xp);
+            if (cancel || !res) return;
+            setMyXp(res.xp);
+            if (res.promoted) setGradeChange({ from: res.fromGrade, to: res.grade });
         });
         getGradeMap().then(map => { if (!cancel && map) setGradeMap(map); });
         consumePRCelebration(user.username).then(p => {
@@ -699,6 +703,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             </div>
 
             <TierChangeModal change={tierChange} onClose={() => setTierChange(null)} />
+            <GradeChangeModal change={gradeChange} onClose={() => setGradeChange(null)} />
 
             {prCelebration && (
                 <div style={{
