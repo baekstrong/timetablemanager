@@ -13,7 +13,10 @@ export const GRADES = [
     { key: 'h1', short: '고1', label: '고등 1학년', group: '고등', min: 65000 },
     { key: 'h2', short: '고2', label: '고등 2학년', group: '고등', min: 95000 },
     { key: 'h3', short: '고3', label: '고등 3학년', group: '고등', min: 135000 },
-    { key: 'u', short: '대학', label: '대학(졸업)', group: '대학', min: 200000 },
+    { key: 'u1', short: '대1', label: '대학 1학년', group: '대학', min: 200000 },
+    { key: 'u2', short: '대2', label: '대학 2학년', group: '대학', min: 280000 },
+    { key: 'u3', short: '대3', label: '대학 3학년', group: '대학', min: 380000 },
+    { key: 'u4', short: '대4', label: '대학 4학년(졸업)', group: '대학', min: 500000 },
 ];
 
 export const FEMALE_COEF = 1.5;

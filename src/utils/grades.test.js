@@ -5,7 +5,8 @@ describe('xpToGrade', () => {
   it('0 XP는 초등1', () => expect(xpToGrade(0).short).toBe('초1'));
   it('경계 정확: 20000kg는 중등1', () => expect(xpToGrade(20000).short).toBe('중1'));
   it('경계 직전: 19999kg는 초등6', () => expect(xpToGrade(19999).short).toBe('초6'));
-  it('최상단 초과: 250000kg는 대학', () => expect(xpToGrade(250000).short).toBe('대학'));
+  it('대학 1학년: 250000kg는 대1', () => expect(xpToGrade(250000).short).toBe('대1'));
+  it('최상단 초과: 600000kg는 대4(졸업)', () => expect(xpToGrade(600000).short).toBe('대4'));
   it('GRADES는 min 오름차순(단조 누진)', () => {
     for (let i = 1; i < GRADES.length; i++) expect(GRADES[i].min).toBeGreaterThan(GRADES[i - 1].min);
   });
@@ -19,8 +20,8 @@ describe('gradeProgress', () => {
     expect(Math.round(p.pct)).toBe(65);
     expect(p.remaining).toBe(3500);
   });
-  it('대학(졸업)은 next 없음, pct 100', () => {
-    const p = gradeProgress(200000);
+  it('대학 4학년(졸업)은 next 없음, pct 100', () => {
+    const p = gradeProgress(500000);
     expect(p.next).toBe(null);
     expect(p.pct).toBe(100);
   });
