@@ -52,6 +52,9 @@ export function isQuotaError(status, message) {
 
 const QUOTA_MAX_RETRIES = 4;
 const QUOTA_BASE_DELAY_MS = 600;
+// 요청 타임아웃(ms). 함수 콜드스타트 등으로 응답이 없으면 무한 대기(무한 스피너) 대신
+// abort → 재시도 → 최종 실패(에러 표시). Netlify 함수 한계(10~26s)보다 넉넉히 잡음.
+const REQUEST_TIMEOUT_MS = 20000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const backoffDelay = (attempt) => QUOTA_BASE_DELAY_MS * (2 ** attempt) + Math.floor(Math.random() * 200);
 
@@ -62,10 +65,17 @@ async function requestWithRetry(url, options, errorContext) {
     let response;
     let data;
     try {
-      response = await fetch(url, options);
-      data = await response.json();
+      // 타임아웃: 응답이 없으면 무한 대기하지 않도록 abort
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      try {
+        response = await fetch(url, { ...(options || {}), signal: controller.signal });
+        data = await response.json();
+      } finally {
+        clearTimeout(timer);
+      }
     } catch (netErr) {
-      // 네트워크 단절 등 — 마지막 시도면 throw, 아니면 재시도
+      // 네트워크 단절/타임아웃(abort) 등 — 마지막 시도면 throw, 아니면 재시도
       lastError = netErr;
       if (attempt < QUOTA_MAX_RETRIES) { await sleep(backoffDelay(attempt)); continue; }
       throw netErr;
