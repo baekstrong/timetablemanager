@@ -627,7 +627,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
         });
 
         if (selectedClassDays.length > weeklyFrequency) {
-            alert(`홀딩은 주 ${weeklyFrequency}회 수업 기준 최대 ${weeklyFrequency}회까지만 가능합니다.`);
+            alert(`한 번에 신청할 수 있는 홀딩 수업일은 최대 ${weeklyFrequency}일입니다.\n(주 ${weeklyFrequency}회 기준 한 주 분량)`);
             return;
         }
 
@@ -779,7 +779,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                                 <h3>홀딩 기능 안내</h3>
                                 <ul>
                                     <li>홀딩 신청 시 해당 일수만큼 수강권 기간이 자동으로 연장됩니다.</li>
-                                    <li>홀딩은 주 {weeklyFrequency}회 수업 기준 최대 <strong>{weeklyFrequency}회</strong>까지 가능합니다.</li>
+                                    <li>한 번 신청할 때 수업일은 최대 <strong>{weeklyFrequency}일</strong>까지 선택할 수 있습니다. (주 {weeklyFrequency}회 기준 한 주 분량)</li>
                                     <li>
                                         {nextHoldingInfo
                                             ? `현재 등록: 총 ${holdingInfo.total}회 홀딩 가능 (남은 횟수: ${remainingHoldings}회)`
