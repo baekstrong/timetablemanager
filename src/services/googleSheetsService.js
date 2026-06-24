@@ -1281,6 +1281,20 @@ export const getAllStudentsFromAllSheets = async () => {
       active._prevSchedule = getStudentField(prev, '요일 및 시간');
     }
 
+    // 다음 등록(미리 등록/재등록 예정)이 있으면 보존 — 코치 화면 "재등록 예정" 표시용
+    // (현재 활성 등록이 끝나기 전 재등록을 미리 넣어두면 목록에서 빠지던 문제 해결)
+    if (activeIdx < registrations.length - 1) {
+      const next = registrations[activeIdx + 1];
+      active._nextRegistration = {
+        시작날짜: getStudentField(next, '시작날짜'),
+        종료날짜: getStudentField(next, '종료날짜'),
+        '요일 및 시간': getStudentField(next, '요일 및 시간'),
+        주횟수: getStudentField(next, '주횟수'),
+        _rowIndex: next._rowIndex,
+        _foundSheetName: next._foundSheetName,
+      };
+    }
+
     latestByName[name] = active;
   });
 
