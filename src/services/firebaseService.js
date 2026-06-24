@@ -22,6 +22,7 @@ import {
     startAfter
 } from 'firebase/firestore';
 import { scoreToTier, computeActiveScore, compareTiers } from '../utils/tiers';
+import { computeUserXp, xpToGrade } from '../utils/grades';
 
 // ============================================
 // INTERNAL HELPERS
@@ -1871,6 +1872,100 @@ export const backfillTiersForMonth = async (students) => {
         await batch.commit();
         clearTierMapCache();
         return getTierMap();
+    });
+};
+
+// ============================================
+// 학년(누적 훈련량 경험치) — 티어 패턴 미러
+// ============================================
+
+// 본인 records 전량 재계산 → users/{이름}에 xp/grade 저장. (본인 데이터로 경계됨, 폭증 아님)
+export const refreshStudentXP = async ({ userName, gender }) => {
+    return safeRead({ xp: 0, grade: null, isNew: false }, async () => {
+        const name = (userName || '').trim();
+        if (!name) return { xp: 0, grade: null, isNew: false };
+        const userRef = doc(db, 'users', name);
+        const snap = await getDoc(userRef);
+        if (!snap.exists()) return { xp: 0, grade: null, isNew: false };
+        const u = snap.data() || {};
+        const records = await queryDocs('records', where('userName', '==', name));
+        const xp = computeUserXp(records, gender);
+        const grade = xpToGrade(xp).key;
+        const isNew = !u.grade; // 첫 계산이면 인트로 안내 대상
+        const now = new Date();
+        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        await setDoc(userRef, {
+            xp, grade, gradeMonth: ym, gradeIntroPending: false, gradeUpdatedAt: serverTimestamp(),
+        }, { merge: true });
+        clearGradeMapCache();
+        return { xp, grade, isNew };
+    });
+};
+
+// 이름→학년키 맵(게시판 뱃지용). 5분 캐시. (getTierMap 미러)
+let gradeMapCache = null;
+let gradeMapFetchedAt = 0;
+function clearGradeMapCache() {
+    gradeMapCache = null;
+    gradeMapFetchedAt = 0;
+}
+export const getGradeMap = async () => {
+    return safeRead({}, async () => {
+        const now = Date.now();
+        if (gradeMapCache && now - gradeMapFetchedAt < HOLIDAY_CACHE_TTL_MS) return gradeMapCache;
+        const snap = await getDocs(collection(db, 'users'));
+        const map = {};
+        snap.forEach(d => { const g = d.data()?.grade; if (g) map[d.id] = g; });
+        gradeMapCache = map;
+        gradeMapFetchedAt = now;
+        return map;
+    });
+};
+
+// 코치 1회: 이번 달 미계산 학생 전원의 학년을 일괄 계산. 전체 records 1회 읽어 이름별 그룹핑.
+// (backfillTiersForMonth 미러. 성별은 students 행의 '성별' 컬럼 사용)
+export const backfillGradesForStudents = async (students) => {
+    return safeRead({}, async () => {
+        if (!Array.isArray(students) || students.length === 0) return getGradeMap();
+        const now = new Date();
+        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const userMeta = {};
+        usersSnap.forEach(d => { const x = d.data() || {}; userMeta[d.id] = { grade: x.grade || null, gradeMonth: x.gradeMonth }; });
+
+        // 이름→성별 (시트 행)
+        const genderByName = new Map();
+        for (const s of students) {
+            const nm = (s['이름'] || '').trim();
+            if (nm) genderByName.set(nm, (s['성별'] || '').trim());
+        }
+        const targets = [...genderByName.keys()].filter(nm => userMeta[nm] && userMeta[nm].gradeMonth !== ym);
+        if (targets.length === 0) return getGradeMap();
+
+        // 전체 records 1회 → 이름별 그룹핑(대소문자 무시)
+        const all = await getDocs(collection(db, 'records'));
+        const recByName = new Map();
+        all.forEach(d => {
+            const r = d.data();
+            const key = (r.userName || '').trim().toLowerCase();
+            if (!key) return;
+            if (!recByName.has(key)) recByName.set(key, []);
+            recByName.get(key).push(r);
+        });
+
+        const batch = writeBatch(db);
+        for (const nm of targets) {
+            const recs = recByName.get(nm.toLowerCase()) || [];
+            const xp = computeUserXp(recs, genderByName.get(nm));
+            const grade = xpToGrade(xp).key;
+            batch.set(doc(db, 'users', nm), {
+                xp, grade, gradeMonth: ym, gradeIntroPending: true, gradeUpdatedAt: serverTimestamp(),
+            }, { merge: true });
+        }
+        await batch.commit();
+        clearGradeMapCache();
+        return getGradeMap();
     });
 };
 
