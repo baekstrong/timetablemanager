@@ -818,7 +818,7 @@ const GradeGrowthBlock = ({ effectiveTarget, gender }) => {
 const GraphTab = ({ user, studentNames, refreshNonce, genderMap }) => {
     const isCoach = user?.role === 'coach';
     const [selectedStudent, setSelectedStudent] = useState(isCoach ? '' : user.username);
-    const [graphMode, setGraphMode] = useState('growth'); // 'growth' | 'exercise' | 'monthly'
+    const [graphMode, setGraphMode] = useState('exercise'); // 'exercise' | 'monthly'
 
     const targetName = isCoach ? selectedStudent : user.username;
     const isValidStudent = !isCoach || studentNames.includes(targetName);
@@ -845,29 +845,31 @@ const GraphTab = ({ user, studentNames, refreshNonce, genderMap }) => {
                 )}
             </div>
 
-            <div className="ranking-subtabs">
-                <button
-                    className={`ranking-subtab ${graphMode === 'growth' ? 'active' : ''}`}
-                    onClick={() => setGraphMode('growth')}
-                >성장</button>
-                <button
-                    className={`ranking-subtab ${graphMode === 'exercise' ? 'active' : ''}`}
-                    onClick={() => setGraphMode('exercise')}
-                >운동별 추세</button>
-                <button
-                    className={`ranking-subtab ${graphMode === 'monthly' ? 'active' : ''}`}
-                    onClick={() => setGraphMode('monthly')}
-                >월별 출석·운동량</button>
-            </div>
-
             {!effectiveTarget ? (
                 <div className="ranking-empty">학생을 선택해주세요.</div>
-            ) : graphMode === 'growth' ? (
-                <GradeGrowthBlock effectiveTarget={effectiveTarget} gender={gender} />
-            ) : graphMode === 'exercise' ? (
-                <ExerciseTrendBlock effectiveTarget={effectiveTarget} refreshNonce={refreshNonce} />
             ) : (
-                <MonthlyStatsGraph effectiveTarget={effectiveTarget} />
+                <>
+                    {/* 누적 경험치 곡선 + 학년 사다리 — 항상 상단에 표시 */}
+                    <GradeGrowthBlock effectiveTarget={effectiveTarget} gender={gender} />
+
+                    {/* 기존 그래프 (운동별 추세 / 월별 출석·운동량) — 서브탭으로 전환 */}
+                    <div className="ranking-subtabs">
+                        <button
+                            className={`ranking-subtab ${graphMode === 'exercise' ? 'active' : ''}`}
+                            onClick={() => setGraphMode('exercise')}
+                        >운동별 추세</button>
+                        <button
+                            className={`ranking-subtab ${graphMode === 'monthly' ? 'active' : ''}`}
+                            onClick={() => setGraphMode('monthly')}
+                        >월별 출석·운동량</button>
+                    </div>
+
+                    {graphMode === 'exercise' ? (
+                        <ExerciseTrendBlock effectiveTarget={effectiveTarget} refreshNonce={refreshNonce} />
+                    ) : (
+                        <MonthlyStatsGraph effectiveTarget={effectiveTarget} />
+                    )}
+                </>
             )}
         </div>
     );
