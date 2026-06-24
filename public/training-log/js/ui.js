@@ -103,6 +103,13 @@ export function renderStudentScreen() {
                         </div>
                     </div>
 
+                    <!-- 선택한 종목의 저장된 메모 — 이름 바로 아래(이전 메모 불러올 때 스크롤 없이 보이게) -->
+                    <div id="exerciseMemoCard"></div>
+
+                    <textarea id="memo" placeholder="운동 메모 (여기에 입력하면 자동으로 고정됩니다)" rows="2"
+                              oninput="autoSaveFormData()"
+                              class="w-full px-4 py-2 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7]"></textarea>
+
                     <!-- 세트별 입력 (세트 수 드롭다운은 setsContainer 상단에서 렌더) -->
                     <div id="setsContainer"></div>
 
@@ -111,13 +118,6 @@ export function renderStudentScreen() {
                         <input type="checkbox" id="painCheck" class="w-5 h-5">
                         <label for="painCheck" class="text-sm font-semibold text-red-700">⚠️ 운동 중 통증이 있었습니다</label>
                     </div>
-                    
-                    <!-- 선택한 종목의 저장된 메모 (이전 기록처럼 인라인 표시) -->
-                    <div id="exerciseMemoCard"></div>
-
-                    <textarea id="memo" placeholder="운동 메모 (여기에 입력하면 자동으로 고정됩니다)" rows="2"
-                              oninput="autoSaveFormData()"
-                              class="w-full px-4 py-2 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7]"></textarea>
                     
                     <button onclick="addRecord()" 
                             class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition">
@@ -305,6 +305,8 @@ export function renderStampModalHTML() {
 
 // 편집 모달 렌더링
 export function renderEditModalContent(data, docId) {
+    // 메모는 record가 아닌 종목별 고정 메모(pinnedExercises)에 저장됨 → 편집 시 그 종목 메모를 채운다.
+    const pinnedMemo = (state.pinnedExercises || []).find(p => p.exercise === data.exercise)?.memo || '';
     return `
         <div class="space-y-3">
             <div>
@@ -314,27 +316,25 @@ export function renderEditModalContent(data, docId) {
             </div>
             <div>
                 <label class="block text-sm font-semibold mb-1">운동 종목</label>
-                <input type="text" id="edit-exercise" value="${data.exercise}" 
+                <input type="text" id="edit-exercise" value="${esc(data.exercise)}"
                        class="w-full px-3 py-2 border rounded-lg">
             </div>
-            
+
+            <div>
+                <label class="block text-sm font-semibold mb-1">메모</label>
+                <textarea id="edit-memo" rows="2" class="w-full px-3 py-2 border rounded-lg">${esc(data.memo || pinnedMemo)}</textarea>
+            </div>
+
             <div>
                 <label class="block text-sm font-semibold mb-2">세트별 기록</label>
                 <div id="editSetsContainer"></div>
             </div>
-            
+
             <div class="flex items-center space-x-2 p-3 bg-red-50 rounded-lg">
                 <input type="checkbox" id="edit-pain" ${data.pain ? 'checked' : ''} class="w-5 h-5">
                 <label for="edit-pain" class="text-sm font-semibold text-red-700">⚠️ 통증 있음</label>
             </div>
-            
 
-            
-            <div>
-                <label class="block text-sm font-semibold mb-1">메모</label>
-                <textarea id="edit-memo" rows="2" class="w-full px-3 py-2 border rounded-lg">${data.memo || ''}</textarea>
-            </div>
-            
             <div class="flex gap-2">
                 <button onclick="saveEdit('${docId}')" type="button"
                         class="flex-1 bg-[#329BE7] hover:bg-[#327AB8] text-white py-2 rounded-lg font-semibold">
