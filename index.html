@@ -22,7 +22,8 @@
           .then((registration) => {
             console.log('SW registered:', registration);
             // Check for updates every time the app loads
-            registration.update();
+            // ponytail: update() 실패(모바일 네트워크 끊김 등)는 무시 — 미처리 rejection이 Sentry로 새는 것만 막음
+            registration.update().catch(() => {});
           })
           .catch((error) => {
             console.log('SW registration failed:', error);
