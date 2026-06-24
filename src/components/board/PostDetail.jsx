@@ -6,6 +6,7 @@ import { linkifyText } from '../../utils/linkify';
 import { formatLikeNames } from '../../utils/likeDisplay';
 import CommentItem from './CommentItem';
 import TierBadge from '../TierBadge';
+import GradeBadge from '../GradeBadge';
 
 const formatDate = (timestamp) => {
     if (!timestamp) return '-';
@@ -18,7 +19,7 @@ const formatDate = (timestamp) => {
     return `${year}.${month}.${day} ${hours}:${minutes}`;
 };
 
-const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {} }) => {
+const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {} }) => {
     const [post, setPost] = useState(null);
     const [comments, setComments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -220,6 +221,7 @@ const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {} }) => {
                             {category.icon} {category.label}
                         </span>
                     )}
+                    {!post.isCoach && <GradeBadge grade={gradeMap?.[post.author]} />}
                     {!post.isCoach && <TierBadge tier={tierMap[post.author]} />}
                     <span
                         className="post-detail-author"
@@ -331,6 +333,7 @@ const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {} }) => {
                             replies={repliesByParent[c.id] || []}
                             repliesByParent={repliesByParent}
                             tierMap={tierMap}
+                            gradeMap={gradeMap}
                         />
                     ))}
                 </div>

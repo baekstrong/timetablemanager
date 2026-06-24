@@ -44,8 +44,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     // 티어(출석 등급) — 게시판 뱃지용 이름→티어 맵 + 승급/강등 팝업
     const [tierMap, setTierMap] = useState({});
     const [tierChange, setTierChange] = useState(null);
-    // 학년(XP) — 인사말 GradeHero용 (gradeMap은 향후 PostList 뱃지에 사용 예정)
-    // eslint-disable-next-line no-unused-vars
+    // 학년(XP) — 인사말 GradeHero용 + 게시판/댓글 학년 뱃지용
     const [gradeMap, setGradeMap] = useState({});
     const [myXp, setMyXp] = useState(0);
 
@@ -668,6 +667,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         hasNextPage={boardHasNextPage}
                         onPageChange={setBoardPage}
                         tierMap={tierMap}
+                        gradeMap={gradeMap}
                     />
                 ) : (
                     <PostDetail
@@ -676,6 +676,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         onBack={handleBackToList}
                         onEdit={handleEditPost}
                         tierMap={tierMap}
+                        gradeMap={gradeMap}
                     />
                 )}
 
