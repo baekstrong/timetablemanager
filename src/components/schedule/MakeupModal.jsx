@@ -30,24 +30,6 @@ export default function MakeupModal({
 
                 <div className="makeup-modal-content">
                     <h3>어느 수업을 옮기시겠습니까?</h3>
-                    {forceMode && (
-                        <div style={{
-                            margin: '0 0 12px',
-                            padding: '10px 12px',
-                            borderRadius: '8px',
-                            backgroundColor: '#EDBC401A',
-                            border: '1px solid #EDBC404D',
-                            color: '#9a7a12',
-                            fontSize: '0.84rem',
-                            lineHeight: '1.5'
-                        }}>
-                            <strong>강제 변경 안내</strong>
-                            <div style={{ marginTop: '4px' }}>
-                                코치가 대신 변경해도 이 보강은 <strong>수강생의 이번 주 보강 횟수(주 수강 횟수만큼)에 카운트</strong>됩니다.<br />
-                                취소 내역도 소진으로 간주되니 수강생이 추가로 못 바꿀 수 있습니다.
-                            </div>
-                        </div>
-                    )}
                     {hasHolidayOriginalClass && (
                         <div style={{
                             margin: '0 0 12px',
