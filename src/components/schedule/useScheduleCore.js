@@ -16,6 +16,7 @@ import {
 } from '../../utils/scheduleUtils';
 import { MOCK_DATA, MAX_CAPACITY, KOREAN_HOLIDAYS } from '../../data/mockData';
 import { getUnpaidStudentNames } from '../../utils/studentList';
+import { secondClassDayISO, cappedEndForFirstClassMove } from '../../utils/makeupEndDate';
 
 /**
  * 코치/학생 시간표 양쪽이 쓰는 파생 데이터와 헬퍼를 한 훅으로 집중.
@@ -132,9 +133,30 @@ export function useScheduleCore({
 
         // 종료일 이후 보강이 있으면, 가장 늦은 보강일을 effective end로
         if (makeupsAfterEnd.length > 0) {
+            // 종료일이 그 주 '첫 수업일'인 경우: 그 종료일 수업을 뒤로 옮겨도
+            // '두번째 수업일'(그 수업도 보강이면 그 보강일)까지만 인정. (makeupEndDate 규칙)
+            const scheduleStr = student['요일 및 시간'] || '';
+            const secondScheduledISO = secondClassDayISO(scheduleStr, endDateStr);
+            let secondMakeupISO = null;
+            if (secondScheduledISO) {
+                const secondM = weekMakeupRequests.find(m =>
+                    m.studentName === name && isActiveOrCompleted(m) &&
+                    m.originalClass?.date === secondScheduledISO
+                );
+                secondMakeupISO = secondM?.makeupClass?.date || null;
+            }
+
             let latestDate = new Date(endDate);
             for (const m of makeupsAfterEnd) {
-                const makeupDate = new Date(m.makeupClass.date + 'T00:00:00');
+                let makeupISO = m.makeupClass.date;
+                // 종료일(첫 수업일) 수업을 전진 보강한 건만 두번째 수업일로 캡
+                if (secondScheduledISO && m.originalClass.date === endDateStr) {
+                    const capped = cappedEndForFirstClassMove({
+                        scheduleStr, endDateISO: endDateStr, firstMakeupISO: makeupISO, secondMakeupISO,
+                    });
+                    if (capped) makeupISO = capped.capISO;
+                }
+                const makeupDate = new Date(makeupISO + 'T00:00:00');
                 if (makeupDate > latestDate) latestDate = makeupDate;
             }
             return latestDate;

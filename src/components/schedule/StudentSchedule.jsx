@@ -21,11 +21,22 @@ import {
     isClassWithinMinutes,
     getThisWeekRange,
     getWaitlistCountForSlot,
+    parseSheetDate,
+    formatDateISO,
 } from '../../utils/scheduleUtils';
 import { getMakeupWeeklyLimit } from '../../utils/makeupQuota';
+import { secondClassDayISO, cappedEndForFirstClassMove } from '../../utils/makeupEndDate';
 import MakeupModal from './MakeupModal';
 import MakeupWaitlistResponseModal from './MakeupWaitlistModal';
 import { StudentTag, AvailableSeatsCell, HolidayCell } from './ScheduleCell';
+
+const KOR_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+// "2026-06-24" → "6월 24일(수)"
+function formatKoreanDate(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    if (Number.isNaN(d.getTime())) return iso;
+    return `${d.getMonth() + 1}월 ${d.getDate()}일(${KOR_DAYS[d.getDay()]})`;
+}
 
 /**
  * 학생 모드(mode === 'student') 화면 전체를 렌더.
@@ -237,6 +248,31 @@ export default function StudentSchedule({
         if (!forceMode && isMyHoldingDate?.(selectedOriginalClass.date)) {
             alert('홀딩 기간 중인 수업은 보강 신청할 수 없습니다.\n홀딩이 끝난 뒤 신청해주세요.');
             return;
+        }
+
+        // 종료일(그 주 첫 수업일) 수업을 '두번째 수업일'보다 뒤로 옮기면 표시상 종료일이 당겨짐 — 안내(취소 가능)
+        const endISO = (() => {
+            const ed = parseSheetDate(getStudentField(studentData, '종료날짜'));
+            return ed ? formatDateISO(ed) : null;
+        })();
+        if (endISO && selectedOriginalClass.date === endISO) {
+            const scheduleStr = getStudentField(studentData, '요일 및 시간') || '';
+            const secondISO = secondClassDayISO(scheduleStr, endISO);
+            if (secondISO && selectedMakeupSlot.date > secondISO) {
+                const secondM = myWeekMakeupHistory.find(m =>
+                    m.originalClass?.date === secondISO && (m.status === 'active' || m.status === 'completed')
+                );
+                const capped = cappedEndForFirstClassMove({
+                    scheduleStr, endDateISO: endISO,
+                    firstMakeupISO: selectedMakeupSlot.date,
+                    secondMakeupISO: secondM?.makeupClass?.date || null,
+                });
+                const proceed = window.confirm(
+                    `이 수업이 ${forceMode ? '해당 수강생의 ' : ''}마지막 수업이에요.\n` +
+                    `보강으로 옮기면 수강 종료일(마지막 수업)이 ${formatKoreanDate(capped.capISO)}로 변경됩니다.\n\n계속하시겠어요?`
+                );
+                if (!proceed) return;
+            }
         }
 
         setIsSubmittingMakeup(true);
