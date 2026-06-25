@@ -392,7 +392,9 @@ export async function saveEdit(docId) {
 
         alert('✅ 수정이 완료되었습니다!');
         closeEditModal();
-        if (window.render) window.render();
+        // 전체 render() 금지 — 아래 작성 중인 새 기록 폼이 날아감.
+        // 기록 목록은 loadMyRecords의 onSnapshot이 자동 갱신한다. (ponytail: 목록만 onSnapshot에 위임)
+        if (window.renderCalendar) window.renderCalendar();
     } catch (error) {
         console.error('Error saving edit:', error);
         alert('수정 실패: ' + error.message);
@@ -763,10 +765,10 @@ export function togglePinExerciseFromEdit() {
     }
 
     // Logic Unified with Workout Memo
-    saveWorkoutMemo(exercise, memo, true);
+    saveWorkoutMemo(exercise, memo, true); // 내부에서 updatePinnedDisplay + updatePinButton 호출됨
 
     closeEditModal();
-    if (window.render) window.render();
+    // 전체 render() 금지 — 작성 중인 폼이 날아감. 표시 갱신은 saveWorkoutMemo가 이미 처리.
 }
 
 // ============================================
