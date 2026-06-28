@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 // Firebase configuration
 // 훈련일지 프로젝트와 동일한 Firebase 프로젝트 사용
@@ -19,12 +20,14 @@ const isFirebaseConfigured = firebaseConfig.apiKey &&
 
 let app = null;
 let db = null;
+let auth = null;
 
 // Only initialize Firebase if properly configured
 if (isFirebaseConfigured) {
     try {
         app = initializeApp(firebaseConfig);
         db = getFirestore(app);
+        auth = getAuth(app);
         console.log('✅ Firebase initialized successfully');
     } catch (error) {
         console.error('❌ Firebase initialization failed:', error);
@@ -33,5 +36,5 @@ if (isFirebaseConfigured) {
     console.warn('⚠️ Firebase not configured - makeup class features will be disabled');
 }
 
-export { db };
+export { db, auth };
 export default app;
