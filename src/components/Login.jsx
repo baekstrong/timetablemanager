@@ -150,7 +150,7 @@ const Login = ({ onLogin }) => {
 
             <div className="login-card">
                 <div className="login-header">
-                    <h1 className="login-title">근력학교 수강 관리 시스템</h1>
+                    <h1 className="login-title">근력학교<br />수강 관리 시스템</h1>
                 </div>
 
                 <form onSubmit={handleSubmit} className="login-form">
