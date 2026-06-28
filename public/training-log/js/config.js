@@ -11,6 +11,9 @@ export const firebaseConfig = {
     measurementId: "G-D4JTBJ84NJ"
 };
 
+// Netlify 함수 베이스 URL (백관장 확인 값으로 고정 — 보통 strengthschool.netlify.app)
+export const FUNCTIONS_BASE = "https://strengthschool.netlify.app/.netlify/functions";
+
 // ============================================
 // 상수 데이터
 // ============================================

@@ -1,6 +1,7 @@
 import { state, db, firebaseInitialized } from '../state.js';
 import { saveLogin, loadSavedLogin, clearSavedLogin } from '../utils.js';
 import { loadPinnedExercisesFromStorage, loadArchivedMemosFromStorage, migrateLocalStorageToFirestore } from './records.js';
+import { FUNCTIONS_BASE } from '../config.js';
 
 // ============================================
 // 로그인 및 인증 관련
@@ -30,20 +31,30 @@ export async function login() {
     }
 
     try {
-        const userDoc = await db.collection('users').doc(name).get();
-
-        if (userDoc.exists) {
-            const userData = userDoc.data();
-
-            if (userData.password !== password) {
+        // 서버 로그인 시도 (커스텀 토큰)
+        try {
+            const res = await fetch(`${FUNCTIONS_BASE}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, password }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.error || '로그인 실패');
+            await firebase.auth().signInWithCustomToken(data.token);
+            state.isCoach = data.isCoach || false;
+        } catch (serverErr) {
+            // ponytail: Phase A/B 폴백 — Phase C에서 제거.
+            console.warn('서버 로그인 실패, 클라 폴백:', serverErr.message);
+            const userDoc = await db.collection('users').doc(name).get();
+            if (!userDoc.exists) {
+                alert('❌ 등록되지 않은 계정입니다. 코치에게 문의해 주세요.');
+                return;
+            }
+            if (userDoc.data().password !== password) {
                 alert('❌ 비밀번호가 올바르지 않습니다!');
                 return;
             }
-            state.isCoach = userData.isCoach || false;
-        } else {
-            // 자동가입 제거: 미등록 이름으로는 로그인 불가 (코치 승인으로만 계정 생성)
-            alert('❌ 등록되지 않은 계정입니다. 코치에게 문의해 주세요.');
-            return;
+            state.isCoach = userDoc.data().isCoach || false;
         }
 
         state.currentUser = name;
@@ -102,37 +113,33 @@ export async function autoLogin() {
     if (!saved || !firebaseInitialized || !db) return;
 
     try {
-        const userDoc = await db.collection('users').doc(saved.name).get();
-
-        if (userDoc.exists) {
-            const userData = userDoc.data();
-
-            if (userData.password === saved.password) {
-                state.currentUser = saved.name;
-                state.userPassword = saved.password;
-                state.isCoach = userData.isCoach || false;
-                state.currentSets = [];
-
-                // 기존 localStorage 고정 메모를 Firestore로 마이그레이션
-                await migrateLocalStorageToFirestore();
-
-                // 사용자별 고정 메모 불러오기 (async)
-                loadPinnedExercisesFromStorage().then(loaded => {
-                    state.pinnedExercises = loaded;
-                });
-
-                // 보관 메모 불러오기 (async)
-                loadArchivedMemosFromStorage().then(loaded => {
-                    state.archivedMemos = loaded;
-                });
-
-                console.log('✅ 자동 로그인 성공!');
-                if (window.render) window.render();
-            } else {
-                // 비밀번호가 변경됨
+        try {
+            const res = await fetch(`${FUNCTIONS_BASE}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: saved.name, password: saved.password }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.error || '자동 로그인 실패');
+            await firebase.auth().signInWithCustomToken(data.token);
+            state.isCoach = data.isCoach || false;
+        } catch (serverErr) {
+            console.warn('서버 자동로그인 실패, 클라 폴백:', serverErr.message);
+            const userDoc = await db.collection('users').doc(saved.name).get();
+            if (!userDoc.exists || userDoc.data().password !== saved.password) {
                 clearSavedLogin();
+                return;
             }
+            state.isCoach = userDoc.data().isCoach || false;
         }
+        state.currentUser = saved.name;
+        state.userPassword = saved.password;
+        state.currentSets = [];
+        await migrateLocalStorageToFirestore();
+        loadPinnedExercisesFromStorage().then(loaded => { state.pinnedExercises = loaded; });
+        loadArchivedMemosFromStorage().then(loaded => { state.archivedMemos = loaded; });
+        console.log('✅ 자동 로그인 성공!');
+        if (window.render) window.render();
     } catch (error) {
         console.error('자동 로그인 실패:', error);
     }
