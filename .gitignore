@@ -27,3 +27,6 @@ dist-ssr
 timetable-manager-483823-71c27367cd6a.json
 design-preview/
 .superpowers/
+
+# Firebase Admin 서비스계정 키 (로컬 마이그레이션 전용 — 절대 커밋 금지)
+firebase-admin-key.json
