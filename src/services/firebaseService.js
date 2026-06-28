@@ -135,6 +135,8 @@ export const updateUserPassword = async (userName, currentPassword, newPassword)
         if (userDoc.data().password !== currentPassword) {
             throw new Error('현재 비밀번호가 올바르지 않습니다.');
         }
+        // ponytail: 본인 비번 변경은 Phase A에선 평문만 갱신(서버는 평문 폴백으로 로그인 가능).
+        // Phase C 직전 auth-change-password(본인 현재비번 재검증) 추가 후 해시 갱신으로 전환.
         await updateDoc(userRef, { password: newPassword, updatedAt: serverTimestamp() });
         return { success: true };
     });

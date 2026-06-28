@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '../config/firebase';
 import { doc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { setStudentPassword } from '../services/authService';
 import {
     getNewStudentRegistrations,
     updateNewStudentRegistration,
@@ -231,6 +232,13 @@ const CoachNewStudents = ({ user, onBack }) => {
                 isCoach: false,
                 createdAt: serverTimestamp()
             });
+            try {
+                const saved = JSON.parse(localStorage.getItem('savedUser') || '{}');
+                const coachName = saved.name, coachPassword = saved.password;
+                await setStudentPassword(coachName, coachPassword, reg.name, reg.password);
+            } catch (hashErr) {
+                console.warn('bcrypt 해시 기록 실패 (평문 폴백으로 로그인 가능):', hashErr);
+            }
 
             // 2. Google Sheets 행 추가 (시작일 기준 시트 결정)
             const entranceDateForCalc = reg.entranceInquiry || reg.entranceDate;

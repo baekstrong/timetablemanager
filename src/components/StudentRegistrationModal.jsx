@@ -12,6 +12,7 @@ import {
     isHolidayDate
 } from '../services/googleSheetsService';
 import { getHolidays, createRenewalContract, createNewStudentRegistration, getEntranceClasses, updateEntranceClass, updateNewStudentRegistration } from '../services/firebaseService';
+import { setStudentPassword } from '../services/authService';
 import { sendApprovalNotifications } from '../services/smsService';
 import { formatEntranceDate } from '../utils/dateUtils';
 import { db } from '../config/firebase';
@@ -391,18 +392,24 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
 
             await writeSheetData(`${targetSheet}!A${nextSheetRow}:R${nextSheetRow}`, [rowData]);
 
-            // 신규 등록: 로그인 계정 생성 (이미 있으면 비밀번호 덮어쓰지 않음)
+            // 신규 등록: 로그인 계정 생성
             if (registrationType === 'new') {
+                const userRef = doc(db, 'users', form.이름.trim());
+                const existing = await getDoc(userRef);
+                if (existing.exists()) {
+                    alert('❌ 이미 동일한 이름의 계정이 존재합니다. 등록을 중단합니다. (동명이인은 이름 뒤 구분자 사용)');
+                    setSubmitting(false);
+                    return;
+                }
                 try {
-                    const userRef = doc(db, 'users', form.이름.trim());
-                    const existing = await getDoc(userRef);
-                    if (!existing.exists()) {
-                        await setDoc(userRef, {
-                            password: form.비밀번호.trim(),
-                            isCoach: false,
-                            createdAt: serverTimestamp()
-                        });
-                    }
+                    await setDoc(userRef, {
+                        password: form.비밀번호.trim(),   // ponytail: Phase C에서 제거(해시만 사용)
+                        isCoach: false,
+                        createdAt: serverTimestamp()
+                    });
+                    const saved = JSON.parse(localStorage.getItem('savedUser') || '{}');
+                    const coachName = saved.name, coachPassword = saved.password;
+                    await setStudentPassword(coachName, coachPassword, form.이름.trim(), form.비밀번호.trim());
                 } catch (acctErr) {
                     console.warn('로그인 계정 생성 실패 (시트 등록은 완료):', acctErr);
                     alert('⚠️ 시트 등록은 됐지만 로그인 계정 생성에 실패했습니다. 다시 시도하거나 코치에게 문의하세요.');
@@ -943,6 +950,7 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
                             <label>로그인 비밀번호 *</label>
                             <input
                                 type="text"
+                                autoComplete="new-password"
                                 value={form.비밀번호}
                                 onChange={(e) => handleChange('비밀번호', e.target.value)}
                                 placeholder="수강생이 로그인할 비밀번호"
