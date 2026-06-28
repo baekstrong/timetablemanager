@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { db } from '../config/firebase';
+import { db, auth } from '../config/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { serverLogin } from '../services/authService';
 import './Login.css';
 
@@ -11,10 +12,15 @@ const Login = ({ onLogin }) => {
     const [loading, setLoading] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const [autoLogin, setAutoLogin] = useState(false);
+    // 공유 Firebase 세션 확인 중이면 폼 대신 잠깐 배경만 (앱 간 이동 시 로그인 폼 깜빡임 방지)
+    const [resolving, setResolving] = useState(!!(auth && localStorage.getItem('savedUser')));
 
-    // Load saved credentials on component mount
+    // 마운트 시: 공유 Firebase Auth 세션 우선 → 없으면 저장된 자격증명 자동로그인
     useEffect(() => {
         const savedCredentials = localStorage.getItem('login_credentials');
+        const savedUserRaw = localStorage.getItem('savedUser');
+
+        // 로그인 폼 필드 채우기 (수동 로그인 UX용)
         if (savedCredentials) {
             try {
                 const { username: savedUsername, password: savedPassword, autoLogin: savedAutoLogin } = JSON.parse(savedCredentials);
@@ -22,30 +28,63 @@ const Login = ({ onLogin }) => {
                 setPassword(savedPassword || '');
                 setRememberMe(true);
                 setAutoLogin(savedAutoLogin || false);
-
-                // Auto-login if enabled
-                if (savedAutoLogin && savedUsername && savedPassword) {
-                    console.log('🔄 Auto-login enabled, attempting login...');
-
-                    // Check if this is a quick return from training log
-                    const quickReturn = sessionStorage.getItem('quickReturn');
-                    if (quickReturn) {
-                        console.log('⚡ Quick return detected - using fast login');
-                        sessionStorage.removeItem('quickReturn');
-
-                        // Disable auto-login after this one-time use
-                        const credentials = JSON.parse(savedCredentials);
-                        credentials.autoLogin = false;
-                        localStorage.setItem('login_credentials', JSON.stringify(credentials));
-                    }
-
-                    performLogin(savedUsername, savedPassword, true);
-                }
             } catch (err) {
                 console.error('Failed to load saved credentials:', err);
                 localStorage.removeItem('login_credentials');
             }
         }
+
+        // 저장된 자격증명으로 자동로그인 (서버 경로) — 공유 세션 없을 때 폴백
+        const runSavedAutoLogin = () => {
+            setResolving(false);
+            if (!savedCredentials) return;
+            try {
+                const { username: savedUsername, password: savedPassword, autoLogin: savedAutoLogin } = JSON.parse(savedCredentials);
+                if (savedAutoLogin && savedUsername && savedPassword) {
+                    console.log('🔄 Auto-login enabled, attempting login...');
+                    const quickReturn = sessionStorage.getItem('quickReturn');
+                    if (quickReturn) {
+                        sessionStorage.removeItem('quickReturn');
+                        const credentials = JSON.parse(savedCredentials);
+                        credentials.autoLogin = false;
+                        localStorage.setItem('login_credentials', JSON.stringify(credentials));
+                    }
+                    performLogin(savedUsername, savedPassword, true);
+                }
+            } catch (err) {
+                console.error('Auto-login failed:', err);
+            }
+        };
+
+        // 공유 Firebase Auth 세션이 있으면 서버 재인증 생략하고 즉시 로그인
+        if (auth && savedUserRaw) {
+            let done = false;
+            const finish = (cb) => { if (done) return; done = true; cb(); };
+            const unsub = onAuthStateChanged(auth, (fbUser) => {
+                unsub();
+                if (fbUser) {
+                    finish(() => {
+                        try {
+                            const su = JSON.parse(savedUserRaw);
+                            console.log('⚡ 공유 Firebase 세션 — 즉시 로그인 (서버 재인증 생략)');
+                            sessionStorage.removeItem('quickReturn');
+                            onLogin({ username: su.name, role: su.isCoach ? 'coach' : 'student' });
+                        } catch (e) {
+                            console.warn('savedUser 파싱 실패, 폴백:', e);
+                            runSavedAutoLogin();
+                        }
+                    });
+                } else {
+                    finish(runSavedAutoLogin);
+                }
+            });
+            // 안전장치: 2.5초 내 세션 콜백 없으면 폴백
+            const t = setTimeout(() => finish(runSavedAutoLogin), 2500);
+            return () => { clearTimeout(t); unsub(); };
+        }
+
+        // 공유 세션 확인 대상 아님 → 기존 동작
+        runSavedAutoLogin();
     }, []);
 
     // Perform login with Firestore
@@ -139,6 +178,19 @@ const Login = ({ onLogin }) => {
 
         performLogin(username.trim(), password.trim());
     };
+
+    // 공유 세션 확인 중에는 로그인 폼 대신 배경만 (깜빡임 방지)
+    if (resolving) {
+        return (
+            <div className="login-container">
+                <div className="login-background">
+                    <div className="gradient-orb orb-1"></div>
+                    <div className="gradient-orb orb-2"></div>
+                    <div className="gradient-orb orb-3"></div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="login-container">

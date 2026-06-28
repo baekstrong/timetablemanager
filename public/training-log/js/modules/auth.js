@@ -113,25 +113,43 @@ export async function autoLogin() {
     if (!saved || !firebaseInitialized || !db) return;
 
     try {
-        try {
-            const res = await fetch(`${FUNCTIONS_BASE}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: saved.name, password: saved.password }),
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.error || '자동 로그인 실패');
-            await firebase.auth().signInWithCustomToken(data.token);
-            state.isCoach = data.isCoach || false;
-        } catch (serverErr) {
-            console.warn('서버 자동로그인 실패, 클라 폴백:', serverErr.message);
-            const userDoc = await db.collection('users').doc(saved.name).get();
-            if (!userDoc.exists || userDoc.data().password !== saved.password) {
-                clearSavedLogin();
-                return;
+        // 1) 공유 Firebase Auth 세션 우선 (메인앱이 만든 세션 = 같은 origin·프로젝트라 공유됨)
+        //    → 서버 재인증(네트워크+bcrypt) 생략하고 즉시 로그인. 앱 간 이동이 빨라짐.
+        const sessionUser = await new Promise((resolve) => {
+            let done = false;
+            const finish = (u) => { if (!done) { done = true; resolve(u); } };
+            try {
+                const unsub = firebase.auth().onAuthStateChanged((u) => { unsub(); finish(u); });
+                setTimeout(() => finish(null), 2500); // 안전장치
+            } catch (e) { finish(null); }
+        });
+
+        if (sessionUser) {
+            console.log('⚡ 공유 Firebase 세션 — 즉시 자동 로그인 (서버 재인증 생략)');
+            state.isCoach = saved.isCoach || false;
+        } else {
+            // 2) 세션 없음 → 서버 로그인 (+ 평문 폴백)
+            try {
+                const res = await fetch(`${FUNCTIONS_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: saved.name, password: saved.password }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) throw new Error(data.error || '자동 로그인 실패');
+                await firebase.auth().signInWithCustomToken(data.token);
+                state.isCoach = data.isCoach || false;
+            } catch (serverErr) {
+                console.warn('서버 자동로그인 실패, 클라 폴백:', serverErr.message);
+                const userDoc = await db.collection('users').doc(saved.name).get();
+                if (!userDoc.exists || userDoc.data().password !== saved.password) {
+                    clearSavedLogin();
+                    return;
+                }
+                state.isCoach = userDoc.data().isCoach || false;
             }
-            state.isCoach = userDoc.data().isCoach || false;
         }
+
         state.currentUser = saved.name;
         state.userPassword = saved.password;
         state.currentSets = [];
