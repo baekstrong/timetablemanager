@@ -329,6 +329,17 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
 
         setSubmitting(true);
         try {
+            // 신규 등록 이름 충돌 사전 검사 (시트 기록 전 — 충돌 시 빈 행 방지)
+            if (registrationType === 'new') {
+                const dupRef = doc(db, 'users', form.이름.trim());
+                const dupSnap = await getDoc(dupRef);
+                if (dupSnap.exists()) {
+                    alert('❌ 이미 동일한 이름의 계정이 존재합니다. 등록을 중단합니다. (동명이인은 이름 뒤 구분자 사용)');
+                    setSubmitting(false);
+                    return;
+                }
+            }
+
             const startDateYYMMDD = convertToYYMMDD(form.시작날짜);
             const 결제일YYMMDD = form.결제일 ? convertToYYMMDD(form.결제일) : '';
 
@@ -395,12 +406,6 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
             // 신규 등록: 로그인 계정 생성
             if (registrationType === 'new') {
                 const userRef = doc(db, 'users', form.이름.trim());
-                const existing = await getDoc(userRef);
-                if (existing.exists()) {
-                    alert('❌ 이미 동일한 이름의 계정이 존재합니다. 등록을 중단합니다. (동명이인은 이름 뒤 구분자 사용)');
-                    setSubmitting(false);
-                    return;
-                }
                 try {
                     await setDoc(userRef, {
                         password: form.비밀번호.trim(),   // ponytail: Phase C에서 제거(해시만 사용)
