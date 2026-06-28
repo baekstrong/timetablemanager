@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '../config/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { serverLogin } from '../services/authService';
 import './Login.css';
 
 const Login = ({ onLogin }) => {
@@ -58,28 +59,27 @@ const Login = ({ onLogin }) => {
         setError('');
 
         try {
-            // Check if user exists in Firestore users collection
-            const userRef = doc(db, 'users', name);
-            const userDoc = await getDoc(userRef);
-
             let isCoach = false;
-
-            if (userDoc.exists()) {
-                const userData = userDoc.data();
-
-                // Verify password
-                if (userData.password !== pass) {
+            try {
+                // 서버 로그인: 커스텀 토큰 발급 + signInWithCustomToken (request.auth 채움)
+                const result = await serverLogin(name, pass);
+                isCoach = result.isCoach;
+            } catch (serverErr) {
+                // ponytail: Phase A/B 폴백 — 서버 경로 검증될 때까지 클라 비교 유지, Phase C에서 제거.
+                console.warn('서버 로그인 실패, 클라 폴백:', serverErr.message);
+                const userRef = doc(db, 'users', name);
+                const userDoc = await getDoc(userRef);
+                if (!userDoc.exists()) {
+                    setError('❌ 등록되지 않은 계정입니다. 코치에게 문의해 주세요.');
+                    setLoading(false);
+                    return;
+                }
+                if (userDoc.data().password !== pass) {
                     setError('❌ 비밀번호가 올바르지 않습니다!');
                     setLoading(false);
                     return;
                 }
-
-                isCoach = userData.isCoach || false;
-            } else {
-                // 자동가입 제거: 미등록 이름으로는 로그인 불가 (코치 승인으로만 계정 생성)
-                setError('❌ 등록되지 않은 계정입니다. 코치에게 문의해 주세요.');
-                setLoading(false);
-                return;
+                isCoach = userDoc.data().isCoach || false;
             }
 
             // Save credentials if remember me is checked
