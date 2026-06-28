@@ -5,6 +5,12 @@
   functions = "netlify/functions"
   ignore = "git diff --quiet HEAD^ HEAD"
 
+# firebase-admin은 무겁고 동적 require가 많아 esbuild 번들 시 함수 배포가 실패한다.
+# external 처리 → 번들 대신 node_modules에서 그대로 포함 (auth 함수 배포 정상화)
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["firebase-admin"]
+
 # SPA routing을 위한 리다이렉트 설정
 # 모든 경로를 index.html로 리다이렉트 (실제 파일이 없을 때만)
 [[redirects]]
