@@ -76,6 +76,7 @@ const NewStudentRegistration = () => {
     const [entranceClasses, setEntranceClasses] = useState([]);
     const [selectedEntrance, setSelectedEntrance] = useState(null);
     const [entranceInquiry, setEntranceInquiry] = useState(''); // 다른 날 문의 (YYYY-MM-DD)
+    const [entranceInquiryReason, setEntranceInquiryReason] = useState(''); // 문의 사유 (필수)
     const [showInquiryCalendar, setShowInquiryCalendar] = useState(false);
     const [inquiryCalMonth, setInquiryCalMonth] = useState(() => {
         const now = new Date();
@@ -231,7 +232,7 @@ const NewStudentRegistration = () => {
             case 0: return name.trim() && phone1.trim() && phone2.trim() && phone3.trim();
             case 1: return weeklyFrequency !== null;
             case 2: return isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency;
-            case 3: return selectedEntrance !== null || entranceInquiry !== '';
+            case 3: return selectedEntrance !== null || (entranceInquiry !== '' && entranceInquiryReason.trim() !== '');
             case 4: return paymentMethod !== '';
             case 5: return true;
             case 6: return true;
@@ -263,6 +264,7 @@ const NewStudentRegistration = () => {
                 entranceDate: entranceClass ? entranceClass.date : '',
                 entranceClassDate: entranceClass ? `${formatEntranceDate(entranceClass.date)} ${entranceClass.time}${entranceClass.endTime ? ' ~ ' + entranceClass.endTime : ''}` : '',
                 entranceInquiry: entranceInquiry || '',
+                entranceInquiryReason: entranceInquiry ? entranceInquiryReason.trim() : '',
                 entranceCost,
                 totalCost,
                 paymentMethod,
@@ -690,6 +692,7 @@ const NewStudentRegistration = () => {
                                                 if (ec.currentCount >= ec.maxCapacity) return;
                                                 setSelectedEntrance(ec.id);
                                                 setEntranceInquiry('');
+                                                setEntranceInquiryReason('');
                                             }}
                                         >
                                             <div className="reg-entrance-date">{formatEntranceDate(ec.date)}</div>
@@ -705,20 +708,24 @@ const NewStudentRegistration = () => {
                                 </div>
                             )}
 
-                            {/* 다른 날 문의 */}
+                            {/* 다른 날 문의 (예외 — 부득이한 경우만, 사유 필수) */}
                             <div className="reg-entrance-inquiry">
+                                <div className="reg-entrance-inquiry-note">
+                                    입학반은 매월 지정일에만 진행됩니다.
+                                </div>
                                 <div
                                     className="reg-entrance-inquiry-label"
                                     onClick={() => {
                                         if (showInquiryCalendar) {
                                             setShowInquiryCalendar(false);
                                             setEntranceInquiry('');
+                                            setEntranceInquiryReason('');
                                         } else {
                                             setShowInquiryCalendar(true);
                                         }
                                     }}
                                 >
-                                    위 날짜가 어려우신가요? 다른 날짜를 문의해보세요.
+                                    부득이하게 참석이 어려운 경우에만 다른 날짜 문의 ›
                                 </div>
                                 {showInquiryCalendar && (() => {
                                     const { year, month } = inquiryCalMonth;
@@ -788,6 +795,7 @@ const NewStudentRegistration = () => {
                                                             if (!cell || cell.disabled) return;
                                                             if (entranceInquiry === cell.dateStr) {
                                                                 setEntranceInquiry('');
+                                                                setEntranceInquiryReason('');
                                                             } else {
                                                                 setEntranceInquiry(cell.dateStr);
                                                                 setSelectedEntrance(null);
@@ -799,9 +807,19 @@ const NewStudentRegistration = () => {
                                                 ))}
                                             </div>
                                             {entranceInquiry && (
-                                                <div className="reg-inquiry-selected">
-                                                    {formatEntranceDate(entranceInquiry)} 10:00 ~ 13:00 희망
-                                                </div>
+                                                <>
+                                                    <div className="reg-inquiry-selected">
+                                                        {formatEntranceDate(entranceInquiry)} 10:00 ~ 13:00 희망
+                                                    </div>
+                                                    <textarea
+                                                        className="reg-inquiry-reason"
+                                                        value={entranceInquiryReason}
+                                                        onChange={(e) => setEntranceInquiryReason(e.target.value)}
+                                                        placeholder="지정일에 참석이 어려운 사유를 적어주세요. (필수)"
+                                                        rows={2}
+                                                        maxLength={200}
+                                                    />
+                                                </>
                                             )}
                                         </div>
                                     );

@@ -1457,7 +1457,10 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                 {reg.entranceInquiry && (
                                                     <div className="cns-detail-item full">
                                                         <span className="cns-detail-label">입학반 날짜 문의</span>
-                                                        <span className="cns-detail-value" style={{ color: '#dc2626' }}>{formatEntranceDate(reg.entranceInquiry) || reg.entranceInquiry}</span>
+                                                        <span className="cns-detail-value" style={{ color: '#dc2626' }}>
+                                                            {formatEntranceDate(reg.entranceInquiry) || reg.entranceInquiry}
+                                                            {reg.entranceInquiryReason && ` — ${reg.entranceInquiryReason}`}
+                                                        </span>
                                                     </div>
                                                 )}
                                                 {reg.gender && (

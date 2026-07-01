@@ -341,15 +341,37 @@
     margin-top: 1rem;
 }
 
+.reg-entrance-inquiry-note {
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    padding-top: 0.25rem;
+}
+
 .reg-entrance-inquiry-label {
-    font-size: 0.85rem;
-    color: var(--accent);
-    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
     cursor: pointer;
     text-align: center;
-    padding: 0.5rem;
-    text-decoration: underline;
-    text-underline-offset: 3px;
+    padding: 0.4rem;
+}
+
+.reg-inquiry-reason {
+    width: 100%;
+    margin-top: 0.6rem;
+    padding: 0.6rem;
+    border: 1.5px solid var(--hairline);
+    border-radius: var(--r-md);
+    font-size: 0.9rem;
+    font-family: inherit;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.reg-inquiry-reason:focus {
+    outline: none;
+    border-color: var(--accent);
 }
 
 .reg-inquiry-calendar {
