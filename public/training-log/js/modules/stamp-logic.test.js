@@ -1,18 +1,29 @@
 import { describe, it, expect } from 'vitest';
 import { suggestGrade, prevMonthRange, computeStampStats } from './stamp-logic.js';
 
-describe('suggestGrade', () => {
-    it('활동일 13 이상이면 great', () => {
-        expect(suggestGrade(18)).toBe('great');
-        expect(suggestGrade(13)).toBe('great');
+describe('suggestGrade (주횟수 기반)', () => {
+    it('주2회: great≥7, good≥4, 그 미만 tryharder', () => {
+        expect(suggestGrade(7, 2)).toBe('great');
+        expect(suggestGrade(6, 2)).toBe('good');
+        expect(suggestGrade(4, 2)).toBe('good');
+        expect(suggestGrade(3, 2)).toBe('tryharder');
     });
-    it('활동일 6~12면 good', () => {
-        expect(suggestGrade(12)).toBe('good');
+    it('주3회: great≥10, good≥6, 그 미만 tryharder', () => {
+        expect(suggestGrade(10, 3)).toBe('great');
+        expect(suggestGrade(9, 3)).toBe('good');
+        expect(suggestGrade(6, 3)).toBe('good');
+        expect(suggestGrade(5, 3)).toBe('tryharder');
+    });
+    it('주4회: great≥13, good≥8, 그 미만 tryharder', () => {
+        expect(suggestGrade(13, 4)).toBe('great');
+        expect(suggestGrade(12, 4)).toBe('good');
+        expect(suggestGrade(8, 4)).toBe('good');
+        expect(suggestGrade(7, 4)).toBe('tryharder');
+    });
+    it('주횟수 없으면 주3 기본으로 판정', () => {
+        expect(suggestGrade(10)).toBe('great');
         expect(suggestGrade(6)).toBe('good');
-    });
-    it('활동일 6 미만이면 tryharder', () => {
         expect(suggestGrade(5)).toBe('tryharder');
-        expect(suggestGrade(0)).toBe('tryharder');
     });
 });
 

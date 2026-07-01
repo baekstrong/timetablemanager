@@ -53,10 +53,17 @@ export async function openStampModal() {
     const memosByStudent = {};
     pmSnap.forEach(d => { memosByStudent[d.id] = (d.data().memos || []); });
 
+    // 3.6) 학생 주횟수 맵 (도장 자동추천 기준) — 메인 앱이 코치 진입 시 발행
+    let freqByStudent = {};
+    try {
+        const fdoc = await db.collection('studentMeta').doc('frequencies').get();
+        if (fdoc.exists) freqByStudent = fdoc.data().map || {};
+    } catch (e) { /* 없으면 suggestGrade가 주3 기본 사용 */ }
+
     // 4) 행 렌더
     const rows = students.map((name, idx) => {
         const stats = computeStampStats(byStudent[name] || []);
-        const prefGrade = existing[name]?.grade || suggestGrade(stats.activeDays);
+        const prefGrade = existing[name]?.grade || suggestGrade(stats.activeDays, freqByStudent[name]);
         const comment = existing[name]?.comment || '';
         const warn = stats.activeDays >= 6 && stats.avgExercises > 0 && stats.avgExercises < 1.5;
         const options = STAMP_ORDER.map(g =>

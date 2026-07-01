@@ -8,11 +8,13 @@ export const STAMP_GRADES = {
 
 export const STAMP_ORDER = ['great', 'good', 'tryharder'];
 
-// 자동추천 등급 — 티어 경계(13/6) 재사용
-// ponytail: 경계 바뀌면 여기 숫자만 수정
-export function suggestGrade(activeDays) {
-    if (activeDays >= 13) return 'great';
-    if (activeDays >= 6) return 'good';
+// 자동추천 등급 — 주횟수 기반. great=주횟수×3+1, good=주횟수×2.
+// 예) 주2: great≥7 good≥4 / 주3: great≥10 good≥6 / 주4: great≥13 good≥8
+// ponytail: 주횟수 모르면 주3 기본. 경계 바뀌면 여기 숫자만 수정.
+export function suggestGrade(activeDays, weeklyFrequency = 3) {
+    const f = weeklyFrequency || 3;
+    if (activeDays >= f * 3 + 1) return 'great';
+    if (activeDays >= f * 2) return 'good';
     return 'tryharder';
 }
 
