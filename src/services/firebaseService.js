@@ -1907,6 +1907,24 @@ export const backfillTiersForMonth = async (students) => {
     });
 };
 
+// 수강생 주횟수(C열)를 훈련일지 도장 모달이 읽도록 단일 문서에 발행.
+// ponytail: 이름→주횟수 맵 1문서. 코치 진입 시 통째로 덮어써 삭제된 학생은 자동 제거.
+// 같은 이름 중복 등록(미리 등록)은 마지막 행 값 사용 — 주횟수는 보통 동일.
+export const syncStudentFrequencies = async (students) => {
+    return safeRead(null, async () => {
+        if (!Array.isArray(students) || students.length === 0) return null;
+        const map = {};
+        for (const s of students) {
+            const nm = (s['이름'] || '').trim();
+            if (!nm) continue;
+            const f = parseInt(s['주횟수'], 10);
+            if (f) map[nm] = f;
+        }
+        await setDoc(doc(db, 'studentMeta', 'frequencies'), { map, updatedAt: serverTimestamp() });
+        return map;
+    });
+};
+
 // ============================================
 // 학년(누적 훈련량 경험치) — 티어 패턴 미러
 // ============================================

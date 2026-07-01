@@ -1,18 +1,21 @@
 // 월간 도장 순수 로직 — Firebase/DOM 의존 없음 (브라우저 + vitest 양쪽에서 import 가능)
 
+// headline = 지난달 상태(맥락), label = 격려(도장 안 짧은 문구)
 export const STAMP_GRADES = {
-    great:     { label: '참 잘했어요',   color: '#E94E58' },
-    good:      { label: '잘하고 있어요', color: '#329BE7' },
-    tryharder: { label: '더 힘내요!',    color: '#EDBC40' },
+    great:     { label: '참 잘했어요',   headline: '지난달 정말 꾸준히 나오셨어요', color: '#E94E58' },
+    good:      { label: '잘하고 있어요', headline: '지난달 잘 나오고 있어요',       color: '#329BE7' },
+    tryharder: { label: '더 힘내세요!',  headline: '지난달에 부족했어요',           color: '#EDBC40' },
 };
 
 export const STAMP_ORDER = ['great', 'good', 'tryharder'];
 
-// 자동추천 등급 — 티어 경계(13/6) 재사용
-// ponytail: 경계 바뀌면 여기 숫자만 수정
-export function suggestGrade(activeDays) {
-    if (activeDays >= 13) return 'great';
-    if (activeDays >= 6) return 'good';
+// 자동추천 등급 — 주횟수 기반. great=주횟수×3+1, good=주횟수×2.
+// 예) 주2: great≥7 good≥4 / 주3: great≥10 good≥6 / 주4: great≥13 good≥8
+// ponytail: 주횟수 모르면 주3 기본. 경계 바뀌면 여기 숫자만 수정.
+export function suggestGrade(activeDays, weeklyFrequency = 3) {
+    const f = weeklyFrequency || 3;
+    if (activeDays >= f * 3 + 1) return 'great';
+    if (activeDays >= f * 2) return 'good';
     return 'tryharder';
 }
 

@@ -308,6 +308,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `studentTerminations` | 코치가 '종료' 버튼으로 수강 종료한 기록 (이탈 통계용). `{studentName, terminatedBy:'coach', reason, terminatedAt}` |
 | `makeupWaitlists` | 만석 슬롯 보강 대기 (status: waiting/notified/accepted/declined/expired/cancelled). 자리 발생 시 선착순 1명에게 SMS → 1시간(수업 시작이 더 가까우면 그때까지) 내 앱 시간표 '보강승인중' 칩에서 수락, 무응답/거절 시 다음 순번. 트리거: 홀딩/결석/보강취소/거절 + 코치 시간표 로드 백스톱 |
 | `monthlyStamps` | 월간 도장(훈련일지). 문서 ID `{userName}__{YYYY-MM}`, `{userName, month('YYYY-MM'), grade('great'/'good'/'tryharder'), comment, stampedBy, stampedAt, seenByStudent}`. 코치가 훈련일지에서 월 1회 일괄 도장 → 학생은 일지 상단 배지+첫 접속 팝업. 메인앱은 이번 달 미작성 시 코치 훈련일지 탭 빨간점 (아래 '월간 도장 시스템' 참고) |
+| `studentMeta/frequencies` | 이름→주횟수 맵 단일 문서 `{map:{이름:2/3/4}, updatedAt}`. 메인 앱이 코치 진입 시 `syncStudentFrequencies`로 통째 덮어씀. 훈련일지 도장 모달이 읽어 `suggestGrade` 자동추천 기준(주횟수)으로 사용 (시트 C열 주횟수를 훈련일지에 전달하는 유일 경로) |
 
 ### `personalBests` 상세
 
@@ -411,7 +412,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 
 훈련일지를 안 쓰거나 건성으로 쓰는 수강생을 줄이기 위해, 코치가 **월 1회** 일지에 3등급 도장을 찍는다.
 
-- **순수 로직**: `public/training-log/js/modules/stamp-logic.js` (Firebase/DOM 의존 없음 — 브라우저·Vitest 양쪽 import 가능). `STAMP_GRADES`(great '참 잘했어요' #E94E58 / good '잘하고 있어요' #329BE7 / tryharder '더 힘내요!' #EDBC40), `suggestGrade`(활동일 ≥13 great·≥6 good·그 외 tryharder, 티어 경계 재사용), `prevMonthRange`, `computeStampStats`. 테스트: `stamp-logic.test.js` (vitest include glob에 `public/training-log/**/*.test.js` 추가됨).
+- **순수 로직**: `public/training-log/js/modules/stamp-logic.js` (Firebase/DOM 의존 없음 — 브라우저·Vitest 양쪽 import 가능). `STAMP_GRADES`(각 등급 `{label 격려문구, headline 지난달상태, color}` — great '참 잘했어요'/'지난달 정말 꾸준히 나오셨어요' #E94E58 / good '잘하고 있어요'/'지난달 잘 나오고 있어요' #329BE7 / tryharder '더 힘내세요!'/'지난달에 부족했어요' #EDBC40. 배지·팝업은 headline 위, label 강조 2단 구성), `suggestGrade(활동일, 주횟수)`(주횟수 기반: great=주횟수×3+1, good=주횟수×2, 그 외 tryharder — 주2:7/4·주3:10/6·주4:13/8; 주횟수 없으면 주3 기본), `prevMonthRange`, `computeStampStats`. 테스트: `stamp-logic.test.js` (vitest include glob에 `public/training-log/**/*.test.js` 추가됨). 주횟수는 시트 C열에만 있어 훈련일지가 모름 → 메인 앱이 코치 진입 시 `firebaseService.syncStudentFrequencies(students)`로 `studentMeta/frequencies` 문서(이름→주횟수)를 발행하고 도장 모달이 이를 읽어 전달.
 - **Firebase/DOM**: `public/training-log/js/modules/stamp.js`. 코치 도장 모달(전원 리스트 + 지난달 활동일·일평균 종목·등급 자동추천 프리필 + 고정 메모 개수·펼쳐보기 + [전체 확정] batch write)과 학생 배지·첫 접속 팝업. `window`에 노출(main.js `Object.assign(window, Stamp)`).
 - **코치 부담 최소화**: 활동일로 등급 자동추천, 일평균 종목 수로 '건성' 케이스(활동일 높은데 일평균 1점대) 가시화 — 코치는 이상한 것만 손보고 한 번에 확정. 일지 일일이 안 읽어도 됨.
 - **진입**: 훈련일지 코치 화면 '운동 종목 관리' 버튼 옆 `📋 이달의 도장`.
