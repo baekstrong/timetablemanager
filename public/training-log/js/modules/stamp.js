@@ -140,6 +140,7 @@ export function renderStampBadge(stamp) {
             100% { opacity:.9; transform: rotate(-7deg) scale(1); }
           }
           .stamp-wrap { text-align:center; margin:6px 0 18px; }
+          .stamp-headline { font-size:13px; font-weight:700; color:#6b7280; margin:0 0 8px; letter-spacing:-.3px; }
           .stamp-seal { position:relative; display:inline-flex; align-items:center; justify-content:center;
             width:128px; height:128px; border-radius:50%; border:3px solid var(--ink); color:var(--ink);
             transform:rotate(-7deg); opacity:.9; mix-blend-mode:multiply;
@@ -155,6 +156,7 @@ export function renderStampBadge(stamp) {
           .stamp-note-by { color:#9ca3af; font-style:normal; font-size:12px; }
         </style>
         <div class="stamp-wrap">
+          ${g.headline ? `<p class="stamp-headline">${escapeHtml(g.headline)}</p>` : ''}
           <div class="stamp-seal" style="--ink:${g.color}">
             <div class="stamp-core">
               <span class="stamp-star">✦</span>
@@ -192,7 +194,8 @@ function showStampPopup(stamp) {
     overlay.className = 'modal active';
     overlay.innerHTML = `
         <div class="modal-content max-w-sm w-full text-center">
-            <p class="text-sm text-gray-500 mb-3">이번 달 코치님의 도장이 도착했어요</p>
+            <p class="text-sm text-gray-500 mb-1">이번 달 코치님의 도장이 도착했어요</p>
+            ${g.headline ? `<p class="text-base font-bold text-gray-700 mb-2">${escapeHtml(g.headline)}</p>` : ''}
             <div class="inline-block px-6 py-2 rounded-full text-xl font-bold text-white mb-2" style="background:${g.color}">
                 ${g.label}
             </div>

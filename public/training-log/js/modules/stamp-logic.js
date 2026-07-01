@@ -1,9 +1,10 @@
 // 월간 도장 순수 로직 — Firebase/DOM 의존 없음 (브라우저 + vitest 양쪽에서 import 가능)
 
+// headline = 지난달 상태(맥락), label = 격려(도장 안 짧은 문구)
 export const STAMP_GRADES = {
-    great:     { label: '참 잘했어요',   color: '#E94E58' },
-    good:      { label: '잘하고 있어요', color: '#329BE7' },
-    tryharder: { label: '더 힘내요!',    color: '#EDBC40' },
+    great:     { label: '참 잘했어요',   headline: '지난달 정말 꾸준히 나오셨어요', color: '#E94E58' },
+    good:      { label: '잘하고 있어요', headline: '지난달 잘 나오고 있어요',       color: '#329BE7' },
+    tryharder: { label: '더 힘내세요!',  headline: '지난달에 부족했어요',           color: '#EDBC40' },
 };
 
 export const STAMP_ORDER = ['great', 'good', 'tryharder'];
