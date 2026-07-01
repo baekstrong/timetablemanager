@@ -169,6 +169,9 @@ export function loadMyRecords() {
             docs.forEach((doc) => {
                 const data = doc.data;
                 const time = data.timestamp ? data.timestamp.toDate().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '방금 전';
+                // 이 종목의 고정 메모를 기록 카드 아래에도 표시 (수정 여부와 무관하게)
+                const pinnedMemo = (state.pinnedExercises || []).find(p => p.exercise === data.exercise);
+                const memoText = (pinnedMemo && pinnedMemo.memo) || data.memo;
 
                 let setsDisplay = '';
                 if (data.sets && Array.isArray(data.sets)) {
@@ -205,7 +208,7 @@ export function loadMyRecords() {
                             </div>
                             <span class="text-xs text-gray-500">${time}</span>
                         </div>
-                        ${data.memo ? `<p class="text-sm text-gray-600 mb-2" style="white-space: pre-wrap;">📝 ${data.memo}</p>` : ''}
+                        ${memoText ? `<p class="text-sm text-gray-600 mb-2" style="white-space: pre-wrap;">📝 ${memoText}</p>` : ''}
                         
                         <div class="flex gap-2 mt-2">
                             <button onclick="moveRecord('${doc.id}', -1)" class="text-xs text-gray-800 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">
@@ -583,6 +586,7 @@ export async function updatePinnedDisplay() {
         }
     }
     renderExerciseMemo();
+    loadMyRecords(); // 메모 변경 시 기록 카드의 메모도 최신화 (recordsList 없으면 즉시 반환)
 }
 
 // 현재 입력한 운동 종목의 저장된 메모만 폼 안에 표시 (이전: 페이지 상단 고정)
