@@ -185,6 +185,28 @@
     color: var(--text-secondary);
 }
 
+/* 일정 페이지: 주횟수 선택을 시간표 위에 작게 가로 배치 */
+.reg-freq-cards.compact {
+    flex-direction: row;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+}
+.reg-freq-cards.compact .reg-freq-card {
+    flex: 1;
+    padding: 0.6rem 0.4rem;
+    border-radius: var(--r-chip);
+}
+.reg-freq-cards.compact .reg-freq-label {
+    font-size: 0.95rem;
+}
+.reg-freq-cards.compact .reg-freq-cost {
+    font-size: 1rem;
+    margin: 0.1rem 0 0;
+}
+.reg-freq-cards.compact .reg-freq-total {
+    display: none;
+}
+
 /* Schedule Grid */
 .reg-schedule-grid {
     overflow-x: auto;

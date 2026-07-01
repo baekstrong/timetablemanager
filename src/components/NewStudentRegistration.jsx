@@ -39,7 +39,7 @@ const parseScheduleString = (scheduleStr) => {
     return result;
 };
 
-const STEP_NAMES = ['가입', '주 횟수', '시간표', '입학반', '결제', '상담', '확인'];
+const STEP_NAMES = ['일정', '정보', '입학반', '결제', '상담', '확인'];
 
 const NewStudentRegistration = () => {
     const [step, setStep] = useState(0);
@@ -229,13 +229,12 @@ const NewStudentRegistration = () => {
 
     const canProceed = () => {
         switch (step) {
-            case 0: return name.trim() && phone1.trim() && phone2.trim() && phone3.trim();
-            case 1: return weeklyFrequency !== null;
-            case 2: return isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency;
-            case 3: return selectedEntrance !== null || (entranceInquiry !== '' && entranceInquiryReason.trim() !== '');
-            case 4: return paymentMethod !== '';
+            case 0: return weeklyFrequency !== null && (isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency);
+            case 1: return name.trim() && phone1.trim() && phone2.trim() && phone3.trim();
+            case 2: return selectedEntrance !== null || (entranceInquiry !== '' && entranceInquiryReason.trim() !== '');
+            case 3: return paymentMethod !== '';
+            case 4: return true;
             case 5: return true;
-            case 6: return true;
             default: return false;
         }
     };
@@ -354,8 +353,8 @@ const NewStudentRegistration = () => {
 
                 {/* Step Content */}
                 <div className="reg-body">
-                    {/* Step 1: 가입 */}
-                    {step === 0 && (
+                    {/* 렌더 순서 2단계: 개인정보 (소스는 일정 블록보다 위) */}
+                    {step === 1 && (
                         <div className="reg-step-content">
                             <p className="reg-description" style={{ backgroundColor: 'var(--accent-10)', color: 'var(--accent-hover)', padding: '10px 12px', borderRadius: '8px', fontSize: '0.85rem', lineHeight: '1.5' }}>
                                 수강 신청에 필요한 기본 정보를 입력해주세요
@@ -488,11 +487,11 @@ const NewStudentRegistration = () => {
                         </div>
                     )}
 
-                    {/* Step 2: 주 횟수 */}
-                    {step === 1 && (
+                    {/* 렌더 순서 1단계: 일정 (주 횟수 + 시간표 한 페이지) */}
+                    {step === 0 && (
                         <div className="reg-step-content">
                             <p className="reg-description">주 몇 회 수업을 원하시나요?</p>
-                            <div className="reg-freq-cards">
+                            <div className="reg-freq-cards compact">
                                 {PRICING.map((p) => (
                                     <div
                                         key={p.frequency}
@@ -511,14 +510,10 @@ const NewStudentRegistration = () => {
                                     </div>
                                 ))}
                             </div>
-                        </div>
-                    )}
-
-                    {/* Step 3: 시간표 */}
-                    {step === 2 && (
-                        <div className="reg-step-content">
                             <p className="reg-description">
-                                {isWaitlistMode ? (
+                                {!weeklyFrequency ? (
+                                    '위에서 주 횟수를 먼저 선택해주세요'
+                                ) : isWaitlistMode ? (
                                     <>
                                         가능한 시간을 모두 선택해주세요
                                         <span className="reg-slot-count">
@@ -648,8 +643,8 @@ const NewStudentRegistration = () => {
                         </div>
                     )}
 
-                    {/* Step 4: 입학반 */}
-                    {step === 3 && (
+                    {/* 렌더 순서 3단계: 입학반 */}
+                    {step === 2 && (
                         <div className="reg-step-content">
                             <p className="reg-description">입학반 일정을 선택하세요</p>
 
@@ -828,8 +823,8 @@ const NewStudentRegistration = () => {
                         </div>
                     )}
 
-                    {/* Step 5: 결제 */}
-                    {step === 4 && (
+                    {/* 렌더 순서 4단계: 결제 */}
+                    {step === 3 && (
                         <div className="reg-step-content">
                             <p className="reg-description">결제 방식을 선택하세요</p>
                             <div className="reg-payment-cards">
@@ -872,8 +867,8 @@ const NewStudentRegistration = () => {
                         </div>
                     )}
 
-                    {/* Step 6: 상담 */}
-                    {step === 5 && (
+                    {/* 렌더 순서 5단계: 상담 */}
+                    {step === 4 && (
                         <div className="reg-step-content">
                             <p className="reg-description">코치와 상담을 원하시나요?</p>
                             <div className="reg-consult-cards">
@@ -897,8 +892,8 @@ const NewStudentRegistration = () => {
                         </div>
                     )}
 
-                    {/* Step 7: 확인 + FAQ + 질문 */}
-                    {step === 6 && (
+                    {/* 렌더 순서 6단계: 확인 + FAQ + 질문 */}
+                    {step === 5 && (
                         <div className="reg-step-content">
                             <h3 className="reg-summary-title">등록 정보 확인</h3>
                             <div className="reg-summary">
@@ -1035,7 +1030,7 @@ const NewStudentRegistration = () => {
                             이전
                         </button>
                     )}
-                    {step < 6 ? (
+                    {step < STEP_NAMES.length - 1 ? (
                         <button
                             className="reg-btn reg-btn-primary"
                             disabled={!canProceed()}
