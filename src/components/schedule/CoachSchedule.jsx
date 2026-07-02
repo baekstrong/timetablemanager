@@ -400,10 +400,11 @@ export default function CoachSchedule({
                 ))}
             </div>
 
+            {/* 실제 시간표 칩과 동일하게: StudentTag 컴포넌트로 렌더(수동 스타일 금지, 자동 동기화) */}
             <div className="legend">
-                <div className="legend-item"><span className="student-tag" style={{ fontSize: '0.8rem' }}>김철수</span> 출석 예정</div>
-                <div className="legend-item"><span className="student-tag substitute" style={{ fontSize: '0.8rem' }}>이영희(보강)</span> 보강/대타</div>
-                <div className="legend-item"><span className="student-tag" style={{ fontSize: '0.8rem', backgroundColor: '#E94E581A', textDecoration: 'line-through' }}>박민수</span> 결석/홀딩</div>
+                <div className="legend-item"><StudentTag name="김철수" /> 출석 예정</div>
+                <div className="legend-item"><StudentTag name="이영희" status="makeup" label="보강" /> 보강/대타</div>
+                <div className="legend-item"><StudentTag name="박민수" status="holding" label="홀딩" /> 결석/홀딩</div>
             </div>
         </>
     );
