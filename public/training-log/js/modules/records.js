@@ -191,21 +191,45 @@ export function loadMyRecords() {
     const recordsList = document.getElementById('recordsList');
     if (!recordsList) return;
 
+    // 같은 사용자·날짜를 이미 구독 중이면 리스너를 새로 만들지 않고 마지막 스냅샷으로만 다시 그린다.
+    // 재구독하면 새 리스너의 서버 확인 스냅샷이 저장 직후 임의 시점(네트워크 지연)에 리스트를 통째로
+    // 다시 그려서, 사용자가 '수정'을 탭하는 순간 버튼 DOM을 갈아끼워 탭이 씹힌다(메모와 함께 저장 시 재현).
+    // ponytail: 재구독 대신 캐시 재렌더로 그 레이스를 없앤다.
+    const subKey = `${state.currentUser}__${state.selectedDate}`;
+    if (state.recordsSubKey === subKey && state.unsubscribe) {
+        if (lastRecordDocs) renderRecordsList(lastRecordDocs);
+        return;
+    }
+
     if (state.unsubscribe) state.unsubscribe();
+    state.recordsSubKey = subKey;
 
     state.unsubscribe = db.collection('records')
         .where('userName', '==', state.currentUser)
         .where('date', '==', state.selectedDate)
         .onSnapshot((snapshot) => {
-            if (snapshot.empty) {
-                recordsList.innerHTML = '<p class="text-gray-500 text-center py-4">이 날짜에는 기록이 없습니다.</p>';
-                return;
-            }
-
             const docs = [];
             snapshot.forEach((doc) => {
                 docs.push({ id: doc.id, data: doc.data() });
             });
+            renderRecordsList(docs);
+        }, (error) => {
+            console.error('Error loading records:', error);
+            recordsList.innerHTML = '<p class="text-red-500 text-center py-4">기록 불러오기 실패.</p>';
+        });
+}
+
+// 기록 카드 목록 렌더. 마지막 docs를 캐시해 메모 저장 등으로 재구독 없이 다시 그릴 때 재사용.
+let lastRecordDocs = null;
+function renderRecordsList(docs) {
+    const recordsList = document.getElementById('recordsList');
+    if (!recordsList) return;
+    lastRecordDocs = docs;
+
+    if (docs.length === 0) {
+        recordsList.innerHTML = '<p class="text-gray-500 text-center py-4">이 날짜에는 기록이 없습니다.</p>';
+        return;
+    }
 
             docs.sort((a, b) => {
                 // Priority: Order > Timestamp
@@ -288,10 +312,6 @@ export function loadMyRecords() {
             });
 
             recordsList.innerHTML = html;
-        }, (error) => {
-            console.error('Error loading records:', error);
-            recordsList.innerHTML = '<p class="text-red-500 text-center py-4">기록 불러오기 실패.</p>';
-        });
 }
 
 export async function deleteRecord(docId) {

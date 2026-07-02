@@ -5,6 +5,7 @@ export const state = {
     userPassword: null,
     isCoach: false,
     unsubscribe: null,
+    recordsSubKey: null, // 기록 리스너 구독 키(사용자__날짜). 같은 키면 재구독 대신 재렌더만.
     coachMemosUnsubscribe: null,
     studentPinnedMemosUnsubscribe: null,
     selectedDate: new Date().toISOString().split('T')[0],
