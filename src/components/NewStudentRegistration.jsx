@@ -65,11 +65,17 @@ const NewStudentRegistration = () => {
     const [selectedSlots, setSelectedSlots] = useState([]);
     const [disabledClasses, setDisabledClasses] = useState([]);
     const [pendingRegistrations, setPendingRegistrations] = useState([]);
+    const [scheduleReady, setScheduleReady] = useState(false); // 시간표 데이터 3종 로드 완료 여부
     const { students, refresh } = useGoogleSheets();
 
-    // 마운트 시 Google Sheets 데이터 최신화 (코치 시간표와 동일한 데이터 보장)
+    // 마운트 시 시간표 데이터 로드 (students 점유 + 비활성 슬롯 + 대기 신청).
+    // 3종이 다 로드돼야 그리드가 정확 — 그 전엔 기본값(7석) 목업 대신 '로딩중' 표시.
     useEffect(() => {
-        refresh();
+        Promise.allSettled([
+            refresh(),
+            getDisabledClasses().then(setDisabledClasses),
+            getNewStudentRegistrations('pending').then(setPendingRegistrations),
+        ]).finally(() => setScheduleReady(true));
     }, []);
 
     // Step 4: 입학반
@@ -97,18 +103,6 @@ const NewStudentRegistration = () => {
 
     // 대기(만석) 모드
     const [isWaitlistMode, setIsWaitlistMode] = useState(false);
-
-    // Load disabled classes
-    useEffect(() => {
-        getDisabledClasses().then(setDisabledClasses).catch(() => {});
-    }, []);
-
-    // Load pending registrations to reflect their slots in occupancy
-    useEffect(() => {
-        getNewStudentRegistrations('pending')
-            .then(setPendingRegistrations)
-            .catch(() => {});
-    }, []);
 
     // Load entrance classes when reaching step 4 (날짜가 지난 입학반 제외)
     useEffect(() => {
@@ -529,6 +523,12 @@ const NewStudentRegistration = () => {
                                     </>
                                 )}
                             </p>
+                            {!scheduleReady ? (
+                                <div className="reg-schedule-loading">
+                                    <span className="reg-schedule-spinner"></span>
+                                    시간표 로딩중…
+                                </div>
+                            ) : (
                             <div className="reg-schedule-grid">
                                 <div className="reg-grid-header">
                                     <div className="reg-grid-corner"></div>
@@ -579,6 +579,7 @@ const NewStudentRegistration = () => {
                                     </div>
                                 ))}
                             </div>
+                            )}
 
                             {/* 대기 신청 안내: 마감 셀이 하나라도 있으면 표시 */}
                             {!isWaitlistMode && weeklyFrequency && fullSlotCount > 0 && (

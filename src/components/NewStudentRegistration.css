@@ -213,6 +213,31 @@
     -webkit-overflow-scrolling: touch;
 }
 
+/* 시간표 데이터 로딩 중 (실데이터 전 기본값 목업 방지) */
+.reg-schedule-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 260px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.reg-schedule-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--hairline);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: regSpin 0.8s linear infinite;
+}
+
+@keyframes regSpin {
+    to { transform: rotate(360deg); }
+}
+
 .reg-grid-header {
     display: grid;
     grid-template-columns: 80px repeat(5, 1fr);
