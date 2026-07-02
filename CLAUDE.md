@@ -501,6 +501,8 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - 주 앱과 `localStorage.savedUser`로 세션 공유
 - 코치 → 훈련일지: `localStorage.coachSelectedStudents`로 수강생 목록 전달
 - 훈련일지 → 시간표 복귀: `sessionStorage.quickReturn` + `login_credentials.autoLogin`
+- **운동 종목**: 코치가 관리하는 전역 공용 `exercises` 컬렉션(`{name}`) + **학생 개인 전용 종목**. 기록 입력 자동완성(`admin.js`)에서 목록에 없는 이름을 치면 `+ '○○' 직접 추가` 옵션 → `selectCustomExercise`가 기기별 `localStorage['myCustomExercises_<이름>']`에 기억하고 그 학생 자동완성에만 병합(공용 목록·코치 화면 불변). 개인 종목으로 저장된 기록은 `records` 문서에 `custom:true` 플래그(`isCustomExercise`). 커스텀 이름은 `'"\<>` 정제 후 저장.
+- **PR 축하 팝업**: 기록 저장 시 같은 종목 과거 기록 대비 새 최고 무게(kg) 또는 새 최다 반복이면 🎉 축하 팝업(`records.js` `showPRCelebration`). 판정 순수 로직은 `public/training-log/js/modules/pr-logic.js`의 `evaluatePR(pastSets, newSets)`(Firebase/DOM 무관, `records.js` `computePR`이 Firestore 조회분을 넘김). 그 종목 첫 기록은 비교 대상이 없어 축하 안 함. 테스트: `pr-logic.test.js`.
 
 ## 환경변수
 

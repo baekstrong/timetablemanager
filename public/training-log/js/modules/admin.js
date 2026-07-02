@@ -105,6 +105,31 @@ export async function deleteExercise(docId, name) {
 
 let exercisesCache = [];
 
+// 학생 개인 전용 종목(코치 공용 목록에 없는, 본인이 '직접 추가'한 운동)
+// 새 컬렉션 없이 기기별 localStorage에 기억 → 그 학생 자동완성에만 노출.
+// (기록 자체는 custom:true로 records에 남으므로 데이터는 유실되지 않음)
+// ponytail: 기기별 localStorage 기억. 다기기 동기화가 필요하면 records custom==true 쿼리로 시드.
+let myCustomExercisesCache = [];
+
+function customCacheKey() {
+    return 'myCustomExercises_' + (state.currentUser || '');
+}
+
+export function loadMyCustomExercises() {
+    myCustomExercisesCache = [];
+    if (!state.currentUser || state.isCoach) return;
+    try {
+        const raw = localStorage.getItem(customCacheKey());
+        if (raw) myCustomExercisesCache = JSON.parse(raw) || [];
+    } catch (e) { /* 캐시 파싱 실패 무시 */ }
+}
+
+function rememberCustomExercise(name) {
+    if (!name || exercisesCache.includes(name) || myCustomExercisesCache.includes(name)) return;
+    myCustomExercisesCache.push(name);
+    try { localStorage.setItem(customCacheKey(), JSON.stringify(myCustomExercisesCache)); } catch (e) { /* 무시 */ }
+}
+
 // Called when exercises are loaded from Firestore
 // Called when exercises are loaded from Firestore
 export function updateExerciseDatalist(snapshot) {
@@ -130,24 +155,39 @@ export function handleExerciseSearch(query) {
     const suggestionBox = document.getElementById('exerciseSuggestions');
     if (!suggestionBox) return;
 
-    // Filter Logic
-    const filtered = query
-        ? exercisesCache.filter(name => name.toLowerCase().includes(query.toLowerCase()))
-        : exercisesCache; // Show all if empty query (optional: or show nothing)
+    // 공용 종목 + 내 개인 종목 병합 (중복 제거)
+    const all = [...exercisesCache, ...myCustomExercisesCache.filter(n => !exercisesCache.includes(n))];
+    const q = (query || '').trim();
+    const filtered = q
+        ? all.filter(name => name.toLowerCase().includes(q.toLowerCase()))
+        : all;
 
-    if (filtered.length === 0) {
+    let html = filtered.map(name => {
+        const mine = myCustomExercisesCache.includes(name) && !exercisesCache.includes(name);
+        return `
+        <div class="px-4 py-3 hover:bg-[#329BE71A] cursor-pointer text-gray-700 font-medium border-b border-[#EFEFF0] last:border-0 transition-colors"
+             onclick="selectExerciseSuggestion('${name}')">
+            ${name}${mine ? ' <span class="text-xs text-gray-400">(내 종목)</span>' : ''}
+        </div>`;
+    }).join('');
+
+    // 목록에 정확히 일치하는 종목이 없으면 '직접 추가' 옵션 노출 (개인 운동용)
+    const safeQ = q.replace(/['"\\<>]/g, '');
+    const exact = all.some(name => name.toLowerCase() === q.toLowerCase());
+    if (safeQ && !exact) {
+        html += `
+        <div class="px-4 py-3 hover:bg-[#329BE71A] cursor-pointer text-[#329BE7] font-semibold border-t border-[#EFEFF0] transition-colors"
+             onclick="selectCustomExercise('${safeQ}')">
+            + '${safeQ}' 직접 추가 <span class="text-xs text-gray-400">(내 운동으로 저장)</span>
+        </div>`;
+    }
+
+    if (!html) {
         suggestionBox.classList.add('hidden');
         return;
     }
 
-    // Render Suggestions
-    suggestionBox.innerHTML = filtered.map(name => `
-        <div class="px-4 py-3 hover:bg-[#329BE71A] cursor-pointer text-gray-700 font-medium border-b border-[#EFEFF0] last:border-0 transition-colors"
-             onclick="selectExerciseSuggestion('${name}')">
-            ${name}
-        </div>
-    `).join('');
-
+    suggestionBox.innerHTML = html;
     suggestionBox.classList.remove('hidden');
 }
 
@@ -173,6 +213,14 @@ export function selectExerciseSuggestion(name) {
     if (window.loadPreviousRecord) window.loadPreviousRecord(name);
 }
 
+// 개인 운동 직접 추가 — 공용 목록에 없는 종목을 본인 종목으로 등록해 선택
+export function selectCustomExercise(rawName) {
+    const name = (rawName || '').trim().replace(/['"\\<>]/g, '');
+    if (!name) return;
+    rememberCustomExercise(name);
+    selectExerciseSuggestion(name); // 잠금·이전기록 등 선택 흐름 그대로 재사용
+}
+
 // 선택 잠금 해제 — 다시 검색할 수 있게 입력칸 비우고 풀어줌
 export function clearExerciseSelection() {
     const input = document.getElementById('exercise');
@@ -188,9 +236,15 @@ export function clearExerciseSelection() {
     if (window.autoSaveFormData) window.autoSaveFormData();
 }
 
-// 등록된 종목만 허용. 목록 로드 실패(캐시 비어있음) 시엔 막지 않음(완전 잠금 방지)
+// 공용 종목 또는 내 개인 종목이면 허용. 목록 로드 실패(캐시 비어있음) 시엔 막지 않음(완전 잠금 방지)
 export function isRegisteredExercise(name) {
-    return exercisesCache.length === 0 || exercisesCache.includes(name);
+    return exercisesCache.length === 0 || exercisesCache.includes(name) || myCustomExercisesCache.includes(name);
+}
+
+// 개인 전용(커스텀) 종목인지 — 기록 저장 시 custom 플래그용. 목록 미로드 시 판단 보류(false)
+export function isCustomExercise(name) {
+    if (exercisesCache.length === 0) return false;
+    return !exercisesCache.includes(name);
 }
 
 // Close suggestions on click outside

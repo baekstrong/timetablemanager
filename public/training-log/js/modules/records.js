@@ -2,7 +2,8 @@ import { state, db, firebaseInitialized } from '../state.js';
 import { normalizeSet, renderSets } from './sets.js';
 import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js';
 import { formatDate } from '../utils.js';
-import { isRegisteredExercise, clearExerciseSelection } from './admin.js';
+import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js';
+import { evaluatePR } from './pr-logic.js';
 
 // ============================================
 // 운동 기록 추가 (수강생)
@@ -37,6 +38,14 @@ export async function addRecord() {
     }
 
     try {
+        // 개인 기록(PR) 판정 — 저장 전에 같은 종목 과거 기록과 비교
+        let prStatus = null;
+        try {
+            prStatus = await computePR(exercise, validSets);
+        } catch (prErr) {
+            console.error('PR 판정 실패(무시):', prErr);
+        }
+
         // Get current max order
         const snapshot = await db.collection('records')
             .where('userName', '==', state.currentUser)
@@ -60,6 +69,7 @@ export async function addRecord() {
             date: state.selectedDate,
             feedback: '',
             order: count, // Assign order
+            custom: isCustomExercise(exercise), // 개인 전용 종목이면 true (공용 목록엔 안 들어감)
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
 
@@ -73,12 +83,60 @@ export async function addRecord() {
 
         if (window.clearAutoSave) window.clearAutoSave();
 
-        alert('✅ 기록이 저장되었습니다!');
         if (window.renderCalendar) window.renderCalendar();
+
+        if (prStatus) {
+            showPRCelebration(prStatus); // 신기록이면 축하 팝업 (저장 완료 안내 겸함)
+        } else {
+            alert('✅ 기록이 저장되었습니다!');
+        }
     } catch (error) {
         console.error('Error adding record:', error);
         alert('기록 저장 실패: ' + error.message);
     }
+}
+
+// ============================================
+// 개인 기록(PR) 판정 + 축하 팝업
+// ============================================
+
+// 같은 종목의 과거 기록을 모아 evaluatePR(순수 로직)로 신기록 판정. 판정 로직 테스트는 pr-logic.test.js.
+async function computePR(exercise, newSets) {
+    if (!firebaseInitialized || !db || !state.currentUser || state.isCoach) return null;
+
+    const snapshot = await db.collection('records')
+        .where('userName', '==', state.currentUser)
+        .where('exercise', '==', exercise)
+        .get();
+
+    const pastSets = [];
+    snapshot.forEach(doc => (doc.data().sets || []).forEach(s => pastSets.push(s)));
+
+    const result = evaluatePR(pastSets, newSets);
+    return result ? { exercise, ...result } : null;
+}
+
+function showPRCelebration(pr) {
+    const esc = (s) => String(s).replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+    const lines = [];
+    if (pr.weightPR) lines.push(`💪 새 최고 무게 <b>${pr.weight}kg</b>`);
+    if (pr.repsPR) lines.push(`🔥 새 최다 반복 <b>${pr.reps}</b>`);
+
+    document.getElementById('prCelebrationOverlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'prCelebrationOverlay';
+    overlay.className = 'modal active';
+    overlay.innerHTML = `
+        <div class="modal-content max-w-sm w-full text-center">
+            <div class="text-5xl mb-2">🎉</div>
+            <p class="text-lg font-bold text-gray-800 mb-1">${esc(pr.exercise)} 개인 기록 경신!</p>
+            <p class="text-sm text-gray-600 mb-4">${lines.join('<br>')}</p>
+            <button onclick="document.getElementById('prCelebrationOverlay')?.remove()"
+                class="w-full bg-[#329BE7] hover:bg-[#327AB8] text-white py-2.5 rounded-lg font-bold">좋았어! 💪</button>
+        </div>`;
+    document.body.appendChild(overlay);
 }
 
 // ============================================

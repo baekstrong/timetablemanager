@@ -238,6 +238,7 @@ window.render = async function () {
         Admin.loadExercisesList();
     } else {
         app.innerHTML = renderStudentScreen(); // Datalist already added in ui.js
+        Admin.loadMyCustomExercises(); // 내 개인 종목(localStorage) 로드 → 자동완성에 병합
         Sets.renderSets(); // 세트 수 드롭다운 + 기본 1세트를 폼 로드 시 바로 표시
         // 리스너는 즉시 설정 (Promise 아님)
         setupCoachMemosListener();
