@@ -106,10 +106,10 @@ git -C /Users/baeggwanjangjadonghwa/workspace/repos/timetablemanager pull --ff-o
 main에 푸시(배포)하는 변경이 **수강생이 체감하는 변경**(새 기능, 화면/동작 변화)이면:
 
 1. Claude가 공지 초안(제목+본문)을 터미널에 제시하고 **백관장 승인을 받는다**. 승인 전에는 절대 게시하지 않는다.
-2. 승인 시 아래 스크립트를 실행한다. **기존 관리자봇 공지는 전부 자동으로 내려가고** 새 공지 1건으로 교체된다 (관리자봇 글은 항상 최신 1건만 유지).
+2. 승인 시 아래 스크립트를 실행한다. `--unpin-old`(기본으로 사용)면 **기존 관리자봇 공지는 삭제하지 않고 상단 고정만 해제**되어 게시판에 기록으로 남고, 상단 고정 공지는 새 공지 1건만 남는다. (플래그 없이 실행하면 기존 공지를 소프트 삭제 — 특별히 지우려는 경우만.)
 
 ```bash
-node --env-file=.env scripts/post-update-notice.js "제목" "본문"
+node --env-file=.env scripts/post-update-notice.js "제목" "본문" --unpin-old
 ```
 
 3. 거절 시 공지 없이 배포만 진행한다.

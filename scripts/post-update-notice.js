@@ -1,11 +1,13 @@
 /**
  * 관리자봇 업데이트 공지 게시 스크립트
  *
- * 사용법: node --env-file=.env scripts/post-update-notice.js "제목" "본문" [--add]
+ * 사용법: node --env-file=.env scripts/post-update-notice.js "제목" "본문" [--unpin-old | --add]
  *
  * 동작:
- * 1. (기본) posts에서 author='관리자봇'인 기존 공지를 소프트 삭제 → 항상 최신 1건만 유지
- *    --add 플래그를 주면 이 삭제를 건너뛰고 기존 공지를 그대로 둔 채 1건 추가만 한다.
+ * 1. 기존 author='관리자봇' 공지 처리 (택1)
+ *    - (기본)        소프트 삭제 → 게시판에서 사라짐, 최신 1건만 유지
+ *    - --unpin-old   고정만 해제(pinned:false) → 글·notice 카테고리 유지, 상단 고정에서만 내림 (권장·백관장 선호)
+ *    - --add         아무것도 안 함, 1건 추가만
  * 2. 새 공지를 notice 카테고리로 등록 (앱의 createPost와 동일 스키마)
  *
  * ※ 반드시 백관장 승인 후 실행할 것 (CLAUDE.md '업데이트 공지 규칙' 참고)
@@ -17,7 +19,8 @@ import {
 } from 'firebase/firestore';
 
 const args = process.argv.slice(2);
-const addOnly = args.includes('--add'); // 기존 공지 유지하고 1건만 추가
+const addOnly = args.includes('--add');       // 기존 공지 그대로, 1건만 추가
+const unpinOld = args.includes('--unpin-old'); // 기존 공지 고정만 해제(삭제 X), 그 후 1건 추가
 const [title, content] = args.filter(a => !a.startsWith('--'));
 if (!title || !content) {
     console.error('사용법: node --env-file=.env scripts/post-update-notice.js "제목" "본문" [--add]');
@@ -45,16 +48,24 @@ const db = getFirestore(app);
 // (isUpdateNotice 필드로 거르지 않음 — 앱에서 직접 작성한 예전 관리자봇 공지에는
 //  이 필드가 없어 안 내려가는 문제가 있었음. 관리자봇 글은 항상 최신 1건만 유지한다.)
 if (addOnly) {
-    console.log('--add: 기존 공지를 유지하고 1건만 추가합니다.');
+    console.log('--add: 기존 공지를 그대로 두고 1건만 추가합니다.');
 } else {
     const existing = await getDocs(query(
         collection(db, 'posts'),
         where('author', '==', '관리자봇'),
     ));
     for (const d of existing.docs) {
-        if (!d.data().deleted) {
+        const data = d.data();
+        if (data.deleted) continue;
+        if (unpinOld) {
+            // 삭제하지 않고 상단 고정만 해제 → 글·notice 카테고리는 유지되어 게시판에 계속 보임
+            if (data.category === 'notice' && data.pinned === true) {
+                await updateDoc(doc(db, 'posts', d.id), { pinned: false, updatedAt: serverTimestamp() });
+                console.log(`기존 공지 고정 해제(글 유지): "${data.title}" (${d.id})`);
+            }
+        } else {
             await updateDoc(doc(db, 'posts', d.id), { deleted: true, updatedAt: serverTimestamp() });
-            console.log(`기존 공지 내림: "${d.data().title}" (${d.id})`);
+            console.log(`기존 공지 내림(삭제): "${data.title}" (${d.id})`);
         }
     }
 }
