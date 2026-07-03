@@ -1,6 +1,6 @@
 import { TAG_STYLES } from './scheduleStyles';
 
-// 이름칩을 '파스텔 배경 + 검은 굵은 글씨 + 색 뱃지'로 표기하는 상태 (보강·보강이동·홀딩·신규·결석)
+// 이름칩을 '파스텔 배경 + 검은 굵은 글씨 + 색 뱃지'로 표기하는 상태 (보강·보강이동·홀딩·신규·결석·보강결석)
 // 값은 각 상태 색의 연한(파스텔) 톤.
 const NAME_PASTEL = {
     makeup: '#DBEBFB',      // 파스텔 블루 (살짝 진하게)
@@ -8,6 +8,7 @@ const NAME_PASTEL = {
     makeupMoved: '#FDF6E3', // 파스텔 앰버
     absent: '#FDECEE',      // 파스텔 레드
     holding: '#FDECEE',     // 파스텔 레드
+    makeupAbsent: '#FDECEE',// 파스텔 레드 (홀딩·결석과 동일 패턴)
 };
 
 const extraBadges = (lastClass, reregX, unpaid) => (
@@ -18,7 +19,7 @@ const extraBadges = (lastClass, reregX, unpaid) => (
     </>
 );
 
-/** 보강·보강이동·홀딩·신규·결석: 파스텔 이름칩(검은 굵은 글씨)+색 뱃지. 그 외: 칩 배경 색 형태. */
+/** 보강·보강이동·홀딩·신규·결석·보강결석: 파스텔 이름칩(검은 굵은 글씨)+색 뱃지. 그 외: 칩 배경 색 형태. */
 export function StudentTag({ name, status, label, unpaid = false, reregX = false, lastClass = false }) {
     const tagStyle = TAG_STYLES[status] || {};
 
@@ -40,7 +41,7 @@ export function StudentTag({ name, status, label, unpaid = false, reregX = false
         );
     }
 
-    // 칩 배경 색 형태(합의결석·보강결석·시작지연·보강대기·보강승인중)
+    // 칩 배경 색 형태(합의결석·시작지연·보강대기·보강승인중)
     const style = { ...tagStyle };
     delete style.textDecoration; // 취소선 제거
     return (
