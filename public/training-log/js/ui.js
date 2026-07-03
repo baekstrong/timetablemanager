@@ -67,14 +67,14 @@ export function renderStudentScreen() {
                     <h2 class="text-xl font-bold text-gray-800">${state.currentUser}님의 훈련일지</h2>
                     <p class="text-sm text-gray-600">오늘도 화이팅! 💪</p>
                 </div>
-                <div class="flex gap-2">
-                    <button onclick="openOneRMModal()"
-                            class="bg-[#329BE7] hover:bg-[#327AB8] text-white px-3 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
-                        🧮 1RM 계산기
-                    </button>
+                <div class="flex flex-col gap-2 shrink-0">
                     <button onclick="openMemoArchiveModal()"
                             class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
                         📦 메모 보관함
+                    </button>
+                    <button onclick="openOneRMModal()"
+                            class="bg-[#329BE7] hover:bg-[#327AB8] text-white px-3 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
+                        🧮 1RM 계산기
                     </button>
                 </div>
             </div>
