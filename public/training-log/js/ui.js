@@ -143,13 +143,19 @@ export function renderStudentScreen() {
             <!-- 1RM 계산기 모달 -->
             <div id="onermModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
                  onclick="if(event.target===this)closeOneRMModal()">
-                <div class="bg-white rounded-lg p-6 w-full max-w-sm">
+                <div class="bg-white rounded-lg p-6 w-full max-w-sm max-h-[85vh] overflow-y-auto">
                     <div class="flex justify-between items-center mb-1">
                         <h3 class="text-lg font-bold text-gray-800">🧮 1RM 계산기</h3>
                         <button onclick="closeOneRMModal()" class="text-gray-500 hover:text-gray-700 text-2xl leading-none">×</button>
                     </div>
                     <p class="text-xs text-gray-500 mb-4">방금 든 무게·횟수로 예상 최대중량(1RM)을 계산해요. 1~10회에서 정확합니다.</p>
                     <div class="space-y-3 mb-4">
+                        <div>
+                            <label class="text-xs text-gray-600 mb-1 block">종목</label>
+                            <input type="text" id="onermExercise" list="onermExerciseList" placeholder="예: 벤치프레스"
+                                   class="w-full px-4 py-3 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7]">
+                            <datalist id="onermExerciseList"></datalist>
+                        </div>
                         <div>
                             <label class="text-xs text-gray-600 mb-1 block">무게 (kg)</label>
                             <input type="number" inputmode="decimal" id="onermWeight" placeholder="100" oninput="calcOneRM()"
@@ -163,6 +169,16 @@ export function renderStudentScreen() {
                     </div>
                     <div id="onermResult">
                         <p class="text-sm text-gray-500 text-center py-2">무게(kg)와 횟수를 입력하세요</p>
+                    </div>
+                    <button onclick="saveOneRM()" type="button"
+                            class="w-full mt-3 bg-[#329BE7] hover:bg-[#327AB8] text-white font-semibold py-3 rounded-lg transition">
+                        💾 이 값 저장
+                    </button>
+                    <p id="onermSaveStatus" class="text-xs text-center text-gray-500 mt-2 min-h-[1rem]"></p>
+
+                    <div class="mt-3 pt-4 border-t border-[#EFEFF0]">
+                        <h4 class="text-sm font-bold text-gray-700 mb-2">📌 내 1RM</h4>
+                        <div id="onermMyList"></div>
                     </div>
                 </div>
             </div>
