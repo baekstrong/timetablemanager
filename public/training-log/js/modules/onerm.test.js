@@ -22,7 +22,8 @@ describe('trainingTable', () => {
     it('95%는 1RM×0.95', () => {
         const t = trainingTable(100);
         expect(t[0]).toEqual({ pct: 95, weight: 95 });
-        expect(t.length).toBe(6);
+        expect(t[t.length - 1]).toEqual({ pct: 50, weight: 50 });
+        expect(t.length).toBe(10);
     });
 
     it('잘못된 1RM은 빈 배열', () => {

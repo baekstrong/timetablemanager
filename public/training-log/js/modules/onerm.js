@@ -1,7 +1,7 @@
 // 1RM(1회 최대 중량) 계산기 — Epley 공식.
 // 순수 함수(estimate1RM/trainingTable)는 Firebase/DOM 무관 → 브라우저·Vitest 양쪽 import 가능.
 
-const PERCENTS = [95, 90, 85, 80, 75, 70];
+const PERCENTS = [95, 90, 85, 80, 75, 70, 65, 60, 55, 50];
 
 // 0.5kg 단위 반올림 (원판 맞추기 편하게)
 const round05 = (x) => Math.round(x * 2) / 2;
