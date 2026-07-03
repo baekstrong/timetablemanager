@@ -67,10 +67,16 @@ export function renderStudentScreen() {
                     <h2 class="text-xl font-bold text-gray-800">${state.currentUser}님의 훈련일지</h2>
                     <p class="text-sm text-gray-600">오늘도 화이팅! 💪</p>
                 </div>
-                <button onclick="openMemoArchiveModal()"
-                        class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
-                    📦 메모 보관함
-                </button>
+                <div class="flex gap-2">
+                    <button onclick="openOneRMModal()"
+                            class="bg-[#329BE7] hover:bg-[#327AB8] text-white px-3 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
+                        🧮 1RM 계산기
+                    </button>
+                    <button onclick="openMemoArchiveModal()"
+                            class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
+                        📦 메모 보관함
+                    </button>
+                </div>
             </div>
 
             <!-- 이번 달 도장 -->
@@ -132,6 +138,33 @@ export function renderStudentScreen() {
             <div class="bg-white rounded-lg border border-[#EFEFF0] p-6">
                 <h3 class="text-lg font-bold mb-4 text-gray-800">📝 ${formatDate(state.selectedDate)} 기록</h3>
                 <div id="recordsList"></div>
+            </div>
+
+            <!-- 1RM 계산기 모달 -->
+            <div id="onermModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                 onclick="if(event.target===this)closeOneRMModal()">
+                <div class="bg-white rounded-lg p-6 w-full max-w-sm">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="text-lg font-bold text-gray-800">🧮 1RM 계산기</h3>
+                        <button onclick="closeOneRMModal()" class="text-gray-500 hover:text-gray-700 text-2xl leading-none">×</button>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-4">방금 든 무게·횟수로 예상 최대중량(1RM)을 계산해요. 1~10회에서 정확합니다.</p>
+                    <div class="space-y-3 mb-4">
+                        <div>
+                            <label class="text-xs text-gray-600 mb-1 block">무게 (kg)</label>
+                            <input type="number" inputmode="decimal" id="onermWeight" placeholder="100" oninput="calcOneRM()"
+                                   class="w-full px-4 py-3 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7]">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-600 mb-1 block">횟수 (회)</label>
+                            <input type="number" inputmode="numeric" id="onermReps" placeholder="5" oninput="calcOneRM()"
+                                   class="w-full px-4 py-3 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7]">
+                        </div>
+                    </div>
+                    <div id="onermResult">
+                        <p class="text-sm text-gray-500 text-center py-2">무게(kg)와 횟수를 입력하세요</p>
+                    </div>
+                </div>
             </div>
         </div>
     `;

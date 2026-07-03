@@ -9,6 +9,7 @@ import * as Records from './modules/records.js';
 import * as Calendar from './modules/calendar.js';
 import * as Coach from './modules/coach.js';
 import * as Stamp from './modules/stamp.js';
+import * as OneRM from './modules/onerm.js';
 
 // ============================================
 // Auto Save Logic (DOM Dependent)
@@ -270,6 +271,7 @@ async function initApp() {
     Object.assign(window, Coach);
     Object.assign(window, Admin);
     Object.assign(window, Stamp);
+    Object.assign(window, OneRM);
 
     window.loadAutoSavedData = loadAutoSavedData; // Explicitly assign local function
 
