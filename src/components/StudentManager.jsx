@@ -719,7 +719,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                                                     padding: '4px 8px',
                                                                     borderRadius: '4px',
                                                                     cursor: 'pointer',
-                                                                    fontSize: '0.85rem'
+                                                                    fontSize: '0.72rem'
                                                                 }}
                                                             >
                                                                 👤 빙의
