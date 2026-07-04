@@ -21,17 +21,21 @@ service cloud.firestore {
 
     function signedIn() { return request.auth != null; }
     function isCoach()  { return signedIn() && request.auth.token.isCoach == true; }
+    function isSelf(name) { return signedIn() && request.auth.token.name == name; }
 
     // ── 서버 전용: 비번 해시. 클라이언트 전면 차단(Admin SDK만 우회) ──
     match /userSecrets/{name} {
       allow read, write: if false;
     }
 
-    // ── 계정: 인증 사용자 broad read(게시판 뱃지 getDocs). 쓰기는 코치만.
-    //    (신규 계정 생성은 서버 Admin 이 우회해서 기록) ──
+    // ── 계정: 인증 사용자 broad read(게시판 뱃지 getDocs). ──
+    // 쓰기: 코치는 전체. 본인은 자기 문서에 티어/학년/PR플래그 등은 갱신하되 isCoach(권한)만 못 건드림.
+    //   (refreshStudentTier/refreshStudentXP/PR축하플래그 소비가 본인 users 문서에 merge 씀)
     match /users/{name} {
-      allow read:  if signedIn();
-      allow write: if isCoach();
+      allow read: if signedIn();
+      allow create, delete: if isCoach();
+      allow update: if isCoach() ||
+        (isSelf(name) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isCoach']));
     }
 
     // ── 비로그인 신규등록 funnel + 컨텍스트 마운트: 공개 read ──

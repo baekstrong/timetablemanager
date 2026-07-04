@@ -108,19 +108,27 @@ describe('학생 본인(홍길동) — 앱이 쓰는 접근 허용, 코치권한
     await assertSucceeds(setDoc(doc(db, 'posts', 'p1', 'comments', 'c2'), { authorName: '홍길동' }));
   });
 
-  it('userSecrets read 차단 / users write(코치 전용) 차단', async () => {
+  it('본인 users 문서에 티어/학년 필드 갱신 허용(merge)', async () => {
+    const db = student();
+    await assertSucceeds(setDoc(doc(db, 'users', '홍길동'), { tier: 'iron', tierMonth: '2026-07', xp: 100 }, { merge: true }));
+  });
+
+  it('userSecrets 차단 / isCoach 자가승격 차단 / 타인 users 쓰기 차단', async () => {
     const db = student();
     await assertFails(getDoc(doc(db, 'userSecrets', '홍길동')));
-    await assertFails(setDoc(doc(db, 'users', '김코치'), { hacked: true }));
+    await assertFails(setDoc(doc(db, 'users', '홍길동'), { isCoach: true }, { merge: true }));   // 권한상승 차단
+    await assertFails(setDoc(doc(db, 'users', '김코치'), { tier: 'iron' }, { merge: true }));      // 타인 문서 차단
   });
 });
 
 // ─────────────────────────────────────────────────────────────
 describe('코치(김코치) — 계정 쓰기 허용, 서버시크릿은 코치도 차단', () => {
-  it('users read/write 허용', async () => {
+  it('users read/write/create 허용', async () => {
     const db = coach();
     await assertSucceeds(getDocs(collection(db, 'users')));
     await assertSucceeds(updateDoc(doc(db, 'users', '홍길동'), { tier: 'iron' }));
+    await assertSucceeds(updateDoc(doc(db, 'users', '홍길동'), { isCoach: true }));   // 코치는 isCoach도 가능
+    await assertSucceeds(setDoc(doc(db, 'users', '새학생'), { isCoach: false, createdAt: 1 })); // 계정 생성
   });
 
   it('운영 컬렉션 read/write + 신규신청 delete 허용', async () => {
