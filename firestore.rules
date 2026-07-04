@@ -1,0 +1,71 @@
+rules_version = '2';
+
+// 근력학교 Firestore 보안 규칙 (Phase B 잠금 + Phase C 평문 제거 전제)
+//
+// 목표: 비인증(토큰 없는 공격자)의 전체 DB 덤프를 차단한다.
+// 전제: Phase A(서버 로그인 + signInWithCustomToken)가 배포되어 실사용자가
+//       request.auth 를 채운 상태여야 한다. 클레임 = { isCoach:boolean, name:string }.
+//
+// ⚠️ 배포 순서 의존: users 를 인증 사용자 broad read 로 여는 것은
+//    평문 password 필드가 제거된(Phase C) 뒤라야 안전하다.
+//    → drop-plaintext-passwords 실행 후 이 규칙을 배포할 것.
+//
+// 2026-06-28 스코핑에서 발견한 락아웃 벡터 4개를 카브아웃했다:
+//  1) users broad read (게시판 티어/학년 뱃지 getDocs) — 평문 제거 후 signedIn read 허용
+//  2) 비로그인 신규등록 funnel — disabledClasses/entranceClasses/registrationFAQ/newStudentRegistrations 공개
+//  3) 컨텍스트 마운트가 로그인 전 holidays 읽음 — holidays 공개 read
+//  4) 로그인 폴백의 비인증 users read — Phase C에서 폴백 제거되므로 규칙에서 열지 않음
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isCoach()  { return signedIn() && request.auth.token.isCoach == true; }
+
+    // ── 서버 전용: 비번 해시. 클라이언트 전면 차단(Admin SDK만 우회) ──
+    match /userSecrets/{name} {
+      allow read, write: if false;
+    }
+
+    // ── 계정: 인증 사용자 broad read(게시판 뱃지 getDocs). 쓰기는 코치만.
+    //    (신규 계정 생성은 서버 Admin 이 우회해서 기록) ──
+    match /users/{name} {
+      allow read:  if signedIn();
+      allow write: if isCoach();
+    }
+
+    // ── 비로그인 신규등록 funnel + 컨텍스트 마운트: 공개 read ──
+    // holidays: GoogleSheetsProvider가 로그인 전 마운트에서 fetchHolidays()로 읽음 (막으면 앱 초기화 실패)
+    match /holidays/{id}        { allow read: if true; allow write: if signedIn(); }
+    match /disabledClasses/{id} { allow read: if true; allow write: if signedIn(); }
+    match /entranceClasses/{id} { allow read: if true; allow write: if signedIn(); }
+    match /registrationFAQ/{id} { allow read: if true; allow write: if signedIn(); }
+    // 신규 신청: 비로그인 read/create/update (funnel 보존). PII 공개 노출은 기존 동작과 동일 — 추후 개선 과제.
+    match /newStudentRegistrations/{id} {
+      allow read, create, update: if true;
+      allow delete: if isCoach();
+    }
+
+    // ── 게시판: 인증 사용자 read/write. 좋아요·soft delete 때문에 작성자 세분화는 후순위(YAGNI) ──
+    match /posts/{postId} {
+      allow read, create, update, delete: if signedIn();
+      match /comments/{commentId} {
+        allow read, create, update, delete: if signedIn();
+      }
+    }
+
+    // ── 운영 + 훈련일지 컬렉션: 인증 사용자 read/write, 비인증 전면 차단 ──
+    // ponytail: 우선 signedIn 으로 개방(락아웃 0 최우선). 소유자 단위 강화는 악용 시 별도 과제.
+    // ⚠️ userSecrets/users 는 이 목록에 없어야 함(있으면 OR 시맨틱으로 위 차단이 뚫림).
+    match /{collection}/{docId} {
+      allow read, write: if signedIn() && collection in [
+        'makeupRequests', 'holdingRequests', 'absenceRequests', 'waitlistRequests', 'makeupWaitlists',
+        'coachPinnedMemos', 'pinnedMemos', 'renewalContracts', 'studentTerminations',
+        'personalBests', 'monthlyStamps', 'studentMeta',
+        'records', 'freeWorkoutAttendance', 'freeWorkoutRoster',
+        'lockedSlots', 'studentCountSnapshots',
+        'exercises', 'oneRMRecords', 'archivedMemos'
+      ];
+    }
+  }
+}
