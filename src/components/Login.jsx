@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { db, auth } from '../config/firebase';
-import { doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { serverLogin } from '../services/authService';
 import './Login.css';
@@ -104,21 +103,9 @@ const Login = ({ onLogin }) => {
                 const result = await serverLogin(name, pass);
                 isCoach = result.isCoach;
             } catch (serverErr) {
-                // ponytail: Phase A/B 폴백 — 서버 경로 검증될 때까지 클라 비교 유지, Phase C에서 제거.
-                console.warn('서버 로그인 실패, 클라 폴백:', serverErr.message);
-                const userRef = doc(db, 'users', name);
-                const userDoc = await getDoc(userRef);
-                if (!userDoc.exists()) {
-                    setError('❌ 등록되지 않은 계정입니다. 코치에게 문의해 주세요.');
-                    setLoading(false);
-                    return;
-                }
-                if (userDoc.data().password !== pass) {
-                    setError('❌ 비밀번호가 올바르지 않습니다!');
-                    setLoading(false);
-                    return;
-                }
-                isCoach = userDoc.data().isCoach || false;
+                setError('❌ ' + (serverErr.message || '로그인에 실패했습니다.'));
+                setLoading(false);
+                return;
             }
 
             // Save credentials if remember me is checked

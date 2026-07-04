@@ -1,4 +1,5 @@
 import { db } from '../config/firebase';
+import { changeMyPassword } from './authService';
 import {
     collection,
     addDoc,
@@ -128,18 +129,9 @@ async function safeWrite(fn) {
  * users/{userName} 비밀번호 변경 — 현재 비밀번호 일치 검증 후 갱신.
  */
 export const updateUserPassword = async (userName, currentPassword, newPassword) => {
-    return safeWrite(async () => {
-        const userRef = doc(db, 'users', userName);
-        const userDoc = await getDoc(userRef);
-        if (!userDoc.exists()) throw new Error('계정을 찾을 수 없습니다.');
-        if (userDoc.data().password !== currentPassword) {
-            throw new Error('현재 비밀번호가 올바르지 않습니다.');
-        }
-        // ponytail: 본인 비번 변경은 Phase A에선 평문만 갱신(서버는 평문 폴백으로 로그인 가능).
-        // Phase C 직전 auth-change-password(본인 현재비번 재검증) 추가 후 해시 갱신으로 전환.
-        await updateDoc(userRef, { password: newPassword, updatedAt: serverTimestamp() });
-        return { success: true };
-    });
+    // 서버(auth/change-password)에서 현재 비번 재검증 후 bcrypt 해시 갱신. 평문은 저장하지 않는다.
+    await changeMyPassword(userName, currentPassword, newPassword);
+    return { success: true };
 };
 
 // ============================================

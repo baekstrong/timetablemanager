@@ -37,3 +37,15 @@ export async function setStudentPassword(coachName, coachPassword, targetName, n
     throw new Error(data.error || `비밀번호 설정 실패 (${res.status})`);
   }
 }
+
+export async function changeMyPassword(name, currentPassword, newPassword) {
+  const res = await fetch(`${getAuthBaseUrl()}/change-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, currentPassword, newPassword }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || `비밀번호 변경 실패 (${res.status})`);
+  }
+}

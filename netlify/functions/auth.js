@@ -18,16 +18,13 @@ function ensureAdmin() {
   }
 }
 
-// 비번 검증: userSecrets 해시 우선, 없으면 평문 users.password 폴백(Phase A/B; Phase C에서 폴백 제거)
+// 비번 검증: userSecrets bcrypt 해시만. (평문 폴백은 Phase C에서 제거 — 전원 마이그레이션 완료)
 async function checkPassword(name, password) {
   const db = getFirestore();
   const secretSnap = await db.collection('userSecrets').doc(name).get();
   if (secretSnap.exists && secretSnap.data().hash) {
     return verifyPassword(password, secretSnap.data().hash);
   }
-  // ponytail: 평문 폴백 — 마이그레이션 전/누락 사용자용. Phase C에서 이 블록 삭제.
-  const userSnap = await db.collection('users').doc(name).get();
-  if (userSnap.exists && userSnap.data().password === password) return true;
   return false;
 }
 
@@ -89,6 +86,23 @@ exports.handler = async (event) => {
       const hash = await hashPassword(newPassword);
       const db = getFirestore();
       await db.collection('userSecrets').doc(targetName).set(
+        { hash, updatedAt: FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+      return json(200, { success: true });
+    }
+
+    // POST /auth/change-password  (본인 현재 비번 재검증 후 변경 — 평문 미사용)
+    if (event.httpMethod === 'POST' && path === 'change-password') {
+      const { name, currentPassword, newPassword } = JSON.parse(event.body || '{}');
+      if (!name || !currentPassword || !newPassword) {
+        return json(400, { success: false, error: '필수 파라미터 누락' });
+      }
+      const ok = await checkPassword(name, currentPassword);
+      if (!ok) return json(401, { success: false, error: '현재 비밀번호가 올바르지 않습니다.' });
+      const hash = await hashPassword(newPassword);
+      const db = getFirestore();
+      await db.collection('userSecrets').doc(name).set(
         { hash, updatedAt: FieldValue.serverTimestamp() },
         { merge: true }
       );

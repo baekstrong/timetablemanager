@@ -408,7 +408,6 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
                 const userRef = doc(db, 'users', form.이름.trim());
                 try {
                     await setDoc(userRef, {
-                        password: form.비밀번호.trim(),   // ponytail: Phase C에서 제거(해시만 사용)
                         isCoach: false,
                         createdAt: serverTimestamp()
                     });

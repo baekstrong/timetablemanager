@@ -43,18 +43,8 @@ export async function login() {
             await firebase.auth().signInWithCustomToken(data.token);
             state.isCoach = data.isCoach || false;
         } catch (serverErr) {
-            // ponytail: Phase A/B 폴백 — Phase C에서 제거.
-            console.warn('서버 로그인 실패, 클라 폴백:', serverErr.message);
-            const userDoc = await db.collection('users').doc(name).get();
-            if (!userDoc.exists) {
-                alert('❌ 등록되지 않은 계정입니다. 코치에게 문의해 주세요.');
-                return;
-            }
-            if (userDoc.data().password !== password) {
-                alert('❌ 비밀번호가 올바르지 않습니다!');
-                return;
-            }
-            state.isCoach = userDoc.data().isCoach || false;
+            alert('❌ ' + (serverErr.message || '로그인에 실패했습니다.'));
+            return;
         }
 
         state.currentUser = name;
@@ -128,7 +118,7 @@ export async function autoLogin() {
             console.log('⚡ 공유 Firebase 세션 — 즉시 자동 로그인 (서버 재인증 생략)');
             state.isCoach = saved.isCoach || false;
         } else {
-            // 2) 세션 없음 → 서버 로그인 (+ 평문 폴백)
+            // 2) 세션 없음 → 서버 로그인 (커스텀 토큰)
             try {
                 const res = await fetch(`${FUNCTIONS_BASE}/auth/login`, {
                     method: 'POST',
@@ -140,13 +130,9 @@ export async function autoLogin() {
                 await firebase.auth().signInWithCustomToken(data.token);
                 state.isCoach = data.isCoach || false;
             } catch (serverErr) {
-                console.warn('서버 자동로그인 실패, 클라 폴백:', serverErr.message);
-                const userDoc = await db.collection('users').doc(saved.name).get();
-                if (!userDoc.exists || userDoc.data().password !== saved.password) {
-                    clearSavedLogin();
-                    return;
-                }
-                state.isCoach = userDoc.data().isCoach || false;
+                console.warn('자동 로그인 실패:', serverErr.message);
+                clearSavedLogin();
+                return;
             }
         }
 

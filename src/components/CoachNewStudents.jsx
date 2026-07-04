@@ -228,7 +228,6 @@ const CoachNewStudents = ({ user, onBack }) => {
             // 1. Firestore users/{name} 생성
             const userRef = doc(db, 'users', reg.name);
             await setDoc(userRef, {
-                password: reg.password,
                 isCoach: false,
                 createdAt: serverTimestamp()
             });
