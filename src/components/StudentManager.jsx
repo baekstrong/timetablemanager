@@ -4,6 +4,7 @@ import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, 
 import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, recordStudentCount, getGradeMap } from '../services/firebaseService';
 import { getCoachStudentListStatus, shouldShowInCoachStudentList, isPausedRegistration } from '../utils/studentList';
 import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
+import { setStudentPassword } from '../services/authService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
@@ -43,6 +44,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     const [holdingProcessing, setHoldingProcessing] = useState(false);
     const [searchQuery, setSearchQuery] = useState(''); // 수강생 검색어
     const [actionProcessing, setActionProcessing] = useState(''); // 작업(종료/일시정지/재개) 처리 중 메시지
+    const [pwResetting, setPwResetting] = useState(''); // 비밀번호 초기화 중인 수강생 이름
     const [showSmsModal, setShowSmsModal] = useState(false);
     const [gradeMap, setGradeMap] = useState({}); // 이름→학년키 (수강생 레벨 표시용)
 
@@ -159,6 +161,29 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             alert('재개 처리에 실패했습니다: ' + err.message);
         } finally {
             setActionProcessing('');
+        }
+    };
+
+    // 비밀번호 초기화 — 임시비번 = 전화번호 뒤 4자리. 서버 set-password(코치 재인증)로 해시 갱신.
+    const handleResetPassword = async (student) => {
+        const name = student['이름'];
+        const phoneDigits = String(getStudentField(student, '핸드폰') || '').replace(/\D/g, '');
+        let tempPw = phoneDigits.slice(-4);
+        if (tempPw.length < 4) {
+            tempPw = (window.prompt(`${name}님은 전화번호가 없어 자동 생성을 못 합니다.\n임시 비밀번호를 직접 입력하세요 (4자 이상):`, '') || '').trim();
+            if (tempPw.length < 4) { if (tempPw) alert('임시 비밀번호는 4자 이상이어야 합니다.'); return; }
+        }
+        if (!confirm(`${name}님의 비밀번호를 초기화할까요?\n\n임시 비밀번호: ${tempPw}\n\n학생이 로그인 후 '내 정보 → 비밀번호 변경'에서 바꾸도록 안내하세요.`)) return;
+        const saved = JSON.parse(localStorage.getItem('savedUser') || '{}');
+        if (!saved.name || !saved.password) { alert('코치 인증 정보를 찾을 수 없습니다. 다시 로그인해 주세요.'); return; }
+        setPwResetting(name);
+        try {
+            await setStudentPassword(saved.name, saved.password, name, tempPw);
+            alert(`✅ ${name}님 비밀번호가 "${tempPw}"(으)로 초기화되었습니다.\n전화번호 뒤 4자리입니다. 학생에게 로그인 후 변경하도록 안내하세요.`);
+        } catch (err) {
+            alert(`❌ 비밀번호 초기화 실패: ${err.message || '다시 시도해 주세요.'}`);
+        } finally {
+            setPwResetting('');
         }
     };
 
@@ -666,6 +691,9 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                                         </button>
                                                         <button onClick={() => setContractHistoryTarget(student['이름'])} className="contract-btn" title="계약 이력">
                                                             계약
+                                                        </button>
+                                                        <button onClick={() => handleResetPassword(student)} className="reset-pw-btn" title="비밀번호 초기화 (전화번호 뒤 4자리)" disabled={pwResetting === student['이름']}>
+                                                            {pwResetting === student['이름'] ? '...' : '비번초기화'}
                                                         </button>
                                                         {isPausedRegistration(student) ? (
                                                             <button onClick={() => handleResume(student)} className="resume-btn" title="재개 (정지 해제 + 종료날짜 재계산)">

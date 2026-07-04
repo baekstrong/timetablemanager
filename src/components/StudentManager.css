@@ -422,6 +422,27 @@
     background: #4b5563;
 }
 
+.reset-pw-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--cta-dark);
+    color: white;
+}
+
+.reset-pw-btn:hover {
+    opacity: 0.85;
+}
+
+.reset-pw-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
 .pause-btn {
     padding: 0.5rem 1rem;
     border: none;
