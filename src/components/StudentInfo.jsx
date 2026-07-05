@@ -12,11 +12,13 @@ const StudentInfo = ({ user, studentData, isImpersonating = false, onBack }) => 
     const [holdingHistory, setHoldingHistory] = useState([]);
     const [firebaseHolidays, setFirebaseHolidays] = useState([]);
     const [showContractHistory, setShowContractHistory] = useState(false);
+    const [loading, setLoading] = useState(true);
 
     // Firebase에서 보강 신청 + 홀딩 이력 + 공휴일 로드
     useEffect(() => {
         const loadData = async () => {
             if (!user) return;
+            setLoading(true);
             try {
                 const [makeups, holdings, holidays] = await Promise.all([
                     getActiveMakeupRequests(user.username),
@@ -28,6 +30,8 @@ const StudentInfo = ({ user, studentData, isImpersonating = false, onBack }) => 
                 setFirebaseHolidays(holidays || []);
             } catch (error) {
                 console.error('데이터 조회 실패:', error);
+            } finally {
+                setLoading(false);
             }
         };
         loadData();
@@ -152,6 +156,24 @@ const StudentInfo = ({ user, studentData, isImpersonating = false, onBack }) => 
 
     return (
         <div className="student-info-container">
+            {loading && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(255,255,255,0.85)', zIndex: 9999,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    backdropFilter: 'blur(2px)'
+                }}>
+                    <div style={{
+                        width: '40px', height: '40px', border: '4px solid #e5e7eb',
+                        borderTop: '4px solid var(--accent)', borderRadius: '50%',
+                        animation: 'spin 1s linear infinite'
+                    }} />
+                    <p style={{ marginTop: '16px', color: '#4b5563', fontSize: '15px', fontWeight: 500 }}>
+                        정보를 받아오고 있습니다...
+                    </p>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+            )}
             <div className="student-info-header">
                 <h1 className="student-info-title">내 정보</h1>
             </div>
