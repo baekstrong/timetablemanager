@@ -1064,6 +1064,8 @@ export async function renderCoachSessionView() {
                 coachSessionCache[name] = { dates, byDate };
                 coachSessionSelectedDate[name] = dates[0] || null;
             }));
+            // 학생 화면과 동일하게 종목별 고정 메모를 표시하려면 pinnedMemos도 필요.
+            await loadPinnedMemosForSelectedStudents();
         } catch (e) {
             console.error('코치 세션 조회 실패:', e);
             container.innerHTML = '<p class="text-red-500 text-center py-8">기록 불러오기 실패.</p>';
@@ -1089,10 +1091,11 @@ function renderCoachSessionBlock(name) {
 
     const selDate = coachSessionSelectedDate[name] || cache.dates[0];
     const records = cache.byDate[selDate] || [];
+    const pinnedList = studentPinnedMemosCache[name] || [];
     const options = cache.dates.map(d =>
         `<option value="${escCoach(d)}"${d === selDate ? ' selected' : ''}>${escCoach(formatDate(d))}</option>`
     ).join('');
-    const cards = records.map(renderCoachRecordCard).join('');
+    const cards = records.map(item => renderCoachRecordCard(item, pinnedList)).join('');
 
     return `<div id="student-section-${escCoach(name)}" class="bg-white rounded-lg border border-[#EFEFF0] p-5 mb-4">
         <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
@@ -1106,8 +1109,11 @@ function renderCoachSessionBlock(name) {
     </div>`;
 }
 
-function renderCoachRecordCard(item) {
+function renderCoachRecordCard(item, pinnedList = []) {
     const data = item.data;
+    // 학생 화면과 동일: 해당 종목 고정 메모 우선, 없으면 기록 자체 메모
+    const pinned = pinnedList.find(p => p.exercise === data.exercise);
+    const memoText = (pinned && pinned.memo) || data.memo;
     let setsDisplay = '';
     if (Array.isArray(data.sets)) {
         setsDisplay = data.sets.map((set, idx) => {
@@ -1133,7 +1139,7 @@ function renderCoachRecordCard(item) {
             </div>
         </div>
         ${setsDisplay}
-        ${data.memo ? `<p class="text-sm text-gray-600 mt-1" style="white-space:pre-wrap;">📝 ${escCoach(data.memo)}</p>` : ''}
+        ${memoText ? `<p class="text-sm text-gray-600 mt-1" style="white-space:pre-wrap;">📝 ${escCoach(memoText)}</p>` : ''}
     </div>`;
 }
 
