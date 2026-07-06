@@ -1049,11 +1049,11 @@ export async function renderCoachSessionView() {
         container.innerHTML = '<p class="text-gray-400 text-center py-8">불러오는 중…</p>';
         try {
             await Promise.all(needFetch.map(async (name) => {
-                // ponytail: 최근 100건 = 약 최근 10~20회 수업. 더 옛날 수업은 안 뜸 — 필요하면 limit 상향.
+                // ponytail: userName 단일 등호만 사용 → 자동 인덱스로 동작(복합 인덱스 불필요).
+                // 전체 기록을 받아 클라에서 날짜별 그룹핑·정렬. 기록이 수천 건으로 커지면
+                // (userName,timestamp) 복합 인덱스 만들고 orderBy('timestamp','desc').limit(N)으로 교체.
                 const snap = await db.collection('records')
                     .where('userName', '==', name)
-                    .orderBy('timestamp', 'desc')
-                    .limit(100)
                     .get();
                 const items = [];
                 snap.forEach(doc => {
@@ -1066,7 +1066,7 @@ export async function renderCoachSessionView() {
             }));
         } catch (e) {
             console.error('코치 세션 조회 실패:', e);
-            container.innerHTML = '<p class="text-red-500 text-center py-8">기록 불러오기 실패. (색인 생성 중일 수 있어요)</p>';
+            container.innerHTML = '<p class="text-red-500 text-center py-8">기록 불러오기 실패.</p>';
             return;
         }
     }
