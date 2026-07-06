@@ -9,6 +9,7 @@ const NAME_PASTEL = {
     absent: '#FDECEE',      // 파스텔 레드
     holding: '#FDECEE',     // 파스텔 레드
     makeupAbsent: '#FDECEE',// 파스텔 레드 (홀딩·결석과 동일 패턴)
+    waitingSeat: '#FDF6E3', // 파스텔 앰버 (보강대기 — 이름칩+뱃지로 다른 상태칩과 모양 통일)
 };
 
 const extraBadges = (lastClass, reregX, unpaid) => (
