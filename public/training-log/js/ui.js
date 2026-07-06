@@ -228,64 +228,14 @@ export function renderCoachScreen() {
                 </div>
             </div>
 
-            <!-- 필터 (아코디언, 기본 접힘) -->
-            <div class="bg-white rounded-lg border border-[#EFEFF0] mb-4">
-                <button onclick="toggleFilterPanel()" class="w-full p-4 text-left flex items-center justify-between hover:bg-gray-50 transition rounded-lg">
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-700">🔍 필터 설정</h3>
-                        <p class="text-xs text-gray-500 mt-1" id="filterSummary">기본 설정</p>
-                    </div>
-                    <span id="filterPanelIcon" class="text-xl text-gray-600">▼</span>
-                </button>
-                <div id="filterPanelContainer" class="hidden p-4 pt-0 border-t border-gray-200">
-                    <div class="mb-4">
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">기록 조회 날짜</label>
-                        <input
-                            type="date"
-                            id="coachDateFilter"
-                            value=""
-                            onchange="changeCoachDate(this.value)"
-                            class="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#329BE7]"
-                        >
-                        <button onclick="showAllDates()" class="ml-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
-                            전체 보기
-                        </button>
-                    </div>
-
-                    <div class="space-y-2">
-                        <div class="mb-3">
-                            <select id="coachExerciseFilter" onchange="changeCoachExerciseFilter(this.value)"
-                                    style="max-width: 100%;"
-                                    class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-[#329BE7] font-bold text-lg text-gray-700 bg-white">
-                                <option value="">🏋️ 운동 종목 선택 (전체 보기)</option>
-                            </select>
-                        </div>
-
-                        <div class="flex items-center space-x-2 p-3 bg-red-50 rounded-lg">
-                            <input type="checkbox" id="painFilterCheck" ${state.painFilter ? 'checked' : ''} onchange="togglePainFilter()" class="w-5 h-5">
-                            <label for="painFilterCheck" class="text-sm font-semibold text-red-700">⚠️ 통증 있는 기록만 보기</label>
-                        </div>
-
-                        <div class="flex items-center space-x-2 p-3 bg-[#329BE71A] rounded-lg">
-                            <input type="checkbox" id="pinnedMemoFilterCheck" ${state.pinnedMemoFilter ? 'checked' : ''} onchange="togglePinnedMemoFilter()" class="w-5 h-5">
-                            <label for="pinnedMemoFilterCheck" class="text-sm font-semibold text-[#329BE7]">📝 운동 메모만 보기</label>
-                        </div>
-                        <div class="flex items-center space-x-2 p-3 bg-[#329BE71A] rounded-lg">
-                            <input type="checkbox" id="recordsFilterCheck" ${state.recordsFilter ? 'checked' : ''} onchange="toggleRecordsFilter()" class="w-5 h-5">
-                            <label for="recordsFilterCheck" class="text-sm font-semibold text-[#327AB8]">📋 운동 기록 보기</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- 선택된 수강생 빠른 이동 바 (sticky) -->
             <div id="studentQuickNav" class="student-quick-nav" style="display: none;"></div>
 
             <!-- 코치 고정 메모 현황 (선택한 수강생만) -->
             <div id="coachPinnedMemosSection" class="mb-4"></div>
 
-            <!-- 전체 기록 카드 (기본 숨김, 운동 기록 보기 체크 시 표시) -->
-            <div id="allRecordsList" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3" style="display: ${state.recordsFilter ? 'grid' : 'none'}"></div>
+            <!-- 코치 '바로 전 수업' 세션 뷰 (수강생 선택 시 학생별 블록으로 렌더) -->
+            <div id="allRecordsList"></div>
             
             <!-- 고정 메모 관리 (레거시/고급) -->
             <div class="mt-6">

@@ -3,6 +3,7 @@ import { getKoreanInitial, getStudentColor, getStudentBadgeColor, getStudentText
 
 const debouncedLoadAllRecords = debounce(loadAllRecords, 300);
 import { normalizeSet } from './sets.js';
+import { groupSessionsByDate } from './session-logic.js';
 
 // ============================================
 // 코치 기능
@@ -13,6 +14,7 @@ export async function loadStudentList() {
     if (!studentListDiv) return;
 
     try {
+        resetCoachSessionCache(); // 페이지 재진입 시 세션 캐시 비워 최신 기록 재조회
         // users 컬렉션에서 수강생 목록 조회 (records 전체 조회 대비 훨씬 빠름)
         const usersSnapshot = await db.collection('users').get();
 
@@ -147,17 +149,8 @@ export async function loadStudentList() {
         // Quick nav bar 업데이트
         updateStudentQuickNav();
 
-        // Initial render: 선택된 학생이 있을 때만 데이터 로드
-        if (state.selectedStudents.length > 0) {
-            // 메모 표시 (pinnedMemoFilter가 true일 때)
-            if (state.pinnedMemoFilter) {
-                renderPinnedMemosForCoach();
-            }
-            // 운동 기록 표시 (recordsFilter가 true일 때만)
-            if (state.recordsFilter) {
-                debouncedLoadAllRecords();
-            }
-        }
+        // 선택된 수강생의 '바로 전 수업' 세션 뷰 렌더 (미선택 시 안내 메시지)
+        renderCoachSessionView();
 
     } catch (error) {
         console.error('Error loading student list:', error);
@@ -202,8 +195,7 @@ export function toggleStudent(studentName) {
     updateStudentQuickNav();
 
     // 메모/기록 업데이트
-    if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
-    if (state.recordsFilter) debouncedLoadAllRecords();
+    renderCoachSessionView();
 }
 
 // Helper function to update student badges without full reload
@@ -642,8 +634,7 @@ export function toggleSelectAll() {
     updateStudentBadges();
     updateStudentSelectionSummary();
     updateStudentQuickNav();
-    if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
-    if (state.recordsFilter) debouncedLoadAllRecords();
+    renderCoachSessionView();
 }
 
 export function clearStudentSelection() {
@@ -655,8 +646,7 @@ export function clearStudentSelection() {
     updateStudentBadges();
     updateStudentSelectionSummary();
     updateStudentQuickNav();
-    if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
-    if (state.recordsFilter) debouncedLoadAllRecords();
+    renderCoachSessionView();
 }
 
 export function toggleDeleteMode() {
@@ -761,8 +751,7 @@ export function togglePainFilter() {
     state.painFilter = checkbox ? checkbox.checked : false;
     localStorage.setItem('coachPainFilter', state.painFilter);
     updateFilterSummary();
-    if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
-    if (state.recordsFilter) debouncedLoadAllRecords();
+    renderCoachSessionView();
 }
 
 export function toggleMemoFilter() {
@@ -827,8 +816,7 @@ export function changeCoachExerciseFilter(exerciseName) {
     updateFilterSummary();
 
     // 운동 필터가 켜져도 날짜 필터를 유지하도록 수정 (state.selectedDate = null 제거)
-    if (state.pinnedMemoFilter) renderPinnedMemosForCoach();
-    if (state.recordsFilter) debouncedLoadAllRecords();
+    renderCoachSessionView();
 }
 
 // 전체 기록 불러오기 (운동 기록 보기 체크 시에만 호출됨)
@@ -1019,6 +1007,140 @@ export async function loadAllRecords() {
 }
 
 
+
+// ============================================
+// 코치: '바로 전 수업' 세션 뷰 (수강생 선택 시 기본 화면)
+// 선택한 각 수강생을 [이름 + 날짜 드롭다운 + 그 날 카드]로 표시. 드롭다운으로 이전 수업 조회.
+// ============================================
+let coachSessionCache = {};        // 이름 -> { dates:[최근순], byDate:{날짜:[item]} }
+let coachSessionSelectedDate = {}; // 이름 -> 현재 선택 날짜
+
+function resetCoachSessionCache() {
+    coachSessionCache = {};
+    coachSessionSelectedDate = {};
+}
+
+const escCoach = (s) => String(s ?? '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const tsMs = (ts) => (ts && ts.toDate) ? ts.toDate().getTime() : 0;
+
+export async function renderCoachSessionView() {
+    const container = document.getElementById('allRecordsList');
+    if (!container) return;
+    container.style.display = 'block';
+
+    // 레거시 실시간 기록 리스너가 남아있으면 해제 (컨테이너 덮어쓰기 방지)
+    if (state.unsubscribe) { state.unsubscribe(); state.unsubscribe = null; }
+
+    const selected = [...new Set(state.selectedStudents)];
+    if (selected.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-8">수강생을 선택하면 바로 전 수업 기록이 표시됩니다.</p>';
+        return;
+    }
+    // ponytail: 학생당 최근 100건 조회 → 10명 초과면 읽기 폭주. 좁히도록 안내(상한 올리려면 숫자만 조정).
+    if (selected.length > 10) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-8">읽기 절감을 위해 10명 이하로 선택하세요.</p>';
+        return;
+    }
+
+    const needFetch = selected.filter(name => !coachSessionCache[name]);
+    if (needFetch.length > 0) {
+        container.innerHTML = '<p class="text-gray-400 text-center py-8">불러오는 중…</p>';
+        try {
+            await Promise.all(needFetch.map(async (name) => {
+                // ponytail: 최근 100건 = 약 최근 10~20회 수업. 더 옛날 수업은 안 뜸 — 필요하면 limit 상향.
+                const snap = await db.collection('records')
+                    .where('userName', '==', name)
+                    .orderBy('timestamp', 'desc')
+                    .limit(100)
+                    .get();
+                const items = [];
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    items.push({ id: doc.id, data: d, date: d.date, ts: tsMs(d.timestamp) });
+                });
+                const { dates, byDate } = groupSessionsByDate(items);
+                coachSessionCache[name] = { dates, byDate };
+                coachSessionSelectedDate[name] = dates[0] || null;
+            }));
+        } catch (e) {
+            console.error('코치 세션 조회 실패:', e);
+            container.innerHTML = '<p class="text-red-500 text-center py-8">기록 불러오기 실패. (색인 생성 중일 수 있어요)</p>';
+            return;
+        }
+    }
+
+    container.innerHTML = selected.map(renderCoachSessionBlock).join('');
+}
+
+function renderCoachSessionBlock(name) {
+    const badgeBg = getStudentBadgeColor(name, state.allStudents);
+    const badgeText = getStudentTextColor(name, state.allStudents);
+    const nameChip = `<span class="px-3 py-1 rounded-full text-sm font-semibold" style="background-color:${badgeBg};color:${badgeText};">${escCoach(name)}</span>`;
+
+    const cache = coachSessionCache[name];
+    if (!cache || cache.dates.length === 0) {
+        return `<div id="student-section-${escCoach(name)}" class="bg-white rounded-lg border border-[#EFEFF0] p-5 mb-4">
+            ${nameChip}
+            <p class="text-gray-400 text-sm mt-3">아직 훈련일지 기록이 없습니다.</p>
+        </div>`;
+    }
+
+    const selDate = coachSessionSelectedDate[name] || cache.dates[0];
+    const records = cache.byDate[selDate] || [];
+    const options = cache.dates.map(d =>
+        `<option value="${escCoach(d)}"${d === selDate ? ' selected' : ''}>${escCoach(formatDate(d))}</option>`
+    ).join('');
+    const cards = records.map(renderCoachRecordCard).join('');
+
+    return `<div id="student-section-${escCoach(name)}" class="bg-white rounded-lg border border-[#EFEFF0] p-5 mb-4">
+        <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
+            ${nameChip}
+            <select data-student="${escCoach(name)}" onchange="changeCoachSessionDate(this.dataset.student, this.value)"
+                class="px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 bg-white">
+                ${options}
+            </select>
+        </div>
+        ${cards || '<p class="text-gray-400 text-sm py-2">이 날짜에는 기록이 없습니다.</p>'}
+    </div>`;
+}
+
+function renderCoachRecordCard(item) {
+    const data = item.data;
+    let setsDisplay = '';
+    if (Array.isArray(data.sets)) {
+        setsDisplay = data.sets.map((set, idx) => {
+            const n = normalizeSet(set);
+            const intensityStr = n.intensity.unit === '맨몸' ? '맨몸' : `${n.intensity.value}${n.intensity.unit}`;
+            const repsStr = n.reps.unit === '초 x 회'
+                ? `${n.reps.value}초 × ${n.reps.count || '?'}회`
+                : `${n.reps.value}${n.reps.unit}`;
+            return `<div class="text-sm text-gray-600">${idx + 1}세트: ${escCoach(intensityStr)} × ${escCoach(repsStr)}</div>`;
+        }).join('');
+    } else if (data.weight != null) {
+        setsDisplay = `<div class="text-sm text-gray-600">${escCoach(data.weight)}kg × ${escCoach(data.reps)}회 × ${escCoach(data.sets)}세트</div>`;
+    }
+    const time = (data.timestamp && data.timestamp.toDate)
+        ? data.timestamp.toDate().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+        : '';
+    return `<div class="py-3 border-t border-gray-100 first:border-t-0">
+        <div class="flex items-start justify-between gap-2">
+            <h4 class="font-bold text-base text-gray-800">${escCoach(data.exercise)}</h4>
+            <div class="flex items-center gap-2 shrink-0">
+                ${data.pain ? '<span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold">⚠️ 통증</span>' : ''}
+                <span class="text-xs text-gray-400">${escCoach(time)}</span>
+            </div>
+        </div>
+        ${setsDisplay}
+        ${data.memo ? `<p class="text-sm text-gray-600 mt-1" style="white-space:pre-wrap;">📝 ${escCoach(data.memo)}</p>` : ''}
+    </div>`;
+}
+
+export function changeCoachSessionDate(name, date) {
+    coachSessionSelectedDate[name] = date;
+    renderCoachSessionView(); // 캐시가 있어 재조회 없이 다시 그림
+}
 
 // Personal Message Modal Logic
 export function openPersonalMessageModal(studentName) {
