@@ -10,6 +10,7 @@ const NAME_PASTEL = {
     holding: '#FDECEE',     // 파스텔 레드
     makeupAbsent: '#FDECEE',// 파스텔 레드 (홀딩·결석과 동일 패턴)
     waitingSeat: '#FDF6E3', // 파스텔 앰버 (보강대기 — 이름칩+뱃지로 다른 상태칩과 모양 통일)
+    makeupPending: '#DBEBFB', // 파스텔 블루 (보강승인중 — 이름칩+뱃지로 통일, 뱃지 라벨로 보강과 구분)
 };
 
 const extraBadges = (lastClass, reregX, unpaid) => (
@@ -42,7 +43,7 @@ export function StudentTag({ name, status, label, unpaid = false, reregX = false
         );
     }
 
-    // 칩 배경 색 형태(합의결석·시작지연·보강대기·보강승인중)
+    // 칩 배경 색 형태(합의결석·시작지연)
     const style = { ...tagStyle };
     delete style.textDecoration; // 취소선 제거
     return (
