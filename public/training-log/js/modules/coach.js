@@ -1077,9 +1077,8 @@ export async function renderCoachSessionView() {
 }
 
 function renderCoachSessionBlock(name) {
-    const badgeBg = getStudentBadgeColor(name, state.allStudents);
-    const badgeText = getStudentTextColor(name, state.allStudents);
-    const nameChip = `<span class="px-3 py-1 rounded-full text-sm font-semibold" style="background-color:${badgeBg};color:${badgeText};">${escCoach(name)}</span>`;
+    // 색칩 제거 — 이름만 크고 진하게(코치 요청).
+    const nameChip = `<span class="text-xl font-bold text-gray-900">${escCoach(name)}</span>`;
 
     const cache = coachSessionCache[name];
     if (!cache || cache.dates.length === 0) {
@@ -1139,7 +1138,7 @@ function renderCoachRecordCard(item, pinnedList = []) {
             </div>
         </div>
         ${setsDisplay}
-        ${memoText ? `<p class="text-sm text-gray-600 mt-1" style="white-space:pre-wrap;">📝 ${escCoach(memoText)}</p>` : ''}
+        ${memoText ? `<div class="mt-2 flex items-start gap-2 bg-[#F7F7F8] border-l-4 border-[#329BE7] rounded px-3 py-2"><span class="shrink-0">📝</span><span class="text-sm text-gray-800 leading-relaxed" style="white-space:pre-wrap;">${escCoach(memoText)}</span></div>` : ''}
     </div>`;
 }
 
