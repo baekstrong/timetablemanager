@@ -290,7 +290,7 @@ function renderRecordsList(docs) {
                             </div>
                             <span class="text-xs text-gray-500">${time}</span>
                         </div>
-                        ${memoText ? `<p class="text-sm text-gray-600 mb-2" style="white-space: pre-wrap;">📝 ${memoText}</p>` : ''}
+                        ${memoText ? `<div class="mt-2 mb-2 flex items-start gap-2 bg-[#F7F7F8] border-l-4 border-[#329BE7] rounded px-3 py-2"><span class="shrink-0">📝</span><span class="text-sm text-gray-800 leading-relaxed" style="white-space: pre-wrap;">${memoText}</span></div>` : ''}
                         
                         <div class="flex gap-2 mt-2">
                             <button onclick="moveRecord('${doc.id}', -1)" class="text-xs text-gray-800 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">
