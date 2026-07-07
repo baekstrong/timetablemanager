@@ -24,7 +24,7 @@ import { db } from './config/firebase';
 import './App.css';
 
 const IMPERSONATION_STORAGE_KEY = 'impersonation_origin';
-const NOTIFICATION_POLL_INTERVAL = 5 * 60 * 1000;
+const NOTIFICATION_POLL_INTERVAL = 15 * 60 * 1000;
 
 const isPageVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
 
