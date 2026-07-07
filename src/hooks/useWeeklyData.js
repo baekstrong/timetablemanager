@@ -22,7 +22,7 @@ import {
 /**
  * 주간 Firebase 데이터(보강, 홀딩, 결석, 공휴일, 대기) 로딩 + 자동 리프레시 훅
  */
-export function useWeeklyData({ user, students, mode, refresh }) {
+export function useWeeklyData({ students, mode }) {
     const [weekMakeupRequests, setWeekMakeupRequests] = useState([]);
     const [weekHoldings, setWeekHoldings] = useState([]);
     const [weekAbsences, setWeekAbsences] = useState([]);
@@ -154,21 +154,8 @@ export function useWeeklyData({ user, students, mode, refresh }) {
         return () => window.clearTimeout(timeoutId);
     }, [mode, loadWeeklyData]);
 
-    // Coach mode: auto-refresh every 30 minutes
-    useEffect(() => {
-        if (user?.role !== 'coach' || mode !== 'coach') return;
-
-        const REFRESH_INTERVAL = 30 * 60 * 1000;
-        const intervalId = setInterval(async () => {
-            try {
-                await Promise.all([refresh(), loadWeeklyData()]);
-            } catch (error) {
-                console.error('자동 리프레시 실패:', error);
-            }
-        }, REFRESH_INTERVAL);
-
-        return () => clearInterval(intervalId);
-    }, [user, mode, refresh, loadWeeklyData]);
+    // 자동 폴링 제거(Firestore 읽기 절감) — 코치는 시간표의 새로고침 버튼(handleManualRefresh)으로
+    // 필요할 때만 갱신한다. 진입 시 1회 로드(위 effect) + 수동 새로고침으로 충분.
 
     return {
         weeklyDataLoaded,

@@ -1770,13 +1770,15 @@ const getMonthlyActivitySources = async (userName, ym) => {
         const next = new Date(y, m, 1);
         const nextStart = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`;
         const name = (userName || '').trim();
-        const lower = name.toLowerCase();
+        // 본인 문서만 읽는다(단일 equality → 복합 인덱스 불필요). 그 달 날짜만 클라 필터.
+        // 이전엔 한 명 티어 계산에 전월 records 전체(전 수강생분)를 읽어 월초 폭증 → 본인분으로 축소.
+        const inMonth = d => d && d >= monthStart && d < nextStart;
         const [records, free] = await Promise.all([
-            queryDocs('records', where('date', '>=', monthStart), where('date', '<', nextStart)),
-            queryDocs('freeWorkoutAttendance', where('date', '>=', monthStart), where('date', '<', nextStart)),
+            queryDocs('records', where('userName', '==', name)),
+            queryDocs('freeWorkoutAttendance', where('studentName', '==', name)),
         ]);
-        const recordDates = new Set(records.filter(r => (r.userName || '').trim().toLowerCase() === lower).map(r => r.date).filter(Boolean));
-        const freeDates = new Set(free.filter(r => (r.studentName || '').trim() === name).map(r => r.date).filter(Boolean));
+        const recordDates = new Set(records.filter(r => inMonth(r.date)).map(r => r.date));
+        const freeDates = new Set(free.filter(r => inMonth(r.date)).map(r => r.date).filter(Boolean));
         return { recordDates, freeDates };
     });
 };
@@ -1823,6 +1825,7 @@ export const refreshStudentTier = async ({ userName }) => {
 // 이름→티어키 맵(게시판 뱃지용). 5분 캐시.
 let tierMapCache = null;
 let tierMapFetchedAt = 0;
+let backfillTierDoneMonth = null; // 이번 세션서 전원 계산 완료한 'YYYY-MM' → users 전체 재읽기 스킵
 function clearTierMapCache() {
     tierMapCache = null;
     tierMapFetchedAt = 0;
@@ -1848,6 +1851,8 @@ export const backfillTiersForMonth = async (students) => {
         if (!Array.isArray(students) || students.length === 0) return getTierMap();
         const now = new Date();
         const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        // 이번 세션서 이미 전원 계산 확인 → users 전체 재읽기 생략(읽기 절감).
+        if (backfillTierDoneMonth === ym) return getTierMap();
 
         // 계정/현재 티어월 파악
         const usersSnap = await getDocs(collection(db, 'users'));
@@ -1862,7 +1867,7 @@ export const backfillTiersForMonth = async (students) => {
         }
         // 계정 있고 이번 달 미계산인 학생만 대상
         const targets = [...names].filter(nm => userMeta[nm] && userMeta[nm].tierMonth !== ym);
-        if (targets.length === 0) return getTierMap();
+        if (targets.length === 0) { backfillTierDoneMonth = ym; return getTierMap(); }
 
         // 지난달 데이터 일괄 조회(기록·자율운동만)
         const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -1894,6 +1899,7 @@ export const backfillTiersForMonth = async (students) => {
             }, { merge: true });
         }
         await batch.commit();
+        backfillTierDoneMonth = ym;
         clearTierMapCache();
         return getTierMap();
     });
@@ -1921,15 +1927,26 @@ export const syncStudentFrequencies = async (students) => {
 // 학년(누적 훈련량 경험치) — 티어 패턴 미러
 // ============================================
 
+// 이번 세션(페이지 로드) 동안 XP를 이미 계산한 학생 캐시 — 대시보드 반복 진입 시 records 재조회 방지.
+// 새로 접속하면 모듈이 새로 로드돼 캐시가 비므로 XP는 접속마다 최신 계산된다.
+const xpSessionCache = new Map(); // name -> { xp, grade }
+
 // 본인 records 전량 재계산 → users/{이름}에 xp/grade 저장. (본인 데이터로 경계됨, 폭증 아님)
 export const refreshStudentXP = async ({ userName, gender }) => {
     return safeRead({ xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null }, async () => {
         const name = (userName || '').trim();
         if (!name) return { xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null };
+        // 이번 세션서 이미 계산했으면 저장값만 반환 — user doc·records 재조회·재팝업 없음.
+        if (xpSessionCache.has(name)) {
+            const c = xpSessionCache.get(name);
+            return { xp: c.xp, grade: c.grade, isNew: false, promoted: false, fromGrade: null };
+        }
         const userRef = doc(db, 'users', name);
         const snap = await getDoc(userRef);
         if (!snap.exists()) return { xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null };
         const u = snap.data() || {};
+        const now = new Date();
+        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         const records = await queryDocs('records', where('userName', '==', name));
         const xp = computeUserXp(records, gender);
         const grade = xpToGrade(xp).key;
@@ -1942,12 +1959,11 @@ export const refreshStudentXP = async ({ userName, gender }) => {
         const promoted = !firstTime && seenRank >= 0 && newRank > seenRank;
         // gradeSeen은 최고 학년으로만 전진(강등돼도 내려가지 않음).
         const gradeSeen = seenRank > newRank ? prevSeen : grade;
-        const now = new Date();
-        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         await setDoc(userRef, {
             xp, grade, gradeSeen, gradeMonth: ym, gradeUpdatedAt: serverTimestamp(),
         }, { merge: true });
         clearGradeMapCache();
+        xpSessionCache.set(name, { xp, grade });
         return { xp, grade, isNew: firstTime, promoted, fromGrade: promoted ? prevSeen : null };
     });
 };
@@ -1955,6 +1971,7 @@ export const refreshStudentXP = async ({ userName, gender }) => {
 // 이름→학년키 맵(게시판 뱃지용). 5분 캐시. (getTierMap 미러)
 let gradeMapCache = null;
 let gradeMapFetchedAt = 0;
+let backfillGradeDoneMonth = null; // 이번 세션서 전원 계산 완료한 'YYYY-MM' → users 전체 재읽기 스킵
 function clearGradeMapCache() {
     gradeMapCache = null;
     gradeMapFetchedAt = 0;
@@ -1979,6 +1996,8 @@ export const backfillGradesForStudents = async (students) => {
         if (!Array.isArray(students) || students.length === 0) return getGradeMap();
         const now = new Date();
         const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        // 이번 세션서 이미 전원 계산 확인 → users 전체 재읽기 생략(읽기 절감).
+        if (backfillGradeDoneMonth === ym) return getGradeMap();
 
         const usersSnap = await getDocs(collection(db, 'users'));
         const userMeta = {};
@@ -1991,7 +2010,7 @@ export const backfillGradesForStudents = async (students) => {
             if (nm) genderByName.set(nm, (s['성별'] || '').trim());
         }
         const targets = [...genderByName.keys()].filter(nm => userMeta[nm] && userMeta[nm].gradeMonth !== ym);
-        if (targets.length === 0) return getGradeMap();
+        if (targets.length === 0) { backfillGradeDoneMonth = ym; return getGradeMap(); }
 
         // 전체 records 1회 → 이름별 그룹핑(대소문자 무시)
         const all = await getDocs(collection(db, 'records'));
@@ -2014,6 +2033,7 @@ export const backfillGradesForStudents = async (students) => {
             }, { merge: true });
         }
         await batch.commit();
+        backfillGradeDoneMonth = ym;
         clearGradeMapCache();
         return getGradeMap();
     });
