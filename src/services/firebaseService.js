@@ -23,7 +23,7 @@ import {
     startAfter
 } from 'firebase/firestore';
 import { scoreToTier, computeActiveScore, compareTiers } from '../utils/tiers';
-import { computeUserXp, xpToGrade, gradeRank } from '../utils/grades';
+import { xpToGrade, gradeRank, FEMALE_COEF, recordVolume } from '../utils/grades';
 import { PR_REP_THRESHOLDS } from '../data/mockData';
 
 // ============================================
@@ -1825,7 +1825,6 @@ export const refreshStudentTier = async ({ userName }) => {
 // 이름→티어키 맵(게시판 뱃지용). 5분 캐시.
 let tierMapCache = null;
 let tierMapFetchedAt = 0;
-let backfillTierDoneMonth = null; // 이번 세션서 전원 계산 완료한 'YYYY-MM' → users 전체 재읽기 스킵
 function clearTierMapCache() {
     tierMapCache = null;
     tierMapFetchedAt = 0;
@@ -1843,67 +1842,8 @@ export const getTierMap = async () => {
     });
 };
 
-// 코치 1회 트리거: 이번 달 미계산인 모든 학생의 티어를 일괄 계산(게시판 뱃지가 전원 표시되도록).
-// 지난달 데이터를 컬렉션당 1회만 읽어 이름별로 그룹핑 → 학생별 점수 산정 → batch write.
-// 백필 대상은 tierIntroPending=true로 표시 → 본인이 다음 로그인 시 인트로 팝업을 보게 함.
-export const backfillTiersForMonth = async (students) => {
-    return safeRead({}, async () => {
-        if (!Array.isArray(students) || students.length === 0) return getTierMap();
-        const now = new Date();
-        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        // 이번 세션서 이미 전원 계산 확인 → users 전체 재읽기 생략(읽기 절감).
-        if (backfillTierDoneMonth === ym) return getTierMap();
-
-        // 계정/현재 티어월 파악
-        const usersSnap = await getDocs(collection(db, 'users'));
-        const userMeta = {};
-        usersSnap.forEach(d => { const x = d.data() || {}; userMeta[d.id] = { tier: x.tier || null, tierMonth: x.tierMonth }; });
-
-        // 이름별 1건(고유 이름 집합)
-        const names = new Set();
-        for (const s of students) {
-            const nm = (s['이름'] || '').trim();
-            if (nm) names.add(nm);
-        }
-        // 계정 있고 이번 달 미계산인 학생만 대상
-        const targets = [...names].filter(nm => userMeta[nm] && userMeta[nm].tierMonth !== ym);
-        if (targets.length === 0) { backfillTierDoneMonth = ym; return getTierMap(); }
-
-        // 지난달 데이터 일괄 조회(기록·자율운동만)
-        const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const lastYm = `${lm.getFullYear()}-${String(lm.getMonth() + 1).padStart(2, '0')}`;
-        const [ly, lmo] = lastYm.split('-').map(Number);
-        const monthStart = `${lastYm}-01`;
-        const next = new Date(ly, lmo, 1);
-        const nextStart = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`;
-        const [records, free] = await Promise.all([
-            queryDocs('records', where('date', '>=', monthStart), where('date', '<', nextStart)),
-            queryDocs('freeWorkoutAttendance', where('date', '>=', monthStart), where('date', '<', nextStart)),
-        ]);
-
-        // 이름별 그룹핑(records/free는 대소문자 무시)
-        const addSet = (map, key, val) => { if (!key || !val) return; let s = map.get(key); if (!s) { s = new Set(); map.set(key, s); } s.add(val); };
-        const recByName = new Map(); records.forEach(r => addSet(recByName, (r.userName || '').trim().toLowerCase(), r.date));
-        const freeByName = new Map(); free.forEach(r => addSet(freeByName, (r.studentName || '').trim().toLowerCase(), r.date));
-
-        const batch = writeBatch(db);
-        for (const nm of targets) {
-            const score = computeActiveScore({
-                recordDates: recByName.get(nm.toLowerCase()) || new Set(),
-                freeDates: freeByName.get(nm.toLowerCase()) || new Set(),
-            });
-            const tier = scoreToTier(score);
-            batch.set(doc(db, 'users', nm), {
-                tier: tier.key, tierMonth: ym, tierScore: score,
-                prevTier: userMeta[nm].tier, tierIntroPending: true, tierUpdatedAt: serverTimestamp(),
-            }, { merge: true });
-        }
-        await batch.commit();
-        backfillTierDoneMonth = ym;
-        clearTierMapCache();
-        return getTierMap();
-    });
-};
+// (제거됨) backfillTiersForMonth — 코치 진입 시 전원 티어 재계산은 읽기 폭증의 원인이라 삭제.
+// 각 학생 티어는 본인 로그인 때 refreshStudentTier(본인분만)로 갱신되고, 게시판은 getTierMap(저장값)만 읽는다.
 
 // 수강생 주횟수(C열)를 훈련일지 도장 모달이 읽도록 단일 문서에 발행.
 // ponytail: 이름→주횟수 맵 1문서. 코치 진입 시 통째로 덮어써 삭제된 학생은 자동 제거.
@@ -1945,10 +1885,16 @@ export const refreshStudentXP = async ({ userName, gender }) => {
         const snap = await getDoc(userRef);
         if (!snap.exists()) return { xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null };
         const u = snap.data() || {};
-        const now = new Date();
-        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        const records = await queryDocs('records', where('userName', '==', name));
-        const xp = computeUserXp(records, gender);
+        const coef = (gender || '').trim().startsWith('여') ? FEMALE_COEF : 1;
+        // 카운터 방식: xpVolume(원시 누적) 하나가 진실. 훈련일지가 기록 저장 시 증분한다.
+        // 없으면(기존/최초 학생) 본인 기록으로 1회 시딩 — 전체 컬렉션 스캔 아님(본인분만).
+        let xpVolume = typeof u.xpVolume === 'number' ? u.xpVolume : null;
+        if (xpVolume == null) {
+            const records = await queryDocs('records', where('userName', '==', name));
+            let vol = 0; for (const r of records) vol += recordVolume(r);
+            xpVolume = vol;
+        }
+        const xp = Math.round(xpVolume * coef);
         const grade = xpToGrade(xp).key;
         // gradeSeen = 학생이 팝업으로 확인한 학년. 한번도 없으면 첫 안내 대상(전원 1회 인트로).
         const prevSeen = u.gradeSeen || null;
@@ -1960,7 +1906,7 @@ export const refreshStudentXP = async ({ userName, gender }) => {
         // gradeSeen은 최고 학년으로만 전진(강등돼도 내려가지 않음).
         const gradeSeen = seenRank > newRank ? prevSeen : grade;
         await setDoc(userRef, {
-            xp, grade, gradeSeen, gradeMonth: ym, gradeUpdatedAt: serverTimestamp(),
+            xp, xpVolume, xpCoef: coef, grade, gradeSeen, gradeUpdatedAt: serverTimestamp(),
         }, { merge: true });
         clearGradeMapCache();
         xpSessionCache.set(name, { xp, grade });
@@ -1971,7 +1917,6 @@ export const refreshStudentXP = async ({ userName, gender }) => {
 // 이름→학년키 맵(게시판 뱃지용). 5분 캐시. (getTierMap 미러)
 let gradeMapCache = null;
 let gradeMapFetchedAt = 0;
-let backfillGradeDoneMonth = null; // 이번 세션서 전원 계산 완료한 'YYYY-MM' → users 전체 재읽기 스킵
 function clearGradeMapCache() {
     gradeMapCache = null;
     gradeMapFetchedAt = 0;
@@ -1989,55 +1934,9 @@ export const getGradeMap = async () => {
     });
 };
 
-// 코치 1회: 이번 달 미계산 학생 전원의 학년을 일괄 계산. 전체 records 1회 읽어 이름별 그룹핑.
-// (backfillTiersForMonth 미러. 성별은 students 행의 '성별' 컬럼 사용)
-export const backfillGradesForStudents = async (students) => {
-    return safeRead({}, async () => {
-        if (!Array.isArray(students) || students.length === 0) return getGradeMap();
-        const now = new Date();
-        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        // 이번 세션서 이미 전원 계산 확인 → users 전체 재읽기 생략(읽기 절감).
-        if (backfillGradeDoneMonth === ym) return getGradeMap();
-
-        const usersSnap = await getDocs(collection(db, 'users'));
-        const userMeta = {};
-        usersSnap.forEach(d => { const x = d.data() || {}; userMeta[d.id] = { grade: x.grade || null, gradeMonth: x.gradeMonth }; });
-
-        // 이름→성별 (시트 행)
-        const genderByName = new Map();
-        for (const s of students) {
-            const nm = (s['이름'] || '').trim();
-            if (nm) genderByName.set(nm, (s['성별'] || '').trim());
-        }
-        const targets = [...genderByName.keys()].filter(nm => userMeta[nm] && userMeta[nm].gradeMonth !== ym);
-        if (targets.length === 0) { backfillGradeDoneMonth = ym; return getGradeMap(); }
-
-        // 전체 records 1회 → 이름별 그룹핑(대소문자 무시)
-        const all = await getDocs(collection(db, 'records'));
-        const recByName = new Map();
-        all.forEach(d => {
-            const r = d.data();
-            const key = (r.userName || '').trim().toLowerCase();
-            if (!key) return;
-            if (!recByName.has(key)) recByName.set(key, []);
-            recByName.get(key).push(r);
-        });
-
-        const batch = writeBatch(db);
-        for (const nm of targets) {
-            const recs = recByName.get(nm.toLowerCase()) || [];
-            const xp = computeUserXp(recs, genderByName.get(nm));
-            const grade = xpToGrade(xp).key;
-            batch.set(doc(db, 'users', nm), {
-                xp, grade, gradeMonth: ym, gradeIntroPending: true, gradeUpdatedAt: serverTimestamp(),
-            }, { merge: true });
-        }
-        await batch.commit();
-        backfillGradeDoneMonth = ym;
-        clearGradeMapCache();
-        return getGradeMap();
-    });
-};
+// (제거됨) backfillGradesForStudents — 코치 진입 시 전체 records 스캔으로 전원 XP를 재계산하던
+// 함수. 월초 읽기 폭증(1.5만+)의 주범이라 삭제. 이제 XP는 훈련일지 저장 시 users.xpVolume에
+// 증분되고, 학년은 그 값에서 파생된다(refreshStudentXP는 본인 문서만 읽음). 게시판은 getGradeMap(저장값)만.
 
 // 이번 달 월간 도장 작업을 했는지 (문서 1개라도 있으면 완료로 간주)
 export async function isMonthlyStampDone(monthStr) {

@@ -253,6 +253,7 @@ window.render = async function () {
         ]);
 
         Records.updatePinnedDisplay();
+        Records.loadMyXpState(); // 레벨(XP) 상태 로드/시딩 — 기록 저장 시 증분 기준
         Stamp.loadMyStamp();
         setTimeout(loadAutoSavedData, 100);
     }
