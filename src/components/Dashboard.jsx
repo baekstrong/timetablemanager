@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, backfillTiersForMonth, getGradeMap, backfillGradesForStudents, refreshStudentXP, consumePRCelebration, syncStudentFrequencies } from '../services/firebaseService';
+import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, getGradeMap, refreshStudentXP, consumePRCelebration, syncStudentFrequencies } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
 import { POST_LIMITS } from '../data/boardConstants';
@@ -63,8 +63,10 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     useEffect(() => {
         if (!user || user.role !== 'coach' || !students || students.length === 0) return;
         let cancel = false;
-        backfillTiersForMonth(students).then(map => { if (!cancel && map) setTierMap(map); });
-        backfillGradesForStudents(students).then(map => { if (!cancel && map) setGradeMap(map); });
+        // 코치 진입 시 전원 재계산(백필) 제거 — 읽기 폭증·레벨 튐의 원인이었다.
+        // 뱃지는 저장된 값만 읽는다. 각 학생 티어/레벨은 본인 로그인 때 갱신됨.
+        getTierMap().then(map => { if (!cancel && map) setTierMap(map); });
+        getGradeMap().then(map => { if (!cancel && map) setGradeMap(map); });
         syncStudentFrequencies(students); // 훈련일지 도장 모달 자동추천용 주횟수 발행
 
         return () => { cancel = true; };

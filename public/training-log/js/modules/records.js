@@ -4,6 +4,7 @@ import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js';
 import { formatDate } from '../utils.js';
 import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js';
 import { evaluatePR } from './pr-logic.js';
+import { xpToGrade, gradeRank, recordVolume, GRADES } from './grades.js';
 
 // ============================================
 // 운동 기록 추가 (수강생)
@@ -85,7 +86,11 @@ export async function addRecord() {
 
         if (window.renderCalendar) window.renderCalendar();
 
-        if (prStatus) {
+        // XP 증분 — 레벨 오르면 팝업(우선). 아니면 PR 팝업, 그것도 아니면 저장 알림.
+        const level = await applyXpDelta(recordVolume({ sets: validSets }));
+        if (level?.leveledUp) {
+            // 레벨업 팝업이 이미 떴음(저장 완료 안내 겸함)
+        } else if (prStatus) {
             showPRCelebration(prStatus); // 신기록이면 축하 팝업 (저장 완료 안내 겸함)
         } else {
             alert('✅ 기록이 저장되었습니다!');
@@ -135,6 +140,81 @@ function showPRCelebration(pr) {
             <p class="text-sm text-gray-600 mb-4">${lines.join('<br>')}</p>
             <button onclick="document.getElementById('prCelebrationOverlay')?.remove()"
                 class="w-full bg-[#329BE7] hover:bg-[#327AB8] text-white py-2.5 rounded-lg font-bold">좋았어! 💪</button>
+        </div>`;
+    document.body.appendChild(overlay);
+}
+
+// ============================================
+// 레벨(XP) — 카운터 방식. users/{이름}.xpVolume 하나가 유일 진실.
+// 로그인 시 로드/시딩, 기록 저장·수정·삭제 때 증분. 재계산 경합이 없어 레벨이 튀지 않는다.
+// (예전엔 코치 게시판 진입/학생 로그인마다 전체 기록을 재계산 → 읽기 폭증 + 매칭 방식 차이로 레벨 튐)
+// ============================================
+
+// 로그인 후 1회: users 문서에서 XP 상태 로드. xpVolume 없으면 본인 기록으로 1회 시딩.
+export async function loadMyXpState() {
+    if (!firebaseInitialized || !db || !state.currentUser || state.isCoach) return;
+    try {
+        const ref = db.collection('users').doc(state.currentUser);
+        const snap = await ref.get();
+        const u = snap.exists ? (snap.data() || {}) : {};
+        state.xpCoef = Number(u.xpCoef) || 1;
+        if (typeof u.xpVolume === 'number') {
+            state.xpVolume = u.xpVolume;
+        } else {
+            // 시딩: 본인 기록 전체 합(본인분만 읽어 저렴). 1회만 — 이후엔 저장돼 증분으로 굴러감.
+            const rs = await db.collection('records').where('userName', '==', state.currentUser).get();
+            let vol = 0;
+            rs.forEach(d => { vol += recordVolume(d.data()); });
+            state.xpVolume = vol;
+            const xp0 = Math.round(vol * state.xpCoef);
+            await ref.set({ xpVolume: vol, xp: xp0, grade: xpToGrade(xp0).key }, { merge: true });
+        }
+        const xp = Math.round(state.xpVolume * state.xpCoef);
+        state.grade = u.grade || xpToGrade(xp).key;
+        state.gradeSeen = u.gradeSeen || state.grade;
+    } catch (e) {
+        console.error('XP 상태 로드 실패:', e);
+    }
+}
+
+// 기록 volume 변화량만큼 xpVolume 증분 → 레벨 재계산 → users 반영. 레벨 오르면 즉시 팝업.
+// 반환: { leveledUp, from, to } (로드 전이면 undefined)
+async function applyXpDelta(deltaVolume) {
+    if (!firebaseInitialized || !db || !state.currentUser || state.isCoach) return;
+    if (state.xpVolume == null || !deltaVolume) return; // 로드 전이거나 변화 없음
+    const newVolume = Math.max(0, state.xpVolume + deltaVolume);
+    state.xpVolume = newVolume;
+    const xp = Math.round(newVolume * state.xpCoef);
+    const newGrade = xpToGrade(xp).key;
+    const leveledUp = gradeRank(newGrade) > gradeRank(state.gradeSeen);
+    const fromKey = state.gradeSeen;
+    state.grade = newGrade;
+    const patch = { xpVolume: newVolume, xp, grade: newGrade, xpUpdatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+    if (leveledUp) { patch.gradeSeen = newGrade; state.gradeSeen = newGrade; }
+    try {
+        await db.collection('users').doc(state.currentUser).set(patch, { merge: true });
+    } catch (e) {
+        console.error('XP 저장 실패:', e);
+    }
+    if (leveledUp) showLevelUp(newGrade);
+    return { leveledUp, from: fromKey, to: newGrade };
+}
+
+function showLevelUp(toKey) {
+    const to = GRADES.find(g => g.key === toKey);
+    if (!to) return;
+    document.getElementById('levelUpOverlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'levelUpOverlay';
+    overlay.className = 'modal active';
+    overlay.innerHTML = `
+        <div class="modal-content max-w-sm w-full text-center">
+            <div class="text-5xl mb-2">🎓</div>
+            <p class="text-lg font-bold text-gray-800 mb-1">레벨 업!</p>
+            <p class="text-2xl font-extrabold text-[#329BE7] mb-1">${to.label}</p>
+            <p class="text-sm text-gray-600 mb-4">축하합니다! 계속 쌓아가요 💪</p>
+            <button onclick="document.getElementById('levelUpOverlay')?.remove()"
+                class="w-full bg-[#329BE7] hover:bg-[#327AB8] text-white py-2.5 rounded-lg font-bold">좋았어! 🎉</button>
         </div>`;
     document.body.appendChild(overlay);
 }
@@ -318,7 +398,14 @@ export async function deleteRecord(docId) {
     if (!confirm('정말 이 기록을 삭제하시겠습니까?')) return;
 
     try {
+        // 삭제될 기록의 volume을 먼저 확보(삭제 후엔 못 읽음) → XP에서 차감.
+        let oldVol = 0;
+        try {
+            const snap = await db.collection('records').doc(docId).get();
+            if (snap.exists) oldVol = recordVolume(snap.data());
+        } catch (e) { console.error('삭제 전 기록 조회 실패(XP 미반영):', e); }
         await db.collection('records').doc(docId).delete();
+        if (oldVol) await applyXpDelta(-oldVol);
         alert('✅ 기록이 삭제되었습니다!');
         if (window.renderCalendar) window.renderCalendar();
     } catch (error) {
@@ -411,6 +498,7 @@ export async function openEditModal(docId) {
         } else {
             state.editingSets = [{ weight: data.weight + 'kg', reps: data.reps + '회' }];
         }
+        state.editingOldVolume = recordVolume(data); // 수정 delta 계산용(새-옛)
 
         editForm.innerHTML = renderEditModalContent(data, docId);
         renderEditSets();
@@ -470,6 +558,10 @@ export async function saveEdit(docId) {
             pain: pain,
             date: newDate
         });
+
+        // XP: 옛 기록 volume → 새 volume 차이만큼 증분(레벨 오르면 팝업).
+        await applyXpDelta(recordVolume({ sets: validSets }) - (state.editingOldVolume || 0));
+        state.editingOldVolume = 0;
 
         alert('✅ 수정이 완료되었습니다!');
         closeEditModal();

@@ -23,6 +23,13 @@ export const state = {
     pinnedMemoFilter: false,
     recordsFilter: false,
 
+    // 레벨(XP) — users/{이름}에서 로그인 시 로드. 기록 저장/수정/삭제 때 증분(카운터 방식).
+    xpVolume: null,   // 원시 누적 훈련량(성별 보정 전). null = 아직 미로드
+    xpCoef: 1,        // 성별 계수(메인앱이 기록). 여=1.5
+    grade: null,      // 현재 학년 키
+    gradeSeen: null,  // 팝업으로 안내된 최고 학년(승급 판정 기준)
+    editingOldVolume: 0, // 수정 모달 열 때 옛 기록 volume 보관(수정 delta 계산용)
+
     // UI state
     deleteMode: false
 };
