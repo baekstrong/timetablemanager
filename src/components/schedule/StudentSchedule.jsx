@@ -315,10 +315,18 @@ export default function StudentSchedule({
         try {
             await cancelMakeupRequest(makeupId);
 
-            // 보강 취소로 빠진 자리 → 대기자 알림
+            // 보강 취소로 빠진 자리 → 대기자 알림 (실제 여석 기준, 만석 오알림 방지)
             if (makeup) {
                 try {
-                    await onSeatFreed(makeup.makeupClass.date, makeup.makeupClass.day, makeup.makeupClass.period);
+                    const mc = makeup.makeupClass;
+                    // 취소된 보강생은 아직 주간 상태(weekMakeupRequests)에 남아 currentCount에 잡히므로
+                    // 그를 1명 뺀 값이 취소 직후 실제 인원. 이번 주 슬롯이 아니면 종전대로 1자리 가정(null).
+                    const mPeriodObj = PERIODS.find(p => p.id === mc.period);
+                    const mExpectedDate = weekDates[mc.day] ? weekDateToISO(weekDates[mc.day]) : null;
+                    const mSeats = (mPeriodObj && mExpectedDate === mc.date)
+                        ? Math.max(0, MAX_CAPACITY - (getCellData(mc.day, mPeriodObj).currentCount - 1))
+                        : null;
+                    await onSeatFreed(mc.date, mc.day, mc.period, mSeats);
                 } catch (e) {
                     console.error('보강 대기 알림 트리거 실패:', e);
                 }

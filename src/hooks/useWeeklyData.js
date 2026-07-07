@@ -35,6 +35,9 @@ export function useWeeklyData({ user, students, mode, refresh }) {
     const [weeklyDataLoaded, setWeeklyDataLoaded] = useState(false);
 
     const loadWeeklyData = useCallback(async () => {
+        // 로드 시작 시 게이트를 다시 잠근다 — 로드 실패(catch에서 배열을 비움)나 낡은/부분 스냅샷으로
+        // 보강대기 백스톱이 만석 슬롯을 빈자리로 오판해 오알림하는 것을 막는다. 성공 완료 시에만 다시 연다.
+        setWeeklyDataLoaded(false);
         try {
             const today = new Date();
             const dayOfWeek = today.getDay();
