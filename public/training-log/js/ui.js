@@ -269,9 +269,13 @@ export function renderAdminModalHTML() {
                 </div>
 
                 <div class="mb-4 flex gap-2">
-                    <input type="text" id="newExerciseInput" placeholder="새 운동 이름 입력"
-                           class="flex-1 px-3 py-2 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7]"
-                           onkeypress="if(event.key === 'Enter') addExercise()">
+                    <div class="relative flex-1">
+                        <input type="text" id="newExerciseInput" placeholder="새 운동 이름 입력" autocomplete="off"
+                               class="w-full px-3 py-2 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7]"
+                               oninput="handleNewExerciseSearch(this.value)"
+                               onkeypress="if(event.key === 'Enter') addExercise()">
+                        <div id="newExerciseSuggestions" class="hidden absolute z-10 left-0 right-0 mt-1 bg-white border border-[#EFEFF0] rounded-lg shadow-lg max-h-60 overflow-y-auto"></div>
+                    </div>
                     <button onclick="addExercise()" class="bg-[#329BE7] hover:bg-[#327AB8] text-white px-4 py-2 rounded-lg font-bold">
                         추가
                     </button>
