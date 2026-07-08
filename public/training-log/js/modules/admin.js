@@ -56,6 +56,11 @@ export async function loadExercisesList() {
     }
 }
 
+// 이름 비교용 정규화 — 띄어쓰기/대소문자 무시 ("하이크 패스" == "하이크패스")
+function normalizeExerciseName(name) {
+    return (name || '').replace(/\s+/g, '').toLowerCase();
+}
+
 export async function addExercise() {
     const input = document.getElementById('newExerciseInput');
     const name = input.value.trim();
@@ -66,7 +71,14 @@ export async function addExercise() {
     }
 
     try {
-        // 중복 체크
+        // 중복 체크 — 띄어쓰기만 다른 사실상 같은 종목도 잡음
+        const norm = normalizeExerciseName(name);
+        const dup = exercisesCache.find(n => normalizeExerciseName(n) === norm);
+        if (dup) {
+            alert(`이미 등록된 운동입니다: '${dup}'`);
+            return;
+        }
+        // 정확히 같은 이름은 서버에서도 한 번 더 확인(동시 추가 방지)
         const snapshot = await db.collection('exercises').where('name', '==', name).get();
         if (!snapshot.empty) {
             alert('이미 등록된 운동입니다.');
@@ -79,12 +91,46 @@ export async function addExercise() {
         });
 
         input.value = '';
+        const box = document.getElementById('newExerciseSuggestions');
+        if (box) box.classList.add('hidden');
         loadExercisesList();
         alert('✅ 운동이 추가되었습니다.');
     } catch (error) {
         console.error('Error adding exercise:', error);
         alert('추가 실패: ' + error.message);
     }
+}
+
+// 코치가 새 종목을 타이핑할 때 이미 등록된 종목을 드롭다운으로 보여줌 (중복 등록 방지)
+// 띄어쓰기 무시 매칭 → "하이크패스" 입력해도 기존 "하이크 패스"가 뜸.
+export function handleNewExerciseSearch(query) {
+    const box = document.getElementById('newExerciseSuggestions');
+    if (!box) return;
+
+    const nq = normalizeExerciseName(query);
+    const matches = nq ? exercisesCache.filter(n => normalizeExerciseName(n).includes(nq)) : [];
+    if (matches.length === 0) {
+        box.classList.add('hidden');
+        return;
+    }
+
+    box.innerHTML = matches.map(name => {
+        const esc = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        return `
+        <div class="px-4 py-2 hover:bg-[#329BE71A] cursor-pointer text-sm text-gray-700 border-b border-[#EFEFF0] last:border-0"
+             onclick="fillNewExercise('${esc}')">
+            ${name} <span class="text-xs text-gray-400">(이미 등록됨)</span>
+        </div>`;
+    }).join('');
+    box.classList.remove('hidden');
+}
+
+// 드롭다운에서 기존 종목 선택 → 입력칸 채우고 닫음 (추가 누르면 중복 안내로 막힘)
+export function fillNewExercise(name) {
+    const input = document.getElementById('newExerciseInput');
+    if (input) input.value = name;
+    const box = document.getElementById('newExerciseSuggestions');
+    if (box) box.classList.add('hidden');
 }
 
 export async function deleteExercise(docId, name) {
@@ -255,6 +301,15 @@ document.addEventListener('click', function (e) {
     if (suggestionBox && !suggestionBox.classList.contains('hidden')) {
         if (!suggestionBox.contains(e.target) && e.target !== input) {
             suggestionBox.classList.add('hidden');
+        }
+    }
+
+    // 코치 종목 추가 드롭다운도 바깥 클릭 시 닫기
+    const newBox = document.getElementById('newExerciseSuggestions');
+    const newInput = document.getElementById('newExerciseInput');
+    if (newBox && !newBox.classList.contains('hidden')) {
+        if (!newBox.contains(e.target) && e.target !== newInput) {
+            newBox.classList.add('hidden');
         }
     }
 });
