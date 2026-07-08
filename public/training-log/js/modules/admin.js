@@ -29,10 +29,11 @@ export async function loadExercisesList() {
                 let html = '<div class="grid grid-cols-2 gap-2">';
                 snapshot.forEach(doc => {
                     const data = doc.data();
+                    // 종목명은 코치 입력 → HTML 이스케이프 후 삽입. 삭제는 data 속성+위임(아래 리스너).
                     html += `
                         <div class="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-200">
-                            <span class="text-sm font-medium text-gray-700">${data.name}</span>
-                            <button onclick="deleteExercise('${doc.id}', '${data.name}')" class="text-red-500 hover:text-red-700 text-xs px-2 py-1">
+                            <span class="text-sm font-medium text-gray-700">${escapeHtml(data.name)}</span>
+                            <button data-delid="${escapeHtml(doc.id)}" data-delname="${escapeHtml(data.name)}" class="text-red-500 hover:text-red-700 text-xs px-2 py-1">
                                 ✕
                             </button>
                         </div>
@@ -193,7 +194,7 @@ function updateExerciseDatalistFromNames(names) {
     if (coachSelect) {
         let coachOptions = '<option value="">🏋️ 운동 종목별 모아보기 (전체)</option>';
         names.forEach(name => {
-            coachOptions += `<option value="${name}">${name}</option>`;
+            coachOptions += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
         });
         coachSelect.innerHTML = coachOptions;
     }
@@ -305,6 +306,13 @@ document.addEventListener('click', function (e) {
         if (!suggestionBox.contains(e.target) && e.target !== input) {
             suggestionBox.classList.add('hidden');
         }
+    }
+
+    // 등록 종목 목록 삭제 버튼(위임)
+    const delBtn = e.target.closest('[data-delid]');
+    if (delBtn) {
+        deleteExercise(delBtn.dataset.delid, delBtn.dataset.delname);
+        return;
     }
 
     // 코치 종목 추가 드롭다운: 항목 클릭 시 채우기(위임), 바깥 클릭 시 닫기
