@@ -61,6 +61,11 @@ function normalizeExerciseName(name) {
     return (name || '').replace(/\s+/g, '').toLowerCase();
 }
 
+// HTML 문자열 삽입용 이스케이프 (종목명은 코치 입력이라 신뢰하되 방어적으로 처리)
+function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 export async function addExercise() {
     const input = document.getElementById('newExerciseInput');
     const name = input.value.trim();
@@ -114,14 +119,12 @@ export function handleNewExerciseSearch(query) {
         return;
     }
 
-    box.innerHTML = matches.map(name => {
-        const esc = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-        return `
+    // data-name + 이벤트 위임 (아래 document click 리스너) — 인라인 JS 없이 안전하게
+    box.innerHTML = matches.map(name => `
         <div class="px-4 py-2 hover:bg-[#329BE71A] cursor-pointer text-sm text-gray-700 border-b border-[#EFEFF0] last:border-0"
-             onclick="fillNewExercise('${esc}')">
-            ${name} <span class="text-xs text-gray-400">(이미 등록됨)</span>
-        </div>`;
-    }).join('');
+             data-newexercise="${escapeHtml(name)}">
+            ${escapeHtml(name)} <span class="text-xs text-gray-400">(이미 등록됨)</span>
+        </div>`).join('');
     box.classList.remove('hidden');
 }
 
@@ -304,11 +307,14 @@ document.addEventListener('click', function (e) {
         }
     }
 
-    // 코치 종목 추가 드롭다운도 바깥 클릭 시 닫기
+    // 코치 종목 추가 드롭다운: 항목 클릭 시 채우기(위임), 바깥 클릭 시 닫기
     const newBox = document.getElementById('newExerciseSuggestions');
     const newInput = document.getElementById('newExerciseInput');
     if (newBox && !newBox.classList.contains('hidden')) {
-        if (!newBox.contains(e.target) && e.target !== newInput) {
+        const item = e.target.closest('[data-newexercise]');
+        if (item && newBox.contains(item)) {
+            fillNewExercise(item.dataset.newexercise);
+        } else if (!newBox.contains(e.target) && e.target !== newInput) {
             newBox.classList.add('hidden');
         }
     }
