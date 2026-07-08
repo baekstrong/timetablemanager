@@ -10,7 +10,20 @@ import { xpToGrade, gradeRank, recordVolume, GRADES } from './grades.js';
 // 운동 기록 추가 (수강생)
 // ============================================
 
+// 저장 중복 방지 — 저장은 Firestore 읽기 2번(PR 판정·order 계산) 후 write라 느린 망에서 수 초 걸림.
+// 그동안 버튼을 여러 번 누르면 매 탭마다 add()가 실행돼 같은 기록이 여러 개 저장되던 문제.
+let isAddingRecord = false;
+
+function setAddRecordBtnBusy(busy) {
+    const btn = document.getElementById('addRecordBtn');
+    if (!btn) return;
+    btn.disabled = busy;
+    btn.textContent = busy ? '저장 중…' : '✅ 운동 완료!';
+}
+
 export async function addRecord() {
+    if (isAddingRecord) return; // 이미 저장 진행 중이면 무시(중복 탭 차단)
+
     const exercise = document.getElementById('exercise').value.trim();
     const memo = document.getElementById('memo').value.trim();
     const painCheck = document.getElementById('painCheck').checked;
@@ -38,6 +51,8 @@ export async function addRecord() {
         return;
     }
 
+    isAddingRecord = true;
+    setAddRecordBtnBusy(true);
     try {
         // 개인 기록(PR) 판정 — 저장 전에 같은 종목 과거 기록과 비교
         let prStatus = null;
@@ -98,6 +113,9 @@ export async function addRecord() {
     } catch (error) {
         console.error('Error adding record:', error);
         alert('기록 저장 실패: ' + error.message);
+    } finally {
+        isAddingRecord = false;
+        setAddRecordBtnBusy(false);
     }
 }
 

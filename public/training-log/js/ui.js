@@ -127,8 +127,8 @@ export function renderStudentScreen() {
                         <label for="painCheck" class="text-sm font-semibold text-red-700">⚠️ 운동 중 통증이 있었습니다</label>
                     </div>
                     
-                    <button onclick="addRecord()" 
-                            class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition">
+                    <button id="addRecordBtn" onclick="addRecord()"
+                            class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed">
                         ✅ 운동 완료!
                     </button>
                 </div>
