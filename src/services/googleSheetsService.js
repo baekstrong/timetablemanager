@@ -3,6 +3,7 @@ import {
   isHolidayRelevantToStudent,
   shiftEndDateBySessions,
   filterEffectiveHolidayDeltaDates,
+  extendEndDateForHeldSessions,
 } from './holidayEndDateDelta.js';
 import { PERIODS } from '../data/mockData';
 
@@ -134,6 +135,21 @@ function formatDateToISO(date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+/** start~end(포함) 사이 모든 날짜를 'YYYY-MM-DD' 배열로 열거 */
+function enumerateDatesISO(start, end) {
+  const out = [];
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+  const last = new Date(end);
+  last.setHours(0, 0, 0, 0);
+  let guard = 400;
+  while (cursor <= last && guard-- > 0) {
+    out.push(formatDateToISO(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
 }
 
 /**
@@ -1790,47 +1806,38 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
     throw new Error(`수업 요일을 해석할 수 없습니다: ${scheduleStr || '비어 있음'}`);
   }
 
-  // 모든 홀딩 기간 수집 (기존 + 새 홀딩)
-  const allHoldingRanges = [];
+  // 기존 홀딩(이미 저장된 종료일에 반영됨)
+  const priorHoldingRanges = (existingHoldings || []).map(h => ({
+    start: new Date(`${h.startDate}T00:00:00`),
+    end: new Date(`${h.endDate}T00:00:00`),
+  }));
 
-  if (existingHoldings && existingHoldings.length > 0) {
-    existingHoldings.forEach(h => {
-      allHoldingRanges.push({
-        start: new Date(h.startDate + 'T00:00:00'),
-        end: new Date(h.endDate + 'T00:00:00')
-      });
+  // 저장된 종료일(H)을 신뢰하고, 이번에 빠지는 수업일 수만큼만 뒤로 민다.
+  // 시작일부터 전체 재계산하면 시간표 중간 변경으로 소진한(다른 요일) 수업이
+  // 증발해 종료일이 잘못 늘어남 → delta 방식으로 통일.
+  const storedEndDate = parseSheetDate(getStudentField(studentData, '종료날짜'));
+  let newEndDate;
+  if (storedEndDate) {
+    newEndDate = extendEndDateForHeldSessions({
+      endDate: storedEndDate,
+      startDate: membershipStartDate,
+      classDays: getClassDays(scheduleStr),
+      newHeldDates: enumerateDatesISO(holdingStartDate, endDate),
+      isHoliday: (d) => isHolidayDate(d, firebaseHolidays),
+      priorHoldingRanges,
+      extraSessions: makeupHoldingCount, // 보강일(비정규 요일) 홀딩 추가 연장분
     });
-    console.log(`📊 기존 홀딩 ${existingHoldings.length}개 포함`);
+  } else {
+    // H 없음(구 데이터) → 기존 전체 재계산으로 폴백
+    newEndDate = calculateEndDate(
+      membershipStartDate, totalSessions, scheduleStr,
+      [...priorHoldingRanges, { start: holdingStartDate, end: endDate }],
+      firebaseHolidays, countedHolidayDates,
+    );
   }
-
-  allHoldingRanges.push({ start: holdingStartDate, end: endDate });
-  console.log(`📊 총 ${allHoldingRanges.length}개 홀딩 기간으로 종료일 계산`);
-
-  let newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allHoldingRanges, firebaseHolidays, countedHolidayDates);
 
   if (!newEndDate) {
     throw new Error('종료일 계산에 실패했습니다.');
-  }
-
-  // 보강 날짜(비정규 요일)를 홀딩한 경우 추가 연장
-  if (makeupHoldingCount > 0) {
-    const classDays = getClassDays(scheduleStr);
-    let extraDays = 0;
-    const cursor = new Date(newEndDate);
-    cursor.setDate(cursor.getDate() + 1);
-    let maxIter = 365;
-    while (extraDays < makeupHoldingCount && maxIter > 0) {
-      maxIter--;
-      if (classDays.includes(cursor.getDay()) && !isHolidayDate(cursor, firebaseHolidays)) {
-        extraDays++;
-        if (extraDays === makeupHoldingCount) {
-          newEndDate = new Date(cursor);
-          break;
-        }
-      }
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    console.log(`📅 보강 홀딩 ${makeupHoldingCount}건 → 종료일 추가 연장`);
   }
 
   const startDateStr = formatDateToYYMMDD(holdingStartDate);
@@ -2179,6 +2186,9 @@ export const cancelHoldingInSheets = async (studentName, remainingHoldings = [],
       console.log(`📊 남은 홀딩 없음 - 원래 종료일로 계산`);
     }
 
+    // ponytail: 홀딩 취소는 아직 시작일부터 전체 재계산. 취소된 홀딩 날짜를 넘겨받지 못해
+    // delta(-N)로 못 줄임 → 시간표 중간 변경 등록은 취소 시 baseline이 어긋날 수 있음.
+    // 취소된 홀딩 dates를 파라미터로 받아 shiftEndDateBySessions(-N)로 바꾸면 통일됨(별도 작업).
     const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, holdingRanges, firebaseHolidays, countedHolidayDates);
     if (newEndDate) {
       newEndDateStr = formatDateToYYMMDD(newEndDate);
@@ -2351,16 +2361,32 @@ export const processStudentAbsence = async (studentName, absenceDates, firebaseH
   const holdingStartStr = getStudentField(studentData, '홀딩 시작일');
   const holdingEndStr = getStudentField(studentData, '홀딩 종료일');
 
-  const allRanges = [...absenceRanges];
+  const priorHoldingRanges = [];
   if (holdingInfo.isCurrentlyUsed && holdingStartStr && holdingEndStr) {
     const hs = parseSheetDate(holdingStartStr);
     const he = parseSheetDate(holdingEndStr);
-    if (hs && he) {
-      allRanges.push({ start: hs, end: he });
-    }
+    if (hs && he) priorHoldingRanges.push({ start: hs, end: he });
   }
 
-  const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allRanges, firebaseHolidays, countedHolidayDates);
+  // 저장된 종료일에서 결석한 수업일만큼만 delta로 민다 (홀딩과 동일).
+  const storedEndDate = parseSheetDate(endDateCol !== -1 ? studentRow[endDateCol] : '');
+  let newEndDate;
+  if (storedEndDate) {
+    newEndDate = extendEndDateForHeldSessions({
+      endDate: storedEndDate,
+      startDate: membershipStartDate,
+      classDays,
+      newHeldDates: absenceDates,
+      isHoliday: (d) => isHolidayDate(d, firebaseHolidays),
+      priorHoldingRanges,
+    });
+  } else {
+    newEndDate = calculateEndDate(
+      membershipStartDate, totalSessions, scheduleStr,
+      [...absenceRanges, ...priorHoldingRanges],
+      firebaseHolidays, countedHolidayDates,
+    );
+  }
 
   if (!newEndDate) {
     throw new Error('종료일 계산에 실패했습니다.');
@@ -2443,17 +2469,32 @@ export const processCoachHolding = async (studentName, holdingDates, firebaseHol
   const holdingStartDate = new Date(startDate + 'T00:00:00');
   const holdingEndDate = new Date(endDate + 'T00:00:00');
 
-  // 3. 종료일 계산 (새 홀딩 포함)
-  const allHoldingRanges = [{ start: holdingStartDate, end: holdingEndDate }];
-
-  // 기존 시트의 홀딩 정보도 포함
+  // 3. 종료일 계산 — 저장된 종료일에서 빠진 수업일만큼만 delta로 민다 (requestHolding과 동일)
+  const priorHoldingRanges = [];
   const existHoldStart = parseSheetDate(getStudentField(studentData, '홀딩 시작일'));
   const existHoldEnd = parseSheetDate(getStudentField(studentData, '홀딩 종료일'));
   if (holdingInfo.isCurrentlyUsed && existHoldStart && existHoldEnd) {
-    allHoldingRanges.push({ start: existHoldStart, end: existHoldEnd });
+    priorHoldingRanges.push({ start: existHoldStart, end: existHoldEnd });
   }
 
-  const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, allHoldingRanges, firebaseHolidays, countedHolidayDates);
+  const storedEndDate = parseSheetDate(getStudentField(studentData, '종료날짜'));
+  let newEndDate;
+  if (storedEndDate) {
+    newEndDate = extendEndDateForHeldSessions({
+      endDate: storedEndDate,
+      startDate: membershipStartDate,
+      classDays: getClassDays(scheduleStr),
+      newHeldDates: enumerateDatesISO(holdingStartDate, holdingEndDate),
+      isHoliday: (d) => isHolidayDate(d, firebaseHolidays),
+      priorHoldingRanges,
+    });
+  } else {
+    newEndDate = calculateEndDate(
+      membershipStartDate, totalSessions, scheduleStr,
+      [{ start: holdingStartDate, end: holdingEndDate }, ...priorHoldingRanges],
+      firebaseHolidays, countedHolidayDates,
+    );
+  }
   if (!newEndDate) {
     throw new Error('종료일 계산에 실패했습니다.');
   }

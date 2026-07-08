@@ -4,7 +4,14 @@ import {
   isHolidayRelevantToStudent,
   shiftEndDateBySessions,
   filterEffectiveHolidayDeltaDates,
+  extendEndDateForHeldSessions,
 } from './holidayEndDateDelta.js';
+
+const iso = (s) => new Date(s + 'T00:00:00');
+const toISOd = (d) => {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
 
 describe('parseAbsenceDatesFromNotes', () => {
   it('단일 결석 기록을 ISO로 변환', () => {
@@ -170,5 +177,72 @@ describe('shiftEndDateBySessions', () => {
       classDays, holdingRanges: [], isHoliday: () => true,
     });
     expect(r).toBe(null);
+  });
+});
+
+describe('extendEndDateForHeldSessions', () => {
+  // 조동환: 화목→월수 전환, 시작 6/16(화). 저장 종료일 7/8(월수 7회분).
+  // 홀딩 없으면 종료일을 처음부터 다시 세면 안 됨 — 저장값을 신뢰하고 빠진 수업일만큼만 민다.
+  const base = {
+    startDate: iso('2026-06-16'),
+    endDate: iso('2026-07-08'),
+    classDays: [1, 3], // 월수
+    isHoliday: () => false,
+    priorHoldingRanges: [],
+  };
+
+  it('저장된 종료일(7/8)에서 홀딩한 수업일(7/8) 1회만큼만 다음 수업일로 민다 → 7/13(월)', () => {
+    const r = extendEndDateForHeldSessions({ ...base, newHeldDates: ['2026-07-08'] });
+    expect(toISOd(r)).toBe('2026-07-13');
+  });
+
+  it('중간 수업일(7/1)을 홀딩해도 종료일은 1 수업일만 밀린다 → 7/13', () => {
+    const r = extendEndDateForHeldSessions({ ...base, newHeldDates: ['2026-07-01'] });
+    expect(toISOd(r)).toBe('2026-07-13');
+  });
+
+  it('홀딩 2일이면 2 수업일 밀린다 → 7/15(수)', () => {
+    const r = extendEndDateForHeldSessions({ ...base, newHeldDates: ['2026-07-06', '2026-07-08'] });
+    expect(toISOd(r)).toBe('2026-07-15');
+  });
+
+  it('비수업요일(7/7 화)을 빼도 종료일 변화 없음', () => {
+    const r = extendEndDateForHeldSessions({ ...base, newHeldDates: ['2026-07-07'] });
+    expect(toISOd(r)).toBe('2026-07-08');
+  });
+
+  it('수강기간 밖 날짜는 무시', () => {
+    const r = extendEndDateForHeldSessions({ ...base, newHeldDates: ['2026-08-05'] });
+    expect(toISOd(r)).toBe('2026-07-08');
+  });
+
+  it('이미 종료일에 반영된 기존 홀딩 범위와 겹치면 중복 연장 안 함', () => {
+    const r = extendEndDateForHeldSessions({
+      ...base,
+      priorHoldingRanges: [{ start: iso('2026-07-08'), end: iso('2026-07-08') }],
+      newHeldDates: ['2026-07-08'],
+    });
+    expect(toISOd(r)).toBe('2026-07-08');
+  });
+
+  it('전진 중 휴일은 건너뛴다 (7/13 월이 휴일이면 7/15 수)', () => {
+    const r = extendEndDateForHeldSessions({
+      ...base,
+      isHoliday: (d) => toISOd(d) === '2026-07-13',
+      newHeldDates: ['2026-07-08'],
+    });
+    expect(toISOd(r)).toBe('2026-07-15');
+  });
+
+  it('extraSessions(보강일 홀딩 등 비정규 추가분)만큼 더 민다', () => {
+    const r = extendEndDateForHeldSessions({
+      ...base, newHeldDates: ['2026-07-08'], extraSessions: 1,
+    });
+    expect(toISOd(r)).toBe('2026-07-15');
+  });
+
+  it('빠진 수업이 없으면 종료일 그대로', () => {
+    const r = extendEndDateForHeldSessions({ ...base, newHeldDates: [] });
+    expect(toISOd(r)).toBe('2026-07-08');
   });
 });

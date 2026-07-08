@@ -102,3 +102,43 @@ export function shiftEndDateBySessions({
   }
   return remaining === 0 ? new Date(cursor) : null;
 }
+
+/**
+ * 홀딩/결석으로 이번에 새로 빠지는 수업일 수만큼 "저장된" 종료일을 뒤로 민다.
+ * 종료일을 시작일부터 다시 계산하지 않으므로, 시간표를 중간에 바꾼 등록에서
+ * 이미 소진한(다른 요일의) 수업이 재계산으로 증발하는 문제를 피한다.
+ * @param {Object} p
+ * @param {Date} p.endDate                 - 현재 저장된 종료일(H열)
+ * @param {Date} p.startDate               - 활성 등록 시작일
+ * @param {number[]} p.classDays           - 정규 수업요일 (0=일 .. 6=토)
+ * @param {string[]} p.newHeldDates        - 이번에 빠지는 날짜 'YYYY-MM-DD' (홀딩/결석)
+ * @param {(d:Date)=>boolean} p.isHoliday
+ * @param {Array<{start:Date,end:Date}>} [p.priorHoldingRanges] - 이미 종료일에 반영된 기존 홀딩/결석 범위
+ * @param {number} [p.extraSessions]       - 정규요일이 아닌 보강일 홀딩 등 추가 연장분
+ * @returns {Date|null} 밀린 종료일, 가드 소진 시 null
+ */
+export function extendEndDateForHeldSessions({
+  endDate, startDate, classDays, newHeldDates,
+  isHoliday, priorHoldingRanges = [], extraSessions = 0,
+}) {
+  const start = atMidnight(startDate);
+  const end = atMidnight(endDate);
+  const heldRanges = [];
+  let held = 0;
+  for (const ds of newHeldDates || []) {
+    const d = atMidnight(new Date(`${ds}T00:00:00`));
+    heldRanges.push({ start: d, end: d });
+    if (!classDays.includes(d.getDay())) continue;    // 정규 수업요일 아님
+    if (d < start || d > end) continue;                // 수강기간 밖
+    if (isHoliday(d)) continue;                         // 원래 수업이 아니던 날(휴일)
+    if (inAnyRange(d, priorHoldingRanges)) continue;    // 이미 종료일에 반영됨 → 중복 연장 방지
+    held += 1;
+  }
+  return shiftEndDateBySessions({
+    endDate,
+    deltaSessions: held + (extraSessions || 0),
+    classDays,
+    holdingRanges: [...priorHoldingRanges, ...heldRanges],
+    isHoliday,
+  });
+}
