@@ -94,7 +94,7 @@ export function renderStudentScreen() {
 
             <!-- 운동 기록 입력 폼 -->
             <div class="bg-white rounded-lg border border-[#EFEFF0] p-6 mb-4">
-                <h3 class="text-lg font-bold mb-4 text-gray-800">🏋️ ${formatDate(state.selectedDate)} 운동 기록</h3>
+                <h3 id="recordFormTitle" class="text-lg font-bold mb-4 text-gray-800">🏋️ ${formatDate(state.selectedDate)} 운동 기록</h3>
                 <div class="space-y-3">
                     <div class="relative">
                         <input type="text" id="exercise" placeholder="운동 종목 검색 후 선택 (예: 벤치프레스)"
@@ -136,7 +136,7 @@ export function renderStudentScreen() {
 
             <!-- 선택한 날짜 기록 리스트 -->
             <div class="bg-white rounded-lg border border-[#EFEFF0] p-6">
-                <h3 class="text-lg font-bold mb-4 text-gray-800">📝 ${formatDate(state.selectedDate)} 기록</h3>
+                <h3 id="recordsListTitle" class="text-lg font-bold mb-4 text-gray-800">📝 ${formatDate(state.selectedDate)} 기록</h3>
                 <div id="recordsList"></div>
             </div>
 

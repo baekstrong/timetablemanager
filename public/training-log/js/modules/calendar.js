@@ -102,13 +102,13 @@ export function changeCalendarMonth(delta) {
 export function selectCalendarDate(dateStr) {
     state.selectedDate = dateStr;
 
-    // 화면 제목 업데이트 (DOM 직접 조작)
-    const titleElement = document.querySelector('.max-w-2xl .bg-white.rounded-lg.p-6.mb-4 h3');
+    // 화면 제목 업데이트 (DOM 직접 조작 — 작성 중 폼 보존 위해 전체 render() 대신 제목만 갱신)
+    const titleElement = document.getElementById('recordFormTitle');
     if (titleElement) {
         titleElement.textContent = `🏋️ ${formatDate(state.selectedDate)} 운동 기록`;
     }
 
-    const recordsTitleElement = document.querySelector('.max-w-2xl .bg-white.rounded-lg.p-6:last-child h3');
+    const recordsTitleElement = document.getElementById('recordsListTitle');
     if (recordsTitleElement) {
         recordsTitleElement.textContent = `📝 ${formatDate(state.selectedDate)} 기록`;
     }
