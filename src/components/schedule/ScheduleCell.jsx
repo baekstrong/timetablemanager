@@ -11,6 +11,7 @@ const NAME_PASTEL = {
     makeupAbsent: '#FDECEE',// 파스텔 레드 (홀딩·결석과 동일 패턴)
     waitingSeat: '#FDF6E3', // 파스텔 앰버 (보강대기 — 이름칩+뱃지로 다른 상태칩과 모양 통일)
     makeupPending: '#DBEBFB', // 파스텔 블루 (보강승인중 — 이름칩+뱃지로 통일, 뱃지 라벨로 보강과 구분)
+    delayed: '#E5F5EA',     // 파스텔 그린 (시작지연 — 이름칩+뱃지로 다른 상태칩과 모양 통일)
 };
 
 const extraBadges = (lastClass, reregX, unpaid) => (
@@ -21,7 +22,7 @@ const extraBadges = (lastClass, reregX, unpaid) => (
     </>
 );
 
-/** 보강·보강이동·홀딩·신규·결석·보강결석: 파스텔 이름칩(검은 굵은 글씨)+색 뱃지. 그 외: 칩 배경 색 형태. */
+/** 보강·보강이동·홀딩·신규·결석·보강결석·시작지연: 파스텔 이름칩(검은 굵은 글씨)+색 뱃지. 그 외: 칩 배경 색 형태. */
 export function StudentTag({ name, status, label, unpaid = false, reregX = false, lastClass = false }) {
     const tagStyle = TAG_STYLES[status] || {};
 
@@ -43,7 +44,7 @@ export function StudentTag({ name, status, label, unpaid = false, reregX = false
         );
     }
 
-    // 칩 배경 색 형태(합의결석·시작지연)
+    // 칩 배경 색 형태(합의결석)
     const style = { ...tagStyle };
     delete style.textDecoration; // 취소선 제거
     return (
