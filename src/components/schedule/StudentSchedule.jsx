@@ -25,7 +25,7 @@ import {
     formatDateISO,
     wouldDoubleBookDay,
 } from '../../utils/scheduleUtils';
-import { getMakeupWeeklyLimit } from '../../utils/makeupQuota';
+import { getMakeupWeeklyLimit, countWeekMakeupCommitments } from '../../utils/makeupQuota';
 import { secondClassDayISO, cappedEndForFirstClassMove } from '../../utils/makeupEndDate';
 import MakeupModal from './MakeupModal';
 import MakeupWaitlistResponseModal from './MakeupWaitlistModal';
@@ -100,6 +100,12 @@ export default function StudentSchedule({
         () => activeWaitlists.filter(w => w.studentName === user?.username),
         [activeWaitlists, user]
     );
+
+    // 이번 주 보강 '약속' 건수(보강 이력 + 활성 대기) — 대기도 수락 시 보강이 되므로 미리 횟수에 포함
+    const myWeekCommitments = useMemo(() => {
+        const { start, end } = getThisWeekRange();
+        return countWeekMakeupCommitments(myWeekMakeupHistory, myWaitlists, start, end);
+    }, [myWeekMakeupHistory, myWaitlists]);
 
     async function reloadMyWaitlists() {
         const list = await getActiveMakeupWaitlists();
@@ -191,9 +197,9 @@ export default function StudentSchedule({
             return;
         }
 
-        // 주 수강 횟수만큼 당주 보강 신청 가능 (취소 내역도 소진으로 간주)
-        if (!forceMode && myWeekMakeupHistory.length >= makeupWeeklyLimit) {
-            alert(`보강은 주 ${makeupWeeklyLimit}회까지 신청 가능합니다.\n이번 주 보강 신청 내역(취소 포함)이 있어 추가 신청이 불가합니다.`);
+        // 주 수강 횟수만큼 당주 보강 신청 가능 (취소 내역·활성 대기도 소진으로 간주)
+        if (!forceMode && myWeekCommitments >= makeupWeeklyLimit) {
+            alert(`보강은 주 ${makeupWeeklyLimit}회까지 신청 가능합니다.\n이번 주 보강·대기 신청 내역(취소 포함)이 있어 추가 신청이 불가합니다.`);
             return;
         }
 
@@ -304,7 +310,13 @@ export default function StudentSchedule({
             alert('보강 수업 시작 1시간 전부터는 보강 취소가 불가합니다.');
             return;
         }
-        if (!confirm('이 보강 신청을 취소하시겠습니까?')) return;
+        // 이번 주 보강 횟수를 모두 소진한 상태에서 취소하면, 취소해도 횟수가 복구되지 않아
+        // 원래 수업에 출석해야 함을 안내(남은 횟수가 있으면 다른 보강을 신청하면 되므로 안내하지 않음).
+        const mo = makeup?.originalClass;
+        const cancelMsg = (mo && myWeekCommitments >= makeupWeeklyLimit)
+            ? `이 보강 신청을 취소하시겠습니까?\n\n취소하면 원래 수업(${mo.day}요일 ${mo.periodName})에 출석하셔야 해요.\n보강은 취소해도 이번 주 횟수가 복구되지 않습니다.`
+            : '이 보강 신청을 취소하시겠습니까?';
+        if (!confirm(cancelMsg)) return;
         try {
             await cancelMakeupRequest(makeupId);
 
@@ -351,6 +363,11 @@ export default function StudentSchedule({
         }
         if (isClassWithinMinutes(date, periodId, 0)) {
             alert('이미 시작된 수업입니다.');
+            return;
+        }
+        // 보강+대기를 합쳐 주 수강 횟수까지만 신청 가능. 이미 다 썼으면 대기해도 수락이 안 되므로 미리 차단.
+        if (!forceMode && myWeekCommitments >= makeupWeeklyLimit) {
+            alert(`이번 주 보강 횟수를 모두 사용하셔서 대기 신청을 할 수 없어요.\n(보강 신청과 대기 신청을 합쳐 주 ${makeupWeeklyLimit}회까지)`);
             return;
         }
         // 이중 수강 차단은 원래 수업 선택 후(대기 모달·수락 단계)에서 처리 — 같은 날 이동은 허용해야 하므로.
