@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets, pauseStudent, resumeStudent } from '../services/googleSheetsService';
-import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, recordStudentCount, getGradeMap } from '../services/firebaseService';
+import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, deleteAllStudentAppData, recordStudentCount, getGradeMap } from '../services/firebaseService';
 import { getCoachStudentListStatus, shouldShowInCoachStudentList, isPausedRegistration } from '../utils/studentList';
 import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import { setStudentPassword } from '../services/authService';
@@ -44,6 +44,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     const [holdingProcessing, setHoldingProcessing] = useState(false);
     const [searchQuery, setSearchQuery] = useState(''); // 수강생 검색어
     const [actionProcessing, setActionProcessing] = useState(''); // 작업(종료/일시정지/재개) 처리 중 메시지
+    const [endTarget, setEndTarget] = useState(null); // 수강 종료 대상 (보존/전부삭제 선택 모달)
     const [pwResetting, setPwResetting] = useState(''); // 비밀번호 초기화 중인 수강생 이름
     const [showSmsModal, setShowSmsModal] = useState(false);
     const [gradeMap, setGradeMap] = useState({}); // 이름→학년키 (수강생 레벨 표시용)
@@ -88,27 +89,37 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         }
     };
 
-    // End class (Clear schedule in ALL sheets)
-    const handleEndClass = async (student) => {
-        if (!confirm(`${student['이름']} 수강생의 수강을 종료하시겠습니까?\n\n- 시간표에서 제거됩니다.\n- 이름, 결제 내역 등은 시트에 보존됩니다.\n- 모든 시트의 '요일 및 시간' 칸이 지워집니다.`)) {
+    // End class — 종료 방식(기록 보존 / 전부 삭제)을 고르는 모달을 연다
+    const handleEndClass = (student) => setEndTarget(student);
+
+    // 실제 종료 처리. wipe=true면 앱 기록 전부 삭제, false면 기록 보존(나중에 이어서).
+    const runEndClass = async (student, wipe) => {
+        const name = student['이름'];
+        if (wipe && !confirm(`정말 ${name} 회원의 앱 기록을 전부 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`)) {
             return;
         }
-
-        setActionProcessing('수강 종료 처리 중...');
+        setEndTarget(null);
+        setActionProcessing(wipe ? '회원 기록 삭제 중...' : '수강 종료 처리 중...');
         try {
-            // 모든 시트에서 해당 학생의 스케줄 삭제
-            await clearStudentScheduleAllSheets(student['이름']);
+            // 모든 시트에서 스케줄 삭제 (시간표에서 제거) — 두 방식 공통
+            await clearStudentScheduleAllSheets(name);
             // 이탈 통계용 종료 기록 (실패해도 종료 처리는 유지)
             try {
-                await createStudentTermination(student['이름']);
+                await createStudentTermination(name);
             } catch (recErr) {
                 console.warn('종료 기록 저장 실패:', recErr);
             }
+            // 전부 삭제 선택 시 앱 데이터 삭제 (시트/게시판/통계 기록은 보존)
+            if (wipe) {
+                await deleteAllStudentAppData(name);
+            }
             if (refresh) await refresh();
-            alert('수강 종료 처리되었습니다. (모든 시트에서 스케줄 삭제)');
+            alert(wipe
+                ? `${name} 회원의 앱 기록을 모두 삭제했습니다.\n(시트 등록·결제 이력, 게시판 글은 보존)`
+                : '수강 종료 처리되었습니다. (시간표에서 제거, 기록 보존)');
         } catch (err) {
             console.error('Failed to end class:', err);
-            alert('수강 종료 처리에 실패했습니다.');
+            alert(wipe ? '회원 기록 삭제에 실패했습니다.' : '수강 종료 처리에 실패했습니다.');
         } finally {
             setActionProcessing('');
         }
@@ -807,6 +818,39 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                 disabled={absenceProcessing || absenceDates.length === 0}
                             >
                                 {absenceProcessing ? '처리 중...' : `결석 처리 (${absenceDates.length}일)`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 수강 종료 모달 — 기록 보존 / 전부 삭제 선택 */}
+            {endTarget && (
+                <div className="absence-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setEndTarget(null); }}>
+                    <div className="absence-modal-content">
+                        <h2 className="absence-modal-title">수강 종료</h2>
+                        <p className="absence-modal-student">{endTarget['이름']} ({endTarget['요일 및 시간'] || '-'})</p>
+
+                        <div className="absence-info-box">
+                            <p>· 두 방식 모두 시간표에서 제거됩니다.</p>
+                            <p>· <strong>기록 보존</strong>: 보강·훈련일지·계정 등을 남겨 나중에 이어서 할 수 있어요.</p>
+                            <p>· <strong>전부 삭제</strong>: 앱 기록(계정·보강·홀딩·결석·대기·훈련일지·PR·1RM·도장·자율운동·고정메모)을 삭제합니다. 되돌릴 수 없어요.</p>
+                            <p>· 시트 등록·결제 이력과 게시판 글은 두 경우 모두 보존됩니다.</p>
+                        </div>
+
+                        <div className="absence-modal-actions">
+                            <button className="absence-cancel-btn" onClick={() => setEndTarget(null)}>
+                                취소
+                            </button>
+                            <button className="absence-submit-btn" onClick={() => runEndClass(endTarget, false)}>
+                                기록 보존하고 종료
+                            </button>
+                            <button
+                                className="absence-submit-btn"
+                                style={{ backgroundColor: 'var(--error)', borderColor: 'var(--error)', color: '#fff' }}
+                                onClick={() => runEndClass(endTarget, true)}
+                            >
+                                전부 삭제
                             </button>
                         </div>
                     </div>

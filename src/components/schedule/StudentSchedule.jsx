@@ -23,6 +23,7 @@ import {
     getWaitlistCountForSlot,
     parseSheetDate,
     formatDateISO,
+    wouldDoubleBookDay,
 } from '../../utils/scheduleUtils';
 import { getMakeupWeeklyLimit } from '../../utils/makeupQuota';
 import { secondClassDayISO, cappedEndForFirstClassMove } from '../../utils/makeupEndDate';
@@ -169,10 +170,6 @@ export default function StudentSchedule({
     }, [user]);
 
     // ── 헬퍼 ──
-    function isMyClass(day, periodId) {
-        return studentSchedule.some(s => s.day === day && s.period === periodId);
-    }
-
     async function reloadStudentMakeups() {
         const { start, end } = getThisWeekRange();
         const thisWeekMakeups = await getWeekMakeupRequests(user.username, start, end);
@@ -213,18 +210,8 @@ export default function StudentSchedule({
             return;
         }
 
-        if (isMyClass(day, periodId)) {
-            const isAlreadyMakeupAbsent = activeMakeupRequests.some(m =>
-                m.originalClass.day === day &&
-                m.originalClass.period === periodId &&
-                m.originalClass.date === date
-            );
-            if (!isAlreadyMakeupAbsent) {
-                alert('본인의 정규 수업 시간에는 보강 신청을 할 수 없습니다.\n다른 시간을 선택해주세요.');
-                return;
-            }
-        }
-
+        // 이중 수강(원래 수업일이 있는 요일로 다른 날 수업을 옮겨오는 것)은 원래 수업 선택 후
+        // 모달/제출 단계에서 wouldDoubleBookDay로 차단한다(같은 날 이동은 허용해야 하므로 여기선 막지 않음).
         const period = PERIODS.find(p => p.id === periodId);
         setSelectedMakeupSlot({ day, period: periodId, periodName: period.name, date });
         setShowMakeupModal(true);
@@ -237,6 +224,12 @@ export default function StudentSchedule({
             selectedOriginalClass.period === selectedMakeupSlot.period &&
             selectedOriginalClass.date === selectedMakeupSlot.date) {
             alert('같은 수업으로 보강 신청할 수 없습니다.\n다른 시간을 선택해주세요.');
+            return;
+        }
+
+        // 이중 수강 방지: 다른 날 수업을 이미 정규 수업이 있는 요일로 옮기면 차단(같은 날 이동은 허용)
+        if (wouldDoubleBookDay(studentSchedule, activeMakeupRequests, selectedOriginalClass, selectedMakeupSlot.day, selectedMakeupSlot.date)) {
+            alert('보강 대상 요일에 이미 다른 정규 수업이 있어요.\n같은 날 다른 수업을 옮기거나, 다른 요일을 선택해주세요.');
             return;
         }
 
@@ -360,10 +353,7 @@ export default function StudentSchedule({
             alert('이미 시작된 수업입니다.');
             return;
         }
-        if (isMyClass(day, periodId)) {
-            alert('본인의 정규 수업 시간에는 대기 신청을 할 수 없습니다.');
-            return;
-        }
+        // 이중 수강 차단은 원래 수업 선택 후(대기 모달·수락 단계)에서 처리 — 같은 날 이동은 허용해야 하므로.
         const period = PERIODS.find(p => p.id === periodId);
         if (!confirm(`이 시간은 현재 만석입니다.\n${day}요일 ${period?.name}에 보강 대기를 신청하시겠습니까?\n자리가 나면 선착순으로 문자 안내를 드립니다.`)) return;
         setWaitlistSlot({ day, period: periodId, periodName: period?.name || '', date });
@@ -440,6 +430,11 @@ export default function StudentSchedule({
         );
         if (duplicateOriginal) {
             alert('이 원래 수업은 이미 다른 보강으로 옮겨져 있습니다.\n대기를 거절 처리해주세요.');
+            return;
+        }
+        // 이중 수강 방지: 다른 날 수업을 이미 정규 수업이 있는 요일로 옮기는 수락은 차단(같은 날 이동은 허용)
+        if (wouldDoubleBookDay(studentSchedule, activeMakeupRequests, entry.originalClass, entry.day, entry.date)) {
+            alert('그 날 이미 다른 정규 수업이 있어 수락할 수 없습니다.');
             return;
         }
         // 이번 주 시간표 범위면 여석 재확인 (그 사이 다시 만석이 됐을 수 있음)
@@ -553,7 +548,8 @@ export default function StudentSchedule({
             return <HolidayCell reason={holidayReason} />;
         }
 
-        const myClass = isMyClass(day, periodObj.id);
+        // 셀 강조용 슬롯 단위 판정(요일+교시). 보강 신청 차단(요일 단위)과는 목적이 다름.
+        const myClass = studentSchedule.some(s => s.day === day && s.period === periodObj.id);
         const cellClick = () => handleCellClick(day, periodObj, data);
 
         // Makeup status for this cell

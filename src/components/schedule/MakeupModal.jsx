@@ -1,5 +1,5 @@
 import { PERIODS } from '../../data/mockData';
-import { weekDateToISO, isClassWithinMinutes } from '../../utils/scheduleUtils';
+import { weekDateToISO, isClassWithinMinutes, wouldDoubleBookDay } from '../../utils/scheduleUtils';
 
 export default function MakeupModal({
     title = '보강 신청',
@@ -85,7 +85,13 @@ export default function MakeupModal({
                                 isPastDeadline = !forceMode && isClassWithinMinutes(originalDateStr, schedule.period, 120);
                                 isHoldingDay = !forceMode && (isMyHoldingDate?.(originalDateStr) ?? false);
                             }
-                            const isDisabled = isAlreadyRequested || isPastDeadline || isHoldingDay;
+                            // 이 수업을 대상 슬롯으로 옮기면 그 날 이중 수강이 되는지(같은 날 이동은 허용)
+                            const isDoubleBook = wouldDoubleBookDay(
+                                studentSchedule, activeMakeupRequests,
+                                { day: schedule.day, period: schedule.period },
+                                selectedMakeupSlot.day, selectedMakeupSlot.date
+                            );
+                            const isDisabled = isAlreadyRequested || isPastDeadline || isHoldingDay || isDoubleBook;
 
                             return (
                                 <div
@@ -105,6 +111,10 @@ export default function MakeupModal({
                                             alert('수업 시작 2시간 전 이후로는 보강 신청할 수 없습니다.');
                                             return;
                                         }
+                                        if (isDoubleBook) {
+                                            alert(`${selectedMakeupSlot.day}요일엔 이미 다른 정규 수업이 있어요.\n같은 날 다른 수업을 옮기거나, 다른 요일을 선택해주세요.`);
+                                            return;
+                                        }
                                         setSelectedOriginalClass({
                                             day: schedule.day,
                                             period: schedule.period,
@@ -120,6 +130,7 @@ export default function MakeupModal({
                                         {isHoldingDay && ' - 홀딩'}
                                         {!isHoldingDay && isAlreadyRequested && ' - 신청됨'}
                                         {!isHoldingDay && !isAlreadyRequested && isPastDeadline && ' - 마감'}
+                                        {!isHoldingDay && !isAlreadyRequested && !isPastDeadline && isDoubleBook && ` - ${selectedMakeupSlot.day}요일에 이미 수업이 있어 옮길 수 없음`}
                                     </span>
                                 </div>
                             );

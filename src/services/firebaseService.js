@@ -701,6 +701,42 @@ export const getTerminations = async () => {
     });
 };
 
+// 회원 앱 데이터 전부 삭제 (수강 종료 '전부 삭제' 경로). 되돌릴 수 없음.
+// 삭제: 로그인 계정 + 보강/홀딩/결석/대기 + 훈련일지 활동(records/PR/1RM/도장/자율운동) + 고정메모.
+// 보존: 구글 시트 등록·결제 행, 게시판 글·댓글, 등록/계약/종료·유입경로 등 매출·통계용 기록.
+export const deleteAllStudentAppData = async (name) => {
+    return safeWrite(async () => {
+        const trimmed = String(name || '').trim();
+        if (!trimmed) throw new Error('이름이 필요합니다.');
+
+        // 1) 문서 ID가 이름인 컬렉션 (없어도 삭제는 무해)
+        const byId = ['users', 'oneRMRecords', 'coachPinnedMemos', 'pinnedMemos'];
+        await Promise.all(byId.map(coll =>
+            firestoreDeleteDoc(doc(db, coll, trimmed)).catch(() => {})
+        ));
+
+        // 2) 필드로 학생을 가리키는 컬렉션 — 조회 후 개별 삭제 (batch 500 제한 회피)
+        const byField = [
+            ['makeupRequests', 'studentName'],
+            ['holdingRequests', 'studentName'],
+            ['absenceRequests', 'studentName'],
+            ['waitlistRequests', 'studentName'],
+            ['makeupWaitlists', 'studentName'],
+            ['freeWorkoutAttendance', 'studentName'],
+            ['freeWorkoutRoster', 'studentName'],
+            ['personalBests', 'userName'],
+            ['monthlyStamps', 'userName'],
+            ['records', 'userName'],
+        ];
+        for (const [coll, field] of byField) {
+            const docs = await queryDocs(coll, where(field, '==', trimmed));
+            await Promise.all(docs.map(d => firestoreDeleteDoc(doc(db, coll, d.id))));
+        }
+
+        return { success: true };
+    });
+};
+
 // ── 월별 총 수강생수 스냅샷 (수강생 관리 기준 활성 수강생 수를 매달 기록) ──
 // doc id = 'YYYY-MM'. 시트 등록행 수가 아니라 코치 화면의 활성 수강생 수를 보존하기 위함.
 export const recordStudentCount = async (ym, count) => {

@@ -236,6 +236,33 @@ export function getWaitlistCountForSlot(day, periodId, weekWaitlist, newStudentW
     return existingCount + newCount;
 }
 
+/**
+ * 보강/대기 신청 시 대상 요일이 '이중 수강'이 되는지 판정(true면 차단).
+ * - 같은 날 안에서 시간만 옮기면(목4→목1) 그 날 수강 수가 늘지 않으므로 허용(false).
+ * - 다른 날 수업을 그 요일로 옮기는데(월4→목1) 대상 요일에 아직 출석하는 정규 수업(목4)이
+ *   남아 있으면 이중 수강이 되므로 차단(true).
+ * 이미 다른 보강으로 그 날 자리를 비운 정규 수업은 '남은 것'으로 치지 않는다(재신청 허용).
+ * @param {{day:string,period:number}[]} studentSchedule - 원래 시간표(요일 및 시간 파싱 결과)
+ * @param {{originalClass:{day:string,period:number,date:string}}[]} activeMakeupRequests - 이번 주 활성 보강(취소 제외)
+ * @param {{day:string,period:number}} originalClass - 이번에 옮기는 원래 수업
+ * @param {string} targetDay - 보강 대상 요일
+ * @param {string} targetDate - 보강 대상 날짜(YYYY-MM-DD)
+ */
+export function wouldDoubleBookDay(studentSchedule, activeMakeupRequests, originalClass, targetDay, targetDate) {
+    // 같은 날 안에서 시간만 옮기는 경우 — 그 날 수강 수가 늘지 않으므로 허용
+    if (originalClass && originalClass.day === targetDay) return false;
+    // 다른 날 수업을 옮겨오는 경우 — 대상 요일에 아직 출석하는 정규 수업이 있으면 이중 수강
+    return (studentSchedule || []).some(s => {
+        if (s.day !== targetDay) return false;
+        const movedAway = (activeMakeupRequests || []).some(m =>
+            m.originalClass?.day === s.day &&
+            m.originalClass?.period === s.period &&
+            m.originalClass?.date === targetDate
+        );
+        return !movedAway;
+    });
+}
+
 /** 교시 종료 시각(분). time 문자열("19:50 ~ 21:20")의 끝 시간 기준, 파싱 실패 시 시작+90분. */
 export function getPeriodEndMinutes(period) {
     const m = (period.time || '').match(/~\s*(\d{1,2}):(\d{2})/);
