@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRADES, xpToGrade, gradeProgress, recordVolume, computeUserXp, FEMALE_COEF, gradeRank } from './grades';
+import { GRADES, xpToGrade, gradeProgress, recordVolume, computeUserXp, FEMALE_COEF, gradeRank, resolveCoef } from './grades';
 
 describe('xpToGrade', () => {
   it('0 XP는 초등1', () => expect(xpToGrade(0).short).toBe('초1'));
@@ -33,6 +33,23 @@ describe('gradeProgress', () => {
     const p = gradeProgress(500000);
     expect(p.next).toBe(null);
     expect(p.pct).toBe(100);
+  });
+});
+
+describe('resolveCoef (성별 미도착 시 저장 계수 유지)', () => {
+  it('성별 있으면 그 계수 (여=1.5, 남=1)', () => {
+    expect(resolveCoef('여', 1)).toBe(FEMALE_COEF);
+    expect(resolveCoef('여자', 1)).toBe(FEMALE_COEF);
+    expect(resolveCoef('남', 1.5)).toBe(1);
+  });
+  it('성별 없으면 저장된 계수 유지 → 시트 로딩 지연에도 학년 안 떨어짐', () => {
+    expect(resolveCoef('', 1.5)).toBe(1.5);
+    expect(resolveCoef(undefined, 1.5)).toBe(1.5);
+    expect(resolveCoef(null, 1.5)).toBe(1.5);
+  });
+  it('성별도 저장 계수도 없으면 1 (신규)', () => {
+    expect(resolveCoef('', undefined)).toBe(1);
+    expect(resolveCoef(undefined, null)).toBe(1);
   });
 });
 

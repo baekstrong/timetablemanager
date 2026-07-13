@@ -21,6 +21,14 @@ export const GRADES = [
 
 export const FEMALE_COEF = 1.5;
 
+// 성별이 있으면 그 계수(여=1.5), 없으면 이전에 저장된 계수를 유지(신규는 1).
+// 시트 로딩 지연으로 성별을 못 받았을 때 계수가 1로 리셋돼 학년이 하락/깜빡이는 것을 막는다.
+export function resolveCoef(gender, storedCoef) {
+    const g = (gender || '').trim();
+    if (g) return g.startsWith('여') ? FEMALE_COEF : 1;
+    return typeof storedCoef === 'number' ? storedCoef : 1;
+}
+
 // 학년 순위 인덱스(낮을수록 낮은 학년). 승급 비교용. 없는 키는 -1.
 export function gradeRank(key) {
     return GRADES.findIndex(g => g.key === key);

@@ -23,7 +23,7 @@ import {
     startAfter
 } from 'firebase/firestore';
 import { scoreToTier, computeActiveScore, compareTiers } from '../utils/tiers';
-import { xpToGrade, gradeRank, FEMALE_COEF, recordVolume } from '../utils/grades';
+import { xpToGrade, gradeRank, FEMALE_COEF, recordVolume, resolveCoef } from '../utils/grades';
 import { PR_REP_THRESHOLDS } from '../data/mockData';
 
 // ============================================
@@ -1913,15 +1913,19 @@ export const refreshStudentXP = async ({ userName, gender }) => {
         const name = (userName || '').trim();
         if (!name) return { xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null };
         // 이번 세션서 이미 계산했으면 저장값만 반환 — user doc·records 재조회·재팝업 없음.
+        // 단, 늦게 도착한 확실한 성별로 계수가 바뀌면(예: 시트 로드 후 '여') 재계산해 오염된 값을 치유한다.
         if (xpSessionCache.has(name)) {
             const c = xpSessionCache.get(name);
-            return { xp: c.xp, grade: c.grade, isNew: false, promoted: false, fromGrade: null };
+            if (resolveCoef(gender, c.coef) === c.coef) {
+                return { xp: c.xp, grade: c.grade, isNew: false, promoted: false, fromGrade: null };
+            }
         }
         const userRef = doc(db, 'users', name);
         const snap = await getDoc(userRef);
         if (!snap.exists()) return { xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null };
         const u = snap.data() || {};
-        const coef = (gender || '').trim().startsWith('여') ? FEMALE_COEF : 1;
+        // 성별 미도착(시트 로딩 지연) 시 1로 리셋하지 말고 저장된 xpCoef를 유지 → 학년 하락/깜빡임 방지.
+        const coef = resolveCoef(gender, u.xpCoef);
         // 카운터 방식: xpVolume(원시 누적) 하나가 진실. 훈련일지가 기록 저장 시 증분한다.
         // 없으면(기존/최초 학생) 본인 기록으로 1회 시딩 — 전체 컬렉션 스캔 아님(본인분만).
         let xpVolume = typeof u.xpVolume === 'number' ? u.xpVolume : null;
@@ -1945,7 +1949,7 @@ export const refreshStudentXP = async ({ userName, gender }) => {
             xp, xpVolume, xpCoef: coef, grade, gradeSeen, gradeUpdatedAt: serverTimestamp(),
         }, { merge: true });
         clearGradeMapCache();
-        xpSessionCache.set(name, { xp, grade });
+        xpSessionCache.set(name, { xp, grade, coef });
         return { xp, grade, isNew: firstTime, promoted, fromGrade: promoted ? prevSeen : null };
     });
 };

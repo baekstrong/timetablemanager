@@ -48,7 +48,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     const [gradeChange, setGradeChange] = useState(null);
     // 학년(XP) — 인사말 GradeHero용 + 게시판/댓글 학년 뱃지용
     const [gradeMap, setGradeMap] = useState({});
-    const [myXp, setMyXp] = useState(0);
+    const [myXp, setMyXp] = useState(null); // null = 아직 로드 전 → 학년칩 숨김(초1 깜빡임 방지)
     // PR 축하 팝업 (코치 대리 입력 후 학생 첫 접속 시 1회)
     const [prCelebration, setPrCelebration] = useState(null);
 
@@ -82,7 +82,8 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             if (change.tier) setTierMap(prev => ({ ...prev, [user.username]: change.tier }));
             if (change.changed) setTierChange(change);
         });
-        const myGender = (students.find(s => (s['이름'] || '').trim() === user.username)?.['성별'] || '').trim();
+        // 같은 학생이 여러 시트 행에 있을 수 있어 성별이 채워진 행을 우선(랭킹 genderMap과 동일).
+        const myGender = (students.find(s => (s['이름'] || '').trim() === user.username && (s['성별'] || '').trim())?.['성별'] || '').trim();
         refreshStudentXP({ userName: user.username, gender: myGender }).then(res => {
             if (cancel || !res) return;
             setMyXp(res.xp);
@@ -419,7 +420,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         <h1 className="dashboard-title">
                             환영합니다, {user.role !== 'coach' && <TierBadge tier={tierMap[user.username]} style={{ height: '20px', fontSize: '0.75rem' }} />}{user.username}님
                         </h1>
-                        {user.role !== 'coach' && <GradeHero xp={myXp} onClick={() => onNavigate('ranking', 'graph')} />}
+                        {user.role !== 'coach' && myXp != null && <GradeHero xp={myXp} onClick={() => onNavigate('ranking', 'graph')} />}
                     </div>
                     <button onClick={onLogout} className="logout-button">
                         <span>로그아웃</span>
