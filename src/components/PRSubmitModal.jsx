@@ -131,7 +131,7 @@ const PRSubmitModal = ({ user, students, defaultStudent, exerciseSuggestions = [
 
     return (
         <div className="pr-modal-overlay" onClick={celebration ? undefined : onClose}>
-            <div className="pr-modal-content" onClick={(e) => e.stopPropagation()} style={{ position: 'relative', overflow: 'hidden' }}>
+            <div className="pr-modal-content" onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
                 {celebration && (
                     <div style={{
                         position: 'absolute',
