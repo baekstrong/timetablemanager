@@ -504,3 +504,129 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* 시작날짜 미니 달력 피커 */
+.reg-startcal {
+    position: relative;
+}
+
+.reg-startcal-field {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: white;
+    box-sizing: border-box;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text);
+}
+
+.reg-startcal-field:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-10);
+}
+
+.reg-startcal-caret {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+}
+
+.reg-startcal-warn {
+    margin-top: 0.35rem;
+    font-size: 0.78rem;
+    color: #ef4444;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.reg-startcal-pop {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 30;
+    width: 100%;
+    min-width: 220px;
+    background: white;
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    padding: 0.6rem;
+}
+
+.reg-startcal-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.4rem;
+}
+
+.reg-startcal-nav button {
+    border: none;
+    background: var(--canvas-tint);
+    border-radius: 6px;
+    width: 26px;
+    height: 26px;
+    cursor: pointer;
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+.reg-startcal-nav button:hover {
+    background: var(--accent-10);
+}
+
+.reg-startcal-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2px;
+}
+
+.reg-startcal-wd {
+    text-align: center;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 0.15rem 0;
+}
+
+.reg-startcal-cell {
+    text-align: center;
+    font-size: 0.75rem;
+    padding: 0.35rem 0.1rem;
+    border: none;
+    border-radius: 6px;
+    background: var(--canvas-tint);
+    color: var(--text-secondary);
+    cursor: pointer;
+    min-height: 1.7rem;
+}
+
+.reg-startcal-cell:hover:not(.empty) {
+    background: var(--accent-10);
+}
+
+.reg-startcal-cell.empty {
+    background: transparent;
+    cursor: default;
+}
+
+.reg-startcal-cell.holiday {
+    background: #fef2f2;
+    color: #ef4444;
+    font-weight: 600;
+}
+
+.reg-startcal-cell.selected {
+    background: var(--accent);
+    color: white;
+    font-weight: 700;
+}
