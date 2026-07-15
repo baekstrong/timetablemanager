@@ -77,8 +77,9 @@ const getNextClassDay = (fromDate, scheduleStr) => {
     return null;
 };
 
-// 시작날짜 선택용 미니 달력 (월~금, 공휴일·직접지정 휴일 빨간 표시 + 클릭 선택 + 휴일 경고)
-const START_CAL_WEEKDAYS = ['월', '화', '수', '목', '금'];
+// 시작날짜 선택용 미니 달력 (일~토, 공휴일·직접지정 휴일 빨간 표시 + 클릭 선택 + 휴일 경고)
+// 주말은 표시만 (일=빨강/토=파랑, 선택 불가 — 수업은 월~금)
+const START_CAL_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 const StartDateCalendar = ({ value, onChange, holidays }) => {
     const [open, setOpen] = useState(false);
@@ -98,16 +99,19 @@ const StartDateCalendar = ({ value, onChange, holidays }) => {
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const cells = [];
         for (let d = 1; d <= daysInMonth; d++) {
-            const dow = new Date(year, month, d).getDay();
-            if (dow === 0 || dow === 6) continue; // 월~금만
+            const dow = new Date(year, month, d).getDay(); // 0=일 ~ 6=토
             const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            cells.push({ day: d, col: dow - 1, iso, holidayName: getHolidayName(new Date(year, month, d), holidays) });
+            cells.push({
+                day: d, col: dow, iso,
+                weekend: dow === 0 ? 'sun' : dow === 6 ? 'sat' : null,
+                holidayName: getHolidayName(new Date(year, month, d), holidays),
+            });
         }
         const rows = [];
-        let row = new Array(5).fill(null);
+        let row = new Array(7).fill(null);
         for (const c of cells) {
             row[c.col] = c;
-            if (c.col === 4) { rows.push(row); row = new Array(5).fill(null); }
+            if (c.col === 6) { rows.push(row); row = new Array(7).fill(null); }
         }
         if (row.some(Boolean)) rows.push(row);
         return rows;
@@ -137,15 +141,17 @@ const StartDateCalendar = ({ value, onChange, holidays }) => {
                         <button type="button" onClick={() => shift(1)} aria-label="다음 달">›</button>
                     </div>
                     <div className="reg-startcal-grid">
-                        {START_CAL_WEEKDAYS.map(w => <div key={w} className="reg-startcal-wd">{w}</div>)}
+                        {START_CAL_WEEKDAYS.map((w, i) => (
+                            <div key={w} className={`reg-startcal-wd${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}`}>{w}</div>
+                        ))}
                         {weeks.map((row, ri) => row.map((c, ci) => (
                             <button
                                 type="button"
                                 key={`${ri}-${ci}`}
-                                className={`reg-startcal-cell${!c ? ' empty' : ''}${c && c.holidayName ? ' holiday' : ''}${c && c.iso === value ? ' selected' : ''}`}
-                                disabled={!c}
+                                className={`reg-startcal-cell${!c ? ' empty' : ''}${c && c.weekend ? ` ${c.weekend}` : ''}${c && !c.weekend && c.holidayName ? ' holiday' : ''}${c && c.iso === value ? ' selected' : ''}`}
+                                disabled={!c || !!c.weekend}
                                 title={c && c.holidayName ? c.holidayName : ''}
-                                onClick={() => { onChange(c.iso); setOpen(false); }}
+                                onClick={() => { if (c && !c.weekend) { onChange(c.iso); setOpen(false); } }}
                             >
                                 {c ? c.day : ''}
                             </button>

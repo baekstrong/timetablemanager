@@ -551,7 +551,7 @@
     left: 0;
     z-index: 30;
     width: 100%;
-    min-width: 220px;
+    min-width: 252px;
     background: white;
     border: 1px solid var(--hairline);
     border-radius: 12px;
@@ -586,7 +586,7 @@
 
 .reg-startcal-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(7, 1fr);
     gap: 2px;
 }
 
@@ -597,6 +597,9 @@
     color: var(--text-muted);
     padding: 0.15rem 0;
 }
+
+.reg-startcal-wd.sun { color: #ef4444; }
+.reg-startcal-wd.sat { color: #3b82f6; }
 
 .reg-startcal-cell {
     text-align: center;
@@ -610,7 +613,7 @@
     min-height: 1.7rem;
 }
 
-.reg-startcal-cell:hover:not(.empty) {
+.reg-startcal-cell:not(:disabled):hover {
     background: var(--accent-10);
 }
 
@@ -618,6 +621,16 @@
     background: transparent;
     cursor: default;
 }
+
+/* 주말: 표시만 (선택 불가) */
+.reg-startcal-cell.sun,
+.reg-startcal-cell.sat {
+    background: transparent;
+    cursor: default;
+}
+
+.reg-startcal-cell.sun { color: #ef4444; }
+.reg-startcal-cell.sat { color: #3b82f6; }
 
 .reg-startcal-cell.holiday {
     background: #fef2f2;
