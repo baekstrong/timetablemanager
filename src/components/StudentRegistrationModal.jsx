@@ -9,7 +9,8 @@ import {
     calculateEndDateWithHolidays,
     formatCellsWithStyle,
     parseScheduleString,
-    isHolidayDate
+    isHolidayDate,
+    getHolidayName
 } from '../services/googleSheetsService';
 import { getHolidays, createRenewalContract, createNewStudentRegistration, getEntranceClasses, updateEntranceClass, updateNewStudentRegistration } from '../services/firebaseService';
 import { setStudentPassword } from '../services/authService';
@@ -74,6 +75,92 @@ const getNextClassDay = (fromDate, scheduleStr) => {
         date.setDate(date.getDate() + 1);
     }
     return null;
+};
+
+// 시작날짜 선택용 미니 달력 (일~토, 공휴일·직접지정 휴일 빨간 표시 + 클릭 선택 + 휴일 경고)
+// 주말은 표시만 (일=빨강/토=파랑, 선택 불가 — 수업은 월~금)
+const START_CAL_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+const StartDateCalendar = ({ value, onChange, holidays }) => {
+    const [open, setOpen] = useState(false);
+    const base = value ? new Date(value + 'T00:00:00') : new Date();
+    const [view, setView] = useState({ year: base.getFullYear(), month: base.getMonth() });
+
+    // 외부에서 값이 바뀌면(자동 세팅 등) 그 달로 이동
+    useEffect(() => {
+        if (value) {
+            const d = new Date(value + 'T00:00:00');
+            setView({ year: d.getFullYear(), month: d.getMonth() });
+        }
+    }, [value]);
+
+    const weeks = useMemo(() => {
+        const { year, month } = view;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const cells = [];
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dow = new Date(year, month, d).getDay(); // 0=일 ~ 6=토
+            const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            cells.push({
+                day: d, col: dow, iso,
+                weekend: dow === 0 ? 'sun' : dow === 6 ? 'sat' : null,
+                holidayName: getHolidayName(new Date(year, month, d), holidays),
+            });
+        }
+        const rows = [];
+        let row = new Array(7).fill(null);
+        for (const c of cells) {
+            row[c.col] = c;
+            if (c.col === 6) { rows.push(row); row = new Array(7).fill(null); }
+        }
+        if (row.some(Boolean)) rows.push(row);
+        return rows;
+    }, [view, holidays]);
+
+    const shift = (delta) => setView(v => {
+        const m = v.month + delta;
+        return { year: v.year + Math.floor(m / 12), month: ((m % 12) + 12) % 12 };
+    });
+
+    const selectedHolidayName = value ? getHolidayName(new Date(value + 'T00:00:00'), holidays) : null;
+
+    return (
+        <div className="reg-startcal">
+            <button type="button" className="reg-startcal-field" onClick={() => setOpen(o => !o)}>
+                {value || '날짜 선택'}
+                <span className="reg-startcal-caret">▾</span>
+            </button>
+            {selectedHolidayName && (
+                <div className="reg-startcal-warn">⚠️ {value}은(는) {selectedHolidayName}입니다. 시작날짜로 맞는지 확인하세요.</div>
+            )}
+            {open && (
+                <div className="reg-startcal-pop">
+                    <div className="reg-startcal-nav">
+                        <button type="button" onClick={() => shift(-1)} aria-label="이전 달">‹</button>
+                        <span>{view.year}년 {view.month + 1}월</span>
+                        <button type="button" onClick={() => shift(1)} aria-label="다음 달">›</button>
+                    </div>
+                    <div className="reg-startcal-grid">
+                        {START_CAL_WEEKDAYS.map((w, i) => (
+                            <div key={w} className={`reg-startcal-wd${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}`}>{w}</div>
+                        ))}
+                        {weeks.map((row, ri) => row.map((c, ci) => (
+                            <button
+                                type="button"
+                                key={`${ri}-${ci}`}
+                                className={`reg-startcal-cell${!c ? ' empty' : ''}${c && c.weekend ? ` ${c.weekend}` : ''}${c && !c.weekend && c.holidayName ? ' holiday' : ''}${c && c.iso === value ? ' selected' : ''}`}
+                                disabled={!c || !!c.weekend}
+                                title={c && c.holidayName ? c.holidayName : ''}
+                                onClick={() => { if (c && !c.weekend) { onChange(c.iso); setOpen(false); } }}
+                            >
+                                {c ? c.day : ''}
+                            </button>
+                        )))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 };
 
 const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, initialEntranceId }) => {
@@ -780,10 +867,10 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
                 <div className="reg-field-row">
                     <div className="reg-field-group">
                         <label>시작날짜 *</label>
-                        <input
-                            type="date"
+                        <StartDateCalendar
                             value={form.시작날짜}
-                            onChange={(e) => handleChange('시작날짜', e.target.value)}
+                            onChange={(v) => handleChange('시작날짜', v)}
+                            holidays={holidays}
                         />
                     </div>
                     <div className="reg-field-group">

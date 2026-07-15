@@ -819,6 +819,16 @@ export const isHolidayDate = (date, firebaseHolidays = []) => {
   return false;
 };
 
+/**
+ * 공휴일 이름 반환 (공휴일 아니면 null). 공휴일=KOREAN_HOLIDAYS_2026, 커스텀=holidays 컬렉션의 reason
+ */
+export const getHolidayName = (date, firebaseHolidays = []) => {
+  const dateStr = formatDateToISO(date);
+  if (KOREAN_HOLIDAYS_2026[dateStr]) return KOREAN_HOLIDAYS_2026[dateStr];
+  const custom = firebaseHolidays.find(h => h.date === dateStr);
+  return custom ? (custom.reason || '휴일') : null;
+};
+
 // ─── 스케줄 파싱 ───
 
 /**
