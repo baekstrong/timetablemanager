@@ -13,6 +13,7 @@ import {
     weekDateToISO,
     transformGoogleSheetsData,
     getScheduleSortKey,
+    isDelayedReregistration,
 } from '../../utils/scheduleUtils';
 import { MOCK_DATA, MAX_CAPACITY, KOREAN_HOLIDAYS } from '../../data/mockData';
 import { getUnpaidStudentNames } from '../../utils/studentList';
@@ -297,9 +298,12 @@ export function useScheduleCore({
             ed.setHours(0, 0, 0, 0);
             const effectiveEnd = getEffectiveEndDate(student, ed);
             effectiveEnd.setHours(0, 0, 0, 0);
-            if (effectiveEnd >= today) return false;
-            const schedule = student['요일 및 시간'];
-            return schedule && schedule.trim();
+            return isDelayedReregistration({
+                effectiveEnd,
+                today,
+                schedule: student['요일 및 시간'],
+                hasNextRegistration: !!student._nextStartDate,
+            });
         }).map(({ student, endDate }) => {
             const name = student['이름'];
             const schedule = student['요일 및 시간'] || '';

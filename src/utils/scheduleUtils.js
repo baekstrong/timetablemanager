@@ -189,6 +189,18 @@ export function getScheduleSortKey(scheduleStr) {
     return (dayOrder[first.day] || 0) * 10 + first.period;
 }
 
+/**
+ * 코치 시간표 '재등록X'(재등록 지연) 배지 판정 — 순수 함수.
+ * effectiveEnd: 보강 반영 마지막 실제 수업일(자정 정규화 Date). today: 오늘(자정 정규화 Date).
+ * 이미 다음(미리) 등록이 있으면(=재등록 완료) 지연으로 보지 않는다.
+ * 보강으로 마지막 수업을 종료일보다 앞당기면 effectiveEnd < 종료날짜라 지연 오탐이 나던 버그 방지.
+ */
+export function isDelayedReregistration({ effectiveEnd, today, schedule, hasNextRegistration }) {
+    if (hasNextRegistration) return false;
+    if (effectiveEnd >= today) return false;
+    return !!(schedule && schedule.trim());
+}
+
 /** Get Monday~Sunday date range for the current week. */
 export function getThisWeekRange() {
     const today = new Date();

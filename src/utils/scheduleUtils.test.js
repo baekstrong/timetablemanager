@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPeriodEndMinutes, isPeriodImminentOrOngoing, wouldDoubleBookDay } from './scheduleUtils';
+import { getPeriodEndMinutes, isPeriodImminentOrOngoing, wouldDoubleBookDay, isDelayedReregistration } from './scheduleUtils';
 
 const P5 = { id: 5, name: '5교시', time: '19:50 ~ 21:20', startHour: 19, startMinute: 50 };
 const P3 = { id: 3, name: '3교시(자율)', time: '15:00 ~ 17:00', type: 'free', startHour: 15, startMinute: 0 };
@@ -53,5 +53,46 @@ describe('isPeriodImminentOrOngoing', () => {
         expect(isPeriodImminentOrOngoing(P5, at(20, 30))).toBe(true);
         expect(isPeriodImminentOrOngoing(P5, at(21, 20))).toBe(true);
         expect(isPeriodImminentOrOngoing(P5, at(21, 21))).toBe(false);
+    });
+});
+
+describe('isDelayedReregistration (재등록X 배지)', () => {
+    const today = new Date('2026-07-16T00:00:00');
+    const d = (iso) => new Date(iso + 'T00:00:00');
+
+    it('주상조 케이스: 종료일(7/16)보다 앞선 날(7/15)로 보강해 마지막 수업이 앞당겨졌어도, 이미 재등록했으면 지연 아님', () => {
+        expect(isDelayedReregistration({
+            effectiveEnd: d('2026-07-15'), // 보강으로 앞당겨진 마지막 실제 수업일
+            today,
+            schedule: '목1',
+            hasNextRegistration: true,     // 어제 재등록함
+        })).toBe(false);
+    });
+
+    it('재등록 안 했고 마지막 수업이 지났으면 지연으로 표시', () => {
+        expect(isDelayedReregistration({
+            effectiveEnd: d('2026-07-15'),
+            today,
+            schedule: '목1',
+            hasNextRegistration: false,
+        })).toBe(true);
+    });
+
+    it('마지막 수업일이 아직 오늘 이후면 지연 아님', () => {
+        expect(isDelayedReregistration({
+            effectiveEnd: d('2026-07-20'),
+            today,
+            schedule: '목1',
+            hasNextRegistration: false,
+        })).toBe(false);
+    });
+
+    it('시간표가 없으면(빈 문자열) 지연 아님', () => {
+        expect(isDelayedReregistration({
+            effectiveEnd: d('2026-07-15'),
+            today,
+            schedule: '',
+            hasNextRegistration: false,
+        })).toBe(false);
     });
 });

@@ -1314,6 +1314,11 @@ export const getAllStudentsFromAllSheets = async () => {
       active._prevSchedule = getStudentField(prev, '요일 및 시간');
     }
 
+    // 다음(미리) 등록이 있으면 시작날짜 보존 — 이미 재등록한 학생을 '재등록 지연'으로 오탐하지 않기 위함
+    if (activeIdx < registrations.length - 1) {
+      active._nextStartDate = getStudentField(registrations[activeIdx + 1], '시작날짜');
+    }
+
     latestByName[name] = active;
   });
 
