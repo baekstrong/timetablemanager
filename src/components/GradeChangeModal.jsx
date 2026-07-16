@@ -43,7 +43,7 @@ export default function GradeChangeModal({ change, onClose }) {
                 <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                     {isNew
                         ? '훈련일지에 쌓인 누적 운동량으로 학년이 정해져요. 꾸준히 운동하고 일지를 쓸수록 학년이 올라갑니다! (초등 1학년 → … → 대학 4학년 졸업) 💪'
-                        : '그동안 쌓은 운동량으로 학년이 올랐어요! 꾸준히 운동하고 일지를 쓸수록 더 높은 학년으로 올라갑니다 💪'}
+                        : '한 학년 올랐어요! 이제 운동이 제법 익숙하죠? 꾸준히 쌓은 만큼 몸도 달라지고 있어요 💪'}
                 </p>
                 <button
                     onClick={onClose}

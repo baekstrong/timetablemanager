@@ -155,7 +155,8 @@ function showPRCelebration(pr) {
         <div class="modal-content max-w-sm w-full text-center">
             <div class="text-5xl mb-2">🎉</div>
             <p class="text-lg font-bold text-gray-800 mb-1">${esc(pr.exercise)} 개인 기록 경신!</p>
-            <p class="text-sm text-gray-600 mb-4">${lines.join('<br>')}</p>
+            <p class="text-sm text-gray-600 mb-2">${lines.join('<br>')}</p>
+            <p class="text-sm text-gray-600 mb-4">어제의 나보다 강해졌어요. 이런 하루가 쌓여서 지금의 몸을 만들어요 💪</p>
             <button onclick="document.getElementById('prCelebrationOverlay')?.remove()"
                 class="w-full bg-[#329BE7] hover:bg-[#327AB8] text-white py-2.5 rounded-lg font-bold">좋았어! 💪</button>
         </div>`;
@@ -230,7 +231,7 @@ function showLevelUp(toKey) {
             <div class="text-5xl mb-2">🎓</div>
             <p class="text-lg font-bold text-gray-800 mb-1">레벨 업!</p>
             <p class="text-2xl font-extrabold text-[#329BE7] mb-1">${to.label}</p>
-            <p class="text-sm text-gray-600 mb-4">축하합니다! 계속 쌓아가요 💪</p>
+            <p class="text-sm text-gray-600 mb-4">이제 운동이 어색하지 않죠? 몸이 운동을 기억하기 시작했어요 💪</p>
             <button onclick="document.getElementById('levelUpOverlay')?.remove()"
                 class="w-full bg-[#329BE7] hover:bg-[#327AB8] text-white py-2.5 rounded-lg font-bold">좋았어! 🎉</button>
         </div>`;
