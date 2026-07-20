@@ -10,6 +10,8 @@ if (sentryDsn && import.meta.env.PROD) {
   Sentry.init({
     dsn: sentryDsn,
     sendDefaultPii: false,
+    // 인앱 브라우저(WKWebView)가 주입한 스크립트 에러 — 우리 코드 아님
+    ignoreErrors: [/window\.webkit\.messageHandlers/],
   })
 }
 
