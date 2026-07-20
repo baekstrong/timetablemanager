@@ -1314,9 +1314,13 @@ export const getAllStudentsFromAllSheets = async () => {
       active._prevSchedule = getStudentField(prev, '요일 및 시간');
     }
 
-    // 다음(미리) 등록이 있으면 시작날짜 보존 — 이미 재등록한 학생을 '재등록 지연'으로 오탐하지 않기 위함
+    // 다음(미리) 등록이 있으면 시작날짜·요일 보존
+    //  - _nextStartDate: 이미 재등록한 학생을 '재등록 지연'으로 오탐하지 않기 위함
+    //  - _nextSchedule: 다음 달 다른 슬롯으로 옮긴 경우, 신규 등록 시간표 인원 카운트가
+    //    '옮겨갈 목적지 슬롯' 기준으로 세도록(정원 초과 배정 방지). computeSlotOccupancy 참고.
     if (activeIdx < registrations.length - 1) {
       active._nextStartDate = getStudentField(registrations[activeIdx + 1], '시작날짜');
+      active._nextSchedule = getStudentField(registrations[activeIdx + 1], '요일 및 시간');
     }
 
     latestByName[name] = active;

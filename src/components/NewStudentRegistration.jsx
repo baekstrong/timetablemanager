@@ -4,6 +4,7 @@ import { getDisabledClasses, createNewStudentRegistration, updateNewStudentRegis
 import { sendRegistrationNotifications } from '../services/smsService';
 import { formatEntranceDate, calculateStartEndDates } from '../utils/dateUtils';
 import { PERIODS, DAYS, MAX_CAPACITY, PRICING, ENTRANCE_FEE } from '../data/mockData';
+import { computeSlotOccupancy } from '../utils/slotOccupancy';
 import './NewStudentRegistration.css';
 
 /**
@@ -127,45 +128,12 @@ const NewStudentRegistration = () => {
         }
     }, [step]);
 
-    // Compute slot occupancy from Google Sheets data + pending registrations
-    // 코치 시간표(transformGoogleSheetsData)와 동일하게 학생 이름 기준 중복 제거
-    const slotOccupancy = useMemo(() => {
-        const occupancy = {};
-        const namesPerSlot = {}; // 슬롯별 학생 이름 Set (중복 방지)
-
-        // 1. Google Sheets 학생 카운트 (이름 기준 중복 제거)
-        if (students && students.length > 0) {
-            students.forEach((student) => {
-                const studentName = student['이름'];
-                const scheduleStr = student['요일 및 시간'];
-                if (!studentName || !scheduleStr) return;
-
-                const schedules = parseScheduleString(scheduleStr);
-                schedules.forEach(({ day, period }) => {
-                    const key = `${day}-${period}`;
-                    if (!namesPerSlot[key]) namesPerSlot[key] = new Set();
-                    namesPerSlot[key].add(studentName);
-                });
-            });
-        }
-
-        // 2. pending 등록의 requestedSlots 카운트 추가
-        pendingRegistrations.forEach(reg => {
-            if (!reg.requestedSlots || !reg.name) return;
-            reg.requestedSlots.forEach(({ day, period }) => {
-                const key = `${day}-${period}`;
-                if (!namesPerSlot[key]) namesPerSlot[key] = new Set();
-                namesPerSlot[key].add(`__pending__${reg.name}`);
-            });
-        });
-
-        // Set size → occupancy count
-        Object.keys(namesPerSlot).forEach(key => {
-            occupancy[key] = namesPerSlot[key].size;
-        });
-
-        return occupancy;
-    }, [students, pendingRegistrations]);
+    // 슬롯별 인원수 계산 (순수 로직은 utils/slotOccupancy).
+    // 학생 이름 기준 중복 제거 + 다음 달 다른 슬롯으로 옮긴 학생은 목적지 슬롯에서 카운트.
+    const slotOccupancy = useMemo(
+        () => computeSlotOccupancy(students, pendingRegistrations, parseScheduleString),
+        [students, pendingRegistrations]
+    );
 
     // 만석인 셀 수 계산 (자율 교시 제외)
     const fullSlotCount = useMemo(() => {
