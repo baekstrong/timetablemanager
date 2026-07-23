@@ -166,6 +166,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
     // Manual refresh state
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [refreshMsg, setRefreshMsg] = useState(''); // 새로고침 완료 피드백 (2.5초 후 사라짐)
 
     // 시간표 변경(직접 이동) 처리 중 플래그 — 화면 이탈 방지 + 로딩 UI
     const [isTransferring, setIsTransferring] = useState(false);
@@ -272,10 +273,13 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         try {
             await refresh();
             await loadWeeklyData();
+            setRefreshMsg('✓ 최신 상태입니다');
         } catch (error) {
             console.error('Refresh failed:', error);
+            setRefreshMsg('새로고침 실패 — 잠시 후 다시 시도해주세요');
         } finally {
             setIsRefreshing(false);
+            setTimeout(() => setRefreshMsg(''), 2500);
         }
     }
 
@@ -379,7 +383,9 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
     // ── Loading / not-authenticated states ──
 
-    if (loading) {
+    // 최초 로드만 전체화면 스피너. 수동 새로고침(isRefreshing) 중엔 표+버튼을 유지해
+    // 새로고침 버튼이 사라져 클릭이 유실되는 문제를 막는다.
+    if (loading && !isRefreshing) {
         return (
             <div className="schedule-container">
                 <div className="schedule-page-header">
@@ -440,11 +446,22 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 <h1 className="schedule-page-title">
                     {pageTitle}
                 </h1>
+                {refreshMsg && (
+                    <span style={{
+                        marginLeft: 'auto',
+                        fontSize: '0.8rem',
+                        color: refreshMsg.startsWith('✓') ? 'var(--success)' : 'var(--error)',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                    }}>
+                        {refreshMsg}
+                    </span>
+                )}
                 <button
                     onClick={handleManualRefresh}
                     disabled={isRefreshing}
                     style={{
-                        marginLeft: 'auto',
+                        marginLeft: refreshMsg ? '0.5rem' : 'auto',
                         padding: '4px 12px',
                         fontSize: '0.85rem',
                         border: '1px solid #ddd',
