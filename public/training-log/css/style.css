@@ -9,7 +9,10 @@ body {
     bottom: 12px;
     left: 10px;
     right: 10px;
-    z-index: 1000;
+    /* 모달·드롭다운(z 10~1000)보다 낮게 유지 — 떠있는 네비가 그 위 요소의 탭을
+       가로채(예: 기록 저장 버튼 근처 탭이 '게시판' 탭으로 새는 문제) 오작동하지 않도록.
+       평범한 콘텐츠(z auto)보다는 위라 네비는 정상적으로 떠 보인다. */
+    z-index: 5;
     display: flex;
     justify-content: space-around;
     align-items: center;

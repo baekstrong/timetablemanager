@@ -16,9 +16,25 @@ let isAddingRecord = false;
 
 function setAddRecordBtnBusy(busy) {
     const btn = document.getElementById('addRecordBtn');
-    if (!btn) return;
-    btn.disabled = busy;
-    btn.textContent = busy ? '저장 중…' : '✅ 운동 완료!';
+    if (btn) {
+        btn.disabled = busy;
+        btn.textContent = busy ? '저장 중…' : '✅ 운동 완료!';
+    }
+    // 저장이 느릴 때(수 초) 다시 탭하면 그 탭이 비활성 버튼이 아니라 떠있는 하단 네비
+    // ('게시판' 탭 등)에 떨어져 화면이 튀는 문제 → 저장 동안 전체 차단 오버레이로 막는다.
+    let overlay = document.getElementById('savingOverlay');
+    if (busy && !overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'savingOverlay';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;';
+        const box = document.createElement('div');
+        box.style.cssText = 'background:#fff;padding:18px 26px;border-radius:12px;font-weight:700;color:#242428;box-shadow:0 10px 40px rgba(0,0,0,0.2);';
+        box.textContent = '저장 중…';
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+    } else if (!busy && overlay) {
+        overlay.remove();
+    }
 }
 
 export async function addRecord() {
