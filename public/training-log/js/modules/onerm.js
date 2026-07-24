@@ -38,6 +38,7 @@ const today = () => new Date().toISOString().split('T')[0];
 const formatMD = (d) => { const [, m, day] = String(d || '').split('-'); return (m && day) ? `${+m}/${+day}` : ''; };
 
 let _myOneRMs = []; // 화면에 렌더된 순서(삭제 시 인덱스로 참조)
+let _expandedIndex = -1; // %표 펼친 항목
 
 export function openOneRMModal() {
     const m = document.getElementById('onermModal');
@@ -135,6 +136,12 @@ export async function loadMyOneRMs() {
     }
 }
 
+// 항목 클릭 → 저장된 1RM 기준 %별 프로그램 중량표 펼치기/접기
+export function toggleOneRM(index) {
+    _expandedIndex = (_expandedIndex === index) ? -1 : index;
+    renderMyOneRMList(null); // 현재 _myOneRMs 재사용
+}
+
 export async function deleteOneRM(index) {
     if (!state.currentUser || !db) return;
     const target = _myOneRMs[index];
@@ -155,25 +162,41 @@ export async function deleteOneRM(index) {
     }
 }
 
+// map 전달 시 데이터 갱신(저장/삭제) → 순서 바뀔 수 있어 펼침 초기화.
+// null 전달 시 펼침 토글만 (현재 _myOneRMs 재사용).
 function renderMyOneRMList(map) {
     const el = document.getElementById('onermMyList');
     if (!el) return;
-    _myOneRMs = sortMyOneRMs(map);
+    if (map !== null) { _myOneRMs = sortMyOneRMs(map); _expandedIndex = -1; }
 
     if (!_myOneRMs.length) {
         el.innerHTML = `<p class="text-xs text-gray-400 text-center py-2">아직 저장한 1RM이 없어요</p>`;
         return;
     }
 
-    el.innerHTML = _myOneRMs.map((it, i) => `
-        <div class="flex items-center justify-between px-3 py-2 border-b border-[#EFEFF0] last:border-0">
-            <div class="min-w-0 truncate">
-                <span class="font-semibold text-gray-800">${esc(it.exercise)}</span>
-                <span class="text-[#329BE7] font-bold ml-2">${it.oneRM}kg</span>
+    el.innerHTML = _myOneRMs.map((it, i) => {
+        const table = i === _expandedIndex ? `
+            <div class="grid grid-cols-2 gap-2 text-sm px-3 pb-3">
+                ${trainingTable(it.oneRM).map(({ pct, weight }) => `
+                    <div class="flex justify-between px-3 py-1.5 bg-gray-50 rounded">
+                        <span class="text-gray-500">${pct}%</span>
+                        <span class="font-semibold text-gray-800">${weight} kg</span>
+                    </div>`).join('')}
+            </div>` : '';
+        return `
+        <div class="border-b border-[#EFEFF0] last:border-0">
+            <div class="flex items-center justify-between px-3 py-2 cursor-pointer" onclick="toggleOneRM(${i})">
+                <div class="min-w-0 truncate">
+                    <span class="font-semibold text-gray-800">${esc(it.exercise)}</span>
+                    <span class="text-[#329BE7] font-bold ml-2">${it.oneRM}kg</span>
+                    <span class="text-gray-300 ml-1">${i === _expandedIndex ? '▲' : '▼'}</span>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <span class="text-xs text-gray-400">${it.weight}×${it.reps} · ${formatMD(it.date)}</span>
+                    <button onclick="event.stopPropagation();deleteOneRM(${i})" class="text-gray-300 hover:text-[#E94E58] text-base leading-none" title="삭제">✕</button>
+                </div>
             </div>
-            <div class="flex items-center gap-2 shrink-0">
-                <span class="text-xs text-gray-400">${it.weight}×${it.reps} · ${formatMD(it.date)}</span>
-                <button onclick="deleteOneRM(${i})" class="text-gray-300 hover:text-[#E94E58] text-base leading-none" title="삭제">✕</button>
-            </div>
-        </div>`).join('');
+            ${table}
+        </div>`;
+    }).join('');
 }
