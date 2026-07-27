@@ -230,7 +230,8 @@ exports.handler = async (event, context) => {
       const authHeaders = generateAuthHeaders();
       console.log('예약 SMS 취소 요청:', groupId);
 
-      const response = await fetch(`${SOLAPI_API_URL}/messages/v4/groups/${groupId}/scheduled`, {
+      // Solapi 예약 취소는 /schedule (복수형 /scheduled 는 404 — 취소가 조용히 실패했었음)
+      const response = await fetch(`${SOLAPI_API_URL}/messages/v4/groups/${groupId}/schedule`, {
         method: 'DELETE',
         headers: authHeaders
       });

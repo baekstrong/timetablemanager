@@ -14,14 +14,30 @@ export function formatScheduledAt(scheduledAt) {
   return `${parseInt(m[2], 10)}/${parseInt(m[3], 10)} ${m[4]}:${m[5]}`;
 }
 
+// ms 타임스탬프 → 'M/D HH:mm' (파싱 실패 시 null)
+export function formatAt(ms) {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms <= 0) return null;
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return null;
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 // 로그 엔트리 → 칩 표시 {kind, label}
+// 발송/실패는 기록 시각(at), 예약은 발송 예정 시각(scheduledAt)을 함께 보여준다.
 export function smsChip(entry) {
-  if (entry && entry.status === 'sent') return { kind: 'sent', label: '나감' };
+  if (entry && entry.status === 'sent') {
+    const at = formatAt(entry.at);
+    return { kind: 'sent', label: at ? `${at} 발송완료` : '발송완료' };
+  }
   if (entry && entry.status === 'scheduled') {
     const at = formatScheduledAt(entry.scheduledAt);
-    return { kind: 'scheduled', label: at ? `${at} 문자 예약됨` : '예약됨' };
+    return { kind: 'scheduled', label: at ? `${at} 예약완료` : '예약완료' };
   }
-  if (entry && entry.status === 'failed') return { kind: 'failed', label: '실패' };
+  if (entry && entry.status === 'failed') {
+    const at = formatAt(entry.at);
+    return { kind: 'failed', label: at ? `${at} 실패` : '실패' };
+  }
   return { kind: 'none', label: '미발송' };
 }
 

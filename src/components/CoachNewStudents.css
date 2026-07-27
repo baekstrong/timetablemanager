@@ -245,6 +245,11 @@
 }
 
 /* Detail */
+/* 문자 상황판 — 접힘/펼침과 무관하게 항상 보이는 줄 */
+.cns-reg-sms {
+    padding: 0 1rem 0.75rem;
+}
+
 .cns-reg-detail {
     padding: 0 1rem 1rem;
     border-top: 1px solid var(--canvas-tint);

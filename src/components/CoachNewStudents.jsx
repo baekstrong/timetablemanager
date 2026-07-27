@@ -616,6 +616,11 @@ const CoachNewStudents = ({ user, onBack }) => {
                 const ok = await sendStudentApprovalSMS(reg.phone, reg.name, details);
                 await updateNewStudentRegistration(reg.id, { 'smsLog.approval': { status: ok ? 'sent' : 'failed', at: Date.now() } });
             } else if (typeKey === 'reminder') {
+                // 남아있는 예약이 있으면 먼저 취소 (재발송이 중복 예약이 되지 않도록)
+                const oldGroupId = reg.reminderGroupId || reg.smsLog?.reminder?.groupId;
+                if (oldGroupId) {
+                    try { await cancelScheduledSMS(oldGroupId); } catch (err) { console.warn('기존 예약문자 취소 실패:', err); }
+                }
                 const res = await scheduleEntranceReminderSMS(reg.phone, reg.name, details);
                 const groupId = res?.groupId;
                 const scheduledAt = res?.scheduledAt;
@@ -1417,6 +1422,12 @@ const CoachNewStudents = ({ user, onBack }) => {
                                         </div>
                                     </div>
 
+                                    {/* 문자 상황판 — 카드를 펼치지 않아도 예약/발송 상태가 보이게 헤더 밖에 둔다
+                                        (헤더 안에 두면 재발송 클릭이 접기/펼치기까지 토글함) */}
+                                    <div className="cns-reg-sms">
+                                        <SmsStatusChips reg={reg} onResend={handleResendSms} resendDisabledReason={resendDisabledReason} />
+                                    </div>
+
                                     {!collapsedRegs.has(reg.id) && (
                                         <div className="cns-reg-detail">
                                             <div className="cns-detail-grid">
@@ -1500,10 +1511,6 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                     <span className="cns-detail-label">등록일</span>
                                                     <span className="cns-detail-value">{formatDate(reg.createdAt)}</span>
                                                 </div>
-                                            </div>
-
-                                            <div style={{ marginTop: '8px' }}>
-                                                <SmsStatusChips reg={reg} onResend={handleResendSms} resendDisabledReason={resendDisabledReason} />
                                             </div>
 
                                             <div className="cns-action-row">

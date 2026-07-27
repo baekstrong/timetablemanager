@@ -32,7 +32,7 @@ export default function SmsStatusChips({ reg, onResend, resendDisabledReason }) 
                 // 과거 데이터(scheduledAt 미기록) 폴백: 입학반 3일 전 9시 규칙으로 예약 시각 추정
                 if (key === 'reminder' && chip.kind === 'scheduled' && !log[key]?.scheduledAt) {
                     const fallbackAt = expectedReminderAt(reg);
-                    if (fallbackAt) chip = { ...chip, label: `${fallbackAt} 문자 예약됨` };
+                    if (fallbackAt) chip = { ...chip, label: `${fallbackAt} 예약완료` };
                 }
                 const showResend = !notYet && (chip.kind === 'failed' || chip.kind === 'none');
                 const disabledReason = showResend && resendDisabledReason ? resendDisabledReason(reg, key) : null;

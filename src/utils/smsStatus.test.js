@@ -1,22 +1,38 @@
 import { describe, it, expect } from 'vitest';
-import { SMS_TYPES, smsChip, isReminderExpected, smsIssueCount, isReminderResendable, formatScheduledAt, expectedReminderAt } from './smsStatus';
+import { SMS_TYPES, smsChip, isReminderExpected, smsIssueCount, isReminderResendable, formatScheduledAt, formatAt, expectedReminderAt } from './smsStatus';
 
 describe('smsChip', () => {
   it('엔트리 없으면 미발송', () => {
     expect(smsChip(undefined)).toEqual({ kind: 'none', label: '미발송' });
   });
-  it('sent → 나감', () => {
-    expect(smsChip({ status: 'sent', at: 1 })).toEqual({ kind: 'sent', label: '나감' });
+  it('sent → 발송 시각 + 발송완료', () => {
+    const at = new Date(2026, 6, 25, 16, 6).getTime();
+    expect(smsChip({ status: 'sent', at })).toEqual({ kind: 'sent', label: '7/25 16:06 발송완료' });
   });
-  it('scheduled(시각 미기록) → 예약됨', () => {
-    expect(smsChip({ status: 'scheduled', at: 1 })).toEqual({ kind: 'scheduled', label: '예약됨' });
+  it('sent(시각 미기록) → 발송완료', () => {
+    expect(smsChip({ status: 'sent' })).toEqual({ kind: 'sent', label: '발송완료' });
   });
-  it('scheduled + scheduledAt → 예약 시각 표시', () => {
+  it('scheduled(시각 미기록) → 예약완료', () => {
+    expect(smsChip({ status: 'scheduled', at: 1 })).toEqual({ kind: 'scheduled', label: '예약완료' });
+  });
+  it('scheduled + scheduledAt → 발송 예정 시각 표시', () => {
     expect(smsChip({ status: 'scheduled', at: 1, scheduledAt: '2026-06-13 09:00:00' }))
-      .toEqual({ kind: 'scheduled', label: '6/13 09:00 문자 예약됨' });
+      .toEqual({ kind: 'scheduled', label: '6/13 09:00 예약완료' });
   });
-  it('failed → 실패', () => {
-    expect(smsChip({ status: 'failed', at: 1 })).toEqual({ kind: 'failed', label: '실패' });
+  it('failed → 실패 시각 표시', () => {
+    const at = new Date(2026, 6, 25, 9, 5).getTime();
+    expect(smsChip({ status: 'failed', at })).toEqual({ kind: 'failed', label: '7/25 09:05 실패' });
+  });
+});
+
+describe('formatAt', () => {
+  it('ms → M/D HH:mm', () => {
+    expect(formatAt(new Date(2026, 11, 3, 18, 30).getTime())).toBe('12/3 18:30');
+  });
+  it('없거나 잘못된 값이면 null', () => {
+    expect(formatAt(undefined)).toBe(null);
+    expect(formatAt(0)).toBe(null);
+    expect(formatAt('1785133012506')).toBe(null);
   });
 });
 
