@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPeriodEndMinutes, isPeriodImminentOrOngoing, wouldDoubleBookDay, isDelayedReregistration } from './scheduleUtils';
+import { getPeriodEndMinutes, isPeriodImminentOrOngoing, wouldDoubleBookDay, isDelayedReregistration, slotsOf } from './scheduleUtils';
 
 const P5 = { id: 5, name: '5교시', time: '19:50 ~ 21:20', startHour: 19, startMinute: 50 };
 const P3 = { id: 3, name: '3교시(자율)', time: '15:00 ~ 17:00', type: 'free', startHour: 15, startMinute: 0 };
@@ -94,5 +94,25 @@ describe('isDelayedReregistration (재등록X 배지)', () => {
             schedule: '',
             hasNextRegistration: false,
         })).toBe(false);
+    });
+});
+
+describe('slotsOf', () => {
+    it('requestedSlots가 있으면 그대로 쓴다', () => {
+        const slots = [{ day: '화', period: 2 }];
+        expect(slotsOf({ requestedSlots: slots, scheduleString: '월6수6' })).toBe(slots);
+    });
+
+    // 코치 직접 등록 건은 requestedSlots가 없다 → 입학반 변경 시 시작/종료일 재계산이 무력화됐던 버그
+    it('requestedSlots가 없으면 scheduleString에서 복원한다', () => {
+        expect(slotsOf({ scheduleString: '월6수6' })).toEqual([
+            { day: '월', period: 6 },
+            { day: '수', period: 6 },
+        ]);
+    });
+
+    it('둘 다 없으면 빈 배열', () => {
+        expect(slotsOf({})).toEqual([]);
+        expect(slotsOf(null)).toEqual([]);
     });
 });

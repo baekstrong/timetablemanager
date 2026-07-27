@@ -38,6 +38,15 @@ export function parseScheduleString(scheduleStr) {
 }
 
 /**
+ * 신규 등록 문서에서 수업 슬롯 얻기.
+ * 코치 직접 등록(StudentRegistrationModal) 건은 requestedSlots를 저장하지 않으므로
+ * scheduleString("월6수6")에서 복원한다. 없으면 [].
+ */
+export const slotsOf = (reg) => (reg?.requestedSlots?.length
+    ? reg.requestedSlots
+    : parseScheduleString(reg?.scheduleString || ''));
+
+/**
  * Parse date string from Google Sheets (YYMMDD format).
  * Example: "260111" -> Date(2026, 0, 11)
  */

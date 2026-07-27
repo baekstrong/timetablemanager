@@ -32,6 +32,7 @@ import SmsStatusChips from './SmsStatusChips';
 import { smsIssueCount, isReminderResendable } from '../utils/smsStatus';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { formatEntranceDate, convertToYYMMDD, calculateStartEndDates } from '../utils/dateUtils';
+import { slotsOf } from '../utils/scheduleUtils';
 import { PRICING, PERIODS, DAYS, MAX_CAPACITY } from '../data/mockData';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import './CoachNewStudents.css';
@@ -487,9 +488,10 @@ const CoachNewStudents = ({ user, onBack }) => {
                 try {
                     // 시작일 기준으로 시트 결정 (승인 시와 동일한 로직)
                     const entranceDateForCalc = reg.entranceInquiry || reg.entranceDate;
+                    const delSlots = slotsOf(reg);
                     let targetSheet;
-                    if (entranceDateForCalc && reg.requestedSlots) {
-                        const { startDate: calcStartDate } = calculateStartEndDates(entranceDateForCalc, reg.requestedSlots);
+                    if (entranceDateForCalc && delSlots.length) {
+                        const { startDate: calcStartDate } = calculateStartEndDates(entranceDateForCalc, delSlots);
                         targetSheet = getCurrentSheetName(new Date(calcStartDate + 'T00:00:00'));
                     } else {
                         targetSheet = getCurrentSheetName();
@@ -787,9 +789,10 @@ const CoachNewStudents = ({ user, onBack }) => {
     // 승인된 수강생 시트 행 찾기 (이름 기준, 승인 시와 동일한 시트 결정 로직)
     const findApprovedStudentRow = async (reg) => {
         const entranceDateForCalc = reg.entranceInquiry || reg.entranceDate;
+        const slots = slotsOf(reg);
         let targetSheet;
-        if (entranceDateForCalc && reg.requestedSlots) {
-            const { startDate } = calculateStartEndDates(entranceDateForCalc, reg.requestedSlots);
+        if (entranceDateForCalc && slots.length) {
+            const { startDate } = calculateStartEndDates(entranceDateForCalc, slots);
             targetSheet = getCurrentSheetName(new Date(startDate + 'T00:00:00'));
         } else {
             targetSheet = getCurrentSheetName();
@@ -898,7 +901,7 @@ const CoachNewStudents = ({ user, onBack }) => {
 
         // 3. 시트 시작/종료날짜 재계산 + 업데이트
         try {
-            const { startDate } = calculateStartEndDates(newDate, reg.requestedSlots);
+            const { startDate } = calculateStartEndDates(newDate, slotsOf(reg));
             const startYY = convertToYYMMDD(startDate);
             const weeklyFreq = parseInt(reg.weeklyFrequency) || 2;
             const endObj = calculateEndDateWithHolidays(new Date(startDate + 'T00:00:00'), weeklyFreq * 4, reg.scheduleString, holidays);
@@ -1032,9 +1035,10 @@ const CoachNewStudents = ({ user, onBack }) => {
                 try {
                     // 시작일 기준으로 시트 결정 (승인 시와 동일한 로직)
                     const entranceDateForCalc = reg.entranceInquiry || reg.entranceDate;
+                    const delSlots = slotsOf(reg);
                     let targetSheet;
-                    if (entranceDateForCalc && reg.requestedSlots) {
-                        const { startDate: calcStartDate } = calculateStartEndDates(entranceDateForCalc, reg.requestedSlots);
+                    if (entranceDateForCalc && delSlots.length) {
+                        const { startDate: calcStartDate } = calculateStartEndDates(entranceDateForCalc, delSlots);
                         targetSheet = getCurrentSheetName(new Date(calcStartDate + 'T00:00:00'));
                     } else {
                         targetSheet = getCurrentSheetName();
