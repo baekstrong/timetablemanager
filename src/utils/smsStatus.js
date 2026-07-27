@@ -68,12 +68,15 @@ export function isReminderResendable(reg) {
 
 // 등록 건의 누락/실패 문자 개수 (수강생 3종 기준; 승인/리마인더는 해당될 때만)
 export function smsIssueCount(reg) {
-  const log = (reg && reg.smsLog) || {};
+  // smsLog 필드 자체가 없으면 로깅 도입 이전 데이터 → 실제로는 발송됐을 수 있어 단정 불가.
+  // (로깅 도입 후 생성분은 자가신청=reception, 코치등록=approval 이 항상 기록된다)
+  if (!reg || !reg.smsLog) return 0;
+  const log = reg.smsLog;
   let issues = 0;
   const bad = (e) => !e || e.status === 'failed';
   // 코치 직접 등록(재등록 포함)은 접수확인 문자를 안 보냄 → 그 항목만 집계 제외
-  if (!(reg && reg.registeredByCoach) && bad(log.reception)) issues++;
-  if (reg && reg.status === 'approved') {
+  if (!reg.registeredByCoach && bad(log.reception)) issues++;
+  if (reg.status === 'approved') {
     if (bad(log.approval)) issues++;
     if (isReminderExpected(reg) && bad(log.reminder)) issues++;
   }

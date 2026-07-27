@@ -83,6 +83,11 @@ describe('smsIssueCount', () => {
     const reg = { status: 'approved', smsLog: { reception: { status: 'sent', at: 1 }, approval: { status: 'sent', at: 1 } } };
     expect(smsIssueCount(reg)).toBe(0);
   });
+  it('smsLog 필드 자체가 없으면(로깅 도입 이전 데이터) 집계 제외', () => {
+    // 실제로는 발송됐을 수 있어 '미발송'으로 단정하지 않는다
+    expect(smsIssueCount({ status: 'approved', entranceClassDate: 'x', entranceDate: '2026-08-01' })).toBe(0);
+    expect(smsIssueCount({ status: 'approved', registeredByCoach: true })).toBe(0);
+  });
   it('코치 직접 등록: 접수확인만 제외하고 승인문자는 카운트', () => {
     // 접수확인 문자는 안 보내므로 제외, 승인문자는 실제로 발송되므로 누락이면 카운트
     expect(smsIssueCount({ status: 'approved', registeredByCoach: true, smsLog: {} })).toBe(1);

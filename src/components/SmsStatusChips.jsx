@@ -20,6 +20,8 @@ export default function SmsStatusChips({ reg, onResend, resendDisabledReason }) 
     // 코치 직접 등록(재등록 포함)은 접수확인 문자를 보내지 않음 → 그 칩만 생략
     // (승인문자·입학반 리마인더는 실제로 발송되므로 표시)
     const types = reg.registeredByCoach ? SMS_TYPES.filter(t => t.key !== 'reception') : SMS_TYPES;
+    // smsLog 도입 이전 데이터는 실제 발송 여부를 알 수 없음 → '미발송'으로 단정하지 않는다
+    const noLog = !reg.smsLog;
     const log = reg.smsLog || {};
     return (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
@@ -28,7 +30,7 @@ export default function SmsStatusChips({ reg, onResend, resendDisabledReason }) 
                 if (key === 'reminder' && !isReminderExpected(reg)) return null;
                 // 승인/리마인더는 승인 전이면 '대기'로 흐리게
                 const notYet = (key === 'approval' || key === 'reminder') && reg.status !== 'approved';
-                let chip = smsChip(log[key]);
+                let chip = noLog ? { kind: 'none', label: '기록 없음' } : smsChip(log[key]);
                 // 과거 데이터(scheduledAt 미기록) 폴백: 입학반 3일 전 9시 규칙으로 예약 시각 추정
                 if (key === 'reminder' && chip.kind === 'scheduled' && !log[key]?.scheduledAt) {
                     const fallbackAt = expectedReminderAt(reg);
