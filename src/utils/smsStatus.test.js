@@ -67,8 +67,14 @@ describe('smsIssueCount', () => {
     const reg = { status: 'approved', smsLog: { reception: { status: 'sent', at: 1 }, approval: { status: 'sent', at: 1 } } };
     expect(smsIssueCount(reg)).toBe(0);
   });
-  it('코치 직접 등록(registeredByCoach)은 자동문자 대상 아님 → 항상 0', () => {
-    expect(smsIssueCount({ status: 'approved', registeredByCoach: true, smsLog: {} })).toBe(0);
+  it('코치 직접 등록: 접수확인만 제외하고 승인문자는 카운트', () => {
+    // 접수확인 문자는 안 보내므로 제외, 승인문자는 실제로 발송되므로 누락이면 카운트
+    expect(smsIssueCount({ status: 'approved', registeredByCoach: true, smsLog: {} })).toBe(1);
+    expect(smsIssueCount({ status: 'approved', registeredByCoach: true, smsLog: { approval: { status: 'sent', at: 1 } } })).toBe(0);
+  });
+  it('코치 직접 등록 + 입학반: 리마인더 누락도 카운트', () => {
+    const reg = { status: 'approved', registeredByCoach: true, entranceClassDate: 'x', entranceDate: '2026-08-01', smsLog: { approval: { status: 'sent', at: 1 } } };
+    expect(smsIssueCount(reg)).toBe(1);
   });
 });
 

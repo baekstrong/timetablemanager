@@ -601,20 +601,28 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
 
                     const failed = [];
                     if (!smsResults.approvalSMS) failed.push('승인 문자');
+                    // 코치 직접 등록도 승인문자·리마인더는 실제로 나가므로 smsLog에 남겨
+                    // 신규 페이지 SMS 상황판에서 예약 상태 확인/재발송이 가능하게 한다.
+                    const smsLogUpdate = {
+                        'smsLog.approval': { status: smsResults.approvalSMS ? 'sent' : 'failed', at: Date.now() },
+                    };
                     if (linkedEntrance) {
-                        if (smsResults.reminderSMS) {
-                            const groupId = typeof smsResults.reminderSMS === 'object'
-                                ? smsResults.reminderSMS.groupId
-                                : null;
-                            if (groupId && createdRegId) {
-                                try {
-                                    await updateNewStudentRegistration(createdRegId, { reminderGroupId: groupId });
-                                } catch (idErr) {
-                                    console.warn('reminderGroupId 저장 실패:', idErr);
-                                }
-                            }
-                        } else {
-                            failed.push('입학반 리마인더');
+                        const reminder = smsResults.reminderSMS;
+                        const obj = reminder && typeof reminder === 'object' ? reminder : null;
+                        const groupId = obj?.groupId || null;
+                        if (!reminder) failed.push('입학반 리마인더');
+                        smsLogUpdate['smsLog.reminder'] = !reminder
+                            ? { status: 'failed', at: Date.now() }
+                            : obj?.scheduledAt
+                                ? { status: 'scheduled', at: Date.now(), scheduledAt: obj.scheduledAt, ...(groupId ? { groupId } : {}) }
+                                : { status: 'sent', at: Date.now() };
+                        if (groupId) smsLogUpdate.reminderGroupId = groupId;
+                    }
+                    if (createdRegId) {
+                        try {
+                            await updateNewStudentRegistration(createdRegId, smsLogUpdate);
+                        } catch (logErr) {
+                            console.warn('smsLog 저장 실패:', logErr);
                         }
                     }
                     if (failed.length > 0) {

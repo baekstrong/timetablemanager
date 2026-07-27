@@ -17,12 +17,13 @@ const ICON = { sent: '✅', scheduled: '⏳', failed: '❌', none: '⚪' };
  * @param {(reg, typeKey) => string|null} resendDisabledReason - null이면 활성, 문자열이면 비활성+사유
  */
 export default function SmsStatusChips({ reg, onResend, resendDisabledReason }) {
-    // 코치 직접 등록(재등록 포함)은 자동 문자 대상이 아님 → 표시 생략
-    if (reg.registeredByCoach) return null;
+    // 코치 직접 등록(재등록 포함)은 접수확인 문자를 보내지 않음 → 그 칩만 생략
+    // (승인문자·입학반 리마인더는 실제로 발송되므로 표시)
+    const types = reg.registeredByCoach ? SMS_TYPES.filter(t => t.key !== 'reception') : SMS_TYPES;
     const log = reg.smsLog || {};
     return (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-            {SMS_TYPES.map(({ key, label }) => {
+            {types.map(({ key, label }) => {
                 // 리마인더가 애초에 기대되지 않으면 표시 생략
                 if (key === 'reminder' && !isReminderExpected(reg)) return null;
                 // 승인/리마인더는 승인 전이면 '대기'로 흐리게

@@ -403,7 +403,9 @@ export const scheduleEntranceReminderSMS = async (studentPhone, studentName, det
       const result = await sendSMS(studentPhone, text, scheduledDate);
       console.log('수강생 안내문자 3 예약 완료:', studentName, scheduledDate, '| 서버 응답:', result);
       // groupId(예약 취소용) + scheduledAt(상황판 예약 시각 표시용) 반환
-      const groupId = result?.result?.groupId || null;
+      // 예약 발송은 /messages/v4/send-many/detail → 응답이 groupInfo로 감싸짐,
+      // 즉시 발송은 /messages/v4/send → 최상위 groupId. 둘 다 대응.
+      const groupId = result?.result?.groupId || result?.result?.groupInfo?.groupId || result?.result?.groupInfo?._id || null;
       return { sent: true, groupId, scheduledAt: scheduledDate };
     } catch (error) {
       console.error('수강생 안내문자 3 예약 실패:', error.message);
