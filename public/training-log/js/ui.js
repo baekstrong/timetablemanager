@@ -310,8 +310,8 @@ export function renderStampModalHTML() {
 
 // 편집 모달 렌더링
 export function renderEditModalContent(data, docId) {
-    // 메모는 record가 아닌 종목별 고정 메모(pinnedExercises)에 저장됨 → 편집 시 그 종목 메모를 채운다.
-    const pinnedMemo = (state.pinnedExercises || []).find(p => p.exercise === data.exercise)?.memo || '';
+    // 메모는 record가 아닌 종목별 고정 메모(pinnedExercises)에 저장됨.
+    // 입력 폼과 동일하게 [카드(수정/보관/삭제) + 새 메모 textarea] 구성으로 렌더한다.
     return `
         <div class="space-y-3">
             <div>
@@ -327,7 +327,9 @@ export function renderEditModalContent(data, docId) {
 
             <div>
                 <label class="block text-sm font-semibold mb-1">메모</label>
-                <textarea id="edit-memo" rows="2" class="w-full px-3 py-2 border rounded-lg">${esc(data.memo || pinnedMemo)}</textarea>
+                <div id="editExerciseMemoCard">${generatePinnedMemosHTML(state.coachPinnedMemos, state.pinnedExercises, data.exercise)}</div>
+                <textarea id="edit-memo" rows="2" placeholder="운동 메모 (여기에 입력하면 자동으로 고정됩니다)"
+                          class="w-full px-3 py-2 border rounded-lg mt-2"></textarea>
             </div>
 
             <div>

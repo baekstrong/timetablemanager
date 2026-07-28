@@ -796,12 +796,15 @@ export async function updatePinnedDisplay() {
 
 // 현재 입력한 운동 종목의 저장된 메모만 폼 안에 표시 (이전: 페이지 상단 고정)
 export function renderExerciseMemo() {
-    const container = document.getElementById('exerciseMemoCard');
-    if (!container) return;
-    const exercise = (document.getElementById('exercise')?.value || '').trim();
-    container.innerHTML = exercise
-        ? generatePinnedMemosHTML(state.coachPinnedMemos, state.pinnedExercises, exercise)
-        : '';
+    // 입력 폼 + 기록 수정 모달 둘 다 같은 메모 카드를 쓴다 (인터페이스 동일)
+    [['exerciseMemoCard', 'exercise'], ['editExerciseMemoCard', 'edit-exercise']].forEach(([cardId, inputId]) => {
+        const container = document.getElementById(cardId);
+        if (!container) return;
+        const exercise = (document.getElementById(inputId)?.value || '').trim();
+        container.innerHTML = exercise
+            ? generatePinnedMemosHTML(state.coachPinnedMemos, state.pinnedExercises, exercise)
+            : '';
+    });
 }
 window.renderExerciseMemo = renderExerciseMemo;
 
@@ -1425,18 +1428,24 @@ export function editStudentMemo(exerciseName, currentMemo) {
     if (modal && title && input) {
         title.textContent = `'${exerciseName}' 메모 수정`;
         input.value = currentMemo;
+        // 기록 수정 모달 위에 겹쳐 열릴 수 있음 — 이미 modal-open이면 scrollY(=0)를 덮어쓰지 않는다.
+        if (!document.body.classList.contains('modal-open')) {
+            document.body.dataset.scrollY = window.scrollY;
+            document.body.classList.add('modal-open');
+        }
         modal.classList.add('active');
-        document.body.classList.add('modal-open');
-        document.body.dataset.scrollY = window.scrollY;
     }
 }
 
 export function closeMemoEditModal() {
     const modal = document.getElementById('memoEditModal');
     if (modal) modal.classList.remove('active');
-    document.body.classList.remove('modal-open');
-    const scrollY = document.body.dataset.scrollY;
-    if (scrollY) window.scrollTo(0, parseInt(scrollY));
+    // 아래에 다른 모달(기록 수정)이 열려 있으면 스크롤 잠금 유지
+    if (!document.querySelector('.modal.active')) {
+        document.body.classList.remove('modal-open');
+        const scrollY = document.body.dataset.scrollY;
+        if (scrollY) window.scrollTo(0, parseInt(scrollY));
+    }
     editingMemoExerciseName = null;
 }
 
