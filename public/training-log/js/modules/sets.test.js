@@ -26,8 +26,9 @@ describe('sanitizeSet', () => {
         expect(s.reps.value).toBe('10');
     });
 
-    it('자율/맨몸 강도는 그대로 둔다', () => {
+    it('자율/높이/맨몸 강도는 그대로 둔다', () => {
         expect(sanitizeSet({ intensity: { value: '가볍게', unit: '자율' }, reps: { value: '10', unit: '회' } }).intensity.value).toBe('가볍게');
+        expect(sanitizeSet({ intensity: { value: '3단', unit: '높이' }, reps: { value: '10', unit: '회' } }).intensity.value).toBe('3단');
         expect(sanitizeSet({ intensity: { value: '맨몸', unit: '맨몸' }, reps: { value: '10', unit: '회' } }).intensity.value).toBe('맨몸');
     });
 

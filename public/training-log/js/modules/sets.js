@@ -34,7 +34,7 @@ export function renderSets() {
 
         const isSecXReps = set.reps.unit === '초 x 회';
         const isBodyweight = set.intensity.unit === '맨몸';
-        const isFreeform = set.intensity.unit === '자율';
+        const isFreeform = isFreeformIntensity(set.intensity.unit);
 
         html += `
             <div class="set-row">
@@ -130,7 +130,7 @@ export function renderSets() {
     container.innerHTML = html;
 }
 
-// 숫자 단위(kg/높이/회/초)에는 숫자만 허용. '자율'·'맨몸'만 자유 입력.
+// 숫자 단위(kg/회/초)에는 숫자만 허용. '자율'·'높이'·'맨몸'은 자유 입력.
 // ponytail: 정규식 한 줄로 입력 시 + 저장 시 두 지점에서만 거른다. 입력 마스킹 라이브러리 불필요.
 export function numericOnly(value) {
     const cleaned = String(value ?? '').replace(/[^0-9.]/g, '');
@@ -138,7 +138,7 @@ export function numericOnly(value) {
     return rest.length ? head + '.' + rest.join('') : head;
 }
 
-export const isFreeformIntensity = unit => unit === '자율' || unit === '맨몸';
+export const isFreeformIntensity = unit => unit === '자율' || unit === '높이' || unit === '맨몸';
 
 // 저장 직전 방어 — 자동복원(localStorage)·옛 기록 등 입력 핸들러를 안 거친 값도 여기서 정리된다.
 export function sanitizeSet(set) {
@@ -167,7 +167,7 @@ function showNumericHint(el) {
     if (!hint) {
         hint = document.createElement('p');
         hint.className = 'numeric-hint text-xs text-[#E94E58] mt-1';
-        hint.textContent = '숫자만 입력할 수 있어요 (자율 선택 시 자유 입력)';
+        hint.textContent = '숫자만 입력할 수 있어요 (자율·높이는 자유 입력)';
         block.appendChild(hint);
     }
     hint.style.display = '';

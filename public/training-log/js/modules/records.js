@@ -622,7 +622,7 @@ export function renderEditSets() {
         state.editingSets[index] = normalized;
         const isSecXReps = normalized.reps.unit === '초 x 회';
         const isBodyweight = normalized.intensity.unit === '맨몸';
-        const isFreeform = normalized.intensity.unit === '자율';
+        const isFreeform = isFreeformIntensity(normalized.intensity.unit);
 
         html += `
             <div class="set-row">
