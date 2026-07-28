@@ -1,5 +1,5 @@
 import { state, db, firebaseInitialized } from '../state.js';
-import { normalizeSet, renderSets } from './sets.js';
+import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue } from './sets.js';
 import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js';
 import { formatDate } from '../utils.js';
 import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js';
@@ -55,12 +55,9 @@ export async function addRecord() {
         return;
     }
 
-    // 세트 데이터 검증
-    const validSets = state.currentSets.filter(set => {
-        const normalized = normalizeSet(set);
-        const hasValidIntensity = normalized.intensity.unit === '맨몸' || normalized.intensity.value;
-        return hasValidIntensity && normalized.reps.value;
-    }).map(set => normalizeSet(set));
+    // 세트 데이터 검증 — 숫자 단위에 문자가 섞여 있으면 sanitizeSet이 걸러내고, 빈 값이 된 세트는 탈락
+    const validSets = state.currentSets.map(sanitizeSet).filter(s =>
+        (s.intensity.unit === '맨몸' || s.intensity.value) && s.reps.value);
 
     if (validSets.length === 0) {
         alert('최소 1세트의 강도와 횟수를 입력해주세요!');
@@ -567,11 +564,8 @@ export async function saveEdit(docId) {
         return;
     }
 
-    const validSets = state.editingSets.filter(set => {
-        const normalized = normalizeSet(set);
-        const hasValidIntensity = normalized.intensity.unit === '맨몸' || normalized.intensity.value;
-        return hasValidIntensity && normalized.reps.value;
-    }).map(set => normalizeSet(set));
+    const validSets = state.editingSets.map(sanitizeSet).filter(s =>
+        (s.intensity.unit === '맨몸' || s.intensity.value) && s.reps.value);
 
     if (validSets.length === 0) {
         alert('최소 1세트의 강도와 횟수를 입력해주세요!');
@@ -647,6 +641,7 @@ export function renderEditSets() {
                         ` : `
                             <input
                                 type="text"
+                                inputmode="${isFreeform ? 'text' : 'decimal'}"
                                 id="edit-intensity-value-${index}"
                                 value="${normalized.intensity.value}"
                                 placeholder="${isFreeform ? '자유 입력' : '80'}"
@@ -673,6 +668,7 @@ export function renderEditSets() {
                         ${isSecXReps ? `
                             <input
                                 type="text"
+                                inputmode="numeric"
                                 id="edit-reps-value-${index}"
                                 value="${normalized.reps.value}"
                                 placeholder="30"
@@ -683,6 +679,7 @@ export function renderEditSets() {
                             <span class="text-gray-400">×</span>
                             <input
                                 type="text"
+                                inputmode="numeric"
                                 id="edit-reps-count-${index}"
                                 value="${normalized.reps.count || ''}"
                                 placeholder="3"
@@ -693,6 +690,7 @@ export function renderEditSets() {
                         ` : `
                             <input
                                 type="text"
+                                inputmode="numeric"
                                 id="edit-reps-value-${index}"
                                 value="${normalized.reps.value}"
                                 placeholder="10"
@@ -750,7 +748,11 @@ export function removeEditSet(index) {
 }
 
 export function updateEditSetIntensity(index, value) {
-    if (state.editingSets[index]) state.editingSets[index].intensity.value = value;
+    if (state.editingSets[index]) {
+        const clean = isFreeformIntensity(state.editingSets[index].intensity.unit) ? value : numericOnly(value);
+        state.editingSets[index].intensity.value = clean;
+        syncInputValue(`edit-intensity-value-${index}`, clean);
+    }
 }
 export function updateEditSetIntensityUnit(index, unit) {
     if (state.editingSets[index]) {
@@ -764,10 +766,18 @@ export function updateEditSetIntensityUnit(index, unit) {
     }
 }
 export function updateEditSetRepsValue(index, value) {
-    if (state.editingSets[index]) state.editingSets[index].reps.value = value;
+    if (state.editingSets[index]) {
+        const clean = numericOnly(value);
+        state.editingSets[index].reps.value = clean;
+        syncInputValue(`edit-reps-value-${index}`, clean);
+    }
 }
 export function updateEditSetRepsCount(index, count) {
-    if (state.editingSets[index]) state.editingSets[index].reps.count = count;
+    if (state.editingSets[index]) {
+        const clean = numericOnly(count);
+        state.editingSets[index].reps.count = clean;
+        syncInputValue(`edit-reps-count-${index}`, clean);
+    }
 }
 export function updateEditSetRepsUnit(index, unit) {
     if (state.editingSets[index]) {

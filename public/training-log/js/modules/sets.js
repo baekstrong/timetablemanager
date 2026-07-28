@@ -54,6 +54,7 @@ export function renderSets() {
                         ` : `
                             <input
                                 type="text"
+                                inputmode="${isFreeform ? 'text' : 'decimal'}"
                                 id="intensity-value-${index}"
                                 value="${set.intensity.value}"
                                 placeholder="${isFreeform ? '자유 입력' : '80'}"
@@ -81,6 +82,7 @@ export function renderSets() {
                         ${isSecXReps ? `
                             <input
                                 type="text"
+                                inputmode="numeric"
                                 id="reps-value-${index}"
                                 value="${set.reps.value}"
                                 placeholder="30"
@@ -91,6 +93,7 @@ export function renderSets() {
                             <span class="text-gray-400">×</span>
                             <input
                                 type="text"
+                                inputmode="numeric"
                                 id="reps-count-${index}"
                                 value="${set.reps.count || ''}"
                                 placeholder="3"
@@ -101,6 +104,7 @@ export function renderSets() {
                         ` : `
                             <input
                                 type="text"
+                                inputmode="numeric"
                                 id="reps-value-${index}"
                                 value="${set.reps.value}"
                                 placeholder="10"
@@ -124,6 +128,33 @@ export function renderSets() {
     });
 
     container.innerHTML = html;
+}
+
+// 숫자 단위(kg/높이/회/초)에는 숫자만 허용. '자율'·'맨몸'만 자유 입력.
+// ponytail: 정규식 한 줄로 입력 시 + 저장 시 두 지점에서만 거른다. 입력 마스킹 라이브러리 불필요.
+export function numericOnly(value) {
+    const cleaned = String(value ?? '').replace(/[^0-9.]/g, '');
+    const [head, ...rest] = cleaned.split('.');
+    return rest.length ? head + '.' + rest.join('') : head;
+}
+
+export const isFreeformIntensity = unit => unit === '자율' || unit === '맨몸';
+
+// 저장 직전 방어 — 자동복원(localStorage)·옛 기록 등 입력 핸들러를 안 거친 값도 여기서 정리된다.
+export function sanitizeSet(set) {
+    const s = normalizeSet(set);
+    const intensity = { ...s.intensity };
+    const reps = { ...s.reps };
+    if (!isFreeformIntensity(intensity.unit)) intensity.value = numericOnly(intensity.value);
+    reps.value = numericOnly(reps.value);
+    if (reps.count !== undefined && reps.count !== '') reps.count = numericOnly(reps.count);
+    return { ...s, intensity, reps };
+}
+
+// 입력칸에 남은 문자 제거 후 화면 값도 맞춰준다(붙여넣기·한글 입력 대응)
+export function syncInputValue(id, value) {
+    const el = document.getElementById(id);
+    if (el && el.value !== value) el.value = value;
 }
 
 export function normalizeSet(set) {
@@ -181,7 +212,9 @@ export function removeSet(index) {
 export function updateSetIntensity(index, value) {
     if (state.currentSets[index]) {
         if (!state.currentSets[index].intensity) state.currentSets[index].intensity = { value: '', unit: 'kg' };
-        state.currentSets[index].intensity.value = value;
+        const clean = isFreeformIntensity(state.currentSets[index].intensity.unit) ? value : numericOnly(value);
+        state.currentSets[index].intensity.value = clean;
+        syncInputValue(`intensity-value-${index}`, clean);
         if (window.autoSaveFormData) window.autoSaveFormData();
     }
 }
@@ -207,7 +240,9 @@ export function updateSetIntensityUnit(index, unit) {
 export function updateSetRepsValue(index, value) {
     if (state.currentSets[index]) {
         if (!state.currentSets[index].reps) state.currentSets[index].reps = { value: '', unit: '회' };
-        state.currentSets[index].reps.value = value;
+        const clean = numericOnly(value);
+        state.currentSets[index].reps.value = clean;
+        syncInputValue(`reps-value-${index}`, clean);
         if (window.autoSaveFormData) window.autoSaveFormData();
     }
 }
@@ -215,7 +250,9 @@ export function updateSetRepsValue(index, value) {
 export function updateSetRepsCount(index, count) {
     if (state.currentSets[index]) {
         if (!state.currentSets[index].reps) state.currentSets[index].reps = { value: '', unit: '회' };
-        state.currentSets[index].reps.count = count;
+        const clean = numericOnly(count);
+        state.currentSets[index].reps.count = clean;
+        syncInputValue(`reps-count-${index}`, clean);
         if (window.autoSaveFormData) window.autoSaveFormData();
     }
 }
