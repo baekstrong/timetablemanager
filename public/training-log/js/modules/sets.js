@@ -152,9 +152,27 @@ export function sanitizeSet(set) {
 }
 
 // 입력칸에 남은 문자 제거 후 화면 값도 맞춰준다(붙여넣기·한글 입력 대응)
+// 실제로 뭔가 지워졌을 때만 입력칸 아래에 안내를 잠깐 띄운다 — alert은 글자마다 뜨므로 금지.
 export function syncInputValue(id, value) {
     const el = document.getElementById(id);
-    if (el && el.value !== value) el.value = value;
+    if (!el || el.value === value) return;
+    el.value = value;
+    showNumericHint(el);
+}
+
+function showNumericHint(el) {
+    const block = el.parentElement?.parentElement; // [강도/반복 블록] > [flex 행] > input
+    if (!block) return;
+    let hint = block.querySelector('.numeric-hint');
+    if (!hint) {
+        hint = document.createElement('p');
+        hint.className = 'numeric-hint text-xs text-[#E94E58] mt-1';
+        hint.textContent = '숫자만 입력할 수 있어요 (자율 선택 시 자유 입력)';
+        block.appendChild(hint);
+    }
+    hint.style.display = '';
+    clearTimeout(hint._hideTimer);
+    hint._hideTimer = setTimeout(() => { hint.style.display = 'none'; }, 2500);
 }
 
 export function normalizeSet(set) {
