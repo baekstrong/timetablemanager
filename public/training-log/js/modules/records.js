@@ -815,6 +815,8 @@ export function renderExerciseMemo() {
             ? generatePinnedMemosHTML(state.coachPinnedMemos, state.pinnedExercises, exercise)
             : '';
     });
+    // 종목이 바뀌는 지점은 여기 하나뿐 — 1RM 칩도 같이 갱신 (window 경유: 순환 import 방지)
+    if (window.renderOneRMChip) window.renderOneRMChip();
 }
 window.renderExerciseMemo = renderExerciseMemo;
 

@@ -114,6 +114,9 @@ export function renderStudentScreen() {
                     <!-- 선택한 종목의 저장된 메모 — 이름 바로 아래(이전 메모 불러올 때 스크롤 없이 보이게) -->
                     <div id="exerciseMemoCard"></div>
 
+                    <!-- 저장한 1RM이 있는 종목이면 '%로 세트 채우기' 칩 -->
+                    <div id="oneRMQuickCard"></div>
+
                     <textarea id="memo" placeholder="운동 메모 (여기에 입력하면 자동으로 고정됩니다)" rows="2"
                               oninput="autoSaveFormData()"
                               class="w-full px-4 py-2 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7]"></textarea>

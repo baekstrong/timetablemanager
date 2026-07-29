@@ -1,4 +1,25 @@
 import { describe, it, expect } from 'vitest';
+import { percentSets } from './onerm.js';
+
+describe('percentSets', () => {
+    it('누른 순서를 그대로 유지한다 (무거운 것부터도 가능)', () => {
+        expect(percentSets(100, [85, 75, 65])).toEqual([
+            { pct: 85, weight: 85 }, { pct: 75, weight: 75 }, { pct: 65, weight: 65 },
+        ]);
+        expect(percentSets(100, [65, 75, 85]).map(r => r.weight)).toEqual([65, 75, 85]);
+    });
+
+    it('0.5kg 단위로 반올림한다', () => {
+        expect(percentSets(97.5, [65])).toEqual([{ pct: 65, weight: 63.5 }]);
+    });
+
+    it('1RM이 없거나 고른 %가 없으면 빈 배열', () => {
+        expect(percentSets(0, [80])).toEqual([]);
+        expect(percentSets(100, [])).toEqual([]);
+        expect(percentSets(100, undefined)).toEqual([]);
+    });
+});
+
 import { estimate1RM, trainingTable, sortMyOneRMs } from './onerm.js';
 
 describe('estimate1RM (Epley)', () => {

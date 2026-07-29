@@ -1,6 +1,7 @@
 // 1RM(1회 최대 중량) 계산기 — Epley 공식 + 종목별 내 1RM 저장.
 // 순수 함수(estimate1RM/trainingTable/sortMyOneRMs)는 Firebase/DOM 무관 → 브라우저·Vitest 양쪽 import 가능.
 import { state, db } from '../state.js';
+import { normalizeSet, renderSets } from './sets.js';
 
 const PERCENTS = [95, 90, 85, 80, 75, 70, 65, 60, 55, 50];
 
@@ -20,6 +21,13 @@ export function estimate1RM(weight, reps) {
 export function trainingTable(oneRM) {
     if (!(oneRM > 0)) return [];
     return PERCENTS.map((pct) => ({ pct, weight: round05(oneRM * pct / 100) }));
+}
+
+// 고른 %들을 누른 순서 그대로 세트 중량으로. (순수)
+// 순서를 정렬하지 않는 게 핵심 — 높은 %를 먼저 누르면 무거운 것부터가 된다.
+export function percentSets(oneRM, percents) {
+    if (!(oneRM > 0)) return [];
+    return (percents || []).map((pct) => ({ pct, weight: round05(oneRM * pct / 100) }));
 }
 
 // 저장된 map({종목: {oneRM,weight,reps,date}}) → 최근 저장 순 배열. (순수)
@@ -119,7 +127,9 @@ export async function saveOneRM() {
         // ponytail: 단일 사용자 순차 클릭 전제, 동시성 락 불필요.
         await ref.set({ map, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
         setStatus(`저장됐어요 · ${exercise} ${oneRM}kg`);
+        _oneRMMap = map; // 기록 폼 칩도 바로 최신화
         renderMyOneRMList(map);
+        renderOneRMChip();
     } catch (e) {
         console.error('1RM 저장 실패', e);
         setStatus('저장에 실패했어요');
@@ -156,10 +166,134 @@ export async function deleteOneRM(index) {
         // 항상 map 전체를 read-modify-write 하므로 전체 set이 맞다.
         // ponytail: 단일 사용자 순차 클릭 전제, 동시성 락 불필요.
         await ref.set({ map, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
+        _oneRMMap = map;
         renderMyOneRMList(map);
+        renderOneRMChip();
     } catch (e) {
         console.error('1RM 삭제 실패', e);
     }
+}
+
+// ============================================
+// 기록 입력 폼 연동 — 저장한 1RM으로 세트 중량 채우기
+// ============================================
+
+// 세션 캐시. Firestore 읽기 = 비용이라 종목 입력할 때마다 조회하지 않는다.
+// 저장/삭제 시 갱신되므로 stale 걱정 없음.
+let _oneRMMap = null;
+let _picked = [];      // 누른 순서 그대로의 % 목록
+let _pickedOneRM = 0;
+let _pickedExercise = '';
+
+// 현재 입력한 종목에 저장된 1RM이 있으면 폼에 칩 하나 띄운다 (없으면 비움)
+export async function renderOneRMChip() {
+    const el = document.getElementById('oneRMQuickCard');
+    if (!el) return;
+    const exercise = (document.getElementById('exercise')?.value || '').trim();
+    if (!exercise) { el.innerHTML = ''; return; }
+
+    if (_oneRMMap === null) {
+        if (!state.currentUser || !db) { el.innerHTML = ''; return; }
+        try {
+            const snap = await db.collection('oneRMRecords').doc(state.currentUser).get();
+            _oneRMMap = (snap.exists && snap.data().map) ? snap.data().map : {};
+        } catch (e) {
+            console.error('1RM 조회 실패', e);
+            _oneRMMap = {};
+        }
+        // 조회 중에 종목이 바뀌었을 수 있음
+        if ((document.getElementById('exercise')?.value || '').trim() !== exercise) return;
+    }
+
+    const saved = _oneRMMap[exercise];
+    el.innerHTML = (saved && saved.oneRM > 0) ? `
+        <button type="button" onclick="openPercentModal()"
+                class="w-full px-3 py-2 rounded-lg border border-[#329BE7] bg-[#329BE71A] text-sm font-semibold text-[#327AB8] text-left">
+            ⚡ 내 1RM ${saved.oneRM}kg — %로 세트 채우기
+        </button>` : '';
+}
+
+export function openPercentModal() {
+    _pickedExercise = (document.getElementById('exercise')?.value || '').trim();
+    _pickedOneRM = _oneRMMap?.[_pickedExercise]?.oneRM || 0;
+    if (!(_pickedOneRM > 0)) return;
+
+    _picked = [];
+    const title = document.getElementById('percentModalTitle');
+    if (title) title.textContent = `⚡ ${_pickedExercise} · 내 1RM ${_pickedOneRM}kg`;
+    renderPercentModalBody();
+
+    const m = document.getElementById('percentModal');
+    if (m) m.classList.add('active');
+    document.body.dataset.scrollY = window.scrollY;
+    document.body.classList.add('modal-open');
+}
+
+export function closePercentModal() {
+    const m = document.getElementById('percentModal');
+    if (m) m.classList.remove('active');
+    document.body.classList.remove('modal-open');
+    const scrollY = document.body.dataset.scrollY;
+    if (scrollY) window.scrollTo(0, parseInt(scrollY));
+}
+
+// 같은 %를 다시 누르면 해제. 순번은 남은 것들로 자동 재정렬된다.
+export function togglePercent(pct) {
+    const at = _picked.indexOf(pct);
+    if (at === -1) _picked.push(pct); else _picked.splice(at, 1);
+    renderPercentModalBody();
+}
+
+function renderPercentModalBody() {
+    const el = document.getElementById('percentModalBody');
+    if (!el) return;
+
+    const cells = PERCENTS.slice().reverse().map((pct) => {
+        const order = _picked.indexOf(pct);
+        const on = order !== -1;
+        return `
+            <button type="button" onclick="togglePercent(${pct})"
+                    class="flex items-center justify-between px-3 py-2 rounded-lg border text-sm ${on
+                        ? 'border-[#329BE7] bg-[#329BE71A] text-[#327AB8] font-bold'
+                        : 'border-[#EFEFF0] bg-gray-50 text-gray-700'}">
+                <span>${on ? `<span class="text-[#329BE7]">${order + 1}.</span> ` : ''}${pct}%</span>
+                <span class="font-semibold">${round05(_pickedOneRM * pct / 100)} kg</span>
+            </button>`;
+    }).join('');
+
+    const rows = percentSets(_pickedOneRM, _picked);
+    const preview = rows.length
+        ? rows.map((r, i) => `${i + 1}세트 ${r.weight}kg`).join(' · ')
+        : '아직 고른 %가 없어요';
+
+    el.innerHTML = `
+        <div class="grid grid-cols-2 gap-2 mb-3">${cells}</div>
+        <div class="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2 mb-3">${preview}</div>
+        <button type="button" onclick="applyPercentSets()" ${rows.length ? '' : 'disabled'}
+                class="w-full bg-[#329BE7] hover:bg-[#327AB8] disabled:opacity-40 text-white font-bold py-3 rounded-lg transition">
+            ${rows.length ? `${rows.length}개 세트에 넣기` : '세트에 넣기'}
+        </button>`;
+}
+
+// 고른 순서대로 1세트부터 강도(kg)에 넣는다. 반복 수와 남는 세트는 건드리지 않는다.
+export function applyPercentSets() {
+    const rows = percentSets(_pickedOneRM, _picked);
+    if (!rows.length) return;
+
+    while (state.currentSets.length < rows.length) {
+        const last = state.currentSets[state.currentSets.length - 1];
+        state.currentSets.push(last
+            ? JSON.parse(JSON.stringify(normalizeSet(last)))
+            : { intensity: { value: '', unit: 'kg' }, reps: { value: '', unit: '회' } });
+    }
+    rows.forEach((r, i) => {
+        state.currentSets[i] = normalizeSet(state.currentSets[i]);
+        state.currentSets[i].intensity = { value: String(r.weight), unit: 'kg' };
+    });
+
+    renderSets();
+    if (window.autoSaveFormData) window.autoSaveFormData();
+    closePercentModal();
 }
 
 // map 전달 시 데이터 갱신(저장/삭제) → 순서 바뀔 수 있어 펼침 초기화.
