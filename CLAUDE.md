@@ -504,7 +504,8 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - 훈련일지 → 시간표 복귀: `sessionStorage.quickReturn` + `login_credentials.autoLogin`
 - **운동 종목**: 코치가 관리하는 전역 공용 `exercises` 컬렉션(`{name}`) + **학생 개인 전용 종목**. 기록 입력 자동완성(`admin.js`)에서 목록에 없는 이름을 치면 `+ '○○' 직접 추가` 옵션 → `selectCustomExercise`가 기기별 `localStorage['myCustomExercises_<이름>']`에 기억하고 그 학생 자동완성에만 병합(공용 목록·코치 화면 불변). 개인 종목으로 저장된 기록은 `records` 문서에 `custom:true` 플래그(`isCustomExercise`). 커스텀 이름은 `'"\<>` 정제 후 저장.
 - **PR 축하 팝업**: 기록 저장 시 같은 종목 과거 기록 대비 새 최고 무게(kg) 또는 새 최다 반복이면 🎉 축하 팝업(`records.js` `showPRCelebration`). 판정 순수 로직은 `public/training-log/js/modules/pr-logic.js`의 `evaluatePR(pastSets, newSets)`(Firebase/DOM 무관, `records.js` `computePR`이 Firestore 조회분을 넘김). 그 종목 첫 기록은 비교 대상이 없어 축하 안 함. 테스트: `pr-logic.test.js`.
-- **1RM 계산기**: 학생 화면 헤더 '🧮 1RM 계산기' 버튼 → 모달에서 무게·횟수 입력 시 Epley 예상 1RM + %별(50~95%) 중량표. 종목 입력 후 '저장'하면 종목별 최신 1RM을 `oneRMRecords/{userName}` 문서에 저장하고 모달 하단 '📌 내 1RM' 목록에 표시(개별 삭제 가능). 순수 로직 `estimate1RM/trainingTable/sortMyOneRMs`는 `public/training-log/js/modules/onerm.js`, 테스트 `onerm.test.js`.
+- **1RM 계산기**: 학생 화면 헤더 '🧮 1RM 계산기' 버튼 → 모달에서 무게·횟수 입력 시 Epley 예상 1RM + %별(50~95%) 중량표. 종목 입력 후 '저장'하면 종목별 최신 1RM을 `oneRMRecords/{userName}` 문서에 저장하고 모달 하단 '📌 내 1RM' 목록에 표시(개별 삭제 가능). 순수 로직 `estimate1RM/trainingTable/sortMyOneRMs/percentSets`는 `public/training-log/js/modules/onerm.js`, 테스트 `onerm.test.js`.
+- **1RM으로 세트 채우기**: 기록 입력 폼에서 1RM이 저장된 종목을 고르면 종목칸 아래 `⚡ 내 1RM ○○kg — %로 세트 채우기` 칩(`#oneRMQuickCard`, `renderOneRMChip` — `renderExerciseMemo`에서 함께 호출) → 모달(`#percentModal`)에서 %를 **누른 순서대로** 1세트부터 강도(kg)에 입력. 높은 %를 먼저 누르면 무거운 것부터가 되어 별도 정렬 옵션이 필요 없다. 반복 수·선택 개수 초과 세트는 유지, 세트가 모자라면 마지막 세트를 복제해 확장. `oneRMRecords` 맵은 세션 캐시(Firestore 읽기 1회, 저장/삭제 시 갱신).
 
 ## 환경변수
 
