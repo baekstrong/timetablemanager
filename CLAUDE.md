@@ -109,12 +109,13 @@ main에 푸시(배포)하는 변경이 **수강생이 체감하는 변경**(새 
 2. 승인 시 아래 스크립트를 실행한다. `--unpin-old`(기본으로 사용)면 **기존 관리자봇 공지는 삭제하지 않고 상단 고정만 해제**되어 게시판에 기록으로 남고, 상단 고정 공지는 새 공지 1건만 남는다. (플래그 없이 실행하면 기존 공지를 소프트 삭제 — 특별히 지우려는 경우만.)
 
 ```bash
-node --env-file=.env scripts/post-update-notice.js "제목" "본문" --unpin-old
+node scripts/post-update-notice.js "제목" "본문" --unpin-old
 ```
 
 3. 거절 시 공지 없이 배포만 진행한다.
 4. 내부 리팩토링·마이너 버그 픽스는 공지 제안 자체를 하지 않는다.
-5. Node 20.6 미만 환경에서는 `set -a; source .env; set +a; node scripts/post-update-notice.js ...`로 실행한다.
+5. 스크립트는 루트 `firebase-admin-key.json`(서비스 계정)으로 **Firestore REST**를 직접 호출한다. `.env` 불필요. 게시 전 확인은 `--dry-run`.
+   - 클라이언트 SDK는 규칙 잠금(`signedIn()` 필수) 이후 permission-denied, Admin SDK는 스트리밍 RPC(runQuery)가 gRPC라 일부 네트워크에서 무한 대기 → 둘 다 쓰지 않는다.
 6. 이 절차 전체는 `/deploy-notice` 슬래시 커맨드(`.claude/commands/deploy-notice.md`)로 실행할 수 있다.
 
 ## 디렉토리 구조

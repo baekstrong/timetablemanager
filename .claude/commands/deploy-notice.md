@@ -14,8 +14,11 @@ description: 배포 후 관리자봇 업데이트 공지 게시 (초안 → 백�
 3. **게시**: 승인받으면 실행한다. $ARGUMENTS가 있으면 초안 작성 시 참고한다.
 
 ```bash
-node --env-file=.env scripts/post-update-notice.js "제목" "본문" --unpin-old
+node scripts/post-update-notice.js "제목" "본문" --unpin-old
 ```
+
+- 루트 `firebase-admin-key.json`(서비스 계정)으로 Firestore REST를 직접 호출한다. `.env` 불필요.
+- 게시 전에 무엇이 바뀌는지 보려면 `--dry-run`을 붙인다 (아무것도 쓰지 않고 출력만).
 
 - **`--unpin-old`가 기본(백관장 선호)**: 기존 관리자봇 공지는 **삭제하지 않고 상단 고정만 해제**한다. 지난 공지는 게시판/공지 필터에 기록으로 남고, 상단 고정 공지는 이번 새 공지 1건만 남는다.
   - 플래그 없이 실행하면 기존 공지를 소프트 삭제(게시판에서 사라짐)하므로, 특별히 지우려는 게 아니면 항상 `--unpin-old`를 붙인다.
