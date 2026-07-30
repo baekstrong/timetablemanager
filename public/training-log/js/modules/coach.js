@@ -3,7 +3,13 @@ import { getKoreanInitial, getStudentColor, getStudentBadgeColor, getStudentText
 
 const debouncedLoadAllRecords = debounce(loadAllRecords, 300);
 import { normalizeSet } from './sets.js';
-import { groupSessionsByDate } from './session-logic.js';
+import { groupSessionsByDate, defaultSessionDate } from './session-logic.js';
+
+// 기록의 date는 로컬 기준 YYYY-MM-DD → 오늘도 로컬로 계산(toISOString은 UTC라 KST 새벽에 하루 밀림)
+function localToday() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 // ============================================
 // 코치 기능
@@ -1193,7 +1199,7 @@ export async function renderCoachSessionView() {
                 });
                 const { dates, byDate } = groupSessionsByDate(items);
                 coachSessionCache[name] = { dates, byDate };
-                coachSessionSelectedDate[name] = dates[0] || null;
+                coachSessionSelectedDate[name] = defaultSessionDate(dates, localToday());
             }));
             // 학생 화면과 동일하게 종목별 고정 메모를 표시하려면 pinnedMemos도 필요.
             await loadPinnedMemosForSelectedStudents();

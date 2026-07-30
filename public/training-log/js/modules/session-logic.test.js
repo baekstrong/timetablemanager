@@ -1,5 +1,30 @@
 import { describe, it, expect } from 'vitest';
-import { groupSessionsByDate } from './session-logic.js';
+import { groupSessionsByDate, defaultSessionDate } from './session-logic.js';
+
+describe('defaultSessionDate', () => {
+    const TODAY = '2026-07-30';
+
+    it('오늘 기록이 있어도 그 이전 수업을 기본으로 고른다', () => {
+        expect(defaultSessionDate(['2026-07-30', '2026-07-28', '2026-07-25'], TODAY)).toBe('2026-07-28');
+    });
+
+    it('오늘 기록이 없으면 가장 최근 수업', () => {
+        expect(defaultSessionDate(['2026-07-28', '2026-07-25'], TODAY)).toBe('2026-07-28');
+    });
+
+    it('오늘 기록밖에 없으면 오늘이라도 보여준다', () => {
+        expect(defaultSessionDate(['2026-07-30'], TODAY)).toBe('2026-07-30');
+    });
+
+    it('미래 날짜 기록은 건너뛴다', () => {
+        expect(defaultSessionDate(['2026-08-02', '2026-07-30', '2026-07-28'], TODAY)).toBe('2026-07-28');
+    });
+
+    it('기록이 없으면 null', () => {
+        expect(defaultSessionDate([], TODAY)).toBe(null);
+        expect(defaultSessionDate(undefined, TODAY)).toBe(null);
+    });
+});
 
 describe('groupSessionsByDate', () => {
     it('날짜별로 묶고 최근 날짜를 먼저, 같은 날은 시간 오름차순으로 정렬', () => {

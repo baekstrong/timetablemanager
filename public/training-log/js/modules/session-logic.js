@@ -13,3 +13,12 @@ export function groupSessionsByDate(records) {
     const dates = Object.keys(byDate).sort().reverse();
     return { dates, byDate };
 }
+
+// 코치가 수강생을 선택했을 때 기본으로 열 세션 날짜.
+// 목적이 '바로 전 수업 확인'이므로 오늘 기록은 건너뛴다 — 수업 중에 입력되고 있을 수 있어
+// 오늘 것이 뜨면 지난 수업을 볼 수 없다. 오늘 기록밖에 없으면 그거라도 보여준다.
+// dates는 groupSessionsByDate가 내려준 최신순 배열, today는 'YYYY-MM-DD'.
+export function defaultSessionDate(dates, today) {
+    if (!dates || dates.length === 0) return null;
+    return dates.find(d => d < today) || dates[0];
+}
