@@ -1899,6 +1899,21 @@ export const syncStudentFrequencies = async (students) => {
     });
 };
 
+// 오늘 교시별 '실제 출석 명단'을 발행 — 코치 시간표가 화면에 그리는 그 명단 그대로.
+// 보강으로 오는 사람 포함, 홀딩·결석·합의결석·보강이동(다른 슬롯으로 감)·시작 전은 제외.
+// 훈련일지(별도 SPA)는 홀딩/보강 판정 로직을 갖고 있지 않으므로 이 문서를 그대로 읽는다.
+// ponytail: 같은 내용이면 쓰지 않는다 — 시간표는 자주 리렌더되고 write는 비용이다.
+let lastRosterPayload = '';
+export const publishTodayRoster = async (date, map) => {
+    const payload = JSON.stringify({ date, map });
+    if (payload === lastRosterPayload) return null;
+    return safeRead(null, async () => {
+        await setDoc(doc(db, 'studentMeta', 'todayRoster'), { date, map, updatedAt: serverTimestamp() });
+        lastRosterPayload = payload;
+        return map;
+    });
+};
+
 // 이름 → 시트 D열 수업 일정('월1수1') 맵을 발행. 훈련일지(별도 SPA)는 시트를 모르므로
 // 이 문서가 '지금 수업에 오는 사람' 명단을 계산하는 유일한 경로다. frequencies와 같은 패턴.
 // 같은 이름의 행이 여럿(미리 등록)이면 오늘이 수강 기간에 든 행을 우선한다.

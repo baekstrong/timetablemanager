@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { PERIODS, DAYS } from '../../data/mockData';
-import { toggleDisabledClass, toggleLockedSlot } from '../../services/firebaseService';
+import { toggleDisabledClass, toggleLockedSlot, publishTodayRoster } from '../../services/firebaseService';
 import { weekDateToISO, getWaitlistCountForSlot, isPeriodImminentOrOngoing } from '../../utils/scheduleUtils';
 import CoachWaitlistPanel from './CoachWaitlistPanel';
 import { StudentTag, UnpaidBadge } from './ScheduleCell';
@@ -58,6 +58,29 @@ export default function CoachSchedule({
         return () => clearInterval(timer);
     }, []);
     const todayDayName = ['일', '월', '화', '수', '목', '금', '토'][now.getDay()];
+
+    // 훈련일지 '지금 수업' 명단은 이 화면이 계산한 결과를 그대로 쓴다(보강 포함, 안 오는 사람 제외).
+    // 다른 주를 보고 있으면 발행하지 않는다 — 오늘 명단이 아니기 때문.
+    useEffect(() => {
+        if (!weekDates?.[todayDayName]) return; // 주말이거나 이번 주가 아님
+        const todayISO = weekDateToISO(weekDates[todayDayName]);
+        const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        if (todayISO !== localToday) return;
+
+        const map = {};
+        PERIODS.forEach(p => {
+            const d = getCellData(todayDayName, p);
+            if (!d) return;
+            map[String(p.id)] = [...new Set([
+                ...(d.activeStudents || []),   // 정규 출석 예정(홀딩·결석·보강이동·시작전 제외됨)
+                ...(d.makeupStudents || []),   // 이 슬롯으로 보강 오는 사람
+                ...(d.subs || []),             // 대체 인원
+            ])];
+        });
+        publishTodayRoster(todayISO, map);
+        // getCellData는 렌더마다 새로 만들어지므로 deps에서 제외 — 같은 내용이면 발행 자체가 생략된다.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [scheduleData, weekDates, todayDayName]);
 
     // 재등록 지연 명단(코치) — 이름 옆 "(재등록X)" 표시용
     const delayedReregNames = new Set((delayedReregistrationStudents || []).map(s => s.name));

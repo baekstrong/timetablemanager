@@ -171,20 +171,39 @@ export async function loadStudentList() {
 // '지금 수업' 자동 명단
 // ============================================
 
-// 시트 D열 시간표는 메인 앱이 studentMeta/schedules로 발행한다(firebaseService.syncStudentSchedules).
+// 명단 출처 두 가지 (둘 다 메인 앱이 발행한 단일 문서 = 읽기 1회):
+//  1) studentMeta/todayRoster — 코치 시간표가 계산한 오늘 교시별 실제 출석 명단.
+//     보강으로 오는 사람 포함, 홀딩·결석·보강이동은 빠져 있다. 오늘 것만 있다.
+//  2) studentMeta/schedules — 시트 D열 정규 시간표. 어제·금요일처럼 오늘이 아닌 슬롯의 폴백.
 let schedulesMap = null;
+let todayRoster = null; // { date, map: {'1': [이름...] } }
 // past 슬롯이면 그 수업 날짜의 기록을 열어야 한다 → 세션 뷰 기본 날짜로 쓰이는 힌트.
 export let coachPreferredDate = null;
 
-async function loadSchedules() {
-    if (schedulesMap || !firebaseInitialized || !db) return;
+async function loadRosterSources() {
+    if (!firebaseInitialized || !db) return;
     try {
-        const doc = await db.collection('studentMeta').doc('schedules').get();
-        schedulesMap = (doc.exists && doc.data().map) ? doc.data().map : {};
+        const [rosterDoc, schedDoc] = await Promise.all([
+            db.collection('studentMeta').doc('todayRoster').get(),
+            db.collection('studentMeta').doc('schedules').get(),
+        ]);
+        todayRoster = rosterDoc.exists ? rosterDoc.data() : null;
+        schedulesMap = (schedDoc.exists && schedDoc.data().map) ? schedDoc.data().map : {};
     } catch (error) {
-        console.error('시간표 조회 실패:', error);
-        schedulesMap = {};
+        console.error('출석 명단 조회 실패:', error);
+        todayRoster = todayRoster || null;
+        schedulesMap = schedulesMap || {};
     }
+}
+
+// 코치 시간표가 발행한 오늘 명단이 있으면 그것을 쓴다(보강 포함·안 오는 사람 제외).
+// 없거나 다른 날 슬롯이면 정규 시간표로 폴백. 반환: { names, source }
+function rosterForSlot(slot) {
+    const fromRoster = (todayRoster && todayRoster.date === slot.date)
+        ? todayRoster.map?.[String(slot.period.id)]
+        : null;
+    if (Array.isArray(fromRoster)) return { names: fromRoster, source: 'roster' };
+    return { names: rosterFor(schedulesMap, slot.dayLabel, slot.period.id), source: 'schedule' };
 }
 
 // 지금/방금 끝난 교시의 수강생을 선택 상태로 만든다. 새로고침 버튼도 이걸 호출한다.
@@ -192,11 +211,10 @@ export async function applyCurrentClassRoster({ silent = false } = {}) {
     const slot = resolveClassSlot();
     if (!slot) return;
 
-    schedulesMap = null; // 버튼으로 누를 때는 시간표도 다시 읽는다(시트 변경 반영)
-    await loadSchedules();
+    await loadRosterSources(); // 새로고침 때마다 다시 읽는다(보강 신청·홀딩 변경 반영)
 
-    const roster = rosterFor(schedulesMap, slot.dayLabel, slot.period.id)
-        .filter(n => state.allStudents.includes(n)); // 훈련일지 계정이 있는 사람만
+    const { names, source } = rosterForSlot(slot);
+    const roster = names.filter(n => state.allStudents.includes(n)); // 훈련일지 계정이 있는 사람만
 
     // 수업이 끝난 교시면 그 날짜 기록을 펼친다. 수업 중이면 기존 규칙(오늘 이전 마지막 수업)을 따른다.
     coachPreferredDate = slot.status === 'past' ? slot.date : null;
@@ -206,7 +224,7 @@ export async function applyCurrentClassRoster({ silent = false } = {}) {
     // 새로 고를 때마다 캐시된 선택 날짜를 버려야 preferredDate가 반영된다
     Object.keys(coachSessionSelectedDate).forEach(k => delete coachSessionSelectedDate[k]);
 
-    renderClassSlotBanner(slot, roster.length);
+    renderClassSlotBanner(slot, roster.length, source);
     updateStudentBadges();
     updateStudentSelectionSummary();
     updateStudentQuickNav();
@@ -218,19 +236,23 @@ export async function applyCurrentClassRoster({ silent = false } = {}) {
 }
 window.applyCurrentClassRoster = applyCurrentClassRoster;
 
-function renderClassSlotBanner(slot, count) {
+function renderClassSlotBanner(slot, count, source) {
     const el = document.getElementById('classSlotBanner');
     if (!el) return;
     const isNow = slot.status === 'now';
     const title = isNow ? '지금 수업' : '마지막 수업';
     const color = isNow ? '#31A552' : '#A7A7AA';
+    // 코치 시간표 명단이면 보강·홀딩까지 반영된 정확한 명단, 폴백이면 정규 시간표 기준임을 밝힌다.
+    const note = source === 'roster'
+        ? '<span class="text-xs text-gray-400 ml-2">보강 포함</span>'
+        : '<span class="text-xs text-[#EDBC40] ml-2">정규 시간표 기준</span>';
     el.innerHTML = `
         <div class="flex items-center justify-between gap-2 bg-white rounded-lg px-4 py-3 border border-[#EFEFF0]">
             <div class="text-sm">
                 <span class="font-bold" style="color:${color}">${title}</span>
                 <span class="text-gray-800 font-semibold ml-1">${slot.dayLabel} ${slot.period.label}</span>
                 <span class="text-gray-400 ml-1">${slot.period.start}~${slot.period.end}</span>
-                <span class="text-gray-500 ml-2">· ${count}명</span>
+                <span class="text-gray-500 ml-2">· ${count}명</span>${note}
             </div>
             <button type="button" onclick="applyCurrentClassRoster()"
                     class="shrink-0 bg-[#329BE7] hover:bg-[#327AB8] text-white text-xs font-bold px-3 py-2 rounded-lg transition">
