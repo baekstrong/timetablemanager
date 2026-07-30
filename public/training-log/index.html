@@ -186,6 +186,26 @@
         </button>
     </nav>
 
+    <!-- ES 모듈 17개를 번들 없이 그대로 서브하므로, main.js를 받아 import를 파싱한 뒤에야
+         나머지가 요청되는 2단 워터폴이 생긴다(캐시 상태에서도 ~1.9s). modulepreload로
+         HTML 파싱 시점에 전부 병렬 요청해 한 단으로 줄인다.
+         ponytail: 빌드 파이프라인(Vite)에 편입하는 게 근본이지만 이 한 줄들로 절반이 회수된다. -->
+    <link rel="modulepreload" href="js/state.js">
+    <link rel="modulepreload" href="js/config.js">
+    <link rel="modulepreload" href="js/utils.js">
+    <link rel="modulepreload" href="js/ui.js">
+    <link rel="modulepreload" href="js/modules/auth.js">
+    <link rel="modulepreload" href="js/modules/records.js">
+    <link rel="modulepreload" href="js/modules/sets.js">
+    <link rel="modulepreload" href="js/modules/calendar.js">
+    <link rel="modulepreload" href="js/modules/coach.js">
+    <link rel="modulepreload" href="js/modules/admin.js">
+    <link rel="modulepreload" href="js/modules/grades.js">
+    <link rel="modulepreload" href="js/modules/onerm.js">
+    <link rel="modulepreload" href="js/modules/stamp.js">
+    <link rel="modulepreload" href="js/modules/stamp-logic.js">
+    <link rel="modulepreload" href="js/modules/pr-logic.js">
+    <link rel="modulepreload" href="js/modules/session-logic.js">
     <script type="module" src="js/main.js"></script>
 
 </body>

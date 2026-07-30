@@ -14,27 +14,49 @@ import { xpToGrade, gradeRank, recordVolume, GRADES } from './grades.js';
 // 그동안 버튼을 여러 번 누르면 매 탭마다 add()가 실행돼 같은 기록이 여러 개 저장되던 문제.
 let isAddingRecord = false;
 
+// 저장/삭제처럼 네트워크를 기다리는 동안 화면 전체를 막는 오버레이.
+// 스피너 + 3초 넘으면 안내 문구 — 멈춘 게 아니라 진행 중임을 알린다.
+// (느릴 때 다시 탭하면 떠있는 하단 네비에 떨어져 화면이 튀는 문제도 같이 막힌다.)
+let overlayTimers = [];
+export function showBlockingOverlay(text = '저장 중…') {
+    hideBlockingOverlay();
+    if (!document.getElementById('spinnerKeyframes')) {
+        const st = document.createElement('style');
+        st.id = 'spinnerKeyframes';
+        st.textContent = '@keyframes blkspin{to{transform:rotate(360deg)}}';
+        document.head.appendChild(st);
+    }
+    const overlay = document.createElement('div');
+    overlay.id = 'savingOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+        <div style="background:#fff;padding:22px 28px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.2);display:flex;flex-direction:column;align-items:center;gap:12px;min-width:180px;">
+            <div style="width:28px;height:28px;border:3px solid #EFEFF0;border-top-color:#329BE7;border-radius:50%;animation:blkspin .8s linear infinite;"></div>
+            <div style="font-weight:700;color:#242428;">${text}</div>
+            <div id="savingOverlayHint" style="font-size:12px;color:#A7A7AA;display:none;">네트워크가 느려요. 잠시만요…</div>
+        </div>`;
+    document.body.appendChild(overlay);
+    overlayTimers.push(setTimeout(() => {
+        const h = document.getElementById('savingOverlayHint');
+        if (h) h.style.display = 'block';
+    }, 3000));
+}
+export function hideBlockingOverlay() {
+    overlayTimers.forEach(clearTimeout);
+    overlayTimers = [];
+    document.getElementById('savingOverlay')?.remove();
+}
+window.showBlockingOverlay = showBlockingOverlay;
+window.hideBlockingOverlay = hideBlockingOverlay;
+
 function setAddRecordBtnBusy(busy) {
     const btn = document.getElementById('addRecordBtn');
     if (btn) {
         btn.disabled = busy;
         btn.textContent = busy ? '저장 중…' : '✅ 운동 완료!';
     }
-    // 저장이 느릴 때(수 초) 다시 탭하면 그 탭이 비활성 버튼이 아니라 떠있는 하단 네비
-    // ('게시판' 탭 등)에 떨어져 화면이 튀는 문제 → 저장 동안 전체 차단 오버레이로 막는다.
-    let overlay = document.getElementById('savingOverlay');
-    if (busy && !overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'savingOverlay';
-        overlay.style.cssText = 'position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;';
-        const box = document.createElement('div');
-        box.style.cssText = 'background:#fff;padding:18px 26px;border-radius:12px;font-weight:700;color:#242428;box-shadow:0 10px 40px rgba(0,0,0,0.2);';
-        box.textContent = '저장 중…';
-        overlay.appendChild(box);
-        document.body.appendChild(overlay);
-    } else if (!busy && overlay) {
-        overlay.remove();
-    }
+    if (busy) showBlockingOverlay('기록 저장 중…');
+    else hideBlockingOverlay();
 }
 
 export async function addRecord() {
@@ -67,20 +89,18 @@ export async function addRecord() {
     isAddingRecord = true;
     setAddRecordBtnBusy(true);
     try {
-        // 개인 기록(PR) 판정 — 저장 전에 같은 종목 과거 기록과 비교
-        let prStatus = null;
-        try {
-            prStatus = await computePR(exercise, validSets);
-        } catch (prErr) {
-            console.error('PR 판정 실패(무시):', prErr);
-        }
-
-        // Get current max order
-        const snapshot = await db.collection('records')
-            .where('userName', '==', state.currentUser)
-            .where('date', '==', state.selectedDate)
-            .get();
-        const count = snapshot.size;
+        // PR 판정과 order 계산은 서로 무관 → 병렬. (직렬로 두면 느린 망에서 왕복이 그대로 쌓임)
+        const [prStatus, count] = await Promise.all([
+            computePR(exercise, validSets).catch(prErr => {
+                console.error('PR 판정 실패(무시):', prErr);
+                return null;
+            }),
+            db.collection('records')
+                .where('userName', '==', state.currentUser)
+                .where('date', '==', state.selectedDate)
+                .get()
+                .then(snap => snap.size),
+        ]);
 
 
         // Feature: Workout Memo Integration
@@ -114,11 +134,15 @@ export async function addRecord() {
 
         if (window.renderCalendar) window.renderCalendar();
 
-        // XP 증분 — 레벨 오르면 팝업(우선). 아니면 PR 팝업, 그것도 아니면 저장 알림.
-        const level = await applyXpDelta(recordVolume({ sets: validSets }));
-        if (level?.leveledUp) {
-            // 레벨업 팝업이 이미 떴음(저장 완료 안내 겸함)
-        } else if (prStatus) {
+        // XP 증분은 저장 완료를 막지 않는다(읽기+쓰기 = 왕복 2회).
+        // 레벨업 팝업은 applyXpDelta가 스스로 띄우므로 결과를 기다릴 필요가 없다.
+        applyXpDelta(recordVolume({ sets: validSets }));
+
+        // 알림 전에 오버레이를 내린다 — alert가 동기 차단이라 finally보다 먼저 치워야 한다.
+        isAddingRecord = false;
+        setAddRecordBtnBusy(false);
+
+        if (prStatus) {
             showPRCelebration(prStatus); // 신기록이면 축하 팝업 (저장 완료 안내 겸함)
         } else {
             alert('✅ 기록이 저장되었습니다!');
@@ -429,6 +453,7 @@ function renderRecordsList(docs) {
 export async function deleteRecord(docId) {
     if (!confirm('정말 이 기록을 삭제하시겠습니까?')) return;
 
+    showBlockingOverlay('삭제 중…');
     try {
         // 삭제될 기록의 volume을 먼저 확보(삭제 후엔 못 읽음) → XP에서 차감.
         let oldVol = 0;
@@ -437,12 +462,16 @@ export async function deleteRecord(docId) {
             if (snap.exists) oldVol = recordVolume(snap.data());
         } catch (e) { console.error('삭제 전 기록 조회 실패(XP 미반영):', e); }
         await db.collection('records').doc(docId).delete();
-        if (oldVol) await applyXpDelta(-oldVol);
+        if (oldVol) applyXpDelta(-oldVol); // XP 반영은 기다리지 않는다
+        hideBlockingOverlay();
         alert('✅ 기록이 삭제되었습니다!');
         if (window.renderCalendar) window.renderCalendar();
     } catch (error) {
         console.error('Error deleting record:', error);
+        hideBlockingOverlay();
         alert('삭제 실패: ' + error.message);
+    } finally {
+        hideBlockingOverlay();
     }
 }
 
@@ -572,6 +601,7 @@ export async function saveEdit(docId) {
         return;
     }
 
+    showBlockingOverlay('수정 저장 중…');
     try {
         // v5.2 Refinement: Redirect Edit Memo to Workout Memo Update
         // If user edits memo here, update the GLOBAL Workout Memo for this exercise
@@ -588,10 +618,11 @@ export async function saveEdit(docId) {
             date: newDate
         });
 
-        // XP: 옛 기록 volume → 새 volume 차이만큼 증분(레벨 오르면 팝업).
-        await applyXpDelta(recordVolume({ sets: validSets }) - (state.editingOldVolume || 0));
+        // XP 증분(레벨 오르면 applyXpDelta가 스스로 팝업) — 저장 완료를 막지 않는다.
+        applyXpDelta(recordVolume({ sets: validSets }) - (state.editingOldVolume || 0));
         state.editingOldVolume = 0;
 
+        hideBlockingOverlay();
         alert('✅ 수정이 완료되었습니다!');
         closeEditModal();
         // 전체 render() 금지 — 아래 작성 중인 새 기록 폼이 날아감.
@@ -600,6 +631,8 @@ export async function saveEdit(docId) {
     } catch (error) {
         console.error('Error saving edit:', error);
         alert('수정 실패: ' + error.message);
+    } finally {
+        hideBlockingOverlay();
     }
 }
 
