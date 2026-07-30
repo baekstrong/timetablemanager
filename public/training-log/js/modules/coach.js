@@ -292,7 +292,8 @@ function scrollIntoViewBelowNav(el) {
     const navBar = document.getElementById('studentQuickNav');
     const navHeight = navBar ? navBar.offsetHeight + 8 : 0;
     const y = el.getBoundingClientRect().top + window.pageYOffset - navHeight;
-    window.scrollTo({ top: y, behavior: 'smooth' });
+    // ponytail: behavior:'smooth'는 이 페이지에서 위 방향 스크롤이 시작되지 않는 경우가 있어 즉시 이동으로 고정.
+    window.scrollTo(0, y);
 }
 
 function scrollToStudent(name) {
