@@ -215,6 +215,9 @@ export function renderCoachScreen() {
                 </button>
             </div>
 
+            <!-- 지금(또는 방금 끝난) 수업 교시 + 명단 새로고침 -->
+            <div id="classSlotBanner" class="mb-4"></div>
+
             <!-- 수강생 선택 (아코디언) -->
             <div class="bg-white rounded-lg border border-[#EFEFF0] mb-4">
                 <button onclick="toggleStudentList()" class="w-full p-4 text-left flex items-center justify-between hover:bg-gray-50 transition rounded-lg">

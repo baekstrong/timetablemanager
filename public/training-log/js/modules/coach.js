@@ -4,6 +4,7 @@ import { getKoreanInitial, getStudentColor, getStudentBadgeColor, getStudentText
 const debouncedLoadAllRecords = debounce(loadAllRecords, 300);
 import { normalizeSet } from './sets.js';
 import { groupSessionsByDate, defaultSessionDate } from './session-logic.js';
+import { resolveClassSlot, rosterFor } from './class-period.js';
 
 // 기록의 date는 로컬 기준 YYYY-MM-DD → 오늘도 로컬로 계산(toISOString은 UTC라 KST 새벽에 하루 밀림)
 function localToday() {
@@ -155,14 +156,87 @@ export async function loadStudentList() {
         // Quick nav bar 업데이트
         updateStudentQuickNav();
 
-        // 선택된 수강생의 '바로 전 수업' 세션 뷰 렌더 (미선택 시 안내 메시지)
-        renderCoachSessionView();
+        // 진입 시 '지금(또는 방금 끝난) 수업' 명단을 자동 선택 → 코치가 이름을 고르지 않아도 된다.
+        // 안쪽에서 renderCoachSessionView까지 호출한다.
+        await applyCurrentClassRoster({ silent: true });
 
     } catch (error) {
         console.error('Error loading student list:', error);
         studentListDiv.innerHTML = '<div class="text-red-500 text-sm">수강생 목록 로딩 실패</div>';
         updateStudentSelectionSummary();
     }
+}
+
+// ============================================
+// '지금 수업' 자동 명단
+// ============================================
+
+// 시트 D열 시간표는 메인 앱이 studentMeta/schedules로 발행한다(firebaseService.syncStudentSchedules).
+let schedulesMap = null;
+// past 슬롯이면 그 수업 날짜의 기록을 열어야 한다 → 세션 뷰 기본 날짜로 쓰이는 힌트.
+export let coachPreferredDate = null;
+
+async function loadSchedules() {
+    if (schedulesMap || !firebaseInitialized || !db) return;
+    try {
+        const doc = await db.collection('studentMeta').doc('schedules').get();
+        schedulesMap = (doc.exists && doc.data().map) ? doc.data().map : {};
+    } catch (error) {
+        console.error('시간표 조회 실패:', error);
+        schedulesMap = {};
+    }
+}
+
+// 지금/방금 끝난 교시의 수강생을 선택 상태로 만든다. 새로고침 버튼도 이걸 호출한다.
+export async function applyCurrentClassRoster({ silent = false } = {}) {
+    const slot = resolveClassSlot();
+    if (!slot) return;
+
+    schedulesMap = null; // 버튼으로 누를 때는 시간표도 다시 읽는다(시트 변경 반영)
+    await loadSchedules();
+
+    const roster = rosterFor(schedulesMap, slot.dayLabel, slot.period.id)
+        .filter(n => state.allStudents.includes(n)); // 훈련일지 계정이 있는 사람만
+
+    // 수업이 끝난 교시면 그 날짜 기록을 펼친다. 수업 중이면 기존 규칙(오늘 이전 마지막 수업)을 따른다.
+    coachPreferredDate = slot.status === 'past' ? slot.date : null;
+
+    state.selectedStudents = roster;
+    localStorage.setItem('coachSelectedStudents', JSON.stringify(roster));
+    // 새로 고를 때마다 캐시된 선택 날짜를 버려야 preferredDate가 반영된다
+    Object.keys(coachSessionSelectedDate).forEach(k => delete coachSessionSelectedDate[k]);
+
+    renderClassSlotBanner(slot, roster.length);
+    updateStudentBadges();
+    updateStudentSelectionSummary();
+    updateStudentQuickNav();
+    await renderCoachSessionView();
+
+    if (!silent && roster.length === 0) {
+        alert(`${slot.dayLabel}요일 ${slot.period.label}에 등록된 수강생이 없습니다.`);
+    }
+}
+window.applyCurrentClassRoster = applyCurrentClassRoster;
+
+function renderClassSlotBanner(slot, count) {
+    const el = document.getElementById('classSlotBanner');
+    if (!el) return;
+    const isNow = slot.status === 'now';
+    const title = isNow ? '지금 수업' : '마지막 수업';
+    const color = isNow ? '#31A552' : '#A7A7AA';
+    el.innerHTML = `
+        <div class="flex items-center justify-between gap-2 bg-white rounded-lg px-4 py-3 border border-[#EFEFF0]">
+            <div class="text-sm">
+                <span class="font-bold" style="color:${color}">${title}</span>
+                <span class="text-gray-800 font-semibold ml-1">${slot.dayLabel} ${slot.period.label}</span>
+                <span class="text-gray-400 ml-1">${slot.period.start}~${slot.period.end}</span>
+                <span class="text-gray-500 ml-2">· ${count}명</span>
+            </div>
+            <button type="button" onclick="applyCurrentClassRoster()"
+                    class="shrink-0 bg-[#329BE7] hover:bg-[#327AB8] text-white text-xs font-bold px-3 py-2 rounded-lg transition">
+                🔄 새로고침
+            </button>
+        </div>`;
 }
 
 export function updateStudentSelectionSummary() {
@@ -1199,7 +1273,10 @@ export async function renderCoachSessionView() {
                 });
                 const { dates, byDate } = groupSessionsByDate(items);
                 coachSessionCache[name] = { dates, byDate };
-                coachSessionSelectedDate[name] = defaultSessionDate(dates, localToday());
+                // 끝난 수업을 보고 있으면 그 날짜를, 아니면 오늘 이전 마지막 수업을 기본으로.
+                coachSessionSelectedDate[name] = (coachPreferredDate && byDate[coachPreferredDate])
+                    ? coachPreferredDate
+                    : defaultSessionDate(dates, localToday());
             }));
             // 학생 화면과 동일하게 종목별 고정 메모를 표시하려면 pinnedMemos도 필요.
             await loadPinnedMemosForSelectedStudents();
@@ -1209,6 +1286,15 @@ export async function renderCoachSessionView() {
             return;
         }
     }
+
+    // 캐시에 이미 있던 수강생도 기본 날짜를 다시 정한다 — '지금 수업' 새로고침이 반영되도록.
+    selected.forEach(name => {
+        const c = coachSessionCache[name];
+        if (!c || coachSessionSelectedDate[name]) return;
+        coachSessionSelectedDate[name] = (coachPreferredDate && c.byDate[coachPreferredDate])
+            ? coachPreferredDate
+            : defaultSessionDate(c.dates, localToday());
+    });
 
     container.innerHTML = selected.map(renderCoachSessionBlock).join('');
 }

@@ -1899,6 +1899,37 @@ export const syncStudentFrequencies = async (students) => {
     });
 };
 
+// 이름 → 시트 D열 수업 일정('월1수1') 맵을 발행. 훈련일지(별도 SPA)는 시트를 모르므로
+// 이 문서가 '지금 수업에 오는 사람' 명단을 계산하는 유일한 경로다. frequencies와 같은 패턴.
+// 같은 이름의 행이 여럿(미리 등록)이면 오늘이 수강 기간에 든 행을 우선한다.
+export const syncStudentSchedules = async (students) => {
+    return safeRead(null, async () => {
+        if (!Array.isArray(students) || students.length === 0) return null;
+        const today = new Date();
+        const todayYY = `${String(today.getFullYear()).slice(2)}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+        const inPeriod = (s) => {
+            const start = (s['시작날짜'] || '').trim();
+            const end = (s['종료날짜'] || '').trim();
+            if (!start || !end) return false;
+            return start <= todayYY && todayYY <= end;
+        };
+
+        const map = {};
+        const active = new Set();
+        for (const s of students) {
+            const nm = (s['이름'] || '').trim();
+            const sch = (s['요일 및 시간'] || '').trim();
+            if (!nm || !sch) continue;
+            // 수강 기간에 든 행이 한 번 잡히면 다른 행으로 덮어쓰지 않는다
+            if (active.has(nm)) continue;
+            map[nm] = sch;
+            if (inPeriod(s)) active.add(nm);
+        }
+        await setDoc(doc(db, 'studentMeta', 'schedules'), { map, updatedAt: serverTimestamp() });
+        return map;
+    });
+};
+
 // ============================================
 // 학년(누적 훈련량 경험치) — 티어 패턴 미러
 // ============================================
