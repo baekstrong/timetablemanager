@@ -71,11 +71,14 @@ export default function CoachSchedule({
         PERIODS.forEach(p => {
             const d = getCellData(todayDayName, p);
             if (!d) return;
-            map[String(p.id)] = [...new Set([
-                ...(d.activeStudents || []),   // 정규 출석 예정(홀딩·결석·보강이동·시작전 제외됨)
-                ...(d.makeupStudents || []),   // 이 슬롯으로 보강 오는 사람
-                ...(d.subs || []),             // 대체 인원
-            ])];
+            // 아래 셀 렌더와 같은 기준으로 뽑는다 = 화면에 라벨 없이 뜨는 사람 + '보강' 태그로 뜨는 사람.
+            // (보강홀딩·보강결석·홀딩·신규·시작전은 애초에 다른 배열이라 여기 안 들어온다)
+            const present = (d.regularStudentsPresent || []).filter(n =>
+                !(d.makeupMovedStudents || []).includes(n) &&   // 다른 슬롯으로 보강 감
+                !(d.agreedAbsenceStudents || []).includes(n) && // 합의결석
+                !(d.absenceStudents || []).includes(n)          // 결석 신청
+            );
+            map[String(p.id)] = [...new Set([...present, ...(d.makeupStudents || [])])];
         });
         publishTodayRoster(todayISO, map);
         // deps 없이 매 렌더 계산한다. 결석·보강·홀딩은 Firebase에서 뒤늦게 도착하는데
