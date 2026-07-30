@@ -248,6 +248,7 @@ function updateStudentBadges() {
 // ============================================
 
 let activeQuickNavStudent = null;
+let quickNavStage = null; // 'memo'(첫 클릭) → 'records'(같은 이름 재클릭)
 
 export function updateStudentQuickNav() {
     const nav = document.getElementById('studentQuickNav');
@@ -267,10 +268,14 @@ export function updateStudentQuickNav() {
         const btn = document.createElement('button');
         btn.className = 'student-quick-nav-btn' + (activeQuickNavStudent === name ? ' active' : '');
         btn.textContent = name;
+        // 첫 클릭은 상단 코치 전용 메모, 같은 이름 두 번째 클릭은 훈련일지 기록으로.
         btn.addEventListener('click', () => {
+            const goToRecords = activeQuickNavStudent === name && quickNavStage === 'memo';
             activeQuickNavStudent = name;
+            quickNavStage = goToRecords ? 'records' : 'memo';
             highlightQuickNavBtn(nav, name);
-            scrollToStudent(name);
+            if (goToRecords) scrollToStudent(name);
+            else scrollToCoachNote(name);
         });
         nav.appendChild(btn);
     });
@@ -282,17 +287,30 @@ function highlightQuickNavBtn(nav, activeName) {
     });
 }
 
-function scrollToStudent(name) {
-    const section = document.getElementById(`student-section-${name}`);
-    if (!section) return;
-
+function scrollIntoViewBelowNav(el) {
+    if (!el) return;
     const navBar = document.getElementById('studentQuickNav');
     const navHeight = navBar ? navBar.offsetHeight + 8 : 0;
-
-    const y = section.getBoundingClientRect().top + window.pageYOffset - navHeight;
+    const y = el.getBoundingClientRect().top + window.pageYOffset - navHeight;
     window.scrollTo({ top: y, behavior: 'smooth' });
 }
+
+function scrollToStudent(name) {
+    // student-section-{이름}은 메모 블록과 기록 블록 양쪽에 있다 → 기록 컨테이너 안쪽을 우선.
+    const sel = `[id="student-section-${String(name).replace(/["\\]/g, '\\$&')}"]`;
+    const section = document.querySelector(`#allRecordsList ${sel}`) || document.getElementById(`student-section-${name}`);
+    scrollIntoViewBelowNav(section);
+}
 window.scrollToStudent = scrollToStudent;
+
+// 첫 클릭 대상: 상단 코치 전용 메모. 접혀 있으면 펼쳐서 바로 쓸 수 있게 한다.
+async function scrollToCoachNote(name) {
+    const idx = state.selectedStudents.indexOf(name);
+    if (idx !== -1 && !(coachNotesMap[name] || '') && !expandedNotes.has(name)) {
+        await expandCoachNote(idx);
+    }
+    scrollIntoViewBelowNav(document.getElementById(`coach-note-${name}`));
+}
 
 // ============================================
 // Data Caching & Real-time Listeners
@@ -303,16 +321,31 @@ let coachPinnedMemosCache = {};
 // 코치 전용 비공개 메모 — 수강생 화면 어디에서도 읽지 않는다(규칙에서도 isCoach만 허용).
 // 학생별 문서 대신 단일 문서의 map: 몇 명을 선택해도 읽기 1회. (studentMeta/frequencies와 같은 패턴)
 let coachNotesMap = {};
+let coachNotesLoaded = false;
+const expandedNotes = new Set(); // 비어 있는 메모를 코치가 직접 펼친 수강생
 
+// ponytail: 문서 1개를 세션당 1회만 읽는다. 저장은 캐시도 갱신하므로 재조회 불필요
+// (코치가 두 기기에서 동시에 쓰는 경우는 고려 안 함 — 새로고침하면 최신).
 async function loadCoachNotes() {
-    if (!firebaseInitialized || !db) return;
+    if (coachNotesLoaded || !firebaseInitialized || !db) return;
     try {
         const doc = await db.collection('coachNotes').doc('notes').get();
         coachNotesMap = (doc.exists && doc.data().map) ? doc.data().map : {};
+        coachNotesLoaded = true;
     } catch (error) {
         console.error('코치 전용 메모 조회 실패:', error);
     }
 }
+
+// 비어 있어 접혀 있던 메모를 펼친다 (퀵내비 첫 클릭·연필 버튼)
+export async function expandCoachNote(idx) {
+    const name = state.selectedStudents[idx];
+    if (!name) return;
+    expandedNotes.add(name);
+    await renderCoachNotes(); // 렌더 후에 focus — 접힌 버튼은 이미 교체된 상태
+    document.getElementById(`coachNote-${idx}`)?.focus();
+}
+window.expandCoachNote = expandCoachNote;
 
 const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -330,22 +363,38 @@ export async function renderCoachNotes() {
 
     await loadCoachNotes(); // 몇 명을 선택해도 문서 1개 = 읽기 1회
 
-    section.innerHTML = state.selectedStudents.map((studentName, idx) => `
-        <div class="bg-white rounded-lg p-3 mb-2 border border-[#EFEFF0]">
-            <div class="flex items-center justify-between mb-2">
-                <h4 class="text-xs font-bold text-gray-700">
-                    🔒 ${escHtml(studentName)} — 코치 전용 메모
-                    <span class="font-normal text-gray-400">· 수강생에게 보이지 않음</span>
-                </h4>
-                <span id="coachNoteStatus-${idx}" class="text-xs text-[#31A552]"></span>
-            </div>
-            <textarea id="coachNote-${idx}" rows="3" placeholder="나만 볼 메모 (부상, 성향, 상담 내용 등)"
-                      class="w-full px-3 py-2 border border-[#EFEFF0] rounded-lg text-sm focus:outline-none focus:border-[#329BE7]">${escHtml(coachNotesMap[studentName] || '')}</textarea>
-            <button onclick="saveCoachNote(${idx})" type="button"
-                    class="mt-2 w-full bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold py-2 rounded-lg transition">
-                저장
-            </button>
-        </div>`).join('');
+    // 메모가 있는 수강생만 펼쳐서 보여준다 — 여러 명 선택 시 상단이 textarea로 도배되지 않게.
+    section.innerHTML = state.selectedStudents.map((studentName, idx) => {
+        const note = coachNotesMap[studentName] || '';
+        const anchor = `id="coach-note-${escHtml(studentName)}"`;
+
+        if (!note && !expandedNotes.has(studentName)) {
+            return `
+                <button ${anchor} type="button" onclick="expandCoachNote(${idx})"
+                        class="w-full flex items-center justify-between bg-white rounded-lg px-3 py-2 mb-2 border border-[#EFEFF0] text-left">
+                    <span class="text-xs font-bold text-gray-700">🔒 ${escHtml(studentName)}
+                        <span class="font-normal text-gray-400">· 코치 전용 메모 없음</span></span>
+                    <span class="text-xs font-semibold text-[#327AB8]">✏️ 메모 쓰기</span>
+                </button>`;
+        }
+
+        return `
+            <div ${anchor} class="bg-white rounded-lg p-3 mb-2 border border-[#EFEFF0]">
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-xs font-bold text-gray-700">
+                        🔒 ${escHtml(studentName)} — 코치 전용 메모
+                        <span class="font-normal text-gray-400">· 수강생에게 보이지 않음</span>
+                    </h4>
+                    <span id="coachNoteStatus-${idx}" class="text-xs text-[#31A552]"></span>
+                </div>
+                <textarea id="coachNote-${idx}" rows="3" placeholder="나만 볼 메모 (부상, 성향, 상담 내용 등)"
+                          class="w-full px-3 py-2 border border-[#EFEFF0] rounded-lg text-sm focus:outline-none focus:border-[#329BE7]">${escHtml(note)}</textarea>
+                <button onclick="saveCoachNote(${idx})" type="button"
+                        class="mt-2 w-full bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold py-2 rounded-lg transition">
+                    저장
+                </button>
+            </div>`;
+    }).join('');
 }
 window.renderCoachNotes = renderCoachNotes;
 
