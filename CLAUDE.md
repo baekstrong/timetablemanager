@@ -303,7 +303,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `entranceClasses` | 입학반 정보 |
 | `registrationFAQ` | 신규 등록 FAQ |
 | `coachPinnedMemos` | 코치가 수강생별 고정한 메모 (훈련일지) — **수강생에게 보임** |
-| `coachNotes` | 코치 전용 비공개 메모. 단일 문서 `coachNotes/notes` = `{map:{수강생명:'메모'}, updatedAt}` (몇 명을 선택해도 읽기 1회). 훈련일지 코치 화면에서 수강생 선택 시 상단 `#coachPrivateNotesSection`에 카드로 항상 노출. **수강생 코드에서 절대 읽지 않으며 규칙도 `isCoach()`만 허용** — generic signedIn 목록에 넣으면 학생 read가 뚫리므로 넣지 말 것 |
+| `coachNotes` | 코치 전용 비공개 메모. 단일 문서 `coachNotes/notes` = `{map:{수강생명:'메모'}, updatedAt}` (몇 명을 선택해도 읽기 1회). 훈련일지 코치 화면에서 수강생 선택 시 상단 `#coachPrivateNotesSection`에 카드로 항상 노출(메모 없는 수강생은 한 줄로 접힘, `✏️ 메모 쓰기`로 펼침). 상단 퀵내비 이름 클릭은 **첫 클릭 = 코치 전용 메모 / 같은 이름 재클릭 = 훈련일지 기록**으로 왕복. **수강생 코드에서 절대 읽지 않으며 규칙도 `isCoach()`만 허용** — generic signedIn 목록에 넣으면 학생 read가 뚫리므로 넣지 말 것 |
 | `pinnedMemos` | 수강생 자신의 고정 메모 (훈련일지) |
 | `renewalContracts` | 재등록 계약 (status: pending/agreed/cancelled) |
 | `personalBests` | 공식 PR 측정 결과 (`prType`별 비교 룰; doc id: `{userName}__{exercise}` 또는 `{userName}__{exercise}__{intensity}{unit}` for `weightThenReps`) |
