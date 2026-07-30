@@ -78,9 +78,10 @@ export default function CoachSchedule({
             ])];
         });
         publishTodayRoster(todayISO, map);
-        // getCellData는 렌더마다 새로 만들어지므로 deps에서 제외 — 같은 내용이면 발행 자체가 생략된다.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [scheduleData, weekDates, todayDayName]);
+        // deps 없이 매 렌더 계산한다. 결석·보강·홀딩은 Firebase에서 뒤늦게 도착하는데
+        // scheduleData만 보고 있으면 도착 전 값(결석자 포함·보강자 누락)이 그대로 발행된다.
+        // 실제 write는 publishTodayRoster가 내용 비교로 억제하므로 매 렌더 실행이 싸다.
+    });
 
     // 재등록 지연 명단(코치) — 이름 옆 "(재등록X)" 표시용
     const delayedReregNames = new Set((delayedReregistrationStudents || []).map(s => s.name));
