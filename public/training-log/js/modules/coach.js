@@ -300,6 +300,81 @@ window.scrollToStudent = scrollToStudent;
 let studentPinnedMemosCache = {};
 let coachPinnedMemosCache = {};
 
+// 코치 전용 비공개 메모 — 수강생 화면 어디에서도 읽지 않는다(규칙에서도 isCoach만 허용).
+// 학생별 문서 대신 단일 문서의 map: 몇 명을 선택해도 읽기 1회. (studentMeta/frequencies와 같은 패턴)
+let coachNotesMap = {};
+
+async function loadCoachNotes() {
+    if (!firebaseInitialized || !db) return;
+    try {
+        const doc = await db.collection('coachNotes').doc('notes').get();
+        coachNotesMap = (doc.exists && doc.data().map) ? doc.data().map : {};
+    } catch (error) {
+        console.error('코치 전용 메모 조회 실패:', error);
+    }
+}
+
+const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// 선택한 수강생마다 코치 전용 메모 카드를 상단에 렌더.
+// '운동 메모만 보기' 필터로 숨겨지는 coachPinnedMemosSection과 별도 섹션이라 항상 보인다.
+export async function renderCoachNotes() {
+    const section = document.getElementById('coachPrivateNotesSection');
+    if (!section) return;
+
+    if (state.selectedStudents.length === 0) {
+        section.innerHTML = '';
+        return;
+    }
+
+    await loadCoachNotes(); // 몇 명을 선택해도 문서 1개 = 읽기 1회
+
+    section.innerHTML = state.selectedStudents.map((studentName, idx) => `
+        <div class="bg-white rounded-lg p-3 mb-2 border border-[#EFEFF0]">
+            <div class="flex items-center justify-between mb-2">
+                <h4 class="text-xs font-bold text-gray-700">
+                    🔒 ${escHtml(studentName)} — 코치 전용 메모
+                    <span class="font-normal text-gray-400">· 수강생에게 보이지 않음</span>
+                </h4>
+                <span id="coachNoteStatus-${idx}" class="text-xs text-[#31A552]"></span>
+            </div>
+            <textarea id="coachNote-${idx}" rows="3" placeholder="나만 볼 메모 (부상, 성향, 상담 내용 등)"
+                      class="w-full px-3 py-2 border border-[#EFEFF0] rounded-lg text-sm focus:outline-none focus:border-[#329BE7]">${escHtml(coachNotesMap[studentName] || '')}</textarea>
+            <button onclick="saveCoachNote(${idx})" type="button"
+                    class="mt-2 w-full bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold py-2 rounded-lg transition">
+                저장
+            </button>
+        </div>`).join('');
+}
+window.renderCoachNotes = renderCoachNotes;
+
+// 이름을 onclick/id로 넘기지 않는다(따옴표·특수문자 escape 불필요) — 선택 목록 인덱스로만 참조.
+export async function saveCoachNote(idx) {
+    const studentName = state.selectedStudents[idx];
+    const el = document.getElementById(`coachNote-${idx}`);
+    const status = document.getElementById(`coachNoteStatus-${idx}`);
+    if (!studentName || !el || !db) return;
+
+    const note = el.value.trim();
+    try {
+        // merge:true는 map 필드를 딥 병합 → 다른 수강생 메모는 그대로 유지된다.
+        await db.collection('coachNotes').doc('notes').set({
+            map: { [studentName]: note },
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        coachNotesMap[studentName] = note;
+        if (status) {
+            status.textContent = '저장됐어요';
+            setTimeout(() => { if (status) status.textContent = ''; }, 2000);
+        }
+    } catch (error) {
+        console.error('코치 전용 메모 저장 실패:', error);
+        if (status) status.textContent = '저장 실패';
+    }
+}
+window.saveCoachNote = saveCoachNote;
+
 export function setupRealtimePinnedMemosListener() {
     // 2단계 읽기 절감: 코치 진입 시 pinnedMemos 전체 컬렉션 실시간 구독 금지.
     // 선택된 학생의 문서만 render 시점에 직접 조회한다.
@@ -382,6 +457,7 @@ export async function renderPinnedMemosForCoach() {
                     📩 메시지 보내기
                 </button>
             </div>`;
+
 
         // 1. Coach Messages (Personal Messages / Coach Memos)
         if (filteredCoachMemos.length > 0) {
@@ -668,6 +744,9 @@ export async function deleteStudentAccount(name) {
         batch.delete(db.collection('coachPinnedMemos').doc(name));
         // pinnedMemos 삭제
         batch.delete(db.collection('pinnedMemos').doc(name));
+        // 코치 전용 메모(단일 문서 map)에서 해당 키만 제거
+        batch.set(db.collection('coachNotes').doc('notes'),
+            { map: { [name]: firebase.firestore.FieldValue.delete() } }, { merge: true });
 
         await batch.commit();
 
@@ -1026,6 +1105,8 @@ const escCoach = (s) => String(s ?? '').replace(/[&<>"']/g, c => (
 const tsMs = (ts) => (ts && ts.toDate) ? ts.toDate().getTime() : 0;
 
 export async function renderCoachSessionView() {
+    renderCoachNotes(); // 선택 변경의 단일 관문 — 코치 전용 메모도 여기서 같이 갱신
+
     const container = document.getElementById('allRecordsList');
     if (!container) return;
     container.style.display = 'block';

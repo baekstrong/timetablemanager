@@ -302,7 +302,8 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `newStudentRegistrations` | 신규 수강 신청 (pending/approved/rejected). `smsLog{reception,approval,reminder}` 필드에 자동 문자 발송 결과 기록 → 신규 페이지 SMS 상황판(상태칩+재발송)이 이를 읽음. `registeredByCoach=true`(코치 직접 등록)는 자동문자 대상 아님. `referralSource`(유입경로: 인스타그램/네이버/지인추천/직접방문/기타) 필드를 포함하며 매출·통계 대시보드 유입경로 집계에 사용 |
 | `entranceClasses` | 입학반 정보 |
 | `registrationFAQ` | 신규 등록 FAQ |
-| `coachPinnedMemos` | 코치가 수강생별 고정한 메모 (훈련일지) |
+| `coachPinnedMemos` | 코치가 수강생별 고정한 메모 (훈련일지) — **수강생에게 보임** |
+| `coachNotes` | 코치 전용 비공개 메모. 단일 문서 `coachNotes/notes` = `{map:{수강생명:'메모'}, updatedAt}` (몇 명을 선택해도 읽기 1회). 훈련일지 코치 화면에서 수강생 선택 시 상단 `#coachPrivateNotesSection`에 카드로 항상 노출. **수강생 코드에서 절대 읽지 않으며 규칙도 `isCoach()`만 허용** — generic signedIn 목록에 넣으면 학생 read가 뚫리므로 넣지 말 것 |
 | `pinnedMemos` | 수강생 자신의 고정 메모 (훈련일지) |
 | `renewalContracts` | 재등록 계약 (status: pending/agreed/cancelled) |
 | `personalBests` | 공식 PR 측정 결과 (`prType`별 비교 룰; doc id: `{userName}__{exercise}` 또는 `{userName}__{exercise}__{intensity}{unit}` for `weightThenReps`) |

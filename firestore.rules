@@ -58,6 +58,12 @@ service cloud.firestore {
       }
     }
 
+    // ── 코치 전용 비공개 메모(수강생별 코치 노트): 코치만 read/write ──
+    // ⚠️ 아래 generic 목록에 'coachNotes' 를 넣지 말 것 — OR 시맨틱으로 학생 read 가 뚫린다.
+    match /coachNotes/{docId} {
+      allow read, write: if isCoach();
+    }
+
     // ── 운영 + 훈련일지 컬렉션: 인증 사용자 read/write, 비인증 전면 차단 ──
     // ponytail: 우선 signedIn 으로 개방(락아웃 0 최우선). 소유자 단위 강화는 악용 시 별도 과제.
     // ⚠️ userSecrets/users 는 이 목록에 없어야 함(있으면 OR 시맨틱으로 위 차단이 뚫림).

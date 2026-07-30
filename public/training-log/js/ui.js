@@ -234,6 +234,9 @@ export function renderCoachScreen() {
             <!-- 선택된 수강생 빠른 이동 바 (sticky) -->
             <div id="studentQuickNav" class="student-quick-nav" style="display: none;"></div>
 
+            <!-- 코치 전용 비공개 메모 (선택한 수강생마다 항상 상단 노출) -->
+            <div id="coachPrivateNotesSection" class="mb-4"></div>
+
             <!-- 코치 고정 메모 현황 (선택한 수강생만) -->
             <div id="coachPinnedMemosSection" class="mb-4"></div>
 
