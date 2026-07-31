@@ -77,6 +77,9 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     // 같은 달엔 changed:false라 재실행돼도 중복 팝업 없음.
     useEffect(() => {
         if (!user || user.role === 'coach') return;
+        // 시트 로딩 완료 후 1회만 실행 — 마운트 직후 빈 students로 한 번 더 돌아
+        // 티어/XP/학년맵 조회가 전부 2배로 나가고 성별 없는 XP 계산이 선행되던 중복 제거.
+        if (!students || students.length === 0) return;
         let cancel = false;
         refreshStudentTier({ userName: user.username }).then(change => {
             if (cancel || !change) return;

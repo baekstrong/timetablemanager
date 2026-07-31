@@ -1684,14 +1684,16 @@ export const getAllExerciseNames = async () => {
 
 /**
  * 그래프용: 특정 학생의 일상 훈련 기록 (시계열)
- * 복합 인덱스 회피를 위해 userName으로만 쿼리하고 date는 클라이언트에서 필터.
- * 정확 일치 0건이면 sinceDate 이후 records를 fetch해서 trim/대소문자 무시 매칭으로 폴백.
+ * userName + date 범위로 경계해 쿼리. 정확 일치 0건이면 sinceDate 이후 records를
+ * fetch해서 trim/대소문자 무시 매칭으로 폴백.
  * @param sinceDate 'YYYY-MM-DD'
  */
 export const getRecordsByUserSince = async (userName, sinceDate) => {
     return safeRead([], async () => {
         const trimmed = (userName || '').trim();
-        let all = await queryDocs('records', where('userName', '==', trimmed));
+        // sinceDate 이후만 읽는다 — 무경계는 재원 기간에 비례해 read 증가. 인덱스 없으면 무경계 폴백.
+        let all = await queryDocs('records', where('userName', '==', trimmed), where('date', '>=', sinceDate))
+            .catch(() => queryDocs('records', where('userName', '==', trimmed)));
         if (all.length === 0 && trimmed) {
             const recent = await queryDocs('records', where('date', '>=', sinceDate));
             const lower = trimmed.toLowerCase();
@@ -1757,7 +1759,9 @@ export const getMonthlyAttendanceHistory = async (userName, monthsBack = 12) => 
         const startMonth = new Date(today.getFullYear(), today.getMonth() - (monthsBack - 1), 1);
         const startStr = `${startMonth.getFullYear()}-${String(startMonth.getMonth() + 1).padStart(2, '0')}-01`;
         const trimmed = (userName || '').trim();
-        let all = await queryDocs('records', where('userName', '==', trimmed));
+        // 조회 범위(최근 N개월) 이후만 읽는다. 인덱스 없으면 무경계 폴백.
+        let all = await queryDocs('records', where('userName', '==', trimmed), where('date', '>=', startStr))
+            .catch(() => queryDocs('records', where('userName', '==', trimmed)));
         if (all.length === 0 && trimmed) {
             const recent = await queryDocs('records', where('date', '>=', startStr));
             const lower = trimmed.toLowerCase();
@@ -1797,8 +1801,7 @@ export const getMonthlyAttendanceHistory = async (userName, monthsBack = 12) => 
 // 티어(출석 등급) — 지난달 활동일 기반
 // ============================================
 
-// 지정 달(ym 'YYYY-MM')의 Firebase 활동 소스 수집.
-// records/freeWorkout은 복합 인덱스 회피를 위해 날짜 범위로만 쿼리 후 이름은 클라이언트 필터.
+// 지정 달(ym 'YYYY-MM')의 Firebase 활동 소스 수집. 본인 이름 + 그 달 날짜 범위로 경계해 읽는다.
 const getMonthlyActivitySources = async (userName, ym) => {
     return safeRead({ recordDates: new Set(), freeDates: new Set() }, async () => {
         const [y, m] = ym.split('-').map(Number);
@@ -1806,12 +1809,16 @@ const getMonthlyActivitySources = async (userName, ym) => {
         const next = new Date(y, m, 1);
         const nextStart = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`;
         const name = (userName || '').trim();
-        // 본인 문서만 읽는다(단일 equality → 복합 인덱스 불필요). 그 달 날짜만 클라 필터.
-        // 이전엔 한 명 티어 계산에 전월 records 전체(전 수강생분)를 읽어 월초 폭증 → 본인분으로 축소.
+        // 본인분 + 그 달 범위로 경계해서 읽는다. 무경계(userName만)로 읽으면 재원 기간에
+        // 비례해 read가 무한 증가 — 장기 수강생의 매월 첫 접속이 수백 read가 되던 원인.
+        // (userName,date) 복합 인덱스는 훈련일지 달력이 상시 쓰는 조합이라 이미 존재.
+        // 만일 인덱스가 없어 실패하면 기존 무경계 쿼리로 폴백해 기능은 유지한다.
         const inMonth = d => d && d >= monthStart && d < nextStart;
         const [records, free] = await Promise.all([
-            queryDocs('records', where('userName', '==', name)),
-            queryDocs('freeWorkoutAttendance', where('studentName', '==', name)),
+            queryDocs('records', where('userName', '==', name), where('date', '>=', monthStart), where('date', '<', nextStart))
+                .catch(() => queryDocs('records', where('userName', '==', name))),
+            queryDocs('freeWorkoutAttendance', where('studentName', '==', name), where('date', '>=', monthStart), where('date', '<', nextStart))
+                .catch(() => queryDocs('freeWorkoutAttendance', where('studentName', '==', name))),
         ]);
         const recordDates = new Set(records.filter(r => inMonth(r.date)).map(r => r.date));
         const freeDates = new Set(free.filter(r => inMonth(r.date)).map(r => r.date).filter(Boolean));
@@ -1852,30 +1859,41 @@ export const refreshStudentTier = async ({ userName }) => {
             tier: tier.key, tierMonth: ym, tierScore: score,
             prevTier, tierIntroPending: false, tierUpdatedAt: serverTimestamp(),
         }, { merge: true });
-        clearTierMapCache();
+        // 캐시를 통째로 비우면 다음 getTierMap이 users 전체를 재스캔한다 → 해당 항목만 제자리 갱신
+        if (usersMapsCache) usersMapsCache.tierMap[name] = tier.key;
         // 첫 진입(isNew)이면 무조건 팝업, 이후엔 승급/강등 시에만.
         return { changed: isNew || direction !== 0, isNew, direction, score, tier: tier.key, prevTier };
     });
 };
 
-// 이름→티어키 맵(게시판 뱃지용). 5분 캐시.
-let tierMapCache = null;
-let tierMapFetchedAt = 0;
-function clearTierMapCache() {
-    tierMapCache = null;
-    tierMapFetchedAt = 0;
-}
-export const getTierMap = async () => {
-    return safeRead({}, async () => {
-        const now = Date.now();
-        if (tierMapCache && now - tierMapFetchedAt < HOLIDAY_CACHE_TTL_MS) return tierMapCache;
+// 이름→티어/학년 맵(게시판 뱃지용). users 컬렉션 스캔 1회를 두 맵이 공유한다.
+// 이전엔 getTierMap/getGradeMap이 같은 컬렉션을 각자 전체 스캔(+각자 캐시)해
+// 대시보드 마운트마다 전체 유저 read가 2배로 나갔다. 5분 캐시 + in-flight dedup.
+let usersMapsCache = null; // { tierMap, gradeMap }
+let usersMapsFetchedAt = 0;
+let usersMapsInflight = null;
+const getUsersMaps = async () => {
+    const now = Date.now();
+    if (usersMapsCache && now - usersMapsFetchedAt < HOLIDAY_CACHE_TTL_MS) return usersMapsCache;
+    if (usersMapsInflight) return usersMapsInflight;
+    usersMapsInflight = (async () => {
         const snap = await getDocs(collection(db, 'users'));
-        const map = {};
-        snap.forEach(d => { const t = d.data()?.tier; if (t) map[d.id] = t; });
-        tierMapCache = map;
-        tierMapFetchedAt = now;
-        return map;
-    });
+        const tierMap = {};
+        const gradeMap = {};
+        snap.forEach(d => {
+            const data = d.data() || {};
+            if (data.tier) tierMap[d.id] = data.tier;
+            if (data.grade) gradeMap[d.id] = data.grade;
+        });
+        usersMapsCache = { tierMap, gradeMap };
+        usersMapsFetchedAt = Date.now();
+        return usersMapsCache;
+    })().finally(() => { usersMapsInflight = null; });
+    return usersMapsInflight;
+};
+
+export const getTierMap = async () => {
+    return safeRead({}, async () => (await getUsersMaps()).tierMap);
 };
 
 // (제거됨) backfillTiersForMonth — 코치 진입 시 전원 티어 재계산은 읽기 폭증의 원인이라 삭제.
@@ -1996,30 +2014,16 @@ export const refreshStudentXP = async ({ userName, gender }) => {
         await setDoc(userRef, {
             xp, xpVolume, xpCoef: coef, grade, gradeSeen, gradeUpdatedAt: serverTimestamp(),
         }, { merge: true });
-        clearGradeMapCache();
+        // 매 실행마다 캐시 전체 무효화 → 다음 getGradeMap이 users 전체 재스캔하던 문제. 제자리 갱신으로 대체.
+        if (usersMapsCache) usersMapsCache.gradeMap[name] = grade;
         xpSessionCache.set(name, { xp, grade, coef });
         return { xp, grade, isNew: firstTime, promoted, fromGrade: promoted ? prevSeen : null };
     });
 };
 
-// 이름→학년키 맵(게시판 뱃지용). 5분 캐시. (getTierMap 미러)
-let gradeMapCache = null;
-let gradeMapFetchedAt = 0;
-function clearGradeMapCache() {
-    gradeMapCache = null;
-    gradeMapFetchedAt = 0;
-}
+// 이름→학년키 맵(게시판 뱃지용). getTierMap과 같은 users 스캔 1회를 공유.
 export const getGradeMap = async () => {
-    return safeRead({}, async () => {
-        const now = Date.now();
-        if (gradeMapCache && now - gradeMapFetchedAt < HOLIDAY_CACHE_TTL_MS) return gradeMapCache;
-        const snap = await getDocs(collection(db, 'users'));
-        const map = {};
-        snap.forEach(d => { const g = d.data()?.grade; if (g) map[d.id] = g; });
-        gradeMapCache = map;
-        gradeMapFetchedAt = now;
-        return map;
-    });
+    return safeRead({}, async () => (await getUsersMaps()).gradeMap);
 };
 
 // (제거됨) backfillGradesForStudents — 코치 진입 시 전체 records 스캔으로 전원 XP를 재계산하던
