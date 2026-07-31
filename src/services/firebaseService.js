@@ -1905,13 +1905,13 @@ export const syncStudentFrequencies = async (students) => {
 // ponytail: 같은 내용이면 쓰지 않는다 — 시간표는 자주 리렌더되고 write는 비용이다.
 // 날짜별로 남긴다(studentMeta/roster-YYYY-MM-DD) — 지난 수업 명단도 정확해야 하므로.
 // studentMeta 컬렉션을 쓰는 이유: 이미 규칙에 열려 있어 새 컬렉션 규칙 배포가 필요 없다.
-let lastRosterPayload = '';
-export const publishTodayRoster = async (date, map) => {
-    const payload = JSON.stringify({ date, map });
-    if (payload === lastRosterPayload) return null;
+const lastRosterPayload = {}; // 날짜별 마지막 발행 내용 — 같으면 write 생략
+export const publishRoster = async (date, map) => {
+    const payload = JSON.stringify(map);
+    if (lastRosterPayload[date] === payload) return null;
     return safeRead(null, async () => {
         await setDoc(doc(db, 'studentMeta', `roster-${date}`), { date, map, updatedAt: serverTimestamp() });
-        lastRosterPayload = payload;
+        lastRosterPayload[date] = payload;
         return map;
     });
 };

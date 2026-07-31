@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { PERIODS, DAYS } from '../../data/mockData';
-import { toggleDisabledClass, toggleLockedSlot, publishTodayRoster } from '../../services/firebaseService';
+import { toggleDisabledClass, toggleLockedSlot, publishRoster } from '../../services/firebaseService';
 import { weekDateToISO, getWaitlistCountForSlot, isPeriodImminentOrOngoing } from '../../utils/scheduleUtils';
 import CoachWaitlistPanel from './CoachWaitlistPanel';
 import { StudentTag, UnpaidBadge } from './ScheduleCell';
@@ -72,24 +72,22 @@ export default function CoachSchedule({
         return [...new Set([...present, ...(d.makeupStudents || [])])];
     }
 
-    // 훈련일지 '지금 수업' 명단은 이 화면이 계산한 결과를 그대로 쓴다(보강 포함, 안 오는 사람 제외).
-    // 다른 주를 보고 있으면 발행하지 않는다 — 오늘 명단이 아니기 때문.
+    // 훈련일지 명단은 이 화면이 계산한 결과를 그대로 쓴다(보강 포함, 안 오는 사람 제외).
+    // 표시 중인 주 전체를 날짜별로 발행한다 — 훈련일지가 '지난 수업'을 볼 때도 정확해야 하므로.
     useEffect(() => {
-        if (!weekDates?.[todayDayName]) return; // 주말이거나 이번 주가 아님
-        const todayISO = weekDateToISO(weekDates[todayDayName]);
-        const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-        if (todayISO !== localToday) return;
-
-        const map = {};
-        PERIODS.forEach(p => {
-            const d = getCellData(todayDayName, p);
-            if (!d) return;
-            map[String(p.id)] = attendingNamesFor(d);
+        DAYS.forEach(day => {
+            if (!weekDates?.[day]) return;
+            const iso = weekDateToISO(weekDates[day]);
+            const map = {};
+            PERIODS.forEach(p => {
+                const d = getCellData(day, p);
+                if (d) map[String(p.id)] = attendingNamesFor(d);
+            });
+            publishRoster(iso, map);
         });
-        publishTodayRoster(todayISO, map);
         // deps 없이 매 렌더 계산한다. 결석·보강·홀딩은 Firebase에서 뒤늦게 도착하는데
         // scheduleData만 보고 있으면 도착 전 값(결석자 포함·보강자 누락)이 그대로 발행된다.
-        // 실제 write는 publishTodayRoster가 내용 비교로 억제하므로 매 렌더 실행이 싸다.
+        // 실제 write는 publishRoster가 날짜별 내용 비교로 억제하므로 매 렌더 실행이 싸다.
     });
 
     // 재등록 지연 명단(코치) — 이름 옆 "(재등록X)" 표시용
