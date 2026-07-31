@@ -59,6 +59,19 @@ export default function CoachSchedule({
     }, []);
     const todayDayName = ['일', '월', '화', '수', '목', '금', '토'][now.getDay()];
 
+    // 이 수업에 '실제로 오는 사람' — 셀 렌더와 같은 기준.
+    // 화면에 라벨 없이 뜨는 사람 + '보강' 태그로 뜨는 사람.
+    // (보강홀딩·보강결석·홀딩·신규·시작전은 애초에 다른 배열이라 여기 안 들어온다)
+    function attendingNamesFor(d) {
+        if (!d) return [];
+        const present = (d.regularStudentsPresent || []).filter(n =>
+            !(d.makeupMovedStudents || []).includes(n) &&   // 다른 슬롯으로 보강 감
+            !(d.agreedAbsenceStudents || []).includes(n) && // 합의결석
+            !(d.absenceStudents || []).includes(n)          // 결석 신청
+        );
+        return [...new Set([...present, ...(d.makeupStudents || [])])];
+    }
+
     // 훈련일지 '지금 수업' 명단은 이 화면이 계산한 결과를 그대로 쓴다(보강 포함, 안 오는 사람 제외).
     // 다른 주를 보고 있으면 발행하지 않는다 — 오늘 명단이 아니기 때문.
     useEffect(() => {
@@ -71,14 +84,7 @@ export default function CoachSchedule({
         PERIODS.forEach(p => {
             const d = getCellData(todayDayName, p);
             if (!d) return;
-            // 아래 셀 렌더와 같은 기준으로 뽑는다 = 화면에 라벨 없이 뜨는 사람 + '보강' 태그로 뜨는 사람.
-            // (보강홀딩·보강결석·홀딩·신규·시작전은 애초에 다른 배열이라 여기 안 들어온다)
-            const present = (d.regularStudentsPresent || []).filter(n =>
-                !(d.makeupMovedStudents || []).includes(n) &&   // 다른 슬롯으로 보강 감
-                !(d.agreedAbsenceStudents || []).includes(n) && // 합의결석
-                !(d.absenceStudents || []).includes(n)          // 결석 신청
-            );
-            map[String(p.id)] = [...new Set([...present, ...(d.makeupStudents || [])])];
+            map[String(p.id)] = attendingNamesFor(d);
         });
         publishTodayRoster(todayISO, map);
         // deps 없이 매 렌더 계산한다. 결석·보강·홀딩은 Firebase에서 뒤늦게 도착하는데
@@ -128,14 +134,17 @@ export default function CoachSchedule({
         }
     }
 
-    // 셀 클릭 → 훈련일지 페이지로 이동 (수업 참석자 localStorage로 전달)
-    function handleCellClickToTrainingLog(cellData) {
-        const attendingStudents = [
-            ...cellData.activeStudents,
-            ...cellData.makeupStudents,
-            ...cellData.subs.map(s => s.name)
-        ];
-        localStorage.setItem('coachSelectedStudents', JSON.stringify(attendingStudents));
+    // 셀 클릭 → 훈련일지 페이지로 이동. 누른 수업의 명단·날짜·교시를 함께 넘겨서
+    // 훈련일지가 '지금 수업'을 다시 계산해 덮어쓰지 않도록 한다.
+    function handleCellClickToTrainingLog(cellData, day, periodObj) {
+        const names = attendingNamesFor(cellData);
+        localStorage.setItem('coachSelectedStudents', JSON.stringify(names));
+        localStorage.setItem('trainingLogSlot', JSON.stringify({
+            date: weekDates?.[day] ? weekDateToISO(weekDates[day]) : null,
+            dayLabel: day,
+            periodId: periodObj.id,
+            names,
+        }));
         window.location.href = './training-log/index.html';
     }
 
@@ -229,7 +238,7 @@ export default function CoachSchedule({
         return (
             <div
                 className="schedule-cell"
-                onClick={() => handleCellClickToTrainingLog(data)}
+                onClick={() => handleCellClickToTrainingLog(data, day, periodObj)}
                 style={{
                     alignItems: 'flex-start',
                     justifyContent: 'flex-start',

@@ -80,6 +80,15 @@ export function previousSlot(slot) {
     return null;
 }
 
+// 그 수업이 이미 끝났는지 (지난 날짜이거나, 오늘이면 종료 시각을 지났는지)
+export function slotHasEnded(slot, now = new Date()) {
+    if (!slot) return false;
+    const today = dayInfo(now).date;
+    if (slot.date < today) return true;
+    if (slot.date > today) return false;
+    return now.getHours() * 60 + now.getMinutes() > toMin(slot.period.end);
+}
+
 // 시트 D열 인코딩 '월1수1금1' → [{day:'월',period:1}, ...]
 export function parseSchedule(str) {
     const out = [];

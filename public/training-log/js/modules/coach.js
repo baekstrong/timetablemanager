@@ -4,7 +4,7 @@ import { getKoreanInitial, getStudentColor, getStudentBadgeColor, getStudentText
 const debouncedLoadAllRecords = debounce(loadAllRecords, 300);
 import { normalizeSet } from './sets.js';
 import { groupSessionsByDate, defaultSessionDate } from './session-logic.js';
-import { resolveClassSlot, previousSlot, rosterFor } from './class-period.js';
+import { resolveClassSlot, previousSlot, rosterFor, slotHasEnded, PERIODS } from './class-period.js';
 
 // 기록의 date는 로컬 기준 YYYY-MM-DD → 오늘도 로컬로 계산(toISOString은 UTC라 KST 새벽에 하루 밀림)
 function localToday() {
@@ -216,7 +216,27 @@ async function rosterForSlot(slot) {
 }
 
 // 지금/방금 끝난 교시의 수강생을 선택 상태로 만든다. 새로고침 버튼도 이걸 호출한다.
+// 시간표에서 수업 칸을 눌러 들어온 경우: 그 수업 명단을 그대로 쓴다(자동 계산으로 덮어쓰지 않음).
+// 한 번 쓰고 지운다 → 이후 🔄 새로고침은 다시 '지금 수업' 기준.
+function consumeClickedSlot() {
+    let raw = null;
+    try { raw = localStorage.getItem('trainingLogSlot'); } catch { return null; }
+    if (!raw) return null;
+    localStorage.removeItem('trainingLogSlot');
+    try {
+        const s = JSON.parse(raw);
+        const period = PERIODS.find(p => p.id === s.periodId);
+        if (!period || !s.date) return null;
+        return { slot: { period, dayLabel: s.dayLabel, date: s.date, status: 'picked' }, names: s.names || [] };
+    } catch {
+        return null;
+    }
+}
+
 export async function applyCurrentClassRoster({ silent = false } = {}) {
+    const clicked = consumeClickedSlot();
+    if (clicked) return applyPickedSlot(clicked);
+
     let slot = resolveClassSlot();
     if (!slot) return;
 
@@ -257,12 +277,29 @@ export async function applyCurrentClassRoster({ silent = false } = {}) {
 }
 window.applyCurrentClassRoster = applyCurrentClassRoster;
 
+// 시간표에서 고른 수업을 그대로 표시. 이미 끝난 수업이면 그 날짜 기록을 편다.
+async function applyPickedSlot({ slot, names }) {
+    const roster = names.filter(n => state.allStudents.includes(n));
+    coachPreferredDate = slotHasEnded(slot) ? slot.date : null;
+
+    state.selectedStudents = roster;
+    localStorage.setItem('coachSelectedStudents', JSON.stringify(roster));
+    Object.keys(coachSessionSelectedDate).forEach(k => delete coachSessionSelectedDate[k]);
+
+    renderClassSlotBanner(slot, roster.length, 'roster');
+    updateStudentBadges();
+    updateStudentSelectionSummary();
+    updateStudentQuickNav();
+    await renderCoachSessionView();
+}
+
 function renderClassSlotBanner(slot, count, source) {
     const el = document.getElementById('classSlotBanner');
     if (!el) return;
     const isNow = slot.status === 'now';
-    const title = isNow ? '지금 수업' : '마지막 수업';
-    const color = isNow ? '#31A552' : '#A7A7AA';
+    const isPicked = slot.status === 'picked';
+    const title = isPicked ? '선택한 수업' : (isNow ? '지금 수업' : '마지막 수업');
+    const color = isPicked ? '#329BE7' : (isNow ? '#31A552' : '#A7A7AA');
     // 코치 시간표 명단이면 보강·홀딩까지 반영된 정확한 명단, 폴백이면 정규 시간표 기준임을 밝힌다.
     const note = source === 'roster'
         ? '<span class="text-xs text-gray-400 ml-2">보강 포함</span>'

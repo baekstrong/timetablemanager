@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveClassSlot, previousSlot, parseSchedule, rosterFor, PERIODS } from './class-period.js';
+import { resolveClassSlot, previousSlot, slotHasEnded, parseSchedule, rosterFor, PERIODS } from './class-period.js';
 
 describe('previousSlot', () => {
     const slotAt = (id, date, dayLabel) => ({ period: PERIODS.find(p => p.id === id), date, dayLabel, status: 'past' });
@@ -73,6 +73,24 @@ describe('resolveClassSlot', () => {
         const s = resolveClassSlot(at('2026-08-03T08:00:00')); // 월요일 08:00
         expect(s.dayLabel).toBe('금');
         expect(s.date).toBe('2026-07-31');
+    });
+});
+
+describe('slotHasEnded', () => {
+    const slot = (id, date) => ({ period: PERIODS.find(p => p.id === id), date, dayLabel: '금' });
+
+    it('지난 날짜면 끝난 것', () => {
+        expect(slotHasEnded(slot(5, '2026-07-30'), at('2026-07-31T10:00:00'))).toBe(true);
+    });
+
+    it('오늘이면 종료 시각 기준', () => {
+        expect(slotHasEnded(slot(4, '2026-07-31'), at('2026-07-31T19:31:00'))).toBe(true);  // 4교시 19:30 종료
+        expect(slotHasEnded(slot(4, '2026-07-31'), at('2026-07-31T19:00:00'))).toBe(false); // 진행 중
+        expect(slotHasEnded(slot(5, '2026-07-31'), at('2026-07-31T13:00:00'))).toBe(false); // 아직 시작 전
+    });
+
+    it('미래 날짜면 안 끝난 것', () => {
+        expect(slotHasEnded(slot(1, '2026-08-03'), at('2026-07-31T23:00:00'))).toBe(false);
     });
 });
 
