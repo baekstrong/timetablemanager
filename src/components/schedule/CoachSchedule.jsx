@@ -80,6 +80,14 @@ export default function CoachSchedule({
             );
             map[String(p.id)] = [...new Set([...present, ...(d.makeupStudents || [])])];
         });
+        // 임시 디버그(확인 후 제거) — 발행값과 화면이 어긋나는 원인 규명용
+        window.__rosterDebug = {
+            n: (window.__rosterDebug?.n || 0) + 1,
+            todayISO, todayDayName, map,
+            p1: (() => { const d = getCellData(todayDayName, PERIODS[0]) || {}; return {
+                studentNames: d.studentNames, absence: d.absenceStudents, makeup: d.makeupStudents,
+                moved: d.makeupMovedStudents, holding: d.holdingStudents, regular: d.regularStudentsPresent }; })(),
+        };
         publishTodayRoster(todayISO, map);
         // deps 없이 매 렌더 계산한다. 결석·보강·홀딩은 Firebase에서 뒤늦게 도착하는데
         // scheduleData만 보고 있으면 도착 전 값(결석자 포함·보강자 누락)이 그대로 발행된다.
