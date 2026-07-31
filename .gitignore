@@ -33,3 +33,11 @@ firebase-admin-key.json
 
 # Local Netlify folder
 .netlify
+
+# 환경변수 — 시크릿 포함, 절대 커밋 금지 (배포는 GitHub Secrets/Netlify 대시보드 사용)
+.env
+.env.*
+
+# 브라우저 자동화 스냅샷 / supabase 로컬 임시파일
+.playwright-mcp/
+supabase/.temp/
