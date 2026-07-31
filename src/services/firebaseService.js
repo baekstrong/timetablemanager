@@ -1903,12 +1903,14 @@ export const syncStudentFrequencies = async (students) => {
 // 보강으로 오는 사람 포함, 홀딩·결석·합의결석·보강이동(다른 슬롯으로 감)·시작 전은 제외.
 // 훈련일지(별도 SPA)는 홀딩/보강 판정 로직을 갖고 있지 않으므로 이 문서를 그대로 읽는다.
 // ponytail: 같은 내용이면 쓰지 않는다 — 시간표는 자주 리렌더되고 write는 비용이다.
+// 날짜별로 남긴다(studentMeta/roster-YYYY-MM-DD) — 지난 수업 명단도 정확해야 하므로.
+// studentMeta 컬렉션을 쓰는 이유: 이미 규칙에 열려 있어 새 컬렉션 규칙 배포가 필요 없다.
 let lastRosterPayload = '';
 export const publishTodayRoster = async (date, map) => {
     const payload = JSON.stringify({ date, map });
     if (payload === lastRosterPayload) return null;
     return safeRead(null, async () => {
-        await setDoc(doc(db, 'studentMeta', 'todayRoster'), { date, map, updatedAt: serverTimestamp() });
+        await setDoc(doc(db, 'studentMeta', `roster-${date}`), { date, map, updatedAt: serverTimestamp() });
         lastRosterPayload = payload;
         return map;
     });

@@ -172,37 +172,46 @@ export async function loadStudentList() {
 // ============================================
 
 // 명단 출처 두 가지 (둘 다 메인 앱이 발행한 단일 문서 = 읽기 1회):
-//  1) studentMeta/todayRoster — 코치 시간표가 계산한 오늘 교시별 실제 출석 명단.
-//     보강으로 오는 사람 포함, 홀딩·결석·보강이동은 빠져 있다. 오늘 것만 있다.
-//  2) studentMeta/schedules — 시트 D열 정규 시간표. 어제·금요일처럼 오늘이 아닌 슬롯의 폴백.
+//  1) studentMeta/roster-YYYY-MM-DD — 코치 시간표가 계산한 그 날 교시별 실제 출석 명단.
+//     보강으로 오는 사람 포함, 홀딩·결석·보강이동은 빠져 있다.
+//  2) studentMeta/schedules — 시트 D열 정규 시간표. 아직 발행되지 않은 과거 날짜의 폴백.
 let schedulesMap = null;
-let todayRoster = null; // { date, map: {'1': [이름...] } }
+const rosterByDate = {}; // 'YYYY-MM-DD' → {'1': [이름...]} | null(없음)
 // past 슬롯이면 그 수업 날짜의 기록을 열어야 한다 → 세션 뷰 기본 날짜로 쓰이는 힌트.
 export let coachPreferredDate = null;
 
-async function loadRosterSources() {
+async function loadSchedules(force = false) {
     if (!firebaseInitialized || !db) return;
+    if (schedulesMap && !force) return;
     try {
-        const [rosterDoc, schedDoc] = await Promise.all([
-            db.collection('studentMeta').doc('todayRoster').get(),
-            db.collection('studentMeta').doc('schedules').get(),
-        ]);
-        todayRoster = rosterDoc.exists ? rosterDoc.data() : null;
+        const schedDoc = await db.collection('studentMeta').doc('schedules').get();
         schedulesMap = (schedDoc.exists && schedDoc.data().map) ? schedDoc.data().map : {};
     } catch (error) {
-        console.error('출석 명단 조회 실패:', error);
-        todayRoster = todayRoster || null;
+        console.error('시간표 조회 실패:', error);
         schedulesMap = schedulesMap || {};
     }
 }
 
-// 코치 시간표가 발행한 오늘 명단이 있으면 그것을 쓴다(보강 포함·안 오는 사람 제외).
-// 없거나 다른 날 슬롯이면 정규 시간표로 폴백. 반환: { names, source }
-function rosterForSlot(slot) {
-    const fromRoster = (todayRoster && todayRoster.date === slot.date)
-        ? todayRoster.map?.[String(slot.period.id)]
-        : null;
-    if (Array.isArray(fromRoster)) return { names: fromRoster, source: 'roster' };
+// 그 날짜의 코치 시간표 명단(studentMeta/roster-YYYY-MM-DD). 날짜당 1회만 읽는다.
+async function loadRosterForDate(date) {
+    if (date in rosterByDate) return rosterByDate[date];
+    if (!firebaseInitialized || !db) return null;
+    try {
+        const doc = await db.collection('studentMeta').doc(`roster-${date}`).get();
+        rosterByDate[date] = doc.exists ? (doc.data().map || null) : null;
+    } catch (error) {
+        console.error('출석 명단 조회 실패:', date, error);
+        rosterByDate[date] = null;
+    }
+    return rosterByDate[date];
+}
+
+// 코치 시간표가 발행한 그 날 명단이 있으면 사용(보강 포함·안 오는 사람 제외).
+// 없으면(발행 전 날짜) 정규 시간표로 폴백. 반환: { names, source }
+async function rosterForSlot(slot) {
+    const map = await loadRosterForDate(slot.date);
+    const names = map?.[String(slot.period.id)];
+    if (Array.isArray(names)) return { names, source: 'roster' };
     return { names: rosterFor(schedulesMap, slot.dayLabel, slot.period.id), source: 'schedule' };
 }
 
@@ -211,14 +220,16 @@ export async function applyCurrentClassRoster({ silent = false } = {}) {
     let slot = resolveClassSlot();
     if (!slot) return;
 
-    await loadRosterSources(); // 새로고침 때마다 다시 읽는다(보강 신청·홀딩 변경 반영)
+    // 새로고침 때마다 다시 읽는다(보강 신청·홀딩 변경 반영)
+    Object.keys(rosterByDate).forEach(k => delete rosterByDate[k]);
+    await loadSchedules(true);
 
     // 수업이 없는 빈 교시는 건너뛰고 실제로 사람이 있던 수업까지 되감는다.
     // (예: 금 13:44 → '마지막 수업'이 2교시인데 그 교시는 수업이 없음)
     let roster = [];
     let source = 'roster';
     for (let i = 0; i < 12; i++) {
-        const r = rosterForSlot(slot);
+        const r = await rosterForSlot(slot);
         roster = r.names.filter(n => state.allStudents.includes(n)); // 훈련일지 계정이 있는 사람만
         if (roster.length > 0) { source = r.source; break; }
         const prev = previousSlot(slot);
