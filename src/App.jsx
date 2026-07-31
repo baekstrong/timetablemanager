@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { GoogleSheetsProvider, useGoogleSheets } from './contexts/GoogleSheetsContext';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
@@ -12,8 +12,9 @@ import GoogleSheetsTest from './components/GoogleSheetsTest';
 import NewStudentRegistration from './components/NewStudentRegistration';
 import CoachNewStudents from './components/CoachNewStudents';
 import ContractView from './components/ContractView';
-import Ranking from './components/Ranking';
-import AnalyticsDashboard from './components/AnalyticsDashboard';
+// recharts(gzip 기준 번들의 ~30%)를 쓰는 화면만 lazy 분리 — 초기 번들에서 제외
+const Ranking = lazy(() => import('./components/Ranking'));
+const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
 import BottomNav from './components/BottomNav';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import UpdateBanner from './components/UpdateBanner';
@@ -418,10 +419,18 @@ function AppContent() {
         return <ContractView user={user} onBack={handleBackToDashboard} />;
 
       case 'ranking':
-        return <Ranking user={user} onBack={handleBackToDashboard} initialTab={rankingInitialTab} initialStudent={rankingInitialStudent} />;
+        return (
+          <Suspense fallback={<div className="loading-container"><div className="loading-spinner"></div></div>}>
+            <Ranking user={user} onBack={handleBackToDashboard} initialTab={rankingInitialTab} initialStudent={rankingInitialStudent} />
+          </Suspense>
+        );
 
       case 'analytics':
-        return <AnalyticsDashboard onBack={() => setCurrentPage('students')} />;
+        return (
+          <Suspense fallback={<div className="loading-container"><div className="loading-spinner"></div></div>}>
+            <AnalyticsDashboard onBack={() => setCurrentPage('students')} />
+          </Suspense>
+        );
 
       case 'training':
         return (
