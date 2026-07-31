@@ -548,3 +548,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 6. **날짜 형식 혼용 주의** — Sheets는 YYMMDD, JS 내부는 YYYY-MM-DD, 특이사항은 YY.M.D
 7. **코치/학생 역할에 따라 UI가 다름** — BottomNav 탭, 기능 접근 권한 확인
 8. **A열 번호 자동 부여** — 신규 등록 시 A열 최대값+1로 부여 (중복 방지)
+9. **초기 로드는 최근 창(-3~+2개월) 시트만 읽는다** — `getAllStudentsFromAllSheets`가 `src/utils/recentSheets.js`의 `filterRecentStudentSheets`로 시트를 제한하므로, 컨텍스트 `students`에는 그 창 밖(4개월+ 과거)의 등록이 없다. 과거 월 상세는 `changeMonth`(단일 시트), 매출 통계는 `getAllRawRows`(전체 시트) 별도 경로 사용
+10. **recharts 화면은 lazy 청크** — `Ranking`·`AnalyticsDashboard`는 `App.jsx`에서 `React.lazy`로 분리 로드. 이 컴포넌트를 다른 곳에서 정적 import하면 분리가 깨진다
+11. **Netlify sheets/calendar 함수는 `@googleapis/sheets`·`@googleapis/calendar` 단독 패키지 사용** — `googleapis` 전체 패키지로 되돌리면 콜드스타트가 크게 나빠진다. 인증 클라이언트는 모듈 스코프 캐시(요청마다 재생성 금지)
+12. **users 뱃지 맵은 `getUsersMaps` 1회 스캔 공유** — `getTierMap`/`getGradeMap`에 개별 스캔·개별 캐시를 다시 넣지 말 것. 티어/학년 쓰기 후에는 캐시 전체 무효화 대신 해당 항목만 제자리 갱신
