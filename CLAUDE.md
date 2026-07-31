@@ -43,7 +43,7 @@ git push
 - **차트**: Recharts
 - **이미지 업로드**: Cloudinary(unsigned upload preset) + `browser-image-compression`(`cloudinaryService.js`, 게시판 첨부)
 - **에러 모니터링**: Sentry(`@sentry/react`, `src/main.jsx`에서 프로덕션만 init)
-- **훈련일지 서브앱**: Vanilla JS SPA (`public/training-log/`, Tailwind CDN, Firebase)
+- **훈련일지 서브앱**: Vanilla JS SPA (`public/training-log/`, Tailwind **정적 빌드 CSS**, Firebase compat). Tailwind는 CDN 런타임 JIT가 아니라 `npm run build:tl-css`로 빌드한 `css/tailwind.css`를 로드 — **훈련일지 HTML/JS에 새 Tailwind 클래스를 추가하면 반드시 `npm run build:tl-css`를 재실행해 커밋**할 것 (안 하면 스타일이 안 먹음)
 
 ## 디자인 시스템 (플랫 + 단일 코발트)
 

@@ -5,7 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>실전 훈련일지</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind: CDN 런타임 JIT(407KB JS, DOM 변경마다 재컴파일) → 정적 빌드 CSS(21KB).
+         클래스 추가 후 스타일이 안 먹으면 npm run build:tl-css 재실행 -->
+    <link rel="stylesheet" href="css/tailwind.css">
     <link rel="stylesheet" href="css/style.css">
 
     <!-- PWA & Icons -->
@@ -14,10 +16,17 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#329BE7">
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <!-- Firebase SDK — defer: 파싱을 막지 않고, main.js(module=암묵적 defer)보다 문서 순서상
+         앞이라 window.firebase는 모듈 실행 전에 항상 준비된다 -->
+    <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"
+        integrity="sha384-yuGdyIzzYtOBlBG6JOWn+Ey9kpq7HocusNuxEGyyohr1eEyXpeEyehIIXC/hznw4"
+        crossorigin="anonymous"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"
+        integrity="sha384-nwX2Qpkhc2sv6L0ZPkLefLGguao67toSowvePuQvGF6cG+8MUphGI2uI94Ls3JF7"
+        crossorigin="anonymous"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"
+        integrity="sha384-lI+CxEx/bCvWP1b0OK13j5HTrTZP7yf1xle8TVOFq2smz6KC1RChTarRV/RHP5PP"
+        crossorigin="anonymous"></script>
 </head>
 
 <body class="bg-gray-100 min-h-screen">

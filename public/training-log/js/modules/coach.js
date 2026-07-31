@@ -1339,13 +1339,18 @@ export async function renderCoachSessionView() {
     if (needFetch.length > 0) {
         container.innerHTML = '<p class="text-gray-400 text-center py-8">불러오는 중…</p>';
         try {
+            // 세션 뷰 조회 범위: 최근 90일. 무경계(userName만)로 읽으면 학생당 전체 이력이
+            // 통째로 내려와(장기 수강생 수백 read×선택 인원) 코치 진입이 느려지고 비싸진다.
+            // (userName,date) 복합 인덱스는 학생 달력이 상시 쓰는 조합이라 존재. 실패 시 무경계 폴백.
+            // 90일 이전 기록은 학생 개별 화면(달력)에서 조회.
+            const cutoffD = new Date(); cutoffD.setDate(cutoffD.getDate() - 90);
+            const cutoff = `${cutoffD.getFullYear()}-${String(cutoffD.getMonth() + 1).padStart(2, '0')}-${String(cutoffD.getDate()).padStart(2, '0')}`;
             await Promise.all(needFetch.map(async (name) => {
-                // ponytail: userName 단일 등호만 사용 → 자동 인덱스로 동작(복합 인덱스 불필요).
-                // 전체 기록을 받아 클라에서 날짜별 그룹핑·정렬. 기록이 수천 건으로 커지면
-                // (userName,timestamp) 복합 인덱스 만들고 orderBy('timestamp','desc').limit(N)으로 교체.
                 const snap = await db.collection('records')
                     .where('userName', '==', name)
-                    .get();
+                    .where('date', '>=', cutoff)
+                    .get()
+                    .catch(() => db.collection('records').where('userName', '==', name).get());
                 const items = [];
                 snap.forEach(doc => {
                     const d = doc.data();

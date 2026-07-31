@@ -25,8 +25,15 @@ export async function openStampModal() {
     const { prevMonth, start, end } = prevMonthRange(month);
     document.getElementById('stampModalSubtitle').textContent = `지난달(${prevMonth}) 기준`;
 
-    // 1) 학생 목록
-    const usersSnap = await db.collection('users').get();
+    // 1~3.6) 다섯 조회는 서로 독립 — 병렬 발사 (직렬 5왕복이던 것을 1왕복 시간으로)
+    const [usersSnap, recSnap, stampSnap, pmSnap, fdoc] = await Promise.all([
+        db.collection('users').get(),                                              // 학생 목록
+        db.collection('records').where('date', '>=', start).where('date', '<=', end).get(), // 지난달 기록
+        db.collection('monthlyStamps').where('month', '==', month).get(),          // 이번 달 도장 프리필
+        db.collection('pinnedMemos').get(),                                        // 고정 메모
+        db.collection('studentMeta').doc('frequencies').get().catch(() => null),   // 주횟수 맵(없으면 주3 기본)
+    ]);
+
     const students = [];
     usersSnap.forEach(d => {
         const u = d.data();
@@ -34,31 +41,20 @@ export async function openStampModal() {
     });
     students.sort((a, b) => a.localeCompare(b, 'ko'));
 
-    // 2) 지난달 기록 1회 범위 조회 후 학생별 그룹핑
-    const recSnap = await db.collection('records')
-        .where('date', '>=', start).where('date', '<=', end).get();
     const byStudent = {};
     recSnap.forEach(d => {
         const r = d.data();
         (byStudent[r.userName] = byStudent[r.userName] || []).push({ date: r.date, exercise: r.exercise });
     });
 
-    // 3) 이미 이번 달 찍은 도장 프리필
-    const stampSnap = await db.collection('monthlyStamps').where('month', '==', month).get();
     const existing = {};
     stampSnap.forEach(d => { existing[d.data().userName] = d.data(); });
 
-    // 3.5) 학생별 고정 메모 (전체 1회 조회)
-    const pmSnap = await db.collection('pinnedMemos').get();
     const memosByStudent = {};
     pmSnap.forEach(d => { memosByStudent[d.id] = (d.data().memos || []); });
 
-    // 3.6) 학생 주횟수 맵 (도장 자동추천 기준) — 메인 앱이 코치 진입 시 발행
     let freqByStudent = {};
-    try {
-        const fdoc = await db.collection('studentMeta').doc('frequencies').get();
-        if (fdoc.exists) freqByStudent = fdoc.data().map || {};
-    } catch (e) { /* 없으면 suggestGrade가 주3 기본 사용 */ }
+    if (fdoc && fdoc.exists) freqByStudent = fdoc.data().map || {};
 
     // 4) 행 렌더
     const rows = students.map((name, idx) => {

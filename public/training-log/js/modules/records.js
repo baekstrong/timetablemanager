@@ -1035,25 +1035,30 @@ export function togglePinExerciseFromEdit() {
 export async function migrateLocalStorageToFirestore() {
     if (!state.currentUser || !firebaseInitialized || !db) return;
 
+    // 이 함수는 로그인 직후 렌더 앞에서 await되므로 왕복 1회가 그대로 진입 지연이 된다.
+    // 옮길 로컬 데이터가 없거나(대부분) 이미 확인이 끝났으면 Firestore를 아예 건드리지 않는다.
+    const doneKey = `pinnedMigrated_${state.currentUser}`;
+    if (localStorage.getItem(doneKey)) return;
+    const localData = localStorage.getItem(`pinnedExercises_${state.currentUser}`);
+    if (!localData) { localStorage.setItem(doneKey, '1'); return; }
+
     try {
         const doc = await db.collection('pinnedMemos').doc(state.currentUser).get();
-        if (doc.exists) return;
+        if (doc.exists) { localStorage.setItem(doneKey, '1'); return; }
     } catch (error) { }
 
-    const localData = localStorage.getItem(`pinnedExercises_${state.currentUser}`);
-    if (localData) {
-        try {
-            const memos = JSON.parse(localData);
-            if (memos.length > 0) {
-                await db.collection('pinnedMemos').doc(state.currentUser).set({
-                    userName: state.currentUser,
-                    memos: memos,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    migratedFrom: 'localStorage'
-                });
-            }
-        } catch (error) { }
-    }
+    try {
+        const memos = JSON.parse(localData);
+        if (memos.length > 0) {
+            await db.collection('pinnedMemos').doc(state.currentUser).set({
+                userName: state.currentUser,
+                memos: memos,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                migratedFrom: 'localStorage'
+            });
+        }
+        localStorage.setItem(doneKey, '1');
+    } catch (error) { }
 }
 
 export async function pinCoachMemo(userName, docId, exercise) {
