@@ -1,7 +1,14 @@
-const { google } = require('googleapis');
+// googleapis 전체(319개 API eager 로드)는 콜드스타트를 지배하므로 sheets 단독 패키지만 사용
+const { sheets: sheetsApi, auth: googleAuth } = require('@googleapis/sheets');
+
+// 모듈 스코프 캐시 — 웜 컨테이너에서 인증 클라이언트(액세스 토큰 포함)를 재사용해
+// 요청마다 발생하던 OAuth 토큰 교환 왕복(+150~400ms)을 없앤다
+let cachedSheetsClient = null;
 
 // Service account credentials from environment variables
-const getGoogleSheetsClient = async () => {
+const getGoogleSheetsClient = () => {
+  if (cachedSheetsClient) return cachedSheetsClient;
+
   console.log('Credentials check:', {
     hasProjectId: !!process.env.GOOGLE_PROJECT_ID,
     hasPrivateKey: !!process.env.GOOGLE_PRIVATE_KEY,
@@ -43,13 +50,14 @@ const getGoogleSheetsClient = async () => {
       client_x509_cert_url: process.env.GOOGLE_CERT_URL,
     };
 
-    const auth = new google.auth.GoogleAuth({
+    const auth = new googleAuth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    const authClient = await auth.getClient();
-    return google.sheets({ version: 'v4', auth: authClient });
+    // GoogleAuth 인스턴스를 그대로 넘기면 내부에서 토큰을 발급·캐시·자동갱신한다
+    cachedSheetsClient = sheetsApi({ version: 'v4', auth });
+    return cachedSheetsClient;
   } catch (error) {
     console.error('Auth Error Details:', error);
     throw error;
@@ -64,6 +72,8 @@ exports.handler = async (event, context) => {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    // preflight(OPTIONS) 결과를 브라우저가 캐시하게 해 POST마다 왕복 2회가 되는 것을 방지
+    'Access-Control-Max-Age': '86400',
   };
 
   // Handle preflight
@@ -85,7 +95,7 @@ exports.handler = async (event, context) => {
 
     console.log('Parsed Path:', path);
 
-    const sheets = await getGoogleSheetsClient();
+    const sheets = getGoogleSheetsClient();
 
     // GET /sheets/read?range=...
     if (event.httpMethod === 'GET' && path === 'read') {

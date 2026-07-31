@@ -1,6 +1,12 @@
-const { google } = require('googleapis');
+// googleapis 전체(319개 API eager 로드)는 콜드스타트를 지배하므로 calendar 단독 패키지만 사용
+const { calendar: calendarApi, auth: googleAuth } = require('@googleapis/calendar');
 
-const getCalendarClient = async () => {
+// 모듈 스코프 캐시 — 웜 컨테이너에서 인증 클라이언트(액세스 토큰 포함)를 재사용
+let cachedCalendarClient = null;
+
+const getCalendarClient = () => {
+  if (cachedCalendarClient) return cachedCalendarClient;
+
   let privateKey = process.env.GOOGLE_PRIVATE_KEY;
   if (privateKey) {
     let rawKey = privateKey
@@ -15,7 +21,7 @@ const getCalendarClient = async () => {
     }
   }
 
-  const auth = new google.auth.GoogleAuth({
+  const auth = new googleAuth.GoogleAuth({
     credentials: {
       type: 'service_account',
       project_id: process.env.GOOGLE_PROJECT_ID,
@@ -25,8 +31,8 @@ const getCalendarClient = async () => {
     scopes: ['https://www.googleapis.com/auth/calendar'],
   });
 
-  const authClient = await auth.getClient();
-  return google.calendar({ version: 'v3', auth: authClient });
+  cachedCalendarClient = calendarApi({ version: 'v3', auth });
+  return cachedCalendarClient;
 };
 
 const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID;
@@ -36,6 +42,7 @@ exports.handler = async (event, context) => {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Max-Age': '86400',
   };
 
   if (event.httpMethod === 'OPTIONS') {
@@ -55,7 +62,7 @@ exports.handler = async (event, context) => {
     }
 
     const body = JSON.parse(event.body);
-    const calendar = await getCalendarClient();
+    const calendar = getCalendarClient();
 
     // POST /calendar/create
     if (path === 'create') {
