@@ -4,7 +4,7 @@ import { getKoreanInitial, getStudentColor, getStudentBadgeColor, getStudentText
 const debouncedLoadAllRecords = debounce(loadAllRecords, 300);
 import { normalizeSet } from './sets.js';
 import { groupSessionsByDate, defaultSessionDate } from './session-logic.js';
-import { resolveClassSlot, rosterFor } from './class-period.js';
+import { resolveClassSlot, previousSlot, rosterFor } from './class-period.js';
 
 // 기록의 date는 로컬 기준 YYYY-MM-DD → 오늘도 로컬로 계산(toISOString은 UTC라 KST 새벽에 하루 밀림)
 function localToday() {
@@ -208,13 +208,23 @@ function rosterForSlot(slot) {
 
 // 지금/방금 끝난 교시의 수강생을 선택 상태로 만든다. 새로고침 버튼도 이걸 호출한다.
 export async function applyCurrentClassRoster({ silent = false } = {}) {
-    const slot = resolveClassSlot();
+    let slot = resolveClassSlot();
     if (!slot) return;
 
     await loadRosterSources(); // 새로고침 때마다 다시 읽는다(보강 신청·홀딩 변경 반영)
 
-    const { names, source } = rosterForSlot(slot);
-    const roster = names.filter(n => state.allStudents.includes(n)); // 훈련일지 계정이 있는 사람만
+    // 수업이 없는 빈 교시는 건너뛰고 실제로 사람이 있던 수업까지 되감는다.
+    // (예: 금 13:44 → '마지막 수업'이 2교시인데 그 교시는 수업이 없음)
+    let roster = [];
+    let source = 'roster';
+    for (let i = 0; i < 12; i++) {
+        const r = rosterForSlot(slot);
+        roster = r.names.filter(n => state.allStudents.includes(n)); // 훈련일지 계정이 있는 사람만
+        if (roster.length > 0) { source = r.source; break; }
+        const prev = previousSlot(slot);
+        if (!prev) break;
+        slot = prev;
+    }
 
     // 수업이 끝난 교시면 그 날짜 기록을 펼친다. 수업 중이면 기존 규칙(오늘 이전 마지막 수업)을 따른다.
     coachPreferredDate = slot.status === 'past' ? slot.date : null;

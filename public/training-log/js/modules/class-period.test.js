@@ -1,5 +1,28 @@
 import { describe, it, expect } from 'vitest';
-import { resolveClassSlot, parseSchedule, rosterFor } from './class-period.js';
+import { resolveClassSlot, previousSlot, parseSchedule, rosterFor, PERIODS } from './class-period.js';
+
+describe('previousSlot', () => {
+    const slotAt = (id, date, dayLabel) => ({ period: PERIODS.find(p => p.id === id), date, dayLabel, status: 'past' });
+
+    it('같은 날 앞 교시로 되감는다', () => {
+        const p = previousSlot(slotAt(5, '2026-07-31', '금'));
+        expect(p.period.id).toBe(4);
+        expect(p.date).toBe('2026-07-31');
+    });
+
+    it('1교시에서는 직전 평일 마지막 교시로', () => {
+        const p = previousSlot(slotAt(1, '2026-07-31', '금'));
+        expect(p.period.id).toBe(6);
+        expect(p.date).toBe('2026-07-30');
+        expect(p.dayLabel).toBe('목');
+    });
+
+    it('월요일 1교시에서는 금요일로 건너뛴다', () => {
+        const p = previousSlot(slotAt(1, '2026-08-03', '월'));
+        expect(p.dayLabel).toBe('금');
+        expect(p.date).toBe('2026-07-31');
+    });
+});
 
 // 2026-07-30은 목요일, 2026-08-01은 토요일, 2026-08-03은 월요일
 const at = (iso) => new Date(iso);

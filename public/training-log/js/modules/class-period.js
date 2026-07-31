@@ -61,6 +61,25 @@ export function resolveClassSlot(now = new Date()) {
     return null;
 }
 
+// 한 교시 앞으로 되감는다(같은 날 이전 교시 → 없으면 직전 평일 마지막 교시).
+// 수업이 없는 빈 교시를 건너뛰고 '실제로 사람이 있던 마지막 수업'을 찾는 데 쓴다.
+export function previousSlot(slot) {
+    if (!slot) return null;
+    const idx = PERIODS.findIndex(p => p.id === slot.period.id);
+    if (idx > 0) {
+        return { period: PERIODS[idx - 1], dayLabel: slot.dayLabel, date: slot.date, status: 'past' };
+    }
+    const d = new Date(`${slot.date}T12:00:00`);
+    for (let i = 0; i < 7; i++) {
+        d.setDate(d.getDate() - 1);
+        const info = dayInfo(d);
+        if (WEEKDAYS.includes(info.dayLabel)) {
+            return { period: PERIODS[PERIODS.length - 1], dayLabel: info.dayLabel, date: info.date, status: 'past' };
+        }
+    }
+    return null;
+}
+
 // 시트 D열 인코딩 '월1수1금1' → [{day:'월',period:1}, ...]
 export function parseSchedule(str) {
     const out = [];
