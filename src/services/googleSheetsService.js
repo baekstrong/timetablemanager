@@ -6,6 +6,7 @@ import {
   extendEndDateForHeldSessions,
 } from './holidayEndDateDelta.js';
 import { PERIODS } from '../data/mockData';
+import { filterRecentStudentSheets } from '../utils/recentSheets';
 
 // Backend Functions URL
 // 로컬 테스트: http://localhost:5001
@@ -487,15 +488,22 @@ let _cachedSheetNames = null;
 let _sheetNamesCacheTime = 0;
 const SHEET_NAMES_CACHE_TTL = 60 * 1000; // 1분 캐시
 
+let _sheetNamesInflight = null; // 동시 호출이 같은 /info 요청을 공유 (마운트 시 중복 2회 발사 방지)
+
 export const getAllSheetNames = async () => {
   const now = Date.now();
   if (_cachedSheetNames && (now - _sheetNamesCacheTime) < SHEET_NAMES_CACHE_TTL) {
     return _cachedSheetNames;
   }
-  const data = await apiGet('/info', 'get sheet names');
-  _cachedSheetNames = data.sheets;
-  _sheetNamesCacheTime = now;
-  return _cachedSheetNames;
+  if (_sheetNamesInflight) return _sheetNamesInflight;
+  _sheetNamesInflight = apiGet('/info', 'get sheet names')
+    .then(data => {
+      _cachedSheetNames = data.sheets;
+      _sheetNamesCacheTime = Date.now();
+      return _cachedSheetNames;
+    })
+    .finally(() => { _sheetNamesInflight = null; });
+  return _sheetNamesInflight;
 };
 
 /**
@@ -1217,8 +1225,9 @@ export const getAllStudentsFromAllSheets = async () => {
   const sheets = await getAllSheetNames();
   console.log('📊 Available sheets:', sheets);
 
-  const studentSheets = sheets.filter(name => name.startsWith('등록생 목록('));
-  console.log('📋 Student sheets found:', studentSheets);
+  // 존재하는 전 월 시트를 다 읽으면 매달 로딩이 느려진다 → 최근 창(-3~+2개월)만 읽는다
+  const studentSheets = filterRecentStudentSheets(sheets.filter(name => name.startsWith('등록생 목록(')));
+  console.log('📋 Student sheets found (recent window):', studentSheets);
 
   if (studentSheets.length === 0) {
     console.warn('⚠️ No student sheets found');

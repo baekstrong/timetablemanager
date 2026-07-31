@@ -1,0 +1,36 @@
+- generic [ref=e2]:
+  - heading "훈련일지 도장 디자인 미리보기" [level=1] [ref=e3]
+  - paragraph [ref=e4]:
+    - text: 실제
+    - code [ref=e5]: STAMP_GRADES
+    - text: 값 +
+    - code [ref=e6]: renderStampBadge
+    - text: 원본 CSS로 렌더 (7월 예시)
+  - heading "① 일지 상단 배지 (도장 seal)" [level=2] [ref=e7]
+  - generic [ref=e8]:
+    - generic [ref=e9]:
+      - paragraph [ref=e10]: 지난달 정말 꾸준히 나오셨어요
+      - generic [ref=e12]:
+        - generic [ref=e13]: ✦
+        - generic [ref=e14]: 참 잘했어요
+        - generic [ref=e15]: 7월 근력학교
+    - generic [ref=e16]:
+      - paragraph [ref=e17]: 지난달 잘 나오고 있어요
+      - generic [ref=e19]:
+        - generic [ref=e20]: ✦
+        - generic [ref=e21]: 잘하고 있어요
+        - generic [ref=e22]: 7월 근력학교
+    - generic [ref=e23]:
+      - paragraph [ref=e24]: 지난달에 부족했어요
+      - generic [ref=e26]:
+        - generic [ref=e27]: ✦
+        - generic [ref=e28]: 더 힘내세요!
+        - generic [ref=e29]: 7월 근력학교
+      - paragraph [ref=e30]: “다음 달엔 꼭 봐요!” — 코치
+  - 'heading "② 첫 접속 팝업 (예: 더 힘내세요!)" [level=2] [ref=e31]'
+  - generic [ref=e33]:
+    - paragraph [ref=e34]: 이번 달 코치님의 도장이 도착했어요
+    - paragraph [ref=e35]: 지난달에 부족했어요
+    - generic [ref=e36]: 더 힘내세요!
+    - paragraph [ref=e37]: 다음 달엔 꼭 봐요!
+    - button "확인" [ref=e38] [cursor=pointer]

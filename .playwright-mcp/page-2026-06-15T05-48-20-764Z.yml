@@ -1,0 +1,25 @@
+- generic [ref=e5]:
+  - heading "근력학교 수강 관리 시스템" [level=1] [ref=e7]
+  - generic [ref=e8]:
+    - generic [ref=e9]:
+      - generic [ref=e10]: 이름
+      - textbox "이름" [ref=e11]:
+        - /placeholder: 이름을 입력하세요
+    - generic [ref=e12]:
+      - generic [ref=e13]: 비밀번호
+      - textbox "비밀번호" [ref=e14]:
+        - /placeholder: 비밀번호를 입력하세요
+      - paragraph [ref=e15]: 💡 초기 비밀번호는 전화번호 뒷자리 4자리입니다.
+    - generic [ref=e16]:
+      - generic [ref=e17] [cursor=pointer]:
+        - checkbox "이름 저장" [ref=e18]
+        - generic [ref=e19]: 이름 저장
+      - generic [ref=e20]:
+        - checkbox "자동 로그인" [disabled] [ref=e21]
+        - generic [ref=e22]: 자동 로그인
+    - button "로그인" [ref=e23] [cursor=pointer]:
+      - generic [ref=e24]: 로그인
+      - img [ref=e25]
+  - paragraph [ref=e28]:
+    - text: 비밀번호는 로그인 후 '내 정보'에서
+    - text: 원하는 비밀번호로 바꿀 수 있어요.
