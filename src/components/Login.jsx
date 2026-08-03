@@ -103,7 +103,11 @@ const Login = ({ onLogin }) => {
                 const result = await serverLogin(name, pass);
                 isCoach = result.isCoach;
             } catch (serverErr) {
-                setError('❌ ' + (serverErr.message || '로그인에 실패했습니다.'));
+                // ponytail: 폰이 googleapis.com에 못 닿는 경우(차단기·필터·VPN)가 대부분이라 안내 문구로 치환
+                const msg = serverErr.code === 'auth/network-request-failed'
+                    ? '네트워크가 차단된 것 같아요. 와이파이를 끄고 데이터로 다시 시도하거나, 광고차단 앱·VPN을 꺼주세요.'
+                    : (serverErr.message || '로그인에 실패했습니다.');
+                setError('❌ ' + msg);
                 setLoading(false);
                 return;
             }
