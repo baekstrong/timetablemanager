@@ -129,6 +129,9 @@ button {
 .student-badge {
     cursor: pointer;
     transition: all 0.2s;
+    /* 퀵내비와 같은 이유(사파리 15 압축 방어) — 칩이 붙어도 이름이 안 눌리게 */
+    min-width: -webkit-max-content;
+    min-width: max-content;
 }
 select {
     max-width: 100px;
@@ -153,12 +156,15 @@ select {
    칩 글자가 음절 단위로 쪼개졌다. → 버튼 자식은 .btn-inner 래퍼 하나로만 둔다.
    색도 8자리 hex(#RRGGBBAA) 대신 rgba() — 구버전 파서에서 더 안전하다. */
 .btn-inner,
-.tag-chip {
+.tag-chip,
+/* 옛 캐시 JS(칩이 인라인 스타일이던 버전)도 함께 방어한다 — 구버전 사파리는 모듈 하위 import를
+   강제 새로고침으로도 캐시에서 꺼내와, CSS만 새 버전인 상태가 실제로 생긴다. */
+.student-quick-nav-btn > *,
+.student-badge > * {
     display: inline-block;
     vertical-align: middle;
     white-space: nowrap;
     flex: 0 0 auto;
-    min-width: 0;
 }
 .tag-chip {
     margin-left: 4px;
@@ -261,6 +267,11 @@ body.modal-open {
     user-select: none;
     -webkit-user-select: none;
     flex-shrink: 0;
+    /* ⚠️ 사파리 15.x 대응 (JS 버전과 무관하게 이 한 줄이 방어한다).
+       구버전 WebKit은 이 칸이 내용보다 좁아지면 내부를 압축해 이름을 0폭까지 눌러버린다
+       (칩이 붙은 항목만 이름이 사라졌다). 내용 폭 아래로 못 내려가게 못 박는다. */
+    min-width: -webkit-max-content;
+    min-width: max-content;
     padding: 8px 14px;
     border-radius: 8px;
     font-size: 13px;
