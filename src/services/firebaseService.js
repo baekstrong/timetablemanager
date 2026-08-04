@@ -1814,11 +1814,12 @@ const getMonthlyActivitySources = async (userName, ym) => {
         // (userName,date) 복합 인덱스는 훈련일지 달력이 상시 쓰는 조합이라 이미 존재.
         // 만일 인덱스가 없어 실패하면 기존 무경계 쿼리로 폴백해 기능은 유지한다.
         const inMonth = d => d && d >= monthStart && d < nextStart;
+        // freeWorkoutAttendance는 (studentName,date) 복합 인덱스가 없어 범위 쿼리가 매번 실패하고
+        // 폴백으로 재조회했다(헛왕복 1회). 컬렉션이 소형이라 인덱스를 만들 이유가 없어 이름으로만 읽는다.
         const [records, free] = await Promise.all([
             queryDocs('records', where('userName', '==', name), where('date', '>=', monthStart), where('date', '<', nextStart))
                 .catch(() => queryDocs('records', where('userName', '==', name))),
-            queryDocs('freeWorkoutAttendance', where('studentName', '==', name), where('date', '>=', monthStart), where('date', '<', nextStart))
-                .catch(() => queryDocs('freeWorkoutAttendance', where('studentName', '==', name))),
+            queryDocs('freeWorkoutAttendance', where('studentName', '==', name)),
         ]);
         const recordDates = new Set(records.filter(r => inMonth(r.date)).map(r => r.date));
         const freeDates = new Set(free.filter(r => inMonth(r.date)).map(r => r.date).filter(Boolean));
@@ -1839,10 +1840,13 @@ export const refreshStudentTier = async ({ userName }) => {
         const now = new Date();
         const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         if (u.tierMonth === ym) {
-            // 이번 달 등급은 이미 매겨짐. 단, 코치 백필로 매겨졌고 본인은 아직 안내 못 받았으면 인트로 팝업 1회.
+            // 이번 달 등급은 이미 매겨짐(백필). 본인이 아직 안내를 못 받았으면 여기서 1회 팝업.
+            // 백필이 저장해둔 prevTier로 승급/강등을 판정한다 — 무조건 인트로로 띄우면 승급 축하가 사라진다.
             if (u.tierIntroPending) {
                 await updateDoc(userRef, { tierIntroPending: false });
-                return { changed: true, isNew: true, direction: 0, tier: u.tier, prevTier: null };
+                const isNew = !u.prevTier;
+                const direction = isNew ? 0 : compareTiers(u.prevTier, u.tier);
+                return { changed: isNew || direction !== 0, isNew, direction, tier: u.tier, prevTier: u.prevTier || null };
             }
             return { changed: false, tier: u.tier };
         }
@@ -1896,8 +1900,58 @@ export const getTierMap = async () => {
     return safeRead({}, async () => (await getUsersMaps()).tierMap);
 };
 
-// (제거됨) backfillTiersForMonth — 코치 진입 시 전원 티어 재계산은 읽기 폭증의 원인이라 삭제.
-// 각 학생 티어는 본인 로그인 때 refreshStudentTier(본인분만)로 갱신되고, 게시판은 getTierMap(저장값)만 읽는다.
+// 전원 티어 백필 — 코치 진입 시 호출되지만 studentMeta/tierBackfill 잠금으로 그 달 첫 1회만 실제로 돈다.
+// 없으면 앱을 안 여는 학생(= 훈련일지만 쓰는 학생)의 뱃지가 지난달 값에 영구히 멈춘다.
+// 옛 백필이 비쌌던 이유는 마운트마다 재실행된 것 — 여기선 월 1회, 컬렉션당 1회 범위 스캔이라
+// 지난달 records(~1.5k) + freeWorkout + users 1회가 전부다.
+export const backfillTiersForMonth = async () => {
+    return safeRead(null, async () => {
+        const now = new Date();
+        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const lockRef = doc(db, 'studentMeta', 'tierBackfill');
+        const lock = await getDoc(lockRef);
+        if (lock.exists() && lock.data()?.month === ym) return null; // 이번 달 이미 실행됨
+        // 스캔 전에 먼저 잠근다 — 코치 2명·탭 2개가 동시에 들어와도 같은 스캔을 두 번 돌지 않게.
+        await setDoc(lockRef, { month: ym, updatedAt: serverTimestamp() }, { merge: true });
+
+        const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const monthStart = `${lm.getFullYear()}-${String(lm.getMonth() + 1).padStart(2, '0')}-01`;
+        const nextStart = `${ym}-01`;
+        // 학생별 개별 쿼리(62회)가 아니라 컬렉션당 1회 스캔 → 이름별 날짜 집합으로 그룹핑
+        const [records, free] = await Promise.all([
+            queryDocs('records', where('date', '>=', monthStart), where('date', '<', nextStart)),
+            queryDocs('freeWorkoutAttendance'),
+        ]);
+        const daysByName = new Map();
+        const add = (rawName, date) => {
+            const name = (rawName || '').trim();
+            if (!name || !date || date < monthStart || date >= nextStart) return;
+            if (!daysByName.has(name)) daysByName.set(name, new Set());
+            daysByName.get(name).add(date);
+        };
+        for (const r of records) add(r.userName, r.date);
+        for (const r of free) add(r.studentName, r.date);
+
+        const snap = await getDocs(collection(db, 'users'));
+        const batch = writeBatch(db);
+        let updated = 0;
+        snap.forEach(d => {
+            const u = d.data() || {};
+            if (u.isCoach || u.tierMonth === ym) return; // 코치·본인 접속으로 이미 계산된 학생은 건너뜀
+            const score = computeActiveScore({ recordDates: daysByName.get(d.id) });
+            const tier = scoreToTier(score);
+            batch.update(d.ref, {
+                tier: tier.key, tierMonth: ym, tierScore: score, prevTier: u.tier || null,
+                // 본인이 다음에 접속할 때 refreshStudentTier가 인트로/승급 팝업을 띄우도록 표시
+                tierIntroPending: true, tierUpdatedAt: serverTimestamp(),
+            });
+            if (usersMapsCache) usersMapsCache.tierMap[d.id] = tier.key;
+            updated++;
+        });
+        if (updated) await batch.commit();
+        return { month: ym, updated };
+    });
+};
 
 // 수강생 주횟수(C열)를 훈련일지 도장 모달이 읽도록 단일 문서에 발행.
 // ponytail: 이름→주횟수 맵 1문서. 코치 진입 시 통째로 덮어써 삭제된 학생은 자동 제거.

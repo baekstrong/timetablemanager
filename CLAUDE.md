@@ -313,6 +313,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `oneRMRecords` | 훈련일지 1RM 계산기의 '내 1RM 저장' — 문서 ID `{userName}`, `{map:{종목:{oneRM,weight,reps,date}}, updatedAt}`. 계산기 모달에서 종목별 최신 1개 덮어쓰기 저장/삭제 (`public/training-log/js/modules/onerm.js`) |
 | `studentMeta/frequencies` | 이름→주횟수 맵 단일 문서 `{map:{이름:2/3/4}, updatedAt}`. 메인 앱이 코치 진입 시 `syncStudentFrequencies`로 통째 덮어씀. 훈련일지 도장 모달이 읽어 `suggestGrade` 자동추천 기준(주횟수)으로 사용 (시트 C열 주횟수를 훈련일지에 전달하는 유일 경로) |
 | `studentMeta/schedules` | 이름→시트 D열 수업일정 맵 단일 문서 `{map:{이름:'월1수1'}, updatedAt}`. 메인 앱이 코치 진입 시 `syncStudentSchedules`로 덮어씀(같은 이름 여러 행이면 오늘이 수강 기간인 행 우선). 코치 시간표 명단이 아직 없는 과거 날짜의 폴백용 |
+| `studentMeta/tierBackfill` | 티어 월간 백필 잠금 단일 문서 `{month:'YYYY-MM', updatedAt}`. `backfillTiersForMonth`가 스캔 전에 먼저 써서 그 달 1회만 돌게 한다 (아래 '티어 시스템' 참고) |
 | `studentMeta/roster-YYYY-MM-DD` | 그 날 교시별 **실제 출석 명단** `{date, map:{'1':[이름...]}, updatedAt}`. 코치 시간표(`CoachSchedule`)가 **표시 중인 주 전체**를 날짜별로 `publishRoster`로 발행 — 화면 셀 렌더와 같은 기준(정규 출석 + 보강 오는 사람, 보강이동·결석·합의결석·홀딩·신규·시작전 제외). 내용이 같으면 write 생략. 훈련일지 '지금 수업' 명단의 1순위 출처 |
 
 ### `personalBests` 상세
@@ -430,7 +431,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - **순수 로직**: `src/utils/tiers.js` — `TIERS`(철인/코어/열정/성실/입문, 경계 17/13/9/6/0일), `scoreToTier`, `computeActiveScore`, `compareTiers`.
 - **활동일** = 지난달 고유 날짜의 합집합: 훈련일지 기록일(`records`) ∪ 자율운동일(`freeWorkoutAttendance`). **실제 운동 기록이 있는 날만 인정** — 예정 수업일이라도 그날 기록이 없으면 불인정(결석신청 없이 안 나오는 노쇼 제외). 따라서 홀딩/결석/공휴일/시간표는 점수에 영향 없음. 주2회 기록 ≈ 8일(성실), 추가 운동·기록이 상위 티어로 올림.
 - **저장/갱신(본인)**: `refreshStudentTier({userName})` — 학생 접속 시 지난달 기준 재계산해 `users/{이름}`에 기록. 같은 달 재실행은 no-op. 첫 계산(이전 티어 없음)은 인트로 팝업.
-- **일괄 백필(코치)**: `backfillTiersForMonth(students)` — 코치 진입 시 이번 달 미계산 학생 전원을 일괄 계산(지난달 데이터를 컬렉션당 1회 읽어 그룹핑 → batch write). 게시판 뱃지가 전원 표시되도록. 백필 대상은 `tierIntroPending=true`로 표시 → 그 학생이 다음 접속할 때 `refreshStudentTier`가 인트로 팝업을 띄우고 플래그 해제. 전원 계산 완료 후엔 users 1회 읽고 종료(저렴).
+- **일괄 백필(코치)**: `backfillTiersForMonth()` — 코치 진입 시 호출되지만 `studentMeta/tierBackfill` 문서(`{month}`)로 **그 달 첫 1회만** 실제 실행(그 외엔 문서 1회 읽고 종료). 지난달 `records`를 날짜 범위로, `freeWorkoutAttendance`를 통째로 **컬렉션당 1회** 읽어 이름별 날짜 집합으로 그룹핑 → 이번 달 미계산 학생만 batch write. 스캔 **전에** 잠금을 먼저 써서 코치 2명·탭 2개 동시 진입 시 중복 스캔을 막는다. ⚠️ 이게 없으면 메인 앱을 안 여는 학생(훈련일지만 쓰는 학생)의 뱃지가 지난달 값에 영구히 멈춘다 — 2026-08에 실제로 62명 중 32명이 6월 기준 메달을 달고 있었다. 백필 대상은 `tierIntroPending=true`로 표시 → 그 학생이 다음 접속할 때 `refreshStudentTier`가 저장된 `prevTier`로 승급/강등(또는 첫 계산이면 인트로) 팝업을 띄우고 플래그 해제.
 - **뱃지**: `TierBadge.jsx`. 게시판은 `getTierMap()`(이름→티어, 5분 캐시)을 Dashboard에서 읽어 PostList/PostDetail/CommentItem에 prop으로 전달. 코치는 뱃지 없음.
 - **팝업**: `TierChangeModal.jsx` — 첫 진입 시 등급 안내, 이후 새 달 첫 접속 시 승급(축하)/강등(분발) 안내. Dashboard 마운트 effect에서 트리거. ponytail: '첫 출석'이 아니라 '새 달 첫 앱 접속' 기준.
 
@@ -514,6 +515,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
   1. **직접 진입**(하단 탭) — 지금 수업 명단 자동. 수업 시간이 아니면 마지막으로 사람이 있던 수업으로 되감음. 배너 `지금 수업`(초록) / `마지막 수업`(회색).
   2. **시간표에서 수업 칸 클릭** — `CoachSchedule.handleCellClickToTrainingLog`가 `localStorage.trainingLogSlot`(명단·날짜·교시)을 넘기고, 훈련일지가 이를 **한 번 소비**해 그대로 표시(배너 `선택한 수업`, 파랑). 자동 계산이 덮어쓰지 않는다. 이후 🔄를 누르면 다시 '지금 수업' 기준.
   - 기록 기본 날짜: 그 수업이 **이미 끝났으면**(`slotHasEnded`) 그 날짜, 아직 진행 중/시작 전이면 `defaultSessionDate`(오늘 이전 마지막 수업).
+- **세트 순서 이동**: 기록 입력 폼·수정 모달의 각 세트 헤더 오른쪽 `↑`/`↓` 버튼으로 이웃 세트와 자리를 바꾼다. 마크업은 `sets.js`의 `moveButtons(핸들러명, index, total)` 하나를 양쪽이 공유하고(입력폼 `moveSet` / 수정모달 `moveEditSet`), 실제 교환은 순수 함수 `swapSets(배열, index, delta)`(범위 밖이면 false). 갈 수 없는 방향은 버튼을 아예 안 그린다(disabled 스타일 불필요). 테스트 `sets.test.js`.
 - **1RM으로 세트 채우기**: 기록 입력 폼에서 1RM이 저장된 종목을 고르면 종목칸 아래 `⚡ 내 1RM ○○kg — %로 세트 채우기` 칩(`#oneRMQuickCard`, `renderOneRMChip` — `renderExerciseMemo`에서 함께 호출) → 모달(`#percentModal`)에서 %를 **누른 순서대로** 1세트부터 강도(kg)에 입력. 높은 %를 먼저 누르면 무거운 것부터가 되어 별도 정렬 옵션이 필요 없다. 반복 수·선택 개수 초과 세트는 유지, 세트가 모자라면 마지막 세트를 복제해 확장. `oneRMRecords` 맵은 세션 캐시(Firestore 읽기 1회, 저장/삭제 시 갱신).
 
 ## 환경변수

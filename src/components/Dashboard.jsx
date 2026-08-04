@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, getGradeMap, refreshStudentXP, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules } from '../services/firebaseService';
+import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, backfillTiersForMonth, getGradeMap, refreshStudentXP, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
 import { POST_LIMITS } from '../data/boardConstants';
@@ -58,13 +58,15 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         return () => { cancel = true; };
     }, []);
 
-    // 코치 진입 시: 이번 달 미계산 학생 전원 티어 일괄 계산 → 게시판 뱃지가 전원 표시되도록.
-    // 이미 전원 계산됐으면 users 1회 읽고 끝(저렴). 학생 본인 인트로 팝업은 보존됨.
+    // 코치 진입 시: 그 달 첫 1회만 전원 티어 백필(studentMeta/tierBackfill 잠금).
+    // 앱을 안 여는 학생은 본인 갱신이 영영 안 돌아 뱃지가 두 달 전 값에 멈추므로 뒤를 받쳐준다.
+    // 레벨(XP)은 증분 방식이라 백필 대상이 아니다 — 뱃지는 저장된 값만 읽는다.
     useEffect(() => {
         if (!user || user.role !== 'coach' || !students || students.length === 0) return;
         let cancel = false;
-        // 코치 진입 시 전원 재계산(백필) 제거 — 읽기 폭증·레벨 튐의 원인이었다.
-        // 뱃지는 저장된 값만 읽는다. 각 학생 티어/레벨은 본인 로그인 때 갱신됨.
+        backfillTiersForMonth()
+            .then(res => { if (!cancel && res?.updated) getTierMap().then(m => { if (!cancel && m) setTierMap(m); }); })
+            .catch(err => console.error('티어 백필 실패:', err));
         getTierMap().then(map => { if (!cancel && map) setTierMap(map); });
         getGradeMap().then(map => { if (!cancel && map) setGradeMap(map); });
         syncStudentFrequencies(students); // 훈련일지 도장 모달 자동추천용 주횟수 발행
@@ -85,7 +87,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
             if (cancel || !change) return;
             if (change.tier) setTierMap(prev => ({ ...prev, [user.username]: change.tier }));
             if (change.changed) setTierChange(change);
-        });
+        }).catch(err => console.error('티어 갱신 실패:', err)); // 조용히 실패하면 뱃지가 지난달 값에 멈춘다
         // 같은 학생이 여러 시트 행에 있을 수 있어 성별이 채워진 행을 우선(랭킹 genderMap과 동일).
         const myGender = (students.find(s => (s['이름'] || '').trim() === user.username && (s['성별'] || '').trim())?.['성별'] || '').trim();
         refreshStudentXP({ userName: user.username, gender: myGender }).then(res => {
