@@ -422,15 +422,18 @@ export function toggleStudent(studentName) {
 }
 
 // Helper function to update student badges without full reload
-// 선택 버튼 안쪽(체크표시 + 이름 + 시간표와 같은 보강/마지막 칩).
-// 칩 색은 인라인 — .student-badge.active가 color:white를 걸어 클래스로는 눌린다.
+// 시간표와 같은 보강/마지막 칩. 상단 퀵내비 바와 하단 선택 목록 양쪽이 쓴다.
+// 색은 인라인 — .student-badge.active / .student-quick-nav-btn.active가 color를 걸어 클래스로는 눌린다.
 const TAG_COLOR = { '보강': '#327AB8', '마지막': '#E94E58' };
-function badgeLabel(name, isSelected) {
-    const chips = (currentRosterTags[name] || []).map(t => {
+function tagChips(name) {
+    return (currentRosterTags[name] || []).map(t => {
         const c = TAG_COLOR[t] || '#6b7280';
         return `<span style="margin-left:4px;padding:1px 5px;border-radius:6px;font-size:10px;font-weight:700;color:${c};background:${c}1A;border:1px solid ${c}4D">${escHtml(t)}</span>`;
     }).join('');
-    return `${isSelected ? '✓ ' : ''}${escHtml(name)}${chips}`;
+}
+
+function badgeLabel(name, isSelected) {
+    return `${isSelected ? '✓ ' : ''}${escHtml(name)}${tagChips(name)}`;
 }
 
 function updateStudentBadges() {
@@ -495,7 +498,9 @@ export function updateStudentQuickNav() {
     state.selectedStudents.forEach(name => {
         const btn = document.createElement('button');
         btn.className = 'student-quick-nav-btn' + (activeQuickNavStudent === name ? ' active' : '');
-        btn.textContent = name;
+        btn.dataset.name = name;
+        // 이름 + 보강/마지막 칩. 이름은 textContent가 아니라 dataset에서 읽어야 한다(칩 글자가 섞인다).
+        btn.innerHTML = escHtml(name) + tagChips(name);
         // 첫 클릭은 상단 코치 전용 메모, 같은 이름 두 번째 클릭은 훈련일지 기록으로.
         btn.addEventListener('click', () => {
             const goToRecords = activeQuickNavStudent === name && quickNavStage === 'memo';
@@ -511,7 +516,7 @@ export function updateStudentQuickNav() {
 
 function highlightQuickNavBtn(nav, activeName) {
     nav.querySelectorAll('.student-quick-nav-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.textContent === activeName);
+        btn.classList.toggle('active', btn.dataset.name === activeName);
     });
 }
 
