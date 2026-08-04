@@ -135,11 +135,10 @@ export async function loadStudentList() {
                 } else {
                     html += `
                         <span
+                            data-name="${escHtml(student)}"
                             class="student-badge px-3 py-2 rounded-full text-sm font-semibold ${isSelected ? 'active' : 'bg-gray-200 text-gray-700'}"
                             onclick="toggleStudent('${student}')"
-                        >
-                            ${isSelected ? '✓ ' : ''}${student}
-                        </span>
+                        >${badgeLabel(student, isSelected)}</span>
                     `;
                 }
             });
@@ -176,7 +175,9 @@ export async function loadStudentList() {
 //     보강으로 오는 사람 포함, 홀딩·결석·보강이동은 빠져 있다.
 //  2) studentMeta/schedules — 시트 D열 정규 시간표. 아직 발행되지 않은 과거 날짜의 폴백.
 let schedulesMap = null;
-const rosterByDate = {}; // 'YYYY-MM-DD' → {'1': [이름...]} | null(없음)
+const rosterByDate = {}; // 'YYYY-MM-DD' → {map:{'1':[이름...]}, tags:{'1':{이름:['보강']}}} | null(없음)
+// 지금 표시 중인 수업의 이름→태그. 수강생 선택 버튼에 시간표와 같은 칩(보강/마지막)을 띄우는 데만 쓴다.
+let currentRosterTags = {};
 // past 슬롯이면 그 수업 날짜의 기록을 열어야 한다 → 세션 뷰 기본 날짜로 쓰이는 힌트.
 export let coachPreferredDate = null;
 
@@ -198,7 +199,8 @@ async function loadRosterForDate(date) {
     if (!firebaseInitialized || !db) return null;
     try {
         const doc = await db.collection('studentMeta').doc(`roster-${date}`).get();
-        rosterByDate[date] = doc.exists ? (doc.data().map || null) : null;
+        const data = doc.exists ? doc.data() : null;
+        rosterByDate[date] = data?.map ? { map: data.map, tags: data.tags || {} } : null;
     } catch (error) {
         console.error('출석 명단 조회 실패:', date, error);
         rosterByDate[date] = null;
@@ -207,12 +209,14 @@ async function loadRosterForDate(date) {
 }
 
 // 코치 시간표가 발행한 그 날 명단이 있으면 사용(보강 포함·안 오는 사람 제외).
-// 없으면(발행 전 날짜) 정규 시간표로 폴백. 반환: { names, source }
+// 없으면(발행 전 날짜) 정규 시간표로 폴백. 반환: { names, tags, source }
 async function rosterForSlot(slot) {
-    const map = await loadRosterForDate(slot.date);
-    const names = map?.[String(slot.period.id)];
-    if (Array.isArray(names)) return { names, source: 'roster' };
-    return { names: rosterFor(schedulesMap, slot.dayLabel, slot.period.id), source: 'schedule' };
+    const data = await loadRosterForDate(slot.date);
+    const key = String(slot.period.id);
+    const names = data?.map?.[key];
+    if (Array.isArray(names)) return { names, tags: data.tags?.[key] || {}, source: 'roster' };
+    // 정규 시간표 폴백엔 보강/마지막 정보가 없다 — 칩 없이 이름만.
+    return { names: rosterFor(schedulesMap, slot.dayLabel, slot.period.id), tags: {}, source: 'schedule' };
 }
 
 // 지금/방금 끝난 교시의 수강생을 선택 상태로 만든다. 새로고침 버튼도 이걸 호출한다.
@@ -227,7 +231,7 @@ function consumeClickedSlot() {
         const s = JSON.parse(raw);
         const period = PERIODS.find(p => p.id === s.periodId);
         if (!period || !s.date) return null;
-        return { slot: { period, dayLabel: s.dayLabel, date: s.date, status: 'picked' }, names: s.names || [] };
+        return { slot: { period, dayLabel: s.dayLabel, date: s.date, status: 'picked' }, names: s.names || [], tags: s.tags || {} };
     } catch {
         return null;
     }
@@ -248,10 +252,11 @@ export async function applyCurrentClassRoster({ silent = false } = {}) {
     // (예: 금 13:44 → '마지막 수업'이 2교시인데 그 교시는 수업이 없음)
     let roster = [];
     let source = 'roster';
+    currentRosterTags = {};
     for (let i = 0; i < 12; i++) {
         const r = await rosterForSlot(slot);
         roster = r.names.filter(n => state.allStudents.includes(n)); // 훈련일지 계정이 있는 사람만
-        if (roster.length > 0) { source = r.source; break; }
+        if (roster.length > 0) { source = r.source; currentRosterTags = r.tags; break; }
         const prev = previousSlot(slot);
         if (!prev) break;
         slot = prev;
@@ -278,8 +283,9 @@ export async function applyCurrentClassRoster({ silent = false } = {}) {
 window.applyCurrentClassRoster = applyCurrentClassRoster;
 
 // 시간표에서 고른 수업을 그대로 표시. 이미 끝난 수업이면 그 날짜 기록을 편다.
-async function applyPickedSlot({ slot, names }) {
+async function applyPickedSlot({ slot, names, tags }) {
     const roster = names.filter(n => state.allStudents.includes(n));
+    currentRosterTags = tags || {};
     coachPreferredDate = slotHasEnded(slot) ? slot.date : null;
 
     state.selectedStudents = roster;
@@ -359,23 +365,28 @@ export function toggleStudent(studentName) {
 }
 
 // Helper function to update student badges without full reload
+// 선택 버튼 안쪽(체크표시 + 이름 + 시간표와 같은 보강/마지막 칩).
+// 칩 색은 인라인 — .student-badge.active가 color:white를 걸어 클래스로는 눌린다.
+const TAG_COLOR = { '보강': '#327AB8', '마지막': '#E94E58' };
+function badgeLabel(name, isSelected) {
+    const chips = (currentRosterTags[name] || []).map(t => {
+        const c = TAG_COLOR[t] || '#6b7280';
+        return `<span style="margin-left:4px;padding:1px 5px;border-radius:6px;font-size:10px;font-weight:700;color:${c};background:${c}1A;border:1px solid ${c}4D">${escHtml(t)}</span>`;
+    }).join('');
+    return `${isSelected ? '✓ ' : ''}${escHtml(name)}${chips}`;
+}
+
 function updateStudentBadges() {
-    const badges = document.querySelectorAll('.student-badge');
+    // 이름은 data-name에서 읽는다 — textContent엔 칩 글자가 섞여 있다.
+    const badges = document.querySelectorAll('.student-badge[data-name]');
     badges.forEach(badge => {
-        const studentName = badge.textContent.replace('✓ ', '').trim();
+        const studentName = badge.dataset.name;
         const isSelected = state.selectedStudents.includes(studentName);
 
-        if (isSelected) {
-            badge.classList.add('active');
-            badge.classList.remove('bg-gray-200', 'text-gray-700');
-            if (!badge.textContent.startsWith('✓ ')) {
-                badge.textContent = '✓ ' + studentName;
-            }
-        } else {
-            badge.classList.remove('active');
-            badge.classList.add('bg-gray-200', 'text-gray-700');
-            badge.textContent = studentName;
-        }
+        badge.classList.toggle('active', isSelected);
+        badge.classList.toggle('bg-gray-200', !isSelected);
+        badge.classList.toggle('text-gray-700', !isSelected);
+        badge.innerHTML = badgeLabel(studentName, isSelected);
     });
 
     // Update select all button
@@ -511,6 +522,13 @@ window.expandCoachNote = expandCoachNote;
 const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+function showNoteSaved(status) {
+    if (!status) return;
+    status.textContent = '저장됐어요';
+    clearTimeout(status._hideTimer);
+    status._hideTimer = setTimeout(() => { status.textContent = ''; }, 2000);
+}
+
 // 선택한 수강생마다 코치 전용 메모 카드를 상단에 렌더.
 // '운동 메모만 보기' 필터로 숨겨지는 coachPinnedMemosSection과 별도 섹션이라 항상 보인다.
 export async function renderCoachNotes() {
@@ -549,6 +567,7 @@ export async function renderCoachNotes() {
                     <span id="coachNoteStatus-${idx}" class="text-xs text-[#31A552]"></span>
                 </div>
                 <textarea id="coachNote-${idx}" rows="3" placeholder="나만 볼 메모 (부상, 성향, 상담 내용 등)"
+                          onchange="saveCoachNote(${idx})"
                           class="w-full px-3 py-2 border border-[#EFEFF0] rounded-lg text-sm focus:outline-none focus:border-[#329BE7]">${escHtml(note)}</textarea>
                 <button onclick="saveCoachNote(${idx})" type="button"
                         class="mt-2 w-full bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold py-2 rounded-lg transition">
@@ -560,6 +579,11 @@ export async function renderCoachNotes() {
 window.renderCoachNotes = renderCoachNotes;
 
 // 이름을 onclick/id로 넘기지 않는다(따옴표·특수문자 escape 불필요) — 선택 목록 인덱스로만 참조.
+// textarea의 onchange(포커스 이탈 시)와 저장 버튼 양쪽에서 호출된다.
+// 데스크톱에서 "저장을 한 번 눌러선 안 되고 두 번 눌러야 저장된다"는 제보의 대응:
+// 마우스는 버튼을 누르는 순간(mousedown) textarea가 blur되는데, 그 사이 버튼이 밀리면
+// mouseup이 다른 요소에 떨어져 click 자체가 안 난다(터치는 이 현상이 없어 모바일은 정상이었다).
+// onchange가 먼저 저장하므로 click이 삼켜져도 메모는 이미 저장돼 있다.
 export async function saveCoachNote(idx) {
     const studentName = state.selectedStudents[idx];
     const el = document.getElementById(`coachNote-${idx}`);
@@ -567,6 +591,11 @@ export async function saveCoachNote(idx) {
     if (!studentName || !el || !db) return;
 
     const note = el.value.trim();
+    // onchange로 이미 저장된 뒤 버튼까지 눌린 경우 — 같은 값이면 write 없이 안내만.
+    if (note === (coachNotesMap[studentName] || '')) {
+        showNoteSaved(status);
+        return;
+    }
     try {
         // merge:true는 map 필드를 딥 병합 → 다른 수강생 메모는 그대로 유지된다.
         await db.collection('coachNotes').doc('notes').set({
@@ -574,10 +603,7 @@ export async function saveCoachNote(idx) {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
         coachNotesMap[studentName] = note;
-        if (status) {
-            status.textContent = '저장됐어요';
-            setTimeout(() => { if (status) status.textContent = ''; }, 2000);
-        }
+        showNoteSaved(status);
     } catch (error) {
         console.error('코치 전용 메모 저장 실패:', error);
         if (status) status.textContent = '저장 실패';

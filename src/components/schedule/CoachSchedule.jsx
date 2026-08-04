@@ -72,6 +72,18 @@ export default function CoachSchedule({
         return [...new Set([...present, ...(d.makeupStudents || [])])];
     }
 
+    // 훈련일지 선택 버튼에 띄울 태그 — '오는 사람'에게만 해당하는 것만 낸다.
+    // 홀딩·보강이동·결석·시작지연은 애초에 명단에서 빠지므로 태그가 필요 없다.
+    function tagsFor(d, iso, periodId) {
+        const tags = {};
+        (d?.makeupStudents || []).forEach(n => { tags[n] = ['보강']; });
+        attendingNamesFor(d).forEach(n => {
+            const lc = lastClassByName.get(n);
+            if (lc && lc.dateISO === iso && lc.period === periodId) tags[n] = [...(tags[n] || []), '마지막'];
+        });
+        return tags;
+    }
+
     // 훈련일지 명단은 이 화면이 계산한 결과를 그대로 쓴다(보강 포함, 안 오는 사람 제외).
     // 표시 중인 주 전체를 날짜별로 발행한다 — 훈련일지가 '지난 수업'을 볼 때도 정확해야 하므로.
     useEffect(() => {
@@ -79,11 +91,14 @@ export default function CoachSchedule({
             if (!weekDates?.[day]) return;
             const iso = weekDateToISO(weekDates[day]);
             const map = {};
+            const tags = {};
             PERIODS.forEach(p => {
                 const d = getCellData(day, p);
-                if (d) map[String(p.id)] = attendingNamesFor(d);
+                if (!d) return;
+                map[String(p.id)] = attendingNamesFor(d);
+                tags[String(p.id)] = tagsFor(d, iso, p.id);
             });
-            publishRoster(iso, map);
+            publishRoster(iso, map, tags);
         });
         // deps 없이 매 렌더 계산한다. 결석·보강·홀딩은 Firebase에서 뒤늦게 도착하는데
         // scheduleData만 보고 있으면 도착 전 값(결석자 포함·보강자 누락)이 그대로 발행된다.
@@ -136,12 +151,14 @@ export default function CoachSchedule({
     // 훈련일지가 '지금 수업'을 다시 계산해 덮어쓰지 않도록 한다.
     function handleCellClickToTrainingLog(cellData, day, periodObj) {
         const names = attendingNamesFor(cellData);
+        const iso = weekDates?.[day] ? weekDateToISO(weekDates[day]) : null;
         localStorage.setItem('coachSelectedStudents', JSON.stringify(names));
         localStorage.setItem('trainingLogSlot', JSON.stringify({
-            date: weekDates?.[day] ? weekDateToISO(weekDates[day]) : null,
+            date: iso,
             dayLabel: day,
             periodId: periodObj.id,
             names,
+            tags: tagsFor(cellData, iso, periodObj.id),
         }));
         window.location.href = './training-log/index.html';
     }
