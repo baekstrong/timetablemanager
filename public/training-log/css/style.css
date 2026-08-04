@@ -146,6 +146,37 @@ select {
     color: white;
     box-shadow: 0 4px 6px rgba(50, 155, 231, 0.3);
 }
+
+/* 보강/마지막 칩 (선택 뱃지 + 퀵내비 바 공용).
+   ⚠️ 구버전 WebKit(사파리 15.x)은 <button> 내부를 익명 flex 컨테이너로 렌더링한다.
+   그래서 버튼 안 자식들이 기본 flex-shrink:1로 찌그러져 이름이 눌리고 칩 글자가
+   음절 단위로 쪼개졌다 → 자식마다 flex:0 0 auto + nowrap 을 명시해야 한다.
+   색도 8자리 hex(#RRGGBBAA) 대신 rgba() — 구버전 파서에서 더 안전하다. */
+.qn-name,
+.tag-chip {
+    display: inline-block;
+    vertical-align: middle;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+.tag-chip {
+    margin-left: 4px;
+    padding: 1px 5px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.5;
+}
+.tag-chip.makeup {
+    color: #327AB8;
+    background: rgba(50, 122, 184, 0.1);
+    border: 1px solid rgba(50, 122, 184, 0.3);
+}
+.tag-chip.last {
+    color: #E94E58;
+    background: rgba(233, 78, 88, 0.1);
+    border: 1px solid rgba(233, 78, 88, 0.3);
+}
 .set-row {
     background: #f9fafb;
     border-radius: 8px;
