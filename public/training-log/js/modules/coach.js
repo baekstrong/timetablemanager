@@ -423,17 +423,21 @@ export function toggleStudent(studentName) {
 
 // Helper function to update student badges without full reload
 // 시간표와 같은 보강/마지막 칩. 상단 퀵내비 바와 하단 선택 목록 양쪽이 쓴다.
-// 색은 인라인 — .student-badge.active / .student-quick-nav-btn.active가 color를 걸어 클래스로는 눌린다.
-const TAG_COLOR = { '보강': '#327AB8', '마지막': '#E94E58' };
+// 스타일은 style.css의 .tag-chip — 구버전 사파리에서 버튼 안 인라인 스타일 조합이 깨졌다.
+const TAG_CLASS = { '보강': 'makeup', '마지막': 'last' };
 function tagChips(name) {
-    return (currentRosterTags[name] || []).map(t => {
-        const c = TAG_COLOR[t] || '#6b7280';
-        return `<span style="margin-left:4px;padding:1px 5px;border-radius:6px;font-size:10px;font-weight:700;color:${c};background:${c}1A;border:1px solid ${c}4D">${escHtml(t)}</span>`;
-    }).join('');
+    return (currentRosterTags[name] || [])
+        .map(t => `<span class="tag-chip ${TAG_CLASS[t] || ''}">${escHtml(t)}</span>`)
+        .join('');
+}
+
+// 이름은 항상 자기 span 안에 둔다 — 칩과 같은 인라인 흐름에서 글자 단위로 쪼개지지 않게.
+function nameWithChips(name, prefix = '') {
+    return `<span class="qn-name">${prefix}${escHtml(name)}</span>${tagChips(name)}`;
 }
 
 function badgeLabel(name, isSelected) {
-    return `${isSelected ? '✓ ' : ''}${escHtml(name)}${tagChips(name)}`;
+    return nameWithChips(name, isSelected ? '✓ ' : '');
 }
 
 function updateStudentBadges() {
@@ -500,7 +504,7 @@ export function updateStudentQuickNav() {
         btn.className = 'student-quick-nav-btn' + (activeQuickNavStudent === name ? ' active' : '');
         btn.dataset.name = name;
         // 이름 + 보강/마지막 칩. 이름은 textContent가 아니라 dataset에서 읽어야 한다(칩 글자가 섞인다).
-        btn.innerHTML = escHtml(name) + tagChips(name);
+        btn.innerHTML = nameWithChips(name);
         // 첫 클릭은 상단 코치 전용 메모, 같은 이름 두 번째 클릭은 훈련일지 기록으로.
         btn.addEventListener('click', () => {
             const goToRecords = activeQuickNavStudent === name && quickNavStage === 'memo';
