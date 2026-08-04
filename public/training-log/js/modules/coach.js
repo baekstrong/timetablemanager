@@ -138,7 +138,7 @@ export async function loadStudentList() {
                             data-name="${escHtml(student)}"
                             class="student-badge px-3 py-2 rounded-full text-sm font-semibold ${isSelected ? 'active' : 'bg-gray-200 text-gray-700'}"
                             onclick="toggleStudent('${student}')"
-                        >${badgeLabel(student, isSelected)}</span>
+                        >${escHtml(labelFor(student, isSelected ? '✓ ' : ''))}</span>
                     `;
                 }
             });
@@ -422,24 +422,24 @@ export function toggleStudent(studentName) {
 }
 
 // Helper function to update student badges without full reload
-// 시간표와 같은 보강/마지막 칩. 상단 퀵내비 바와 하단 선택 목록 양쪽이 쓴다.
-// 스타일은 style.css의 .tag-chip — 구버전 사파리에서 버튼 안 인라인 스타일 조합이 깨졌다.
-const TAG_CLASS = { '보강': 'makeup', '마지막': 'last' };
-function tagChips(name) {
-    return (currentRosterTags[name] || [])
-        .map(t => `<span class="tag-chip ${TAG_CLASS[t] || ''}">${escHtml(t)}</span>`)
-        .join('');
+// 보강/마지막 표시. 상단 퀵내비 바와 하단 선택 목록 양쪽이 쓴다.
+//
+// ⚠️ 작은 칩(span 박스)을 쓰지 않는다. 구버전 사파리(15.6)에서 10px 칩이 계속 눌려
+//    껍데기만 남고 글자가 잘렸고, 옆에 붙은 이름까지 0폭으로 사라졌다.
+//    CSS(flex 고정·min-width·요소 교체)로 세 번 시도했지만 전부 실패.
+//    → 자식 요소를 아예 만들지 않는다. 이름과 같은 텍스트 노드에 ' · 보강'을 붙이고
+//      색은 칸 자체에 준다. 자식이 0개면 눌릴 것도 잘릴 것도 없다.
+function labelFor(name, prefix = '') {
+    const tags = currentRosterTags[name] || [];
+    return `${prefix}${name}${tags.length ? ' · ' + tags.join(' · ') : ''}`;
 }
 
-// 구버전 WebKit(사파리 15.x)은 <button> 내부를 익명 flex 컨테이너로 렌더링한다.
-// 자식이 둘 이상이면(이름 + 칩) 서로 찌그러지므로, 자식을 래퍼 하나로 묶는다.
-// 래퍼 안쪽은 평범한 인라인 흐름이라 어느 브라우저에서도 같은 모양이 된다.
-function nameWithChips(name, prefix = '') {
-    return `<span class="btn-inner">${prefix}${escHtml(name)}${tagChips(name)}</span>`;
-}
-
-function badgeLabel(name, isSelected) {
-    return nameWithChips(name, isSelected ? '✓ ' : '');
+// 칸 자체에 상태색을 입힌다(마지막이 더 급한 정보라 우선).
+function applyTagClass(el, name) {
+    const tags = currentRosterTags[name] || [];
+    el.classList.remove('tag-makeup', 'tag-last');
+    if (tags.includes('마지막')) el.classList.add('tag-last');
+    else if (tags.includes('보강')) el.classList.add('tag-makeup');
 }
 
 function updateStudentBadges() {
@@ -452,7 +452,7 @@ function updateStudentBadges() {
         badge.classList.toggle('active', isSelected);
         badge.classList.toggle('bg-gray-200', !isSelected);
         badge.classList.toggle('text-gray-700', !isSelected);
-        badge.innerHTML = badgeLabel(studentName, isSelected);
+        badge.textContent = labelFor(studentName, isSelected ? '✓ ' : '');
     });
 
     // Update select all button
@@ -509,8 +509,9 @@ export function updateStudentQuickNav() {
         btn.setAttribute('role', 'button');
         btn.tabIndex = 0;
         btn.dataset.name = name;
-        // 이름 + 보강/마지막 칩. 이름은 textContent가 아니라 dataset에서 읽어야 한다(칩 글자가 섞인다).
-        btn.innerHTML = nameWithChips(name);
+        // 이름 + ' · 보강'. 이름은 textContent가 아니라 dataset에서 읽어야 한다(태그가 섞인다).
+        btn.textContent = labelFor(name);
+        applyTagClass(btn, name);
         // 첫 클릭은 상단 코치 전용 메모, 같은 이름 두 번째 클릭은 훈련일지 기록으로.
         const go = () => {
             const goToRecords = activeQuickNavStudent === name && quickNavStage === 'memo';
