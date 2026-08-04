@@ -233,7 +233,14 @@ body.modal-open {
     border-radius: 12px;
     display: flex;
     gap: 8px;
-    overflow-x: auto;
+    /* ⚠️ 가로 스크롤(overflow-x:auto)이 아니라 줄바꿈이다.
+       구버전 사파리(15.6)는 항목이 한 줄에 안 들어가면 스크롤시키지 않고 칸을 짓눌러
+       겹쳐버렸다(테두리가 중간에 끊기고 이름이 잘림). flex-shrink:0·min-width:max-content로
+       막아봤지만 안 통했다. 줄바꿈이면 가로 압박 자체가 없어 어떤 브라우저에서도 안 깨진다.
+       너무 많이 선택하면 바가 길어지므로 높이만 제한해 세로 스크롤. */
+    flex-wrap: wrap;
+    max-height: 30vh;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
 }
@@ -248,9 +255,7 @@ body.modal-open {
     user-select: none;
     -webkit-user-select: none;
     flex-shrink: 0;
-    /* ⚠️ 사파리 15.x 대응 (JS 버전과 무관하게 이 한 줄이 방어한다).
-       구버전 WebKit은 이 칸이 내용보다 좁아지면 내부를 압축해 이름을 0폭까지 눌러버린다
-       (칩이 붙은 항목만 이름이 사라졌다). 내용 폭 아래로 못 내려가게 못 박는다. */
+    /* 내용 폭 아래로 못 내려가게 못 박는다 (줄바꿈과 함께 이중 방어) */
     min-width: -webkit-max-content;
     min-width: max-content;
     padding: 8px 14px;
