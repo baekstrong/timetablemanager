@@ -149,15 +149,16 @@ select {
 
 /* 보강/마지막 칩 (선택 뱃지 + 퀵내비 바 공용).
    ⚠️ 구버전 WebKit(사파리 15.x)은 <button> 내부를 익명 flex 컨테이너로 렌더링한다.
-   그래서 버튼 안 자식들이 기본 flex-shrink:1로 찌그러져 이름이 눌리고 칩 글자가
-   음절 단위로 쪼개졌다 → 자식마다 flex:0 0 auto + nowrap 을 명시해야 한다.
+   자식이 둘 이상이면(이름 + 칩) 기본 flex-shrink:1로 서로 찌그러져 이름이 눌리고
+   칩 글자가 음절 단위로 쪼개졌다. → 버튼 자식은 .btn-inner 래퍼 하나로만 둔다.
    색도 8자리 hex(#RRGGBBAA) 대신 rgba() — 구버전 파서에서 더 안전하다. */
-.qn-name,
+.btn-inner,
 .tag-chip {
     display: inline-block;
     vertical-align: middle;
     white-space: nowrap;
     flex: 0 0 auto;
+    min-width: 0;
 }
 .tag-chip {
     margin-left: 4px;
@@ -253,6 +254,12 @@ body.modal-open {
     display: none;
 }
 .student-quick-nav-btn {
+    /* <button>이 아니라 span[role=button]이다 (구버전 WebKit의 버튼 내부 익명 flex 회피).
+       버튼이 아니므로 박스 모델을 여기서 직접 준다. */
+    display: inline-block;
+    text-align: center;
+    user-select: none;
+    -webkit-user-select: none;
     flex-shrink: 0;
     padding: 8px 14px;
     border-radius: 8px;

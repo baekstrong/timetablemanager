@@ -431,9 +431,11 @@ function tagChips(name) {
         .join('');
 }
 
-// 이름은 항상 자기 span 안에 둔다 — 칩과 같은 인라인 흐름에서 글자 단위로 쪼개지지 않게.
+// 구버전 WebKit(사파리 15.x)은 <button> 내부를 익명 flex 컨테이너로 렌더링한다.
+// 자식이 둘 이상이면(이름 + 칩) 서로 찌그러지므로, 자식을 래퍼 하나로 묶는다.
+// 래퍼 안쪽은 평범한 인라인 흐름이라 어느 브라우저에서도 같은 모양이 된다.
 function nameWithChips(name, prefix = '') {
-    return `<span class="qn-name">${prefix}${escHtml(name)}</span>${tagChips(name)}`;
+    return `<span class="btn-inner">${prefix}${escHtml(name)}${tagChips(name)}</span>`;
 }
 
 function badgeLabel(name, isSelected) {
@@ -500,19 +502,29 @@ export function updateStudentQuickNav() {
     while (nav.firstChild) nav.removeChild(nav.firstChild);
 
     state.selectedStudents.forEach(name => {
-        const btn = document.createElement('button');
+        // <button>이 아니라 span인 이유: 구버전 WebKit(사파리 15.x)은 버튼 내부를 익명 flex로
+        // 렌더링해 이름+칩이 서로 찌그러진다(이름이 0폭으로 눌려 사라졌다). span엔 그 동작이 없다.
+        const btn = document.createElement('span');
         btn.className = 'student-quick-nav-btn' + (activeQuickNavStudent === name ? ' active' : '');
+        btn.setAttribute('role', 'button');
+        btn.tabIndex = 0;
         btn.dataset.name = name;
         // 이름 + 보강/마지막 칩. 이름은 textContent가 아니라 dataset에서 읽어야 한다(칩 글자가 섞인다).
         btn.innerHTML = nameWithChips(name);
         // 첫 클릭은 상단 코치 전용 메모, 같은 이름 두 번째 클릭은 훈련일지 기록으로.
-        btn.addEventListener('click', () => {
+        const go = () => {
             const goToRecords = activeQuickNavStudent === name && quickNavStage === 'memo';
             activeQuickNavStudent = name;
             quickNavStage = goToRecords ? 'records' : 'memo';
             highlightQuickNavBtn(nav, name);
             if (goToRecords) scrollToStudent(name);
             else scrollToCoachNote(name);
+        };
+        btn.addEventListener('click', go);
+        btn.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return; // span은 기본 키보드 동작이 없다
+            e.preventDefault();
+            go();
         });
         nav.appendChild(btn);
     });
