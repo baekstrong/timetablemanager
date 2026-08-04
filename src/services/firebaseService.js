@@ -1977,14 +1977,26 @@ export const syncStudentFrequencies = async (students) => {
 // ponytail: 같은 내용이면 쓰지 않는다 — 시간표는 자주 리렌더되고 write는 비용이다.
 // 날짜별로 남긴다(studentMeta/roster-YYYY-MM-DD) — 지난 수업 명단도 정확해야 하므로.
 // studentMeta 컬렉션을 쓰는 이유: 이미 규칙에 열려 있어 새 컬렉션 규칙 배포가 필요 없다.
-// tags = 교시별 {이름: ['보강','마지막']} — 훈련일지 수강생 선택 버튼에 시간표와 같은 칩을 띄운다.
 const lastRosterPayload = {}; // 날짜별 마지막 발행 내용 — 같으면 write 생략
-export const publishRoster = async (date, map, tags = {}) => {
-    const payload = JSON.stringify({ map, tags });
+export const publishRoster = async (date, map) => {
+    const payload = JSON.stringify(map);
     if (lastRosterPayload[date] === payload) return null;
     return safeRead(null, async () => {
-        await setDoc(doc(db, 'studentMeta', `roster-${date}`), { date, map, tags, updatedAt: serverTimestamp() });
+        await setDoc(doc(db, 'studentMeta', `roster-${date}`), { date, map, updatedAt: serverTimestamp() });
         lastRosterPayload[date] = payload;
+        return map;
+    });
+};
+
+// 이름 → 마지막 수업 {date:'YYYY-MM-DD', period}. 훈련일지가 선택 버튼에 '마지막' 칩을 띄우는 유일한 경로
+// (종료날짜는 시트 H열에만 있어 훈련일지가 모른다). frequencies/schedules와 같은 단일 문서 패턴.
+let lastClassesPayload = null; // 같은 내용이면 write 생략 — 시간표는 자주 리렌더된다
+export const publishLastClasses = async (map) => {
+    const payload = JSON.stringify(map);
+    if (lastClassesPayload === payload || !map || Object.keys(map).length === 0) return null;
+    return safeRead(null, async () => {
+        await setDoc(doc(db, 'studentMeta', 'lastClasses'), { map, updatedAt: serverTimestamp() });
+        lastClassesPayload = payload;
         return map;
     });
 };

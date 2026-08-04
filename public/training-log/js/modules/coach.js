@@ -175,9 +175,12 @@ export async function loadStudentList() {
 //     보강으로 오는 사람 포함, 홀딩·결석·보강이동은 빠져 있다.
 //  2) studentMeta/schedules — 시트 D열 정규 시간표. 아직 발행되지 않은 과거 날짜의 폴백.
 let schedulesMap = null;
-const rosterByDate = {}; // 'YYYY-MM-DD' → {map:{'1':[이름...]}, tags:{'1':{이름:['보강']}}} | null(없음)
+const rosterByDate = {}; // 'YYYY-MM-DD' → {'1': [이름...]} | null(없음)
 // 지금 표시 중인 수업의 이름→태그. 수강생 선택 버튼에 시간표와 같은 칩(보강/마지막)을 띄우는 데만 쓴다.
+// 명단 출처(roster/정규 시간표)와 무관하게 여기서 직접 계산한다 — 폴백에서도 칩이 나오도록.
 let currentRosterTags = {};
+const makeupsByDate = {}; // 'YYYY-MM-DD' → {'4': [이름...]} 그 날 보강으로 오는 사람
+let lastClassesMap = null; // 이름 → {date, period} (메인 앱이 발행)
 // past 슬롯이면 그 수업 날짜의 기록을 열어야 한다 → 세션 뷰 기본 날짜로 쓰이는 힌트.
 export let coachPreferredDate = null;
 
@@ -199,8 +202,7 @@ async function loadRosterForDate(date) {
     if (!firebaseInitialized || !db) return null;
     try {
         const doc = await db.collection('studentMeta').doc(`roster-${date}`).get();
-        const data = doc.exists ? doc.data() : null;
-        rosterByDate[date] = data?.map ? { map: data.map, tags: data.tags || {} } : null;
+        rosterByDate[date] = doc.exists ? (doc.data().map || null) : null;
     } catch (error) {
         console.error('출석 명단 조회 실패:', date, error);
         rosterByDate[date] = null;
@@ -208,15 +210,68 @@ async function loadRosterForDate(date) {
     return rosterByDate[date];
 }
 
+// 그 날 보강으로 오는 사람(교시별). 날짜당 1쿼리, 되감기 루프가 같은 날짜를 다시 봐도 재조회 없음.
+async function loadMakeupsForDate(date) {
+    if (date in makeupsByDate) return makeupsByDate[date];
+    if (!firebaseInitialized || !db) return {};
+    try {
+        const snap = await db.collection('makeupRequests').where('makeupClass.date', '==', date).get();
+        const byPeriod = {};
+        snap.forEach(doc => {
+            const d = doc.data();
+            if (d.status !== 'active' && d.status !== 'completed') return; // 취소·거절 제외
+            const p = String(d.makeupClass?.period ?? '');
+            if (!p || !d.studentName) return;
+            (byPeriod[p] = byPeriod[p] || []).push(d.studentName);
+        });
+        makeupsByDate[date] = byPeriod;
+    } catch (error) {
+        console.error('보강 조회 실패:', date, error);
+        makeupsByDate[date] = {};
+    }
+    return makeupsByDate[date];
+}
+
+// 이름 → 마지막 수업. 시트 종료날짜는 훈련일지가 모르므로 메인 앱이 발행한 문서를 읽는다.
+async function loadLastClasses() {
+    if (lastClassesMap) return lastClassesMap;
+    if (!firebaseInitialized || !db) return {};
+    try {
+        const doc = await db.collection('studentMeta').doc('lastClasses').get();
+        lastClassesMap = (doc.exists && doc.data().map) ? doc.data().map : {};
+    } catch (error) {
+        console.error('마지막 수업 조회 실패:', error);
+        lastClassesMap = {};
+    }
+    return lastClassesMap;
+}
+
+// 명단에 있는 사람만 태그한다 — roster 경로에선 시간표 판정(보강홀딩·보강결석 제외)이 이미 걸러준 뒤라
+// 여기서 보강 판정을 다시 해도 없는 사람이 새로 붙지 않는다.
+export async function tagsForSlot(names, slot) {
+    const [makeups, last] = await Promise.all([loadMakeupsForDate(slot.date), loadLastClasses()]);
+    const makeupSet = new Set(makeups[String(slot.period.id)] || []);
+    const tags = {};
+    names.forEach(n => {
+        const t = [];
+        if (makeupSet.has(n)) t.push('보강');
+        const lc = last[n];
+        if (lc && lc.date === slot.date && String(lc.period) === String(slot.period.id)) t.push('마지막');
+        if (t.length) tags[n] = t;
+    });
+    return tags;
+}
+
 // 코치 시간표가 발행한 그 날 명단이 있으면 사용(보강 포함·안 오는 사람 제외).
-// 없으면(발행 전 날짜) 정규 시간표로 폴백. 반환: { names, tags, source }
+// 없으면(발행 전 날짜) 정규 시간표 + 그 날 보강자로 폴백 — 정규 시간표엔 보강 온 사람이 없다.
+// 반환: { names, source }
 async function rosterForSlot(slot) {
-    const data = await loadRosterForDate(slot.date);
-    const key = String(slot.period.id);
-    const names = data?.map?.[key];
-    if (Array.isArray(names)) return { names, tags: data.tags?.[key] || {}, source: 'roster' };
-    // 정규 시간표 폴백엔 보강/마지막 정보가 없다 — 칩 없이 이름만.
-    return { names: rosterFor(schedulesMap, slot.dayLabel, slot.period.id), tags: {}, source: 'schedule' };
+    const map = await loadRosterForDate(slot.date);
+    const names = map?.[String(slot.period.id)];
+    if (Array.isArray(names)) return { names, source: 'roster' };
+    const makeups = (await loadMakeupsForDate(slot.date))[String(slot.period.id)] || [];
+    const regular = rosterFor(schedulesMap, slot.dayLabel, slot.period.id);
+    return { names: [...new Set([...regular, ...makeups])], source: 'schedule' };
 }
 
 // 지금/방금 끝난 교시의 수강생을 선택 상태로 만든다. 새로고침 버튼도 이걸 호출한다.
@@ -231,7 +286,7 @@ function consumeClickedSlot() {
         const s = JSON.parse(raw);
         const period = PERIODS.find(p => p.id === s.periodId);
         if (!period || !s.date) return null;
-        return { slot: { period, dayLabel: s.dayLabel, date: s.date, status: 'picked' }, names: s.names || [], tags: s.tags || {} };
+        return { slot: { period, dayLabel: s.dayLabel, date: s.date, status: 'picked' }, names: s.names || [] };
     } catch {
         return null;
     }
@@ -246,6 +301,8 @@ export async function applyCurrentClassRoster({ silent = false } = {}) {
 
     // 새로고침 때마다 다시 읽는다(보강 신청·홀딩 변경 반영)
     Object.keys(rosterByDate).forEach(k => delete rosterByDate[k]);
+    Object.keys(makeupsByDate).forEach(k => delete makeupsByDate[k]);
+    lastClassesMap = null;
     await loadSchedules(true);
 
     // 수업이 없는 빈 교시는 건너뛰고 실제로 사람이 있던 수업까지 되감는다.
@@ -256,7 +313,7 @@ export async function applyCurrentClassRoster({ silent = false } = {}) {
     for (let i = 0; i < 12; i++) {
         const r = await rosterForSlot(slot);
         roster = r.names.filter(n => state.allStudents.includes(n)); // 훈련일지 계정이 있는 사람만
-        if (roster.length > 0) { source = r.source; currentRosterTags = r.tags; break; }
+        if (roster.length > 0) { source = r.source; currentRosterTags = await tagsForSlot(roster, slot); break; }
         const prev = previousSlot(slot);
         if (!prev) break;
         slot = prev;
@@ -283,9 +340,9 @@ export async function applyCurrentClassRoster({ silent = false } = {}) {
 window.applyCurrentClassRoster = applyCurrentClassRoster;
 
 // 시간표에서 고른 수업을 그대로 표시. 이미 끝난 수업이면 그 날짜 기록을 편다.
-async function applyPickedSlot({ slot, names, tags }) {
+async function applyPickedSlot({ slot, names }) {
     const roster = names.filter(n => state.allStudents.includes(n));
-    currentRosterTags = tags || {};
+    currentRosterTags = await tagsForSlot(roster, slot);
     coachPreferredDate = slotHasEnded(slot) ? slot.date : null;
 
     state.selectedStudents = roster;
