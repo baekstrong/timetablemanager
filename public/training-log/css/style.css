@@ -150,39 +150,20 @@ select {
     box-shadow: 0 4px 6px rgba(50, 155, 231, 0.3);
 }
 
-/* 보강/마지막 칩 (선택 뱃지 + 퀵내비 바 공용).
-   ⚠️ 구버전 WebKit(사파리 15.x)은 <button> 내부를 익명 flex 컨테이너로 렌더링한다.
-   자식이 둘 이상이면(이름 + 칩) 기본 flex-shrink:1로 서로 찌그러져 이름이 눌리고
-   칩 글자가 음절 단위로 쪼개졌다. → 버튼 자식은 .btn-inner 래퍼 하나로만 둔다.
-   색도 8자리 hex(#RRGGBBAA) 대신 rgba() — 구버전 파서에서 더 안전하다. */
-.btn-inner,
-.tag-chip,
-/* 옛 캐시 JS(칩이 인라인 스타일이던 버전)도 함께 방어한다 — 구버전 사파리는 모듈 하위 import를
-   강제 새로고침으로도 캐시에서 꺼내와, CSS만 새 버전인 상태가 실제로 생긴다. */
-.student-quick-nav-btn > *,
-.student-badge > * {
-    display: inline-block;
-    vertical-align: middle;
-    white-space: nowrap;
-    flex: 0 0 auto;
-}
+/* 보강/마지막 표시 — 칸 자체에 색만 준다.
+   ⚠️ 작은 칩(span 박스)을 쓰지 않는 이유: 구버전 사파리(15.6)에서 10px 칩이 계속 눌려
+   껍데기만 남고 글자가 잘렸고, 옆의 이름까지 0폭으로 사라졌다. flex 고정·min-width·
+   요소 교체를 다 시도했지만 실패. 자식 요소를 아예 안 만드는 게 유일하게 통한 방법이다.
+   텍스트는 JS가 '김기상 · 보강'처럼 이름과 같은 텍스트 노드로 붙인다. */
+/* 옛 캐시 JS가 만든 칩 span이 남아 있어도 안 깨지게(구버전 사파리는 모듈 하위 import를
+   강제 새로고침에도 캐시에서 꺼내온다). 새 코드는 이 요소를 만들지 않는다. */
 .tag-chip {
+    display: inline;
+    font-size: inherit;
+    border: 0;
+    background: none;
+    padding: 0;
     margin-left: 4px;
-    padding: 1px 5px;
-    border-radius: 6px;
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 1.5;
-}
-.tag-chip.makeup {
-    color: #327AB8;
-    background: rgba(50, 122, 184, 0.1);
-    border: 1px solid rgba(50, 122, 184, 0.3);
-}
-.tag-chip.last {
-    color: #E94E58;
-    background: rgba(233, 78, 88, 0.1);
-    border: 1px solid rgba(233, 78, 88, 0.3);
 }
 .set-row {
     background: #f9fafb;
@@ -290,6 +271,16 @@ body.modal-open {
     background: #329BE71A;
     border-color: #329BE7;
     color: #329BE7;
+}
+/* 보강/마지막은 선택(active)보다 뒤에 둬서 선택 중에도 상태색이 보이게 한다.
+   텍스트는 JS가 '김기상 · 보강'처럼 이름과 같은 텍스트 노드로 붙인다(칩 박스 안 씀 — 위 주석 참고). */
+.student-quick-nav-btn.tag-makeup {
+    color: #327AB8;
+    border-color: #327AB8;
+}
+.student-quick-nav-btn.tag-last {
+    color: #E94E58;
+    border-color: #E94E58;
 }
 .student-quick-nav-btn:active {
     transform: scale(0.95);
