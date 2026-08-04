@@ -1,5 +1,5 @@
 import { state, db, firebaseInitialized } from '../state.js';
-import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue } from './sets.js';
+import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue, moveButtons, swapSets } from './sets.js';
 import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js';
 import { formatDate } from '../utils.js';
 import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js';
@@ -662,6 +662,7 @@ export function renderEditSets() {
                 <div class="flex items-center gap-2 mb-2">
                     <span class="text-sm font-semibold text-gray-700 min-w-[60px]">${index + 1}세트</span>
                     ${state.editingSets.length > 1 ? `<button onclick="removeEditSet(${index})" type="button" class="text-red-600 text-xs">삭제</button>` : ''}
+                    ${moveButtons('moveEditSet', index, state.editingSets.length)}
                 </div>
 
                 <div class="mb-2">
@@ -770,6 +771,11 @@ export function setEditSetCount(n) {
 window.setEditSetCount = setEditSetCount;
 
 
+
+export function moveEditSet(index, delta) {
+    if (!swapSets(state.editingSets, index, delta)) return;
+    renderEditSets();
+}
 
 export function removeEditSet(index) {
     if (state.editingSets.length <= 1) {

@@ -4,6 +4,31 @@ import { state } from '../state.js';
 // 세트 추가/제거 및 관리
 // ============================================
 
+// 세트 순서 바꾸기(위/아래). 이동 불가능한 방향은 버튼 자체를 안 그린다 —
+// ponytail: disabled 상태 스타일을 새로 만드는 대신 없애면 끝.
+// handler = 전역에 노출된 이동 함수 이름(입력폼 'moveSet' / 수정모달 'moveEditSet').
+export function moveButtons(handler, index, total) {
+    if (total < 2) return '';
+    const btn = (delta, arrow, label) => index + delta < 0 || index + delta >= total ? '' : `
+        <button onclick="${handler}(${index}, ${delta})" type="button" title="${label}" aria-label="${index + 1}세트 ${label}"
+            class="px-2 py-1 border rounded-lg text-xs text-gray-600 bg-white">${arrow}</button>`;
+    return `<span class="flex gap-1 ml-auto">${btn(-1, '↑', '위로')}${btn(1, '↓', '아래로')}</span>`;
+}
+
+// 배열 제자리 스왑. 범위를 벗어나면 아무것도 하지 않고 false.
+export function swapSets(sets, index, delta) {
+    const to = index + delta;
+    if (!Array.isArray(sets) || index < 0 || index >= sets.length || to < 0 || to >= sets.length) return false;
+    [sets[index], sets[to]] = [sets[to], sets[index]];
+    return true;
+}
+
+export function moveSet(index, delta) {
+    if (!swapSets(state.currentSets, index, delta)) return;
+    renderSets();
+    if (window.autoSaveFormData) window.autoSaveFormData();
+}
+
 export function renderSets() {
     const container = document.getElementById('setsContainer');
     if (!container) return;
@@ -41,6 +66,7 @@ export function renderSets() {
                 <div class="flex items-center gap-2 mb-2">
                     <span class="text-sm font-semibold text-gray-700 min-w-[60px]">${index + 1}세트</span>
                     ${state.currentSets.length > 1 ? `<button onclick="removeSet(${index})" type="button" class="set-delete-btn text-red-600 text-sm font-semibold">삭제</button>` : ''}
+                    ${moveButtons('moveSet', index, state.currentSets.length)}
                 </div>
 
                 <!-- 강도 입력 -->
