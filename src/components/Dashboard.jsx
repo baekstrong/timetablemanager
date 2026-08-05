@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, backfillTiersForMonth, getGradeMap, refreshStudentXP, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules } from '../services/firebaseService';
+import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, backfillTiersForMonth, getGradeMap, refreshStudentXP, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
 import { POST_LIMITS } from '../data/boardConstants';
@@ -71,6 +71,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
         getGradeMap().then(map => { if (!cancel && map) setGradeMap(map); });
         syncStudentFrequencies(students); // 훈련일지 도장 모달 자동추천용 주횟수 발행
         syncStudentSchedules(students); // 훈련일지 '지금 수업' 명단 계산용 시간표 발행
+        syncUnpaidStudents(students); // 훈련일지 이름칩 '미결제' 표기용 (coachNotes/unpaid — 코치만 read)
 
         return () => { cancel = true; };
     }, [user, students]);

@@ -23,6 +23,7 @@ import {
     startAfter
 } from 'firebase/firestore';
 import { scoreToTier, computeActiveScore, compareTiers } from '../utils/tiers';
+import { getUnpaidStudentNames } from '../utils/studentList';
 import { xpToGrade, gradeRank, FEMALE_COEF, recordVolume, resolveCoef } from '../utils/grades';
 import { PR_REP_THRESHOLDS } from '../data/mockData';
 
@@ -2029,6 +2030,22 @@ export const syncStudentSchedules = async (students) => {
         }
         await setDoc(doc(db, 'studentMeta', 'schedules'), { map, updatedAt: serverTimestamp() });
         return map;
+    });
+};
+
+// 미결제(K열=X) 수강생 이름 목록 발행 — 훈련일지 코치 화면 이름칩 '미결제' 표기용.
+// ⚠️ studentMeta가 아니라 coachNotes에 쓴다: studentMeta는 규칙상 signedIn이면 누구나 읽을 수
+//    있어 수강생끼리 결제 상태가 노출된다. coachNotes/{docId}는 isCoach()만 허용.
+let unpaidPayload = null; // 같은 내용이면 write 생략
+export const syncUnpaidStudents = async (students) => {
+    return safeRead(null, async () => {
+        if (!Array.isArray(students) || students.length === 0) return null;
+        const names = [...getUnpaidStudentNames(students)].sort(); // Set → 정렬 배열(내용 비교용)
+        const payload = JSON.stringify(names);
+        if (unpaidPayload === payload) return names;
+        await setDoc(doc(db, 'coachNotes', 'unpaid'), { names, updatedAt: serverTimestamp() });
+        unpaidPayload = payload;
+        return names;
     });
 };
 
