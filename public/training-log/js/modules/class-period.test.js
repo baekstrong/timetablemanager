@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveClassSlot, previousSlot, slotHasEnded, parseSchedule, rosterFor, PERIODS } from './class-period.js';
+import { resolveClassSlot, previousSlot, slotHasEnded, parseSchedule, rosterFor, weekdayDates, PERIODS } from './class-period.js';
 
 describe('previousSlot', () => {
     const slotAt = (id, date, dayLabel) => ({ period: PERIODS.find(p => p.id === id), date, dayLabel, status: 'past' });
@@ -115,5 +115,36 @@ describe('rosterFor', () => {
     it('아무도 없으면 빈 배열', () => {
         expect(rosterFor(map, '금', 1)).toEqual([]);
         expect(rosterFor(null, '월', 1)).toEqual([]);
+    });
+});
+
+describe('weekdayDates', () => {
+    it('주중 아무 날이나 그 주 월~금을 돌려준다', () => {
+        // 2026-08-05는 수요일
+        expect(weekdayDates(new Date('2026-08-05T13:00:00'))).toEqual({
+            월: '2026-08-03', 화: '2026-08-04', 수: '2026-08-05', 목: '2026-08-06', 금: '2026-08-07',
+        });
+    });
+
+    it('월요일·금요일도 같은 주를 가리킨다', () => {
+        const mon = weekdayDates(new Date('2026-08-03T09:00:00'));
+        const fri = weekdayDates(new Date('2026-08-07T22:00:00'));
+        expect(mon).toEqual(fri);
+        expect(mon.월).toBe('2026-08-03');
+    });
+
+    it('일요일은 다음 주 월요일 기준 (메인 앱 시간표와 동일)', () => {
+        expect(weekdayDates(new Date('2026-08-09T10:00:00')).월).toBe('2026-08-10');
+    });
+
+    it('토요일은 그 주 월요일 기준', () => {
+        expect(weekdayDates(new Date('2026-08-08T10:00:00')).월).toBe('2026-08-03');
+    });
+
+    it('월 경계를 넘어가도 맞다', () => {
+        // 2026-09-02(수) → 그 주 월요일은 8/31
+        expect(weekdayDates(new Date('2026-09-02T10:00:00'))).toEqual({
+            월: '2026-08-31', 화: '2026-09-01', 수: '2026-09-02', 목: '2026-09-03', 금: '2026-09-04',
+        });
     });
 });
