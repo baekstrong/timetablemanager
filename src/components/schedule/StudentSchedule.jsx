@@ -87,6 +87,8 @@ export default function StudentSchedule({
         [myWeekMakeupHistory]
     );
     const [isSubmittingMakeup, setIsSubmittingMakeup] = useState(false);
+    // 원래 수업이 만석이라 '그냥 취소'가 불가능할 때, 다른 시간으로 옮기는 중인 보강
+    const [changingMakeup, setChangingMakeup] = useState(null);
 
     // ── 만석 슬롯 보강 대기 ──
     const [activeWaitlists, setActiveWaitlists] = useState([]); // 전체 활성 대기 (슬롯별 대기 인원 표시용)
@@ -176,6 +178,58 @@ export default function StudentSchedule({
     }, [user]);
 
     // ── 헬퍼 ──
+    // 보강 자리가 비었을 때(취소·시간 변경) 대기 1순위에게 알림. 취소된 보강생은 아직 주간 상태에
+    // 남아 currentCount에 잡히므로 1명 뺀 값이 실제 인원. 이번 주 슬롯이 아니면 1자리 가정(null).
+    async function notifyMakeupSeatFreed(mc) {
+        try {
+            const periodObj = PERIODS.find(p => p.id === mc.period);
+            const expectedDate = weekDates[mc.day] ? weekDateToISO(weekDates[mc.day]) : null;
+            const seats = (periodObj && expectedDate === mc.date)
+                ? Math.max(0, MAX_CAPACITY - (getCellData(mc.day, periodObj).currentCount - 1))
+                : null;
+            await onSeatFreed(mc.date, mc.day, mc.period, seats);
+        } catch (e) {
+            console.error('보강 대기 알림 트리거 실패:', e);
+        }
+    }
+
+    // 원래 수업 슬롯이 지금 만석인지 — 보강으로 나간 본인은 이미 인원에서 빠져 있으므로
+    // isFull이면 "돌아가면 정원 초과". 이번 주 화면 범위 밖이면 판단하지 않는다(false).
+    function isOriginalSlotFull(originalClass) {
+        if (!originalClass) return false;
+        const periodObj = PERIODS.find(p => p.id === originalClass.period);
+        const expectedDate = weekDates[originalClass.day] ? weekDateToISO(weekDates[originalClass.day]) : null;
+        if (!periodObj || expectedDate !== originalClass.date) return false;
+        return getCellData(originalClass.day, periodObj).isFull;
+    }
+
+    // 종료일(그 주 첫 수업일) 수업을 '두번째 수업일'보다 뒤로 옮기면 표시상 종료일이 당겨짐 — 안내(취소 가능).
+    // 진행해도 되면 true.
+    function confirmEndDateShift(originalClass, targetSlot) {
+        const endISO = (() => {
+            const ed = parseSheetDate(getStudentField(studentData, '종료날짜'));
+            return ed ? formatDateISO(ed) : null;
+        })();
+        if (!endISO || originalClass.date !== endISO) return true;
+
+        const scheduleStr = getStudentField(studentData, '요일 및 시간') || '';
+        const secondISO = secondClassDayISO(scheduleStr, endISO);
+        if (!secondISO || targetSlot.date <= secondISO) return true;
+
+        const secondM = myWeekMakeupHistory.find(m =>
+            m.originalClass?.date === secondISO && (m.status === 'active' || m.status === 'completed')
+        );
+        const capped = cappedEndForFirstClassMove({
+            scheduleStr, endDateISO: endISO,
+            firstMakeupISO: targetSlot.date,
+            secondMakeupISO: secondM?.makeupClass?.date || null,
+        });
+        return window.confirm(
+            `이 수업이 ${forceMode ? '해당 수강생의 ' : ''}마지막 수업이에요.\n` +
+            `보강으로 옮기면 수강 종료일(마지막 수업)이 ${formatKoreanDate(capped.capISO)}로 변경됩니다.\n\n계속하시겠어요?`
+        );
+    }
+
     async function reloadStudentMakeups() {
         const { start, end } = getThisWeekRange();
         const thisWeekMakeups = await getWeekMakeupRequests(user.username, start, end);
@@ -219,7 +273,15 @@ export default function StudentSchedule({
         // 이중 수강(원래 수업일이 있는 요일로 다른 날 수업을 옮겨오는 것)은 원래 수업 선택 후
         // 모달/제출 단계에서 wouldDoubleBookDay로 차단한다(같은 날 이동은 허용해야 하므로 여기선 막지 않음).
         const period = PERIODS.find(p => p.id === periodId);
-        setSelectedMakeupSlot({ day, period: periodId, periodName: period.name, date });
+        const slot = { day, period: periodId, periodName: period.name, date };
+
+        // 시간 변경 중이면 원래 수업이 이미 정해져 있으므로 모달 없이 바로 교체한다.
+        if (changingMakeup) {
+            submitMakeupChange(slot);
+            return;
+        }
+
+        setSelectedMakeupSlot(slot);
         setShowMakeupModal(true);
     }
 
@@ -249,30 +311,7 @@ export default function StudentSchedule({
             return;
         }
 
-        // 종료일(그 주 첫 수업일) 수업을 '두번째 수업일'보다 뒤로 옮기면 표시상 종료일이 당겨짐 — 안내(취소 가능)
-        const endISO = (() => {
-            const ed = parseSheetDate(getStudentField(studentData, '종료날짜'));
-            return ed ? formatDateISO(ed) : null;
-        })();
-        if (endISO && selectedOriginalClass.date === endISO) {
-            const scheduleStr = getStudentField(studentData, '요일 및 시간') || '';
-            const secondISO = secondClassDayISO(scheduleStr, endISO);
-            if (secondISO && selectedMakeupSlot.date > secondISO) {
-                const secondM = myWeekMakeupHistory.find(m =>
-                    m.originalClass?.date === secondISO && (m.status === 'active' || m.status === 'completed')
-                );
-                const capped = cappedEndForFirstClassMove({
-                    scheduleStr, endDateISO: endISO,
-                    firstMakeupISO: selectedMakeupSlot.date,
-                    secondMakeupISO: secondM?.makeupClass?.date || null,
-                });
-                const proceed = window.confirm(
-                    `이 수업이 ${forceMode ? '해당 수강생의 ' : ''}마지막 수업이에요.\n` +
-                    `보강으로 옮기면 수강 종료일(마지막 수업)이 ${formatKoreanDate(capped.capISO)}로 변경됩니다.\n\n계속하시겠어요?`
-                );
-                if (!proceed) return;
-            }
-        }
+        if (!confirmEndDateShift(selectedOriginalClass, selectedMakeupSlot)) return;
 
         setIsSubmittingMakeup(true);
         try {
@@ -310,38 +349,83 @@ export default function StudentSchedule({
             alert('보강 수업 시작 1시간 전부터는 보강 취소가 불가합니다.');
             return;
         }
-        // 이번 주 보강 횟수를 모두 소진한 상태에서 취소하면, 취소해도 횟수가 복구되지 않아
-        // 원래 수업에 출석해야 함을 안내(남은 횟수가 있으면 다른 보강을 신청하면 되므로 안내하지 않음).
+        // 보강으로 비운 원래 자리는 그 사이 다른 수강생이 채울 수 있다. 그 상태로 그냥 취소하면
+        // 원래 수업이 정원(7명)을 넘기므로, 취소 대신 '다른 시간으로 변경'만 허용한다.
         const mo = makeup?.originalClass;
-        const cancelMsg = (mo && myWeekCommitments >= makeupWeeklyLimit)
-            ? `이 보강 신청을 취소하시겠습니까?\n\n취소하면 원래 수업(${mo.day}요일 ${mo.periodName})에 출석하셔야 해요.\n보강은 취소해도 이번 주 횟수가 복구되지 않습니다.`
-            : '이 보강 신청을 취소하시겠습니까?';
+        const remaining = Math.max(0, makeupWeeklyLimit - myWeekCommitments);
+        if (!forceMode && makeup && isOriginalSlotFull(mo)) {
+            if (remaining <= 0) {
+                alert(`원래 수업(${mo.day}요일 ${mo.periodName})이 지금 만석이라 돌아갈 자리가 없어요.\n`
+                    + '이번 주 보강 횟수도 모두 사용해 시간 변경도 어렵습니다.\n코치에게 문의해주세요.');
+                return;
+            }
+            if (!confirm(`원래 수업(${mo.day}요일 ${mo.periodName})이 지금 만석이라 돌아갈 자리가 없어요.\n\n`
+                + '대신 보강을 다른 시간으로 옮길 수 있어요.\n확인을 누른 뒤 여석이 있는 칸을 선택해주세요.')) return;
+            setChangingMakeup(makeup);
+            return;
+        }
+        const cancelMsg = '이 보강 신청을 취소하시겠습니까?\n\n'
+            + (mo ? `취소하면 원래 수업(${mo.day}요일 ${mo.periodName})에 출석하셔야 해요.\n` : '')
+            + '보강은 취소해도 이번 주 횟수가 복구되지 않습니다.\n'
+            + (remaining > 0
+                ? `(이번 주 남은 보강 ${remaining}회 — 다른 시간으로 다시 신청하실 수 있어요)`
+                : '(이번 주 남은 보강 0회 — 다시 신청할 수 없어요)');
         if (!confirm(cancelMsg)) return;
         try {
             await cancelMakeupRequest(makeupId);
 
             // 보강 취소로 빠진 자리 → 대기자 알림 (실제 여석 기준, 만석 오알림 방지)
-            if (makeup) {
-                try {
-                    const mc = makeup.makeupClass;
-                    // 취소된 보강생은 아직 주간 상태(weekMakeupRequests)에 남아 currentCount에 잡히므로
-                    // 그를 1명 뺀 값이 취소 직후 실제 인원. 이번 주 슬롯이 아니면 종전대로 1자리 가정(null).
-                    const mPeriodObj = PERIODS.find(p => p.id === mc.period);
-                    const mExpectedDate = weekDates[mc.day] ? weekDateToISO(weekDates[mc.day]) : null;
-                    const mSeats = (mPeriodObj && mExpectedDate === mc.date)
-                        ? Math.max(0, MAX_CAPACITY - (getCellData(mc.day, mPeriodObj).currentCount - 1))
-                        : null;
-                    await onSeatFreed(mc.date, mc.day, mc.period, mSeats);
-                } catch (e) {
-                    console.error('보강 대기 알림 트리거 실패:', e);
-                }
-            }
+            if (makeup) await notifyMakeupSeatFreed(makeup.makeupClass);
 
             alert('보강 신청이 취소되었습니다.');
             await reloadStudentMakeups();
             await loadWeeklyData();
         } catch (error) {
             alert(`보강 신청 취소 실패: ${error.message}`);
+        }
+    }
+
+    /**
+     * 원래 수업이 만석일 때의 '보강 시간 변경' — 새 보강을 만들고 기존 보강을 취소한다.
+     * 원래 수업은 그대로이므로 종료일 재계산(휴일 보강)은 결과가 같아 생략.
+     */
+    async function submitMakeupChange(newSlot) {
+        const target = changingMakeup;
+        if (!target) return;
+        const oc = target.originalClass;
+        const mc = target.makeupClass;
+
+        if (newSlot.day === mc.day && newSlot.period === mc.period && newSlot.date === mc.date) {
+            alert('지금 신청된 보강과 같은 시간이에요.\n다른 시간을 선택해주세요.');
+            return;
+        }
+        if (newSlot.day === oc.day && newSlot.period === oc.period && newSlot.date === oc.date) {
+            alert('같은 수업으로 보강 신청할 수 없습니다.\n다른 시간을 선택해주세요.');
+            return;
+        }
+        // 옮기려는 보강 자신은 이중 수강 판정에서 제외 — 그 자리는 곧 비운다.
+        const otherMakeups = activeMakeupRequests.filter(m => m.id !== target.id);
+        if (wouldDoubleBookDay(studentSchedule, otherMakeups, oc, newSlot.day, newSlot.date)) {
+            alert('보강 대상 요일에 이미 다른 정규 수업이 있어요.\n다른 요일을 선택해주세요.');
+            return;
+        }
+        if (!confirmEndDateShift(oc, newSlot)) return;
+        if (!confirm(`보강 시간을 옮길까요?\n\n${mc.day}요일 ${mc.periodName} → ${newSlot.day}요일 ${newSlot.periodName}\n`
+            + `(원래 수업: ${oc.day}요일 ${oc.periodName})\n\n※ 변경도 이번 주 보강 1회로 계산됩니다.`)) return;
+
+        setIsSubmittingMakeup(true);
+        try {
+            await createMakeupRequest(user.username, oc, newSlot);
+            await cancelMakeupRequest(target.id);
+            await notifyMakeupSeatFreed(mc); // 비운 기존 보강 자리 → 대기자 알림
+            setChangingMakeup(null);
+            alert(`보강 시간이 변경되었습니다!\n${newSlot.day}요일 ${newSlot.periodName}`);
+            await reloadStudentMakeups();
+            await loadWeeklyData();
+        } catch (error) {
+            alert(`보강 시간 변경 실패: ${error.message}`);
+        } finally {
+            setIsSubmittingMakeup(false);
         }
     }
 
@@ -531,6 +615,10 @@ export default function StudentSchedule({
 
         if (user?.role === 'coach') {
             onCoachCellClick?.(day, periodObj.id, cellData);
+            return;
+        }
+        if (changingMakeup && cellData.isFull) {
+            alert('만석인 시간으로는 옮길 수 없어요.\n여석이 있는 칸을 선택해주세요.');
             return;
         }
         if (cellData.isFull) {
@@ -833,9 +921,41 @@ export default function StudentSchedule({
                         <strong>📌 보강 취소 조건</strong>
                         <div style={{ marginTop: '4px' }}>
                             · 보강 수업 시작 <strong>1시간 전</strong>까지 취소 가능<br/>
-                            · <strong>취소 시 이번 주 보강은 사용한 것으로 간주</strong>되어 재신청이 불가합니다
+                            · <strong>취소해도 이번 주 보강 횟수는 복구되지 않습니다</strong> (취소한 신청도 1회로 계산)<br/>
+                            · 남은 횟수가 있으면 다른 시간으로 다시 신청할 수 있어요 (이번 주 {myWeekCommitments}/{makeupWeeklyLimit}회 사용)
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* 보강 시간 변경 모드 — 원래 수업이 만석이라 '그냥 취소'가 불가능한 경우 */}
+            {isRealStudent && changingMakeup && (
+                <div style={{
+                    margin: '0 0 12px',
+                    padding: '12px 14px',
+                    borderRadius: 'var(--r-md)',
+                    backgroundColor: 'var(--accent-10)',
+                    border: '1px solid var(--accent-30)',
+                    color: '#327AB8',
+                    fontSize: '0.85rem',
+                    lineHeight: '1.6',
+                }}>
+                    <strong>보강 시간 변경 중</strong>
+                    <div style={{ marginTop: '4px' }}>
+                        원래 수업({changingMakeup.originalClass.day}요일 {changingMakeup.originalClass.periodName})이 만석이라
+                        그냥 돌아갈 수 없어요.<br />
+                        <strong>여석이 있는 칸</strong>을 눌러 옮길 시간을 선택해주세요.
+                    </div>
+                    <button
+                        onClick={() => setChangingMakeup(null)}
+                        style={{
+                            marginTop: '8px', padding: '6px 14px', borderRadius: 'var(--r-chip)',
+                            border: '1px solid var(--hairline)', background: 'var(--canvas)',
+                            color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                        }}
+                    >
+                        그만두기
+                    </button>
                 </div>
             )}
 
