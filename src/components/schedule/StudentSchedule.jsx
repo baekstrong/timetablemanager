@@ -310,12 +310,16 @@ export default function StudentSchedule({
             alert('보강 수업 시작 1시간 전부터는 보강 취소가 불가합니다.');
             return;
         }
-        // 이번 주 보강 횟수를 모두 소진한 상태에서 취소하면, 취소해도 횟수가 복구되지 않아
-        // 원래 수업에 출석해야 함을 안내(남은 횟수가 있으면 다른 보강을 신청하면 되므로 안내하지 않음).
+        // 취소해도 이번 주 횟수는 복구되지 않는다(취소분도 소진으로 계산). 남은 횟수가 있으면
+        // 다른 시간으로 재신청은 가능하므로, 어느 쪽인지 남은 횟수와 함께 명확히 안내한다.
         const mo = makeup?.originalClass;
-        const cancelMsg = (mo && myWeekCommitments >= makeupWeeklyLimit)
-            ? `이 보강 신청을 취소하시겠습니까?\n\n취소하면 원래 수업(${mo.day}요일 ${mo.periodName})에 출석하셔야 해요.\n보강은 취소해도 이번 주 횟수가 복구되지 않습니다.`
-            : '이 보강 신청을 취소하시겠습니까?';
+        const remaining = Math.max(0, makeupWeeklyLimit - myWeekCommitments);
+        const cancelMsg = '이 보강 신청을 취소하시겠습니까?\n\n'
+            + (mo ? `취소하면 원래 수업(${mo.day}요일 ${mo.periodName})에 출석하셔야 해요.\n` : '')
+            + '보강은 취소해도 이번 주 횟수가 복구되지 않습니다.\n'
+            + (remaining > 0
+                ? `(이번 주 남은 보강 ${remaining}회 — 다른 시간으로 다시 신청하실 수 있어요)`
+                : '(이번 주 남은 보강 0회 — 다시 신청할 수 없어요)');
         if (!confirm(cancelMsg)) return;
         try {
             await cancelMakeupRequest(makeupId);
@@ -833,7 +837,8 @@ export default function StudentSchedule({
                         <strong>📌 보강 취소 조건</strong>
                         <div style={{ marginTop: '4px' }}>
                             · 보강 수업 시작 <strong>1시간 전</strong>까지 취소 가능<br/>
-                            · <strong>취소 시 이번 주 보강은 사용한 것으로 간주</strong>되어 재신청이 불가합니다
+                            · <strong>취소해도 이번 주 보강 횟수는 복구되지 않습니다</strong> (취소한 신청도 1회로 계산)<br/>
+                            · 남은 횟수가 있으면 다른 시간으로 다시 신청할 수 있어요 (이번 주 {myWeekCommitments}/{makeupWeeklyLimit}회 사용)
                         </div>
                     </div>
                 </div>
