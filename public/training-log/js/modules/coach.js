@@ -487,6 +487,20 @@ function updateStudentBadges() {
 let activeQuickNavStudent = null;
 let quickNavStage = null; // 'memo'(첫 클릭) → 'records'(같은 이름 재클릭)
 
+// ⚠️ 구버전 사파리(15.6) 대응.
+// 페이지 로드 직후엔 항목이 겹쳐 잘리는데, 앱 안 🔄(같은 함수가 다시 그림)를 누르면 멀쩡해진다.
+// = DOM은 맞고 '레이아웃을 잰 시점'이 틀렸다는 뜻. 로딩 중엔 세로 스크롤바가 생기며 폭이
+// 바뀌는데 이 브라우저가 sticky flex 줄을 다시 계산하지 않는다.
+// display를 껐다 켜 레이아웃을 강제로 무효화한다(다음 프레임 = 폭이 안정된 뒤).
+function forceRelayout(el) {
+    requestAnimationFrame(() => {
+        if (!el.isConnected || el.style.display === 'none') return;
+        el.style.display = 'none';
+        void el.offsetHeight; // 강제 리플로우 — 이 읽기가 없으면 브라우저가 두 변경을 합쳐버린다
+        el.style.display = 'flex';
+    });
+}
+
 export function updateStudentQuickNav() {
     const nav = document.getElementById('studentQuickNav');
     if (!nav) return;
@@ -529,6 +543,8 @@ export function updateStudentQuickNav() {
         });
         nav.appendChild(btn);
     });
+
+    forceRelayout(nav);
 }
 
 function highlightQuickNavBtn(nav, activeName) {
