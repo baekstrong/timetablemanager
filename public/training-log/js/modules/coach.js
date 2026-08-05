@@ -4,7 +4,7 @@ import { getKoreanInitial, getStudentColor, getStudentBadgeColor, getStudentText
 const debouncedLoadAllRecords = debounce(loadAllRecords, 300);
 import { normalizeSet } from './sets.js';
 import { groupSessionsByDate, defaultSessionDate } from './session-logic.js';
-import { resolveClassSlot, previousSlot, rosterFor, slotHasEnded, PERIODS } from './class-period.js';
+import { resolveClassSlot, previousSlot, rosterFor, slotHasEnded, weekdayDates, PERIODS } from './class-period.js';
 
 // 기록의 date는 로컬 기준 YYYY-MM-DD → 오늘도 로컬로 계산(toISOString은 UTC라 KST 새벽에 하루 밀림)
 function localToday() {
@@ -340,7 +340,7 @@ export async function applyCurrentClassRoster({ silent = false } = {}) {
 window.applyCurrentClassRoster = applyCurrentClassRoster;
 
 // 시간표에서 고른 수업을 그대로 표시. 이미 끝난 수업이면 그 날짜 기록을 편다.
-async function applyPickedSlot({ slot, names }) {
+async function applyPickedSlot({ slot, names, source = 'roster' }) {
     const roster = names.filter(n => state.allStudents.includes(n));
     currentRosterTags = await tagsForSlot(roster, slot);
     coachPreferredDate = slotHasEnded(slot) ? slot.date : null;
@@ -349,7 +349,7 @@ async function applyPickedSlot({ slot, names }) {
     localStorage.setItem('coachSelectedStudents', JSON.stringify(roster));
     Object.keys(coachSessionSelectedDate).forEach(k => delete coachSessionSelectedDate[k]);
 
-    renderClassSlotBanner(slot, roster.length, 'roster');
+    renderClassSlotBanner(slot, roster.length, source);
     updateStudentBadges();
     updateStudentSelectionSummary();
     updateStudentQuickNav();
@@ -375,11 +375,105 @@ function renderClassSlotBanner(slot, count, source) {
                 <span class="text-gray-400 ml-1">${slot.period.start}~${slot.period.end}</span>
                 <span class="text-gray-500 ml-2">· ${count}명</span>${note}
             </div>
-            <button type="button" onclick="applyCurrentClassRoster()"
-                    class="shrink-0 bg-[#329BE7] hover:bg-[#327AB8] text-white text-xs font-bold px-3 py-2 rounded-lg transition">
-                🔄 새로고침
-            </button>
+            <div class="flex items-center gap-2 shrink-0">
+                <button type="button" onclick="openSlotPicker()"
+                        class="bg-white hover:bg-gray-50 text-[#327AB8] text-xs font-bold px-3 py-2 rounded-lg border border-[#329BE7] transition">
+                    📅 시간표
+                </button>
+                <button type="button" onclick="applyCurrentClassRoster()"
+                        class="bg-[#329BE7] hover:bg-[#327AB8] text-white text-xs font-bold px-3 py-2 rounded-lg transition">
+                    🔄 새로고침
+                </button>
+            </div>
         </div>`;
+}
+
+// ============================================
+// 시간표에서 수업 고르기 (코치)
+// ============================================
+// 이번 주 아무 수업이나 골라 그 시간 출석 명단(보강 포함)을 그대로 선택 상태로 만든다.
+// '지금 수업' 자동 계산과 같은 명단 경로(rosterForSlot)를 쓰므로 판정 규칙이 갈라지지 않는다.
+
+const PICKER_DAYS = ['월', '화', '수', '목', '금'];
+
+export async function openSlotPicker() {
+    // 방금 바뀐 보강·홀딩이 반영되도록 캐시를 비운다. 이후 조회는 날짜당 문서 1개 + 보강 1쿼리.
+    Object.keys(rosterByDate).forEach(k => delete rosterByDate[k]);
+    Object.keys(makeupsByDate).forEach(k => delete makeupsByDate[k]);
+    await loadSchedules(true);
+
+    let overlay = document.getElementById('slotPickerOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'slotPickerOverlay';
+        overlay.className = 'modal active';
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeSlotPicker(); });
+        document.body.appendChild(overlay);
+    }
+    const todayLabel = ['일', '월', '화', '수', '목', '금', '토'][new Date().getDay()];
+    await renderSlotPicker(PICKER_DAYS.includes(todayLabel) ? todayLabel : '금');
+}
+
+export async function renderSlotPicker(dayLabel) {
+    const overlay = document.getElementById('slotPickerOverlay');
+    if (!overlay) return;
+    const dates = weekdayDates();
+    const date = dates[dayLabel];
+
+    // 교시별 인원수 — 같은 날짜라 roster/보강 조회는 첫 교시에서 캐시된다.
+    const counts = [];
+    for (const period of PERIODS) {
+        const r = await rosterForSlot({ period, dayLabel, date, status: 'picked' });
+        counts.push({ period, count: r.names.filter(n => state.allStudents.includes(n)).length });
+    }
+
+    const dayBtns = PICKER_DAYS.map(d => {
+        const md = dates[d].slice(5).replace('-', '/');
+        const on = d === dayLabel;
+        return `<button type="button" onclick="renderSlotPicker('${d}')"
+                        class="flex-1 px-2 py-2 rounded-lg text-sm font-bold ${on ? 'bg-[#329BE7] text-white' : 'bg-gray-100 text-gray-600'}">
+                    ${d}<span class="block text-[11px] font-normal opacity-80">${md}</span>
+                </button>`;
+    }).join('');
+
+    const rows = counts.map(({ period, count }) => `
+        <button type="button" onclick="pickSlot('${dayLabel}', ${period.id})"
+                class="w-full flex items-center justify-between gap-2 px-3 py-3 rounded-lg border border-[#EFEFF0] mb-2 ${count ? 'bg-white' : 'bg-gray-50'}">
+            <span class="text-sm font-bold ${count ? 'text-gray-800' : 'text-gray-400'}">${period.label}</span>
+            <span class="text-xs text-gray-400">${period.start}~${period.end}</span>
+            <span class="text-sm font-bold ${count ? 'text-[#329BE7]' : 'text-gray-300'}">${count}명</span>
+        </button>`).join('');
+
+    overlay.innerHTML = `
+        <div class="modal-content max-w-md w-full">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="font-bold text-gray-800">시간표에서 수업 선택</h3>
+                <button type="button" onclick="closeSlotPicker()" class="text-gray-400 text-xl leading-none px-2">✕</button>
+            </div>
+            <p class="text-xs text-gray-500 mb-3">이번 주 수업을 고르면 그 시간 출석 명단(보강 포함)이 바로 선택됩니다.</p>
+            <div class="flex gap-1 mb-3">${dayBtns}</div>
+            ${rows}
+        </div>`;
+}
+
+export async function pickSlot(dayLabel, periodId) {
+    const date = weekdayDates()[dayLabel];
+    const period = PERIODS.find(p => p.id === periodId);
+    if (!date || !period) return;
+
+    const slot = { period, dayLabel, date, status: 'picked' };
+    const r = await rosterForSlot(slot);
+    const names = r.names.filter(n => state.allStudents.includes(n));
+    if (names.length === 0) {
+        alert(`${dayLabel}요일 ${period.label}에 수업이 없습니다.`);
+        return;
+    }
+    closeSlotPicker();
+    await applyPickedSlot({ slot, names, source: r.source });
+}
+
+export function closeSlotPicker() {
+    document.getElementById('slotPickerOverlay')?.remove();
 }
 
 export function updateStudentSelectionSummary() {

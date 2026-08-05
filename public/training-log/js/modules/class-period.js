@@ -61,6 +61,21 @@ export function resolveClassSlot(now = new Date()) {
     return null;
 }
 
+// 이번 주 월~금 날짜 { '월': 'YYYY-MM-DD', ... }
+// 일요일은 다음 주 월요일 기준 — 메인 앱 시간표(weekDates)와 같은 규칙.
+export function weekdayDates(now = new Date()) {
+    const dow = now.getDay();
+    const monday = new Date(now.getTime());
+    monday.setDate(now.getDate() + (dow === 0 ? 1 : 1 - dow));
+    const out = {};
+    WEEKDAYS.forEach((label, i) => {
+        const d = new Date(monday.getTime());
+        d.setDate(monday.getDate() + i);
+        out[label] = ymd(d);
+    });
+    return out;
+}
+
 // 한 교시 앞으로 되감는다(같은 날 이전 교시 → 없으면 직전 평일 마지막 교시).
 // 수업이 없는 빈 교시를 건너뛰고 '실제로 사람이 있던 마지막 수업'을 찾는 데 쓴다.
 export function previousSlot(slot) {
