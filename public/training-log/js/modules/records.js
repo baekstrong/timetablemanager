@@ -1109,8 +1109,8 @@ export async function pinCoachMemo(userName, docId, exercise) {
         });
 
         alert(`✅ "${userName}"에게 피드백이 고정되었습니다!`);
-        alert(`✅ "${userName}"에게 피드백이 고정되었습니다!`);
-        if (window.renderPinnedMemosForCoach) window.renderPinnedMemosForCoach();
+        // 방금 문서를 직접 고쳤으니 이 학생만 캐시를 건너뛰고 다시 읽는다
+        if (window.renderPinnedMemosForCoach) window.renderPinnedMemosForCoach(userName);
         // if (window.displayCoachPinnedMemosOnDashboard) window.displayCoachPinnedMemosOnDashboard();
     } catch (error) {
         console.error('❌ 코치 메모 고정 실패:', error);
@@ -1170,6 +1170,8 @@ export async function saveFeedback(docId) {
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
             }
+            // 방금 문서를 직접 고쳤으니 이 학생만 캐시를 건너뛰고 다시 읽는다
+            if (window.renderPinnedMemosForCoach) window.renderPinnedMemosForCoach(userName);
         }
 
         alert('✅ 피드백이 저장(및 고정)되었습니다!');
@@ -1268,7 +1270,7 @@ export async function deleteCoachMemoFromDashboard(userName, memoIndex) {
             }
 
             alert('✅ 코치 고정 메모가 삭제되었습니다.');
-            if (window.renderPinnedMemosForCoach) window.renderPinnedMemosForCoach();
+            if (window.renderPinnedMemosForCoach) window.renderPinnedMemosForCoach(userName);
             // displayCoachPinnedMemosOnDashboard(); // Deprecated by v5 features
         }
     } catch (error) {

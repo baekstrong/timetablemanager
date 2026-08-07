@@ -826,10 +826,18 @@ export function setupRealtimePinnedMemosListener() {
     // 선택된 학생의 문서만 render 시점에 직접 조회한다.
 }
 
-async function loadPinnedMemosForSelectedStudents() {
+// 이 함수는 loadAllRecords의 onSnapshot 콜백에서도 불린다 — 캐시가 없으면 학생이 기록을
+// 저장할 때마다 스냅샷이 재발화하며 선택 인원×2 읽기가 계속 나간다(7명이면 1회당 14 read).
+// ponytail: 세션 캐시에 있으면 다시 안 읽는다. 코치 본인의 메모 쓰기는 캐시도 같이 갱신하고,
+// 다른 기기에서 바뀐 메모는 refresh 인자 또는 새로고침으로 들어온다.
+async function loadPinnedMemosForSelectedStudents(refresh) {
     if (!firebaseInitialized || !db || state.selectedStudents.length === 0) return;
 
-    const selected = [...new Set(state.selectedStudents)];
+    // 두 캐시는 항상 같이 채워지므로(실패 시에도) 한쪽만 확인하면 된다.
+    const selected = [...new Set(state.selectedStudents)]
+        .filter(name => name === refresh || !(name in coachPinnedMemosCache));
+    if (selected.length === 0) return;
+
     await Promise.all(selected.map(async (studentName) => {
         try {
             const [studentDoc, coachDoc] = await Promise.all([
@@ -849,7 +857,8 @@ async function loadPinnedMemosForSelectedStudents() {
 // Feature 3, 4, 5: Render Pinned Memos for Coach View (Independent of Date Filter)
 // Displays both Coach's Pinned Memos AND Student's Self-Pinned Memos
 // Feature 3, 4, 5, 1, 6, 8: Unified Memo & Message Renderer
-export async function renderPinnedMemosForCoach() {
+// refresh: 방금 문서를 직접 고쳐 캐시가 낡은 수강생 이름(records.js의 고정/삭제 경로)
+export async function renderPinnedMemosForCoach(refresh) {
     const section = document.getElementById('coachPinnedMemosSection');
     if (!section) return;
 
@@ -858,7 +867,7 @@ export async function renderPinnedMemosForCoach() {
         return;
     }
 
-    await loadPinnedMemosForSelectedStudents();
+    await loadPinnedMemosForSelectedStudents(refresh);
 
     let html = '';
 
