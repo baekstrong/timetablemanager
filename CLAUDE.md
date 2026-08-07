@@ -560,3 +560,4 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 10. **recharts 화면은 lazy 청크** — `Ranking`·`AnalyticsDashboard`는 `App.jsx`에서 `React.lazy`로 분리 로드. 이 컴포넌트를 다른 곳에서 정적 import하면 분리가 깨진다
 11. **Netlify sheets/calendar 함수는 `@googleapis/sheets`·`@googleapis/calendar` 단독 패키지 사용** — `googleapis` 전체 패키지로 되돌리면 콜드스타트가 크게 나빠진다. 인증 클라이언트는 모듈 스코프 캐시(요청마다 재생성 금지)
 12. **users 뱃지 맵은 `getUsersMaps` 1회 스캔 공유** — `getTierMap`/`getGradeMap`에 개별 스캔·개별 캐시를 다시 넣지 말 것. 티어/학년 쓰기 후에는 캐시 전체 무효화 대신 해당 항목만 제자리 갱신
+13. **훈련일지 `loadPinnedMemosForSelectedStudents`의 캐시 가드를 없애지 말 것** — `renderPinnedMemosForCoach`가 `loadAllRecords`의 `onSnapshot` 콜백 안에서도 불리므로, 캐시가 없으면 학생이 기록을 저장할 때마다 선택 인원×2 문서를 다시 읽는다(7명이면 스냅샷 1회당 14 read). 문서를 직접 고친 쓰기 경로는 캐시를 같이 갱신하거나 `renderPinnedMemosForCoach(이름)`으로 그 학생만 재조회시킨다
