@@ -287,6 +287,11 @@ body.modal-open {
     color: #E94E58;
     border-color: #E94E58;
 }
+/* 미결제 — 마지막(빨강)·보강(파랑)과 구분되는 앰버. 글자는 대비 위해 더 어둡게. */
+.student-quick-nav-btn.tag-unpaid {
+    color: #9a7a12;
+    border-color: #EDBC40;
+}
 .student-quick-nav-btn:active {
     transform: scale(0.95);
     opacity: 0.85;
