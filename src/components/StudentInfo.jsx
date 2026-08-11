@@ -58,8 +58,8 @@ const StudentInfo = ({ user, studentData, isImpersonating = false, onBack }) => 
             };
         }
 
-        return calculateMembershipStats(studentData);
-    }, [studentData, user.username, calculateMembershipStats]);
+        return calculateMembershipStats(studentData, firebaseHolidays);
+    }, [studentData, user.username, calculateMembershipStats, firebaseHolidays]);
 
     // 현재 등록 기간 내 홀딩만 필터 (시작일 7일 전부터, 보강 날짜가 시작일 직전일 수 있음)
     const currentHoldings = useMemo(() => {
