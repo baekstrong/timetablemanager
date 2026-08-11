@@ -1,6 +1,6 @@
 import { TAG_STYLES } from './scheduleStyles';
 
-// 이름칩을 '파스텔 배경 + 검은 굵은 글씨 + 색 뱃지'로 표기하는 상태 (보강·보강이동·홀딩·신규·결석·보강결석)
+// 이름칩을 '파스텔 배경 + 검은 굵은 글씨 + 색 뱃지'로 표기하는 상태 (보강·보강이동·홀딩·신규·결석·보강결석·합의결석)
 // 값은 각 상태 색의 연한(파스텔) 톤.
 const NAME_PASTEL = {
     makeup: '#DBEBFB',      // 파스텔 블루 (살짝 진하게)
@@ -9,6 +9,7 @@ const NAME_PASTEL = {
     absent: '#FDECEE',      // 파스텔 레드
     holding: '#FDECEE',     // 파스텔 레드
     makeupAbsent: '#FDECEE',// 파스텔 레드 (홀딩·결석과 동일 패턴)
+    agreedAbsent: '#FBEAF6', // 파스텔 핑크 (합의결석 — 결석들과 색으로 구분)
     waitingSeat: '#FDF6E3', // 파스텔 앰버 (보강대기 — 이름칩+뱃지로 다른 상태칩과 모양 통일)
     makeupPending: '#DBEBFB', // 파스텔 블루 (보강승인중 — 이름칩+뱃지로 통일, 뱃지 라벨로 보강과 구분)
     delayed: '#E5F5EA',     // 파스텔 그린 (시작지연 — 이름칩+뱃지로 다른 상태칩과 모양 통일)
@@ -44,7 +45,7 @@ export function StudentTag({ name, status, label, unpaid = false, reregX = false
         );
     }
 
-    // 칩 배경 색 형태(합의결석)
+    // 뱃지 없는 기본 칩(정규 출석)
     const style = { ...tagStyle };
     delete style.textDecoration; // 취소선 제거
     return (
