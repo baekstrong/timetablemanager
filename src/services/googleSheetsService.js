@@ -963,14 +963,16 @@ export const calculateEndDateWithHolidays = (startDate, totalSessions, scheduleS
 };
 
 /**
- * 시작일부터 endDate까지 완료된 수업 횟수 계산 (홀딩 기간 및 공휴일 제외)
+ * 시작일부터 endDate까지 완료된 수업 횟수 계산 (홀딩 기간·공휴일·결석일 제외)
+ * excludeDates: 'YYYY-MM-DD' 배열 (E열 결석 등 종료일을 뒤로 민 날 — 세면 안 됨)
  */
-function calculateCompletedSessions(startDate, endDate, scheduleStr, holdingRange = null, firebaseHolidays = []) {
+function calculateCompletedSessions(startDate, endDate, scheduleStr, holdingRange = null, firebaseHolidays = [], excludeDates = []) {
   if (!startDate || !scheduleStr || startDate > endDate) return 0;
 
   const classDays = getClassDays(scheduleStr);
   if (classDays.length === 0) return 0;
 
+  const excluded = new Set(excludeDates);
   let count = 0;
   const current = new Date(startDate);
 
@@ -981,7 +983,7 @@ function calculateCompletedSessions(startDate, endDate, scheduleStr, holdingRang
         current <= holdingRange.end;
       const holiday = isHolidayDate(current, firebaseHolidays);
 
-      if (!isInHoldingPeriod && !holiday) {
+      if (!isInHoldingPeriod && !holiday && !excluded.has(formatDateToISO(current))) {
         count++;
       }
     }
@@ -1348,7 +1350,7 @@ export const getAllStudentsFromAllSheets = async () => {
  * @param {Object} student
  * @returns {Object|null}
  */
-export const calculateMembershipStats = (student) => {
+export const calculateMembershipStats = (student, firebaseHolidays = []) => {
   if (!student) return null;
 
   const startDateStr = getStudentField(student, '시작날짜');
@@ -1360,6 +1362,10 @@ export const calculateMembershipStats = (student) => {
     getStudentField(student, '홀딩사용여부');
 
   const holdingInfo = parseHoldingStatus(holdingStatusStr);
+
+  // E열 결석일은 종료일을 그만큼 뒤로 민 날이므로 수업 회차로 세면 안 된다
+  // (안 빼면 남은회차가 부풀어 출석 수가 깎이고, 심하면 0으로 바닥침)
+  const absenceDates = parseAbsenceDatesFromNotes(getStudentField(student, '특이사항'));
 
   const startDate = parseSheetDate(startDateStr);
   const today = new Date();
@@ -1399,14 +1405,14 @@ export const calculateMembershipStats = (student) => {
       tomorrow.setDate(tomorrow.getDate() + 1);
       remainingSessions = Math.min(
         totalSessions,
-        calculateCompletedSessions(tomorrow, endDate, scheduleStr, holdingRange, [])
+        calculateCompletedSessions(tomorrow, endDate, scheduleStr, holdingRange, firebaseHolidays, absenceDates)
       );
       completedSessions = Math.max(0, totalSessions - remainingSessions);
     }
   } else {
     completedSessions = Math.min(
       totalSessions,
-      calculateCompletedSessions(startDate, today, scheduleStr, holdingRange, [])
+      calculateCompletedSessions(startDate, today, scheduleStr, holdingRange, firebaseHolidays, absenceDates)
     );
     remainingSessions = Math.max(0, totalSessions - completedSessions);
   }
