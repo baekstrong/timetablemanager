@@ -238,6 +238,17 @@
     color: var(--accent-hover);
 }
 
+.cns-badge.entrance {
+    background: #C9E8D2;
+    color: #166534;
+}
+
+/* 확정 입학반이 아니라 '다른 날 문의' — 코치가 날짜를 정해줘야 하는 건 */
+.cns-badge.entrance-ask {
+    background: #F8D2D5;
+    color: #991b1b;
+}
+
 .cns-expand-arrow {
     font-size: 0.65rem;
     color: var(--text-muted);

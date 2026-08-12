@@ -37,6 +37,12 @@ import { PRICING, PERIODS, DAYS, MAX_CAPACITY } from '../data/mockData';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import './CoachNewStudents.css';
 
+// 'YYYY-MM-DD' → '8/15' (헤더 칩용 짧은 표기)
+const shortEntranceDate = (d) => {
+    const [, m, day] = String(d || '').split('-');
+    return m && day ? `${Number(m)}/${Number(day)}` : d;
+};
+
 const CoachNewStudents = ({ user, onBack }) => {
     const { refresh: refreshSheets, students: allStudents } = useGoogleSheets();
     const [activeTab, setActiveTab] = useState('registrations');
@@ -1415,6 +1421,12 @@ const CoachNewStudents = ({ user, onBack }) => {
                                             <span className="cns-reg-schedule">{formatScheduleDisplay(reg)}</span>
                                         </div>
                                         <div className="cns-reg-badges">
+                                            {/* 신청한 입학반 날짜 — 승인 전에도 카드를 펼치지 않고 바로 보이게 */}
+                                            {(reg.entranceDate || reg.entranceInquiry) && (
+                                                <span className={`cns-badge ${reg.entranceInquiry ? 'entrance-ask' : 'entrance'}`}>
+                                                    입학반 {shortEntranceDate(reg.entranceDate || reg.entranceInquiry)}{reg.entranceInquiry ? ' 문의' : ''}
+                                                </span>
+                                            )}
                                             {reg.hasAvailableSlots && <span className="cns-badge" style={{ background: '#f59e0b', color: '#fff', fontWeight: 700 }}>여석 발생!</span>}
                                             {reg.wantsConsultation && <span className="cns-badge consult">상담</span>}
                                             {reg.question && <span className="cns-badge question">질문</span>}
