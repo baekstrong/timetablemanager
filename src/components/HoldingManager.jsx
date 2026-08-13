@@ -766,12 +766,12 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                 </div>
             )}
             <div className="holding-header">
-                <h1 className="holding-title">홀딩 신청</h1>
+                <h1 className="holding-title">{requestType === 'absence' ? '결석 신청' : '홀딩 신청'}</h1>
             </div>
 
             <div className="holding-content">
                 {/* 안내 (홀딩/결석 모드에 따라 전환) */}
-                <div className="info-card">
+                <div className={`info-card ${requestType === 'absence' ? 'absence' : ''}`}>
                     <div className="info-icon">ℹ️</div>
                     <div className="info-content">
                         {requestType === 'holding' ? (
@@ -1041,7 +1041,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                         <span className="type-label">홀딩 신청</span>
                         <span className="type-desc">{hasUsedAllHoldings ? '사용 완료' : `남은 횟수: ${remainingHoldings}회`}</span>
                     </label>
-                    <label className={`type-option ${requestType === 'absence' ? 'selected' : ''}`}>
+                    <label className={`type-option absence ${requestType === 'absence' ? 'selected' : ''}`}>
                         <input
                             type="radio"
                             name="requestType"
@@ -1060,8 +1060,10 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
 
                 {/* 달력 */}
                 <div className="calendar-card">
-                    <h2 className="form-title">홀딩 날짜 선택</h2>
-                    <p className="calendar-subtitle">수업일을 클릭하여 홀딩할 날짜를 선택하세요 (여러 날짜 선택 가능)</p>
+                    <h2 className="form-title">{requestType === 'absence' ? '결석 날짜 선택' : '홀딩 날짜 선택'}</h2>
+                    <p className="calendar-subtitle">
+                        수업일을 클릭하여 {requestType === 'absence' ? '결석할' : '홀딩할'} 날짜를 선택하세요 (여러 날짜 선택 가능)
+                    </p>
                     <div className="calendar">
                         <div className="calendar-header">
                             <button onClick={goToPreviousMonth} className="month-nav-button">

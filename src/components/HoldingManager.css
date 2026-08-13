@@ -81,6 +81,11 @@
     }
 }
 
+/* 결석 모드 안내 — 선택한 버튼과 같은 빨강 */
+.info-card.absence {
+    background: var(--error);
+}
+
 .info-icon {
     font-size: 40px;
     flex-shrink: 0;
@@ -724,6 +729,18 @@
 
 .type-option.disabled .type-desc {
     color: var(--text-muted);
+}
+
+/* 결석은 홀딩과 성격이 정반대(수강 차감·연장 없음)라 코발트를 공유하면 안 된다.
+   달력이 이미 결석일=빨강으로 표시하고 있으므로 같은 계열로 맞춘다. */
+.type-option.absence:hover {
+    border-color: var(--error);
+    background: rgba(233, 78, 88, 0.1);
+}
+
+.type-option.absence.selected {
+    border-color: var(--error);
+    background: var(--error);
 }
 
 /* Absence Day Styling (Red) */
