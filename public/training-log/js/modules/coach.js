@@ -5,6 +5,7 @@ const debouncedLoadAllRecords = debounce(loadAllRecords, 300);
 import { normalizeSet } from './sets.js';
 import { groupSessionsByDate, defaultSessionDate } from './session-logic.js';
 import { resolveClassSlot, previousSlot, rosterFor, slotHasEnded, weekdayDates, PERIODS } from './class-period.js';
+import { nextStage, stageHint } from './quick-nav-stage.js';
 
 // 기록의 date는 로컬 기준 YYYY-MM-DD → 오늘도 로컬로 계산(toISOString은 UTC라 KST 새벽에 하루 밀림)
 function localToday() {
@@ -600,7 +601,22 @@ function updateStudentBadges() {
 // ============================================
 
 let activeQuickNavStudent = null;
-let quickNavStage = null; // 'memo'(첫 클릭) → 'records'(같은 이름 재클릭)
+let quickNavStage = null; // 'memo'(첫 클릭) → 'records'(재클릭) → 'renewal'('마지막'만, 순환은 quick-nav-stage.js)
+
+const isLastClass = (name) => (currentRosterTags[name] || []).includes('마지막');
+
+// 힌트가 붙는 건 지금 열려 있는 한 명뿐이라 이름별로 단계를 따로 들고 있을 필요가 없다.
+const quickNavLabel = (name) =>
+    labelFor(name) + stageHint(activeQuickNavStudent === name ? quickNavStage : null, isLastClass(name));
+
+// 마지막 수업인 수강생의 3번째 클릭 — 메인 앱 수강생 관리의 재등록 모달로 넘긴다.
+// 두 키는 메인 앱이 이미 읽는다(App.jsx의 targetPage, StudentManager.jsx의 renewalStudentName).
+// 코치 시간표에서 이름을 눌렀을 때와 같은 경로.
+function goToRenewal(name) {
+    sessionStorage.setItem('targetPage', 'students');
+    sessionStorage.setItem('renewalStudentName', name);
+    window.navigateToTimetable(); // 자동로그인 자격증명을 심고 메인 앱으로 이동
+}
 
 // ⚠️ 구버전 사파리(15.6) 대응.
 // 페이지 로드 직후엔 항목이 겹쳐 잘리는데, 앱 안 🔄(같은 함수가 다시 그림)를 누르면 멀쩡해진다.
@@ -639,15 +655,16 @@ export function updateStudentQuickNav() {
         btn.tabIndex = 0;
         btn.dataset.name = name;
         // 이름 + ' · 보강'. 이름은 textContent가 아니라 dataset에서 읽어야 한다(태그가 섞인다).
-        btn.textContent = labelFor(name);
+        btn.textContent = quickNavLabel(name);
         applyTagClass(btn, name);
-        // 첫 클릭은 상단 코치 전용 메모, 같은 이름 두 번째 클릭은 훈련일지 기록으로.
+        // 첫 클릭은 상단 코치 전용 메모, 재클릭은 훈련일지 기록, '마지막'이면 한 번 더 눌러 재등록.
         const go = () => {
-            const goToRecords = activeQuickNavStudent === name && quickNavStage === 'memo';
+            const next = nextStage(quickNavStage, activeQuickNavStudent === name, isLastClass(name));
+            if (next === 'renewal') return goToRenewal(name); // 페이지를 떠난다 — 상태 갱신 불필요
             activeQuickNavStudent = name;
-            quickNavStage = goToRecords ? 'records' : 'memo';
+            quickNavStage = next;
             highlightQuickNavBtn(nav, name);
-            if (goToRecords) scrollToStudent(name);
+            if (next === 'records') scrollToStudent(name);
             else scrollToCoachNote(name);
         };
         btn.addEventListener('click', go);
@@ -665,6 +682,10 @@ export function updateStudentQuickNav() {
 function highlightQuickNavBtn(nav, activeName) {
     nav.querySelectorAll('.student-quick-nav-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.name === activeName);
+        // ponytail: 힌트가 붙고 빠지며 칸 폭이 변하지만 forceRelayout은 부르지 않는다.
+        // 클릭으로 인한 리플로우는 정상 동작하고(로드 시점 측정 버그와 다름), 매 클릭 rAF
+        // display 토글은 깜빡임만 만든다.
+        btn.textContent = quickNavLabel(btn.dataset.name);
     });
 }
 
