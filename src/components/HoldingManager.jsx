@@ -766,7 +766,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                 </div>
             )}
             <div className="holding-header">
-                <h1 className="holding-title">홀딩 신청</h1>
+                <h1 className="holding-title">{requestType === 'absence' ? '결석 신청' : '홀딩 신청'}</h1>
             </div>
 
             <div className="holding-content">
@@ -1060,8 +1060,10 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
 
                 {/* 달력 */}
                 <div className="calendar-card">
-                    <h2 className="form-title">홀딩 날짜 선택</h2>
-                    <p className="calendar-subtitle">수업일을 클릭하여 홀딩할 날짜를 선택하세요 (여러 날짜 선택 가능)</p>
+                    <h2 className="form-title">{requestType === 'absence' ? '결석 날짜 선택' : '홀딩 날짜 선택'}</h2>
+                    <p className="calendar-subtitle">
+                        수업일을 클릭하여 {requestType === 'absence' ? '결석할' : '홀딩할'} 날짜를 선택하세요 (여러 날짜 선택 가능)
+                    </p>
                     <div className="calendar">
                         <div className="calendar-header">
                             <button onClick={goToPreviousMonth} className="month-nav-button">
