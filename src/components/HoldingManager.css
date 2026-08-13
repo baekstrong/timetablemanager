@@ -81,9 +81,11 @@
     }
 }
 
-/* 결석 모드 안내 — 선택한 버튼과 같은 빨강 */
+/* 결석 모드 안내 — 선택한 버튼과 같은 파스텔 코발트 (배경이 연해지므로 글자는 본문색으로) */
 .info-card.absence {
-    background: var(--error);
+    background: var(--accent-20);
+    border: 1px solid var(--accent-30);
+    color: var(--text);
 }
 
 .info-icon {
@@ -731,16 +733,20 @@
     color: var(--text-muted);
 }
 
-/* 결석은 홀딩과 성격이 정반대(수강 차감·연장 없음)라 코발트를 공유하면 안 된다.
-   달력이 이미 결석일=빨강으로 표시하고 있으므로 같은 계열로 맞춘다. */
-.type-option.absence:hover {
-    border-color: var(--error);
-    background: rgba(233, 78, 88, 0.1);
+/* 결석은 홀딩과 같은 코발트 계열이되 파스텔 톤 — 색으로 구분은 되지만
+   두 신청이 다른 기능처럼 보이지는 않게. 홀딩은 솔리드, 결석은 틴트. */
+.type-option.absence.selected {
+    border-color: var(--accent);
+    background: var(--accent-20);
 }
 
-.type-option.absence.selected {
-    border-color: var(--error);
-    background: var(--error);
+/* 파스텔 배경 위라 .selected의 흰 글씨는 안 읽힌다 (코발트 글씨도 대비 3.7:1로 부족) */
+.type-option.absence.selected .type-label {
+    color: var(--text);
+}
+
+.type-option.absence.selected .type-desc {
+    color: var(--text-secondary);
 }
 
 /* Absence Day Styling (Red) */
