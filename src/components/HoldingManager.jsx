@@ -771,7 +771,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
 
             <div className="holding-content">
                 {/* 안내 (홀딩/결석 모드에 따라 전환) */}
-                <div className="info-card">
+                <div className={`info-card ${requestType === 'absence' ? 'absence' : ''}`}>
                     <div className="info-icon">ℹ️</div>
                     <div className="info-content">
                         {requestType === 'holding' ? (
@@ -1041,7 +1041,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                         <span className="type-label">홀딩 신청</span>
                         <span className="type-desc">{hasUsedAllHoldings ? '사용 완료' : `남은 횟수: ${remainingHoldings}회`}</span>
                     </label>
-                    <label className={`type-option ${requestType === 'absence' ? 'selected' : ''}`}>
+                    <label className={`type-option absence ${requestType === 'absence' ? 'selected' : ''}`}>
                         <input
                             type="radio"
                             name="requestType"
