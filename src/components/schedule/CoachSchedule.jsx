@@ -50,6 +50,7 @@ export default function CoachSchedule({
     unpaidStudentNames = new Set(),
     makeupWaitlists = [],
     freeWorkoutByDate = {},
+    onFreeCellClick,
 }) {
     // 현재 시각 — 진행 중/임박 수업 강조용 (60초마다 갱신)
     const [now, setNow] = useState(() => new Date());
@@ -426,9 +427,12 @@ export default function CoachSchedule({
                                     ? (() => {
                                         const dISO = weekDates[day] ? weekDateToISO(weekDates[day]) : null;
                                         const names = (dISO && freeWorkoutByDate[dISO]) || [];
+                                        const canManage = typeof onFreeCellClick === 'function';
                                         return (
-                                            <div className="schedule-cell cell-free" style={{ flexDirection: 'column', gap: '4px' }}>
-                                                <div style={{ fontSize: '0.72rem', color: '#9a7a12', fontWeight: 700 }}>자율 운동</div>
+                                            <div className="schedule-cell cell-free"
+                                                 style={{ flexDirection: 'column', gap: '4px', cursor: canManage ? 'pointer' : undefined }}
+                                                 onClick={canManage ? () => onFreeCellClick(day) : undefined}>
+                                                <div style={{ fontSize: '0.72rem', color: '#9a7a12', fontWeight: 700 }}>자율 운동{canManage ? ' +' : ''}</div>
                                                 {names.length > 0 && (
                                                     <div className="student-list" style={{ justifyContent: 'center' }}>
                                                         {names.map(n => <span key={n.id} className="student-tag">{n.studentName}</span>)}

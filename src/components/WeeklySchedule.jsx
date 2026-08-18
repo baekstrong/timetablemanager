@@ -628,6 +628,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     unpaidStudentNames={unpaidStudentNames}
                     makeupWaitlists={coachMakeupWaitlist}
                     freeWorkoutByDate={freeWorkoutByDate}
+                    onFreeCellClick={handleFreeCellClick}
                 />
             )}
 
@@ -652,7 +653,6 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                     isSlotLocked={isSlotLocked}
                     newStudentWaitlist={newStudentWaitlist}
                     onCoachCellClick={handleCoachWaitlistCellClick}
-                    onFreeCellClick={handleFreeCellClick}
                     freeWorkoutByDate={freeWorkoutByDate}
                 />
             )}
@@ -726,7 +726,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 />
             )}
 
-            {/* 자율운동 출석 관리 모달 (코치 신규 전용 뷰에서 자율운동 셀 클릭 시) */}
+            {/* 자율운동 출석 관리 모달 (코치 전용 뷰에서 자율운동 셀 클릭 시) */}
             {freeSlot && user?.role === 'coach' && (
                 <FreeWorkoutModal
                     dateLabel={`${weekDates[freeSlot.day]} (${freeSlot.day})`}
