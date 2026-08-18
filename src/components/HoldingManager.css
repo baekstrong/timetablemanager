@@ -81,10 +81,11 @@
     }
 }
 
-/* 결석 모드 안내 — 선택한 버튼과 같은 파스텔 코발트 (배경이 연해지므로 글자는 본문색으로) */
+/* 결석 모드 안내 — 결석 버튼과 같은 주황 계열. 안내 카드는 글이 길어 솔리드로
+   깔면 읽기 힘드니 여기만 틴트 + 본문색. */
 .info-card.absence {
-    background: var(--accent-20);
-    border: 1px solid var(--accent-30);
+    background: #FFF7ED;
+    border: 1px solid #F59E0B4D;
     color: var(--text);
 }
 
@@ -487,7 +488,10 @@
     cursor: default;
 }
 
-.calendar-day:not(.empty):not(.disabled):hover {
+/* :not(.selected) 필수 — 모바일은 탭한 칸에 :hover가 눌러붙는데, 이 규칙이
+   .selected(0-2-0)보다 명시도가 높아 방금 고른 날짜만 연한 배경 + 흰 글씨로
+   되돌아가 안 고른 것처럼 보였다. */
+.calendar-day:not(.empty):not(.disabled):not(.selected):hover {
     border-color: var(--accent);
     background: var(--accent-10);
     transform: scale(1.05);
@@ -504,14 +508,19 @@
 }
 
 .calendar-day.selected {
-    border-color: var(--accent);
+    border: 2px solid var(--accent-hover);
     background: var(--accent);
     color: white;
+    transform: scale(1.05);
 }
 
 .calendar-day.selected .day-number,
 .calendar-day.selected .class-indicator {
     color: white;
+}
+
+.calendar-day.selected .day-number {
+    font-weight: 800;
 }
 
 .calendar-day.disabled {
@@ -733,20 +742,11 @@
     color: var(--text-muted);
 }
 
-/* 결석은 홀딩과 같은 코발트 계열이되 파스텔 톤 — 색으로 구분은 되지만
-   두 신청이 다른 기능처럼 보이지는 않게. 홀딩은 솔리드, 결석은 틴트. */
+/* 홀딩·결석 둘 다 솔리드, 색만 다르게 — 파스텔 틴트는 선택했다는 느낌이 안 났다.
+   홀딩=코발트, 결석=주황. 흰 글씨는 .type-option.selected 규칙이 그대로 적용된다. */
 .type-option.absence.selected {
-    border-color: var(--accent);
-    background: var(--accent-20);
-}
-
-/* 파스텔 배경 위라 .selected의 흰 글씨는 안 읽힌다 (코발트 글씨도 대비 3.7:1로 부족) */
-.type-option.absence.selected .type-label {
-    color: var(--text);
-}
-
-.type-option.absence.selected .type-desc {
-    color: var(--text-secondary);
+    border-color: #F59E0B;
+    background: #F59E0B;
 }
 
 /* Absence Day Styling (Red) */
