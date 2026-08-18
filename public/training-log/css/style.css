@@ -292,6 +292,12 @@ body.modal-open {
     color: #9a7a12;
     border-color: #EDBC40;
 }
+/* 재등록X — 노랑(메인 앱 시간표 재등록X 배지와 같은 계열). */
+.student-quick-nav-btn.tag-rereg {
+    color: #92400e;
+    border-color: #F5C518;
+    background: #F5C5181A;
+}
 .student-quick-nav-btn:active {
     transform: scale(0.95);
     opacity: 0.85;

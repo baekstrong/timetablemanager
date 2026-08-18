@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { PERIODS, DAYS } from '../../data/mockData';
-import { toggleDisabledClass, toggleLockedSlot, publishRoster, publishLastClasses } from '../../services/firebaseService';
+import { toggleDisabledClass, toggleLockedSlot, publishRoster, publishLastClasses, publishReregX } from '../../services/firebaseService';
 import { weekDateToISO, getWaitlistCountForSlot, isPeriodImminentOrOngoing } from '../../utils/scheduleUtils';
 import CoachWaitlistPanel from './CoachWaitlistPanel';
 import { StudentTag, UnpaidBadge } from './ScheduleCell';
@@ -76,6 +76,7 @@ export default function CoachSchedule({
     // 표시 중인 주 전체를 날짜별로 발행한다 — 훈련일지가 '지난 수업'을 볼 때도 정확해야 하므로.
     // '마지막 수업' 맵도 같이 발행 — 훈련일지는 시트(종료날짜)를 모르므로 이게 유일한 경로다.
     useEffect(() => {
+        let anyStudent = false;
         DAYS.forEach(day => {
             if (!weekDates?.[day]) return;
             const iso = weekDateToISO(weekDates[day]);
@@ -83,12 +84,17 @@ export default function CoachSchedule({
             PERIODS.forEach(p => {
                 const d = getCellData(day, p);
                 if (d) map[String(p.id)] = attendingNamesFor(d);
+                if (map[String(p.id)]?.length) anyStudent = true;
             });
             publishRoster(iso, map);
         });
         publishLastClasses(Object.fromEntries(
             [...lastClassByName].map(([name, lc]) => [name, { date: lc.dateISO, period: lc.period }])
         ));
+        // 아무도 없으면 시트가 아직 안 온 것 — 빈 배열로 명단을 지워버리지 않는다
+        if (anyStudent) {
+            publishReregX((delayedReregistrationStudents || []).map(s => s.name).sort());
+        }
         // deps 없이 매 렌더 계산한다. 결석·보강·홀딩은 Firebase에서 뒤늦게 도착하는데
         // scheduleData만 보고 있으면 도착 전 값(결석자 포함·보강자 누락)이 그대로 발행된다.
         // 실제 write는 publishRoster가 날짜별 내용 비교로 억제하므로 매 렌더 실행이 싸다.

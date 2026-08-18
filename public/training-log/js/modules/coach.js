@@ -183,6 +183,7 @@ let currentRosterTags = {};
 const makeupsByDate = {}; // 'YYYY-MM-DD' → {'4': [이름...]} 그 날 보강으로 오는 사람
 let lastClassesMap = null; // 이름 → {date, period} (메인 앱이 발행)
 let unpaidSet = null;      // 미결제 이름 Set (메인 앱이 발행)
+let reregXSet = null;      // 재등록 지연 이름 Set (메인 앱이 발행)
 // past 슬롯이면 그 수업 날짜의 기록을 열어야 한다 → 세션 뷰 기본 날짜로 쓰이는 힌트.
 export let coachPreferredDate = null;
 
@@ -249,6 +250,20 @@ async function loadUnpaid() {
     return unpaidSet;
 }
 
+// 재등록 지연(종료일 지났는데 다음 등록 없음) 이름 집합. unpaid와 같은 이유로 coachNotes에 있다.
+async function loadReregX() {
+    if (reregXSet) return reregXSet;
+    if (!firebaseInitialized || !db) return new Set();
+    try {
+        const doc = await db.collection('coachNotes').doc('reregX').get();
+        reregXSet = new Set(doc.exists ? (doc.data().names || []) : []);
+    } catch (error) {
+        console.error('재등록 지연 명단 조회 실패:', error);
+        reregXSet = new Set();
+    }
+    return reregXSet;
+}
+
 // 이름 → 마지막 수업. 시트 종료날짜는 훈련일지가 모르므로 메인 앱이 발행한 문서를 읽는다.
 async function loadLastClasses() {
     if (lastClassesMap) return lastClassesMap;
@@ -266,14 +281,15 @@ async function loadLastClasses() {
 // 명단에 있는 사람만 태그한다 — roster 경로에선 시간표 판정(보강홀딩·보강결석 제외)이 이미 걸러준 뒤라
 // 여기서 보강 판정을 다시 해도 없는 사람이 새로 붙지 않는다.
 export async function tagsForSlot(names, slot) {
-    const [makeups, last, unpaid] = await Promise.all([
-        loadMakeupsForDate(slot.date), loadLastClasses(), loadUnpaid(),
+    const [makeups, last, unpaid, reregX] = await Promise.all([
+        loadMakeupsForDate(slot.date), loadLastClasses(), loadUnpaid(), loadReregX(),
     ]);
     const makeupSet = new Set(makeups[String(slot.period.id)] || []);
     const tags = {};
     names.forEach(n => {
         const t = [];
         if (unpaid.has(n)) t.push('미결제');
+        if (reregX.has(n)) t.push('재등록X');
         if (makeupSet.has(n)) t.push('보강');
         const lc = last[n];
         if (lc && lc.date === slot.date && String(lc.period) === String(slot.period.id)) t.push('마지막');
@@ -552,8 +568,9 @@ function labelFor(name, prefix = '') {
 // 칸 자체에 상태색을 입힌다(마지막이 더 급한 정보라 우선).
 function applyTagClass(el, name) {
     const tags = currentRosterTags[name] || [];
-    el.classList.remove('tag-makeup', 'tag-last', 'tag-unpaid');
+    el.classList.remove('tag-makeup', 'tag-last', 'tag-unpaid', 'tag-rereg');
     if (tags.includes('미결제')) el.classList.add('tag-unpaid');
+    else if (tags.includes('재등록X')) el.classList.add('tag-rereg');
     else if (tags.includes('마지막')) el.classList.add('tag-last');
     else if (tags.includes('보강')) el.classList.add('tag-makeup');
 }

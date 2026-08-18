@@ -2002,6 +2002,21 @@ export const publishLastClasses = async (map) => {
     });
 };
 
+// 재등록 지연(종료일 지났는데 다음 등록 없음) 이름 목록 — 훈련일지 이름칩 '재등록X' 표기용.
+// ⚠️ unpaid와 같은 이유로 coachNotes에 쓴다: studentMeta는 signedIn이면 누구나 읽어
+//    수강생끼리 남의 재등록 여부가 보인다. coachNotes/{docId}는 isCoach()만 허용.
+// 빈 배열도 발행해야 재등록하면 칩이 사라진다 — 호출부가 '명단 로드 전'만 걸러 준다.
+let reregXPayload = null;
+export const publishReregX = async (names) => {
+    const payload = JSON.stringify(names);
+    if (reregXPayload === payload || !Array.isArray(names)) return null;
+    return safeRead(null, async () => {
+        await setDoc(doc(db, 'coachNotes', 'reregX'), { names, updatedAt: serverTimestamp() });
+        reregXPayload = payload;
+        return names;
+    });
+};
+
 // 이름 → 시트 D열 수업 일정('월1수1') 맵을 발행. 훈련일지(별도 SPA)는 시트를 모르므로
 // 이 문서가 '지금 수업에 오는 사람' 명단을 계산하는 유일한 경로다. frequencies와 같은 패턴.
 // 같은 이름의 행이 여럿(미리 등록)이면 오늘이 수강 기간에 든 행을 우선한다.
