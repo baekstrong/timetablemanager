@@ -3,7 +3,7 @@
 import { state, db } from '../state.js';
 import { normalizeSet, renderSets } from './sets.js';
 
-const PERCENTS = [95, 90, 85, 80, 75, 70, 65, 60, 55, 50];
+const PERCENTS = [95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40];
 
 // 0.5kg 단위 반올림 (원판 맞추기 편하게)
 const round05 = (x) => Math.round(x * 2) / 2;
