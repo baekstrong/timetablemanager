@@ -287,10 +287,11 @@ body.modal-open {
     color: #E94E58;
     border-color: #E94E58;
 }
-/* 미결제 — 마지막(빨강)·보강(파랑)과 구분되는 앰버. 글자는 대비 위해 더 어둡게. */
+/* 미결제 — 주황. 재등록X(노랑)와 헷갈리지 않게 노랑 계열에서 떼어냈다. */
 .student-quick-nav-btn.tag-unpaid {
-    color: #9a7a12;
-    border-color: #EDBC40;
+    color: #9A3412;
+    border-color: #F97316;
+    background: #F973161A;
 }
 /* 재등록X — 노랑(메인 앱 시간표 재등록X 배지와 같은 계열). */
 .student-quick-nav-btn.tag-rereg {
