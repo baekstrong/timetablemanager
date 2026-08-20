@@ -1,9 +1,9 @@
-import { state, db, firebaseInitialized } from '../state.js';
+import { state, db, firebaseInitialized, persistenceEnabled } from '../state.js';
 import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue, moveButtons, swapSets } from './sets.js';
 import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js';
 import { formatDate } from '../utils.js';
 import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js';
-import { evaluatePR } from './pr-logic.js';
+import { evaluatePR, pastSetsFrom } from './pr-logic.js';
 import { xpToGrade, gradeRank, recordVolume, GRADES } from './grades.js';
 
 // ============================================
@@ -89,19 +89,18 @@ export async function addRecord() {
     isAddingRecord = true;
     setAddRecordBtnBusy(true);
     try {
-        // PR 판정과 order 계산은 서로 무관 → 병렬. (직렬로 두면 느린 망에서 왕복이 그대로 쌓임)
-        const [prStatus, count] = await Promise.all([
-            computePR(exercise, validSets).catch(prErr => {
-                console.error('PR 판정 실패(무시):', prErr);
-                return null;
-            }),
-            db.collection('records')
-                .where('userName', '==', state.currentUser)
-                .where('date', '==', state.selectedDate)
-                .get()
-                .then(snap => snap.size),
-        ]);
+        // 문서 id를 로컬에서 먼저 뽑는다(왕복 0). PR 판정 읽기가 이 쓰기보다 늦게 서버에 닿아도
+        // 방금 쓴 기록을 '과거 기록'으로 세지 않게 id로 빼기 위해 필요하다.
+        const ref = db.collection('records').doc();
 
+        // order = 그 날 기록 수. 화면 목록(onSnapshot)이 이미 들고 있으므로 서버에 다시 묻지 않는다.
+        const count = await currentDayRecordCount();
+
+        // PR 판정은 저장을 막지 않는다 — 쓰기와 같이 출발시키고, 화면을 푼 뒤 결과만 받는다.
+        const prPromise = computePR(exercise, validSets, ref.id).catch(prErr => {
+            console.error('PR 판정 실패(무시):', prErr);
+            return null;
+        });
 
         // Feature: Workout Memo Integration
         // If memo is provided, save it as "Workout Memo" (Pinned Memo) instead of record memo
@@ -109,7 +108,7 @@ export async function addRecord() {
             saveWorkoutMemo(exercise, memo, false, painCheck); // false = silent mode (no alert), pass pain
         }
 
-        await db.collection('records').add({
+        const writePromise = ref.set({
             userName: state.currentUser,
             exercise: exercise,
             sets: validSets,
@@ -121,6 +120,18 @@ export async function addRecord() {
             custom: isCustomExercise(exercise), // 개인 전용 종목이면 true (공용 목록엔 안 들어감)
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
+
+        // 오프라인 캐시가 켜져 있으면 쓰기는 이미 IndexedDB에 커밋됐고 전송은 SDK가 책임진다
+        // → 서버 ACK를 기다릴 이유가 없다(이게 '가끔 몇 초' 멈추던 구간).
+        // 캐시가 없으면(사파리 시크릿 등) 탭을 닫는 순간 유실되므로 예전처럼 기다린다.
+        if (persistenceEnabled) {
+            writePromise.catch(err => {
+                console.error('Error adding record:', err);
+                alert('기록 저장 실패: ' + err.message);
+            });
+        } else {
+            await writePromise;
+        }
 
         clearExerciseSelection(); // 입력칸 비우고 잠금 해제
         document.getElementById('memo').value = '';
@@ -142,11 +153,10 @@ export async function addRecord() {
         isAddingRecord = false;
         setAddRecordBtnBusy(false);
 
-        if (prStatus) {
-            showPRCelebration(prStatus); // 신기록이면 축하 팝업 (저장 완료 안내 겸함)
-        } else {
-            alert('✅ 기록이 저장되었습니다!');
-        }
+        // 저장 확인은 즉시. 신기록 축하는 판정(읽기 1회)이 돌아오는 대로 뒤따라 뜬다.
+        // 예전엔 이 판정을 기다리느라 저장이 끝나도 화면이 잠겨 있었다.
+        alert('✅ 기록이 저장되었습니다!');
+        prPromise.then(prStatus => { if (prStatus) showPRCelebration(prStatus); });
     } catch (error) {
         console.error('Error adding record:', error);
         alert('기록 저장 실패: ' + error.message);
@@ -160,8 +170,24 @@ export async function addRecord() {
 // 개인 기록(PR) 판정 + 축하 팝업
 // ============================================
 
+// 그 날 기록 수(order 용). loadMyRecords의 onSnapshot이 같은 사용자·날짜를 이미 구독 중이면
+// 그 캐시가 곧 정답이다 — 서버에 다시 묻지 않는다(저장 경로에서 왕복 1회 제거).
+// 구독 키가 다르거나(코치·다른 날짜) 첫 스냅샷 전이면 그때만 서버에 묻는다.
+async function currentDayRecordCount() {
+    if (lastRecordDocs && state.recordsSubKey === `${state.currentUser}__${state.selectedDate}`) {
+        return lastRecordDocs.length;
+    }
+    const snapshot = await db.collection('records')
+        .where('userName', '==', state.currentUser)
+        .where('date', '==', state.selectedDate)
+        .get();
+    return snapshot.size;
+}
+
 // 같은 종목의 과거 기록을 모아 evaluatePR(순수 로직)로 신기록 판정. 판정 로직 테스트는 pr-logic.test.js.
-async function computePR(exercise, newSets) {
+// excludeId: 방금 저장한 문서. 이 읽기는 쓰기와 동시에 출발하므로 서버에 늦게 닿으면 새 기록이
+// 결과에 섞여 '자기 자신과 비교' → 신기록이 영원히 안 잡힌다. id로 빼서 그 레이스를 없앤다.
+async function computePR(exercise, newSets, excludeId = null) {
     if (!firebaseInitialized || !db || !state.currentUser || state.isCoach) return null;
 
     const snapshot = await db.collection('records')
@@ -169,10 +195,10 @@ async function computePR(exercise, newSets) {
         .where('exercise', '==', exercise)
         .get();
 
-    const pastSets = [];
-    snapshot.forEach(doc => (doc.data().sets || []).forEach(s => pastSets.push(s)));
+    const docs = [];
+    snapshot.forEach(doc => docs.push({ id: doc.id, sets: doc.data().sets }));
 
-    const result = evaluatePR(pastSets, newSets);
+    const result = evaluatePR(pastSetsFrom(docs, excludeId), newSets);
     return result ? { exercise, ...result } : null;
 }
 
@@ -339,6 +365,9 @@ export function loadMyRecords() {
 
     if (state.unsubscribe) state.unsubscribe();
     state.recordsSubKey = subKey;
+    // 새 구독의 첫 스냅샷이 오기 전까지 캐시는 이전 날짜 것이다. 비워야
+    // currentDayRecordCount가 남의 날짜 개수를 order로 쓰지 않는다.
+    lastRecordDocs = null;
 
     state.unsubscribe = db.collection('records')
         .where('userName', '==', state.currentUser)

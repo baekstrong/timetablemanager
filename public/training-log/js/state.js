@@ -36,6 +36,9 @@ export const state = {
 
 export let db = null;
 export let firebaseInitialized = false;
+// 오프라인 캐시(IndexedDB)가 실제로 켜졌는지. 켜져야 쓰기가 로컬에 durable하게 남아
+// 서버 ACK를 안 기다려도 안전하다 (records.js addRecord가 이 값을 본다).
+export let persistenceEnabled = false;
 
 // Firebase Init
 try {
@@ -52,6 +55,12 @@ try {
         window.firebase.initializeApp(firebaseConfig);
         db = window.firebase.firestore();
         firebaseInitialized = true;
+        // 오프라인 캐시. 다른 Firestore 호출보다 먼저 켜야 한다.
+        // 켜지면 (1) 읽기가 로컬에서 처리되고 (2) 쓰기가 IndexedDB에 남아 탭을 닫아도 유실되지 않는다.
+        // 사파리 시크릿모드 등 IndexedDB가 없으면 실패 — 그땐 캐시 없이 예전처럼 돌아간다.
+        db.enablePersistence({ synchronizeTabs: true })
+            .then(() => { persistenceEnabled = true; })
+            .catch((e) => console.warn('⚠️ 오프라인 캐시 비활성:', e.code || e.message));
         console.log('✅ Firebase 초기화 성공');
     } else {
         console.error('❌ Firebase SDK가 로드되지 않았습니다.');
