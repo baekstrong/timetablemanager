@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { isQuotaError, getHolidayName, calculateMembershipStats } from './googleSheetsService';
+import { isQuotaError, getHolidayName, calculateMembershipStats, generateAttendanceHistory } from './googleSheetsService';
 
 describe('getHolidayName', () => {
   it('한국 공휴일은 이름 반환', () => {
@@ -56,5 +56,37 @@ describe('calculateMembershipStats 출석 수', () => {
   it('결석·휴일 없는 정상 행은 종전대로', () => {
     const student = { ...makeStudent(''), '종료날짜': '260828' }; // 8/3부터 12회차 = 8/28
     expect(calculateMembershipStats(student, []).attendanceCount).toBe(4);
+  });
+});
+
+describe('generateAttendanceHistory 회차 전부 표시', () => {
+  const HEADERS = ['번호', '이름', '주횟수', '요일 및 시간', '특이사항', '신규/재등록', '시작날짜', '종료날짜', '결제금액', '결제일', '결제유무', '결제방식', '홀딩 사용여부', '홀딩 시작일', '홀딩 종료일', '핸드폰', '성별', '직업'];
+  const makeStudent = (over = {}) => ({
+    ...Object.fromEntries(HEADERS.map((h, i) =>
+      [h, ['12', '주상조', '3', '월4수4금4', '', '재등록', '260720', '260824', '39', '260717', 'O', '계좌', 'O', '260727', '260727', '010-0000-0000', '남', '직장인'][i]]
+    )),
+    ...over,
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 21)); // 2026-08-21
+  });
+  afterEach(() => vi.useRealTimers());
+
+  // 예전엔 slice(0, 10)으로 잘려서 첫 수업 7/20이 목록에서 사라졌다 (출석 통계는 11로 세는데 목록은 10줄).
+  it('11회차여도 10개로 자르지 않고 첫 수업까지 전부 반환', () => {
+    const history = generateAttendanceHistory(makeStudent(), [{ date: '2026-08-17', reason: '광복절 대체 휴일' }]);
+    expect(history).toHaveLength(13); // 월수금 15일 - 대체휴일 8/17 - 시트 홀딩 7/27 (7/22~7/24는 Firebase 홀딩이라 StudentInfo에서 제외)
+    expect(history.map(r => r.date)).toContain('2026-07-20');
+    expect(history[0].date).toBe('2026-08-21'); // 최신순
+  });
+
+  it('주4회 16회차도 전부 반환', () => {
+    const history = generateAttendanceHistory(
+      makeStudent({ '주횟수': '4', '요일 및 시간': '월4화4수4목4', '홀딩 사용여부': 'X', '홀딩 시작일': '', '홀딩 종료일': '' }),
+      []
+    );
+    expect(history).toHaveLength(20); // 7/20~8/21 월화수목 = 20일, 홀딩·휴일 없음
   });
 });

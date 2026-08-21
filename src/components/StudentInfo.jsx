@@ -135,9 +135,9 @@ const StudentInfo = ({ user, studentData, isImpersonating = false, onBack }) => 
             return true;
         });
 
-        // 날짜순 정렬 (최신순) → 상위 10개
+        // 날짜순 정렬 (최신순). 등록 회차 전부 표시 (주2회=8 / 주3회=12 / 주4회=16회차)
         history.sort((a, b) => new Date(b.date) - new Date(a.date));
-        return history.slice(0, 10);
+        return history;
     }, [studentData, generateAttendanceHistory, activeMakeups, holdingHistory, firebaseHolidays]);
 
     const getStatusColor = (status) => {
@@ -308,7 +308,7 @@ const StudentInfo = ({ user, studentData, isImpersonating = false, onBack }) => 
 
                 {/* 출석 내역 카드 */}
                 <div className="attendance-card">
-                    <h2>최근 출석 내역</h2>
+                    <h2>출석 내역</h2>
                     <div className="attendance-list">
                         {attendanceHistory.map((record, index) => (
                             <div key={index} className="attendance-item">

@@ -1518,7 +1518,8 @@ export const generateAttendanceHistory = (student, firebaseHolidays = []) => {
 
   history.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  return history.slice(0, 10);
+  // ponytail: 자르지 않고 전부 반환 — 홀딩/보강 제외는 StudentInfo에서 하므로 여기서 자르면 그만큼 줄이 사라진다
+  return history;
 };
 
 // ─── 학생 데이터 업데이트 ───
