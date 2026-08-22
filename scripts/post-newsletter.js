@@ -42,8 +42,9 @@ export function cleanNewsletter(markdown) {
         // 내부용 사진 생성 프롬프트 줄 제거
         if (/^\s*>?\s*📷/.test(line) || /사진 생성 프롬프트/.test(line)) continue;
 
-        // 노션 원문엔 소제목 앞 빈 줄이 없어 게시판에선 앞 문단에 붙어 보인다
-        if (/^\s*#{1,6}\s+/.test(line) && lines.length && lines.at(-1) !== '') lines.push('');
+        // 노션 원문엔 소제목 앞뒤로 빈 줄이 없어 게시판에선 앞 문단에 들러붙는다
+        const isHeading = /^\s*#{1,6}\s+/.test(line);
+        if (isHeading && lines.length && lines.at(-1) !== '') lines.push('');
 
         line = line
             .replace(/^\s*#{1,6}\s+/, '■ ')        // 제목 → ■
@@ -53,6 +54,7 @@ export function cleanNewsletter(markdown) {
             .replace(/\\([[\]*_`~])/g, '$1');       // 마크다운 이스케이프 해제
 
         lines.push(line.trimEnd());
+        if (isHeading) lines.push('');
     }
 
     const content = lines
@@ -157,7 +159,8 @@ if (isMain) {
     const { content, images } = cleanNewsletter(nl === -1 ? '' : raw.slice(nl + 1));
     assertPostable(title, content);
 
-    if (posted.has(title)) {
+    // dry-run은 아무것도 쓰지 않으니 이미 올린 글도 미리보기할 수 있게 둔다
+    if (!dryRun && posted.has(title)) {
         console.error(`이미 같은 제목의 칼럼이 있습니다: "${title}"`);
         process.exit(1);
     }
