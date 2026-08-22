@@ -16,8 +16,9 @@
 // Firestore 접근은 post-update-notice.js와 같은 이유로 REST + 서비스 계정을 쓴다
 // (클라이언트 SDK는 규칙 잠금으로 막히고, Admin SDK의 gRPC는 일부 네트워크에서 무한 대기).
 import path from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { GoogleAuth } from 'google-auth-library';
 
 const TITLE_MAX = 100;   // src/data/boardConstants.js POST_LIMITS 와 맞출 것
@@ -73,7 +74,11 @@ export function assertPostable(title, content) {
     }
 }
 
-if (import.meta.main) {
+// import.meta.main은 Node 24+에만 있다 — 구버전에서 조용히 아무것도 안 하고 끝나는
+// (예약 발행이 실패한 줄도 모르는) 사고를 막으려고 버전 무관한 방식으로 비교한다.
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isMain) {
     const args = process.argv.slice(2);
     const dryRun = args.includes('--dry-run');
     const listOnly = args.includes('--list');
@@ -131,20 +136,38 @@ if (import.meta.main) {
         process.exit(0);
     }
 
-    const raw = readFileSync(file, 'utf-8');
+    const titleOf = f => readFileSync(f, 'utf-8').split('\n', 1)[0].trim();
+    const posted = new Set((await postedTitles()).map(p => p.title));
+
+    // 디렉토리를 주면 아직 안 올린 원고 중 파일명 순으로 첫 번째를 고른다 (주간 예약 발행용)
+    let target = file;
+    if (statSync(file).isDirectory()) {
+        const queue = readdirSync(file).filter(f => f.endsWith('.md')).sort();
+        target = queue.map(f => path.join(file, f)).find(f => !posted.has(titleOf(f)));
+        if (!target) {
+            console.log(`발행 대기 중인 원고가 없습니다 (${queue.length}건 모두 게시됨).`);
+            process.exit(0);
+        }
+        console.log(`다음 회차: ${path.basename(target)}`);
+    }
+
+    const raw = readFileSync(target, 'utf-8');
     const nl = raw.indexOf('\n');
     const title = raw.slice(0, nl === -1 ? undefined : nl).trim();
     const { content, images } = cleanNewsletter(nl === -1 ? '' : raw.slice(nl + 1));
     assertPostable(title, content);
 
-    if ((await postedTitles()).some(p => p.title === title)) {
+    if (posted.has(title)) {
         console.error(`이미 같은 제목의 칼럼이 있습니다: "${title}"`);
         process.exit(1);
     }
 
     // 대표 이미지 1장만 Cloudinary로 옮긴다 (노션 서명 URL은 곧 만료된다)
     let cover = null;
-    if (images.length) {
+    if (images.length && images[0].startsWith('https://res.cloudinary.com/')) {
+        // 원고를 커밋할 때 이미 올려둔 영구 URL — 예약 발행 시 Cloudinary 키가 필요 없다
+        cover = { url: images[0] };
+    } else if (images.length) {
         const cloud = process.env.VITE_CLOUDINARY_CLOUD_NAME;
         const preset = process.env.VITE_CLOUDINARY_UPLOAD_PRESET;
         if (!cloud || !preset) throw new Error('Cloudinary 환경변수 없음 — node --env-file=.env 로 실행하세요.');
@@ -182,14 +205,15 @@ if (import.meta.main) {
             author: str('백관장'),
             isCoach: { booleanValue: true },
             pinned: { booleanValue: false },   // 상단 고정은 업데이트 공지 몫이다
+            // 앱은 img.url만 쓴다 — publicId·width·height는 있으면 같이 넣고 없으면 생략
             images: {
                 arrayValue: {
                     values: cover
                         ? [{ mapValue: { fields: {
                             url: str(cover.url),
-                            publicId: str(cover.publicId),
-                            width: { integerValue: String(cover.width) },
-                            height: { integerValue: String(cover.height) },
+                            ...(cover.publicId ? { publicId: str(cover.publicId) } : {}),
+                            ...(cover.width ? { width: { integerValue: String(cover.width) } } : {}),
+                            ...(cover.height ? { height: { integerValue: String(cover.height) } } : {}),
                         } } }]
                         : [],
                 },

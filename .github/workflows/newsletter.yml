@@ -1,0 +1,33 @@
+name: 주간 칼럼 발행
+
+# scripts/newsletters/ 의 원고 중 아직 안 올린 것을 파일명 순으로 1건 게시한다.
+# 원고가 다 떨어지면 아무것도 하지 않고 정상 종료한다.
+on:
+  schedule:
+    - cron: '0 0 * * 1'   # 매주 월요일 00:00 UTC = 09:00 KST
+  workflow_dispatch:      # 수동 발행 (Actions 탭에서 Run workflow)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 원고에 박힌 이미지는 커밋 시점에 이미 Cloudinary에 올려둔 영구 URL이라
+      # 여기서는 Firestore 쓰기 권한만 있으면 된다.
+      - name: 서비스 계정 키 복원
+        env:
+          FIREBASE_ADMIN_KEY: ${{ secrets.FIREBASE_ADMIN_KEY }}
+        run: printenv FIREBASE_ADMIN_KEY > firebase-admin-key.json
+
+      - name: 다음 회차 발행
+        run: node scripts/post-newsletter.js scripts/newsletters

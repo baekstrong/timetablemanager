@@ -71,6 +71,7 @@ Channel Talk/Bezier 기반. **완전 플랫**(그라데이션·장식 그림자 
 ## 배포
 
 - **프론트엔드**: GitHub Pages (`.github/workflows/deploy.yml`로 자동 배포, `main` 브랜치 push 시 트리거)
+- **주간 칼럼 발행**: `.github/workflows/newsletter.yml` (매주 월요일 09:00 KST, `scripts/newsletters/` 큐에서 1건)
 - **백엔드 (Netlify Functions)**: Netlify 자동 배포 (`netlify.toml` 설정, `main` 브랜치 push 시 트리거)
   - `netlify.toml`의 `functions = "netlify/functions"` 경로에서 서버리스 함수 배포
   - 프론트엔드 빌드는 Netlify에서 하지 않음 (`command = ""`)
@@ -121,16 +122,32 @@ node scripts/post-update-notice.js "제목" "본문" --unpin-old
 ## 뉴스레터(칼럼) 게시 규칙
 
 노션 `✉️ 뉴스레터 출력` 페이지(하위 페이지 = 회차별 원고)의 뉴스레터를 **주 1회** 게시판 `칼럼` 카테고리에 올린다.
+발행은 **GitHub Actions 예약 실행**(`.github/workflows/newsletter.yml`, 매주 월요일 09:00 KST)이 맡으므로 **맥을 켜둘 필요가 없다.**
 
-1. Claude가 노션 MCP로 다음 회차를 읽고, `--list`로 이미 올린 제목을 확인해 중복을 피한다.
-2. `1행 = 제목 / 2행부터 = 노션 원문 마크다운` 형식으로 `.md` 파일을 만든다 (정제는 스크립트가 한다).
-3. `--dry-run`으로 실제 게시될 본문을 보여주고 **백관장 승인을 받는다**. 승인 전에는 게시하지 않는다.
+### 원고 큐 (`scripts/newsletters/`)
+
+`NN-슬러그.md` 형식으로 미리 커밋해두면 Actions가 매주 **파일명 순으로 아직 안 올린 것 1건**을 게시한다. 원고가 떨어지면 아무것도 안 하고 정상 종료한다.
+
+- 파일 형식: **1행 = 게시할 제목 / 2행부터 = 노션 원문 마크다운**.
+- 노션 원고엔 회차마다 `## 제목 후보`·`## CTA 후보`·`## 자체 검수` 같은 **작업용 섹션이 섞여 있다.** 이건 판단이 필요하니 Claude가 원고를 만들 때 손으로 걷어낸다. 기계적인 정제(마크다운 기호, 사진 프롬프트 줄)만 스크립트가 한다.
+- 이미지가 있는 회차는 **커밋 시점에 Cloudinary로 미리 올려 영구 URL을 `![](…)` 로 박아둔다.** 스크립트는 `res.cloudinary.com` URL이면 재업로드하지 않으므로 Actions에 Cloudinary 키가 필요 없다.
+
+### 절차
+
+1. Claude가 노션 MCP로 다음 회차를 읽어 `scripts/newsletters/NN-….md` 를 만든다.
+2. `--dry-run`으로 실제 게시될 본문을 보여주고 **백관장 승인을 받는다**. 승인 전에는 게시하지 않는다.
+3. 커밋·푸시하면 그 다음 월요일에 자동 발행된다. 당장 올리려면 dry-run 없이 실행하거나 Actions 탭에서 `Run workflow`.
 
 ```bash
-node --env-file=.env scripts/post-newsletter.js --list          # 이미 올린 칼럼 확인
-node --env-file=.env scripts/post-newsletter.js <원고.md> --dry-run
-node --env-file=.env scripts/post-newsletter.js <원고.md>
+node --env-file=.env scripts/post-newsletter.js --list                      # 이미 올린 칼럼 확인
+node --env-file=.env scripts/post-newsletter.js scripts/newsletters --dry-run  # 다음 회차 미리보기
+node --env-file=.env scripts/post-newsletter.js scripts/newsletters            # 다음 회차 즉시 게시
+node --env-file=.env scripts/post-newsletter.js <원고.md>                   # 특정 원고 지정
 ```
+
+- 인자가 **디렉토리면 큐 모드**(다음 회차 1건), **파일이면 그 원고**를 올린다.
+- 워크플로에 필요한 시크릿은 `FIREBASE_ADMIN_KEY`(= `firebase-admin-key.json` 전체) 하나뿐이다.
+- ⚠️ 스크립트의 `isMain` 판정을 `import.meta.main`으로 되돌리지 말 것 — 그건 Node 24+ 전용이라 Actions의 Node 20에서는 **조용히 아무것도 안 하고 성공으로 끝난다**(발행 실패를 눈치채지 못한다).
 
 - Firestore 접근은 `post-update-notice.js`와 같은 이유로 **REST + 서비스 계정**(루트 `firebase-admin-key.json`). Cloudinary 키는 `.env`에 있으므로 **`--env-file=.env` 없이 실행하면 이미지 업로드가 실패**한다.
 - `author='백관장'`(실제 코치 계정이라 앱에서 수정·삭제 가능), `pinned:false` — **상단 고정은 업데이트 공지 몫이니 뉴스레터를 `notice`로 올리지 말 것.**
@@ -209,7 +226,8 @@ functions/
 scripts/
 ├── post-update-notice.js  # 관리자봇 업데이트 공지 게시 스크립트
 ├── post-newsletter.js     # 뉴스레터(칼럼) 게시 스크립트 + 노션 마크다운 정제 순수 함수
-└── post-newsletter.test.js
+├── post-newsletter.test.js
+└── newsletters/           # 발행 대기 원고 큐 (NN-슬러그.md, 파일명 순으로 주 1회 발행)
 
 public/training-log/   # 훈련일지 서브앱 (별도 Vanilla JS SPA)
 ├── index.html
