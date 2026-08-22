@@ -1,6 +1,7 @@
 export const BOARD_CATEGORIES = [
     { key: 'all', label: '전체', icon: '' },
     { key: 'notice', label: '공지', icon: '📢', coachOnly: true },
+    { key: 'column', label: '칼럼', icon: '✍️', coachOnly: true },
     { key: 'free', label: '자유', icon: '💬' },
     { key: 'food', label: '맛집', icon: '🍽️' },
     { key: 'question', label: '질문', icon: '❓' },

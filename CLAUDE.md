@@ -118,6 +118,34 @@ node scripts/post-update-notice.js "제목" "본문" --unpin-old
    - 클라이언트 SDK는 규칙 잠금(`signedIn()` 필수) 이후 permission-denied, Admin SDK는 스트리밍 RPC(runQuery)가 gRPC라 일부 네트워크에서 무한 대기 → 둘 다 쓰지 않는다.
 6. 이 절차 전체는 `/deploy-notice` 슬래시 커맨드(`.claude/commands/deploy-notice.md`)로 실행할 수 있다.
 
+## 뉴스레터(칼럼) 게시 규칙
+
+노션 `✉️ 뉴스레터 출력` 페이지(하위 페이지 = 회차별 원고)의 뉴스레터를 **주 1회** 게시판 `칼럼` 카테고리에 올린다.
+
+1. Claude가 노션 MCP로 다음 회차를 읽고, `--list`로 이미 올린 제목을 확인해 중복을 피한다.
+2. `1행 = 제목 / 2행부터 = 노션 원문 마크다운` 형식으로 `.md` 파일을 만든다 (정제는 스크립트가 한다).
+3. `--dry-run`으로 실제 게시될 본문을 보여주고 **백관장 승인을 받는다**. 승인 전에는 게시하지 않는다.
+
+```bash
+node --env-file=.env scripts/post-newsletter.js --list          # 이미 올린 칼럼 확인
+node --env-file=.env scripts/post-newsletter.js <원고.md> --dry-run
+node --env-file=.env scripts/post-newsletter.js <원고.md>
+```
+
+- Firestore 접근은 `post-update-notice.js`와 같은 이유로 **REST + 서비스 계정**(루트 `firebase-admin-key.json`). Cloudinary 키는 `.env`에 있으므로 **`--env-file=.env` 없이 실행하면 이미지 업로드가 실패**한다.
+- `author='백관장'`(실제 코치 계정이라 앱에서 수정·삭제 가능), `pinned:false` — **상단 고정은 업데이트 공지 몫이니 뉴스레터를 `notice`로 올리지 말 것.**
+
+### 게시판 본문의 제약 (뉴스레터를 그대로 붙이면 안 되는 이유)
+
+| 항목 | 현실 |
+| --- | --- |
+| 본문 | **순수 텍스트** (`white-space: pre-wrap` + `linkifyText`로 URL만 링크화). 마크다운 미렌더 → `## 제목`이 글자 그대로 노출 |
+| 이미지 | `images:[{url,publicId,width,height}]`로 **본문 맨 아래에만** 표시. 문단 사이 삽입 불가 → **대표 1장만** 올린다 |
+| 노션 이미지 URL | AWS S3 **서명 URL, 5분 만료** → 반드시 Cloudinary로 재업로드(스크립트가 처리) |
+| 길이 | 제목 100자 / 본문 5000자 (`POST_LIMITS`) |
+
+`cleanNewsletter`가 `## →` `■`, `- →` `·`, `**굵게**` 마커 제거, 마크다운 이스케이프 해제, 소제목 앞 빈 줄 삽입을 하고 **`> 📷 사진 생성 프롬프트:` 같은 내부용 줄을 지운다**. `assertPostable`은 그 내부용 문구나 마크다운 이미지가 본문에 남으면 게시를 막는다 — 수강생에게 새어나가면 안 되므로 이 가드를 없애지 말 것.
+
 ## 디렉토리 구조
 
 ```
@@ -179,7 +207,9 @@ functions/
 └── package.json
 
 scripts/
-└── post-update-notice.js  # 관리자봇 업데이트 공지 게시 스크립트
+├── post-update-notice.js  # 관리자봇 업데이트 공지 게시 스크립트
+├── post-newsletter.js     # 뉴스레터(칼럼) 게시 스크립트 + 노션 마크다운 정제 순수 함수
+└── post-newsletter.test.js
 
 public/training-log/   # 훈련일지 서브앱 (별도 Vanilla JS SPA)
 ├── index.html

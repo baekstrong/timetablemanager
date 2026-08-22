@@ -105,6 +105,11 @@
     color: #92400e;
 }
 
+.post-category-badge[data-category="column"] {
+    background: var(--accent);
+    color: #fff;
+}
+
 .post-category-badge[data-category="free"] {
     background: var(--accent-10);
     color: var(--accent-hover);
