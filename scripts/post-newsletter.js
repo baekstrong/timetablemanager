@@ -32,7 +32,8 @@ export function cleanNewsletter(markdown) {
     const images = [];
     const lines = [];
 
-    for (let line of markdown.split('\n')) {
+    // 노션이 <br>로 내보내는 줄바꿈이 있다 (회차마다 형식이 다르다)
+    for (let line of markdown.replace(/<br\s*\/?>/gi, '\n').split('\n')) {
         // 이미지: URL만 걷어가고 줄은 버린다 (본문 중간 삽입은 게시판이 지원하지 않음)
         const img = line.match(/!\[[^\]]*\]\(([^)]+)\)/);
         if (img) {
@@ -40,7 +41,13 @@ export function cleanNewsletter(markdown) {
             continue;
         }
         // 내부용 사진 생성 프롬프트 줄 제거
-        if (/^\s*>?\s*📷/.test(line) || /사진 생성 프롬프트/.test(line)) continue;
+        if (/^\s*>?\s*[*_]*\s*📷/.test(line) || /사진 생성 프롬프트/.test(line)) continue;
+
+        // 구분선(---, ***, ___)은 문단 구분으로만 쓰인다 — 글자로 남기지 않는다
+        if (/^\s*([-*_])\1{2,}\s*$/.test(line)) {
+            if (lines.length && lines.at(-1) !== '') lines.push('');
+            continue;
+        }
 
         // 노션 원문엔 소제목 앞뒤로 빈 줄이 없어 게시판에선 앞 문단에 들러붙는다
         const isHeading = /^\s*#{1,6}\s+/.test(line);
@@ -51,6 +58,7 @@ export function cleanNewsletter(markdown) {
             .replace(/^\s*>\s?/, '')                // 인용 마커 제거
             .replace(/^(\s*)[-*+]\s+/, '$1· ')      // 불릿 → ·
             .replace(/\*\*(.+?)\*\*/g, '$1')        // 굵게 마커 제거
+            .replace(/\*([^*\n]+?)\*/g, '$1')        // 이탤릭 마커 제거 (굵게를 먼저 처리한 뒤)
             .replace(/\\([[\]*_`~])/g, '$1');       // 마크다운 이스케이프 해제
 
         lines.push(line.trimEnd());
@@ -74,6 +82,30 @@ export function assertPostable(title, content) {
     if (/사진 생성 프롬프트|!\[|\]\(http/.test(content)) {
         throw new Error('본문에 내부용 문구 또는 마크다운 이미지가 남아 있습니다.');
     }
+    // 노션은 표·줄바꿈 등을 HTML로 내보낸다 — 게시판은 그대로 글자로 뿌리므로 새어나가면 안 된다
+    const html = content.match(/<\/?(table|tr|td|th|br|p|div|span|ul|ol|li|em|strong)\b[^>]*>/i);
+    if (html) {
+        throw new Error(`본문에 HTML 태그가 남아 있습니다: ${html[0]} — 원고에서 텍스트로 풀어쓰세요.`);
+    }
+}
+
+/** 이미지 1장을 Cloudinary로 옮겨 영구 URL을 돌려준다. 노션 서명 URL은 5분이면 만료된다. */
+export async function uploadCover(url) {
+    const cloud = process.env.VITE_CLOUDINARY_CLOUD_NAME;
+    const preset = process.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+    if (!cloud || !preset) throw new Error('Cloudinary 환경변수 없음 — node --env-file=.env 로 실행하세요.');
+
+    const src = await fetch(url);
+    if (!src.ok) throw new Error(`이미지를 못 받았습니다 (${src.status}). 노션 서명 URL이 만료됐을 수 있습니다.`);
+
+    const form = new FormData();
+    form.append('file', await src.blob(), 'cover.png');
+    form.append('upload_preset', preset);
+    form.append('folder', 'board');
+    const up = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/image/upload`, { method: 'POST', body: form });
+    const data = await up.json();
+    if (!up.ok) throw new Error(`Cloudinary 업로드 실패: ${data?.error?.message}`);
+    return { url: data.secure_url, publicId: data.public_id, width: data.width, height: data.height };
 }
 
 // import.meta.main은 Node 24+에만 있다 — 구버전에서 조용히 아무것도 안 하고 끝나는
@@ -86,9 +118,18 @@ if (isMain) {
     const listOnly = args.includes('--list');
     const [file] = args.filter(a => !a.startsWith('--'));
 
+    // 원고를 만들 때 노션 이미지를 영구 URL로 고정해두는 용도 (Firestore 접근 불필요)
+    if (args.includes('--upload')) {
+        for (const url of args.filter(a => !a.startsWith('--'))) {
+            console.log((await uploadCover(url)).url);
+        }
+        process.exit(0);
+    }
+
     if (!file && !listOnly) {
         console.error('사용법: node --env-file=.env scripts/post-newsletter.js <원고.md> [--dry-run]');
         console.error('       node --env-file=.env scripts/post-newsletter.js --list');
+        console.error('       node --env-file=.env scripts/post-newsletter.js --upload <이미지URL>');
         process.exit(1);
     }
 
@@ -171,21 +212,7 @@ if (isMain) {
         // 원고를 커밋할 때 이미 올려둔 영구 URL — 예약 발행 시 Cloudinary 키가 필요 없다
         cover = { url: images[0] };
     } else if (images.length) {
-        const cloud = process.env.VITE_CLOUDINARY_CLOUD_NAME;
-        const preset = process.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-        if (!cloud || !preset) throw new Error('Cloudinary 환경변수 없음 — node --env-file=.env 로 실행하세요.');
-
-        const src = await fetch(images[0]);
-        if (!src.ok) throw new Error(`노션 이미지를 못 받았습니다 (${src.status}). 서명 URL이 만료됐을 수 있습니다.`);
-
-        const form = new FormData();
-        form.append('file', await src.blob(), 'cover.png');
-        form.append('upload_preset', preset);
-        form.append('folder', 'board');
-        const up = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/image/upload`, { method: 'POST', body: form });
-        const data = await up.json();
-        if (!up.ok) throw new Error(`Cloudinary 업로드 실패: ${data?.error?.message}`);
-        cover = { url: data.secure_url, publicId: data.public_id, width: data.width, height: data.height };
+        cover = await uploadCover(images[0]);
     }
 
     if (dryRun) {

@@ -25,8 +25,26 @@ describe('cleanNewsletter', () => {
         expect(images).toEqual(['https://prod-files-secure.s3.us-west-2.amazonaws.com/a/b/out.png?X-Amz-Signature=deadbeef']);
     });
 
+    it('노션이 <br>로 내보낸 줄바꿈을 실제 줄바꿈으로 바꾼다', () => {
+        expect(cleanNewsletter('첫 줄<br>둘째 줄<br/>셋째 줄').content).toBe('첫 줄\n둘째 줄\n셋째 줄');
+    });
+
     it('빈 줄이 3개 이상 이어지면 2개로 줄인다', () => {
         expect(cleanNewsletter('가\n\n\n\n나').content).toBe('가\n\n나');
+    });
+
+    it('구분선은 문단 구분으로만 쓰고 글자로 남기지 않는다', () => {
+        expect(cleanNewsletter('가\n---\n나').content).toBe('가\n\n나');
+        expect(cleanNewsletter('가\n***\n나').content).toBe('가\n\n나');
+    });
+
+    it('이탤릭 마커를 없앤다 (굵게와 섞여도)', () => {
+        expect(cleanNewsletter("**진짜** 핵심은 *'순서'* 입니다.").content)
+            .toBe("진짜 핵심은 '순서' 입니다.");
+    });
+
+    it('이탤릭으로 감싼 사진 프롬프트 줄도 지운다', () => {
+        expect(cleanNewsletter('가\n*사진 생성 프롬프트: 헬스장*\n나').content).toBe('가\n나');
     });
 });
 
@@ -41,6 +59,11 @@ describe('assertPostable', () => {
 
     it('마크다운 이미지가 남으면 막는다', () => {
         expect(() => assertPostable('제목', '본문 ![](https://x/y.png)')).toThrow(/내부용/);
+    });
+
+    it('노션 표가 남으면 막는다', () => {
+        expect(() => assertPostable('제목', '본문\n<table header-row="true">\n<tr><td>1주</td></tr>'))
+            .toThrow(/HTML/);
     });
 
     it('길이 제한을 넘으면 막는다', () => {
