@@ -264,6 +264,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 - `isCoach` 필드로 코치/학생 역할 구분
 - 자동 로그인: `localStorage.login_credentials`, `localStorage.savedUser`
 - 수강생은 내 정보에서 비밀번호 변경 가능 (`firebaseService.updateUserPassword`, localStorage 자격증명 동기화)
+- **`users/{이름}` 문서가 없으면 로그인 불가**(auth `/login`이 `등록되지 않은 계정`으로 401). 앱 이전부터 다니던 수강생을 코치가 '재등록'으로 넣으면 시트 행만 생기고 계정이 없다 → `firebaseService.ensureUserAccount(이름)`이 없을 때만 만든다. 재등록 모달(비번=전화번호 뒤 4자리 자동)과 수강생 관리 '비번초기화' 버튼 양쪽에서 호출
 
 ## Google Sheets 구조
 

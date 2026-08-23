@@ -2139,3 +2139,18 @@ export async function isMonthlyStampDone(monthStr) {
     const snap = await getDocs(q);
     return !snap.empty;
 }
+
+/**
+ * users/{name} 계정 문서가 없으면 만든다 (있으면 손대지 않음).
+ * 앱이 생기기 전부터 다니던 수강생을 '재등록'으로 넣으면 시트에만 행이 생기고
+ * 계정이 없어 로그인이 "등록되지 않은 계정"으로 막힌다.
+ * @returns {boolean} 이번 호출로 새로 만들었으면 true
+ */
+export const ensureUserAccount = async (userName) => {
+    const name = (userName || '').trim();
+    if (!name) return false;
+    const ref = doc(db, 'users', name);
+    if ((await getDoc(ref)).exists()) return false;
+    await setDoc(ref, { isCoach: false, createdAt: serverTimestamp() });
+    return true;
+};

@@ -12,7 +12,7 @@ import {
     isHolidayDate,
     getHolidayName
 } from '../services/googleSheetsService';
-import { getHolidays, createRenewalContract, createNewStudentRegistration, getEntranceClasses, updateEntranceClass, updateNewStudentRegistration } from '../services/firebaseService';
+import { getHolidays, createRenewalContract, createNewStudentRegistration, getEntranceClasses, updateEntranceClass, updateNewStudentRegistration, ensureUserAccount } from '../services/firebaseService';
 import { setStudentPassword } from '../services/authService';
 import { sendApprovalNotifications } from '../services/smsService';
 import { formatEntranceDate } from '../utils/dateUtils';
@@ -504,6 +504,23 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
                 } catch (acctErr) {
                     console.warn('로그인 계정 생성 실패 (시트 등록은 완료):', acctErr);
                     alert('⚠️ 시트 등록은 됐지만 로그인 계정 생성에 실패했습니다. 다시 시도하거나 코치에게 문의하세요.');
+                }
+            } else {
+                // 앱 생기기 전부터 다니던 수강생은 재등록해도 계정이 없어 로그인이 막힌다.
+                // 계정이 없을 때만 만들고 비번은 전화번호 뒤 4자리. (있으면 아무것도 안 함)
+                try {
+                    if (await ensureUserAccount(form.이름.trim())) {
+                        const tempPw = String(form.핸드폰 || '').replace(/\D/g, '').slice(-4);
+                        const saved = JSON.parse(localStorage.getItem('savedUser') || '{}');
+                        if (tempPw.length === 4 && saved.name && saved.password) {
+                            await setStudentPassword(saved.name, saved.password, form.이름.trim(), tempPw);
+                            alert(`ℹ️ ${form.이름}님은 로그인 계정이 없어 새로 만들었습니다.\n비밀번호: ${tempPw} (전화번호 뒤 4자리)`);
+                        } else {
+                            alert(`⚠️ ${form.이름}님은 로그인 계정이 없었습니다. 수강생 관리에서 '비번초기화'를 눌러 비밀번호를 설정해 주세요.`);
+                        }
+                    }
+                } catch (acctErr) {
+                    console.warn('재등록 계정 확인 실패 (시트 등록은 완료):', acctErr);
                 }
             }
 

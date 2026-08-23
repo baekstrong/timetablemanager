@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets, pauseStudent, resumeStudent } from '../services/googleSheetsService';
-import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, deleteAllStudentAppData, recordStudentCount, getGradeMap } from '../services/firebaseService';
+import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, deleteAllStudentAppData, recordStudentCount, getGradeMap, ensureUserAccount } from '../services/firebaseService';
 import { getCoachStudentListStatus, shouldShowInCoachStudentList, isPausedRegistration } from '../utils/studentList';
 import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import { setStudentPassword } from '../services/authService';
@@ -189,8 +189,10 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         if (!saved.name || !saved.password) { alert('코치 인증 정보를 찾을 수 없습니다. 다시 로그인해 주세요.'); return; }
         setPwResetting(name);
         try {
+            // 앱 이전부터 다니던 수강생은 계정 자체가 없다 — 있으면 no-op
+            const created = await ensureUserAccount(name);
             await setStudentPassword(saved.name, saved.password, name, tempPw);
-            alert(`✅ ${name}님 비밀번호가 "${tempPw}"(으)로 초기화되었습니다.\n전화번호 뒤 4자리입니다. 학생에게 로그인 후 변경하도록 안내하세요.`);
+            alert(`✅ ${name}님 ${created ? '로그인 계정을 새로 만들고 비밀번호를' : '비밀번호가'} "${tempPw}"(으)로 ${created ? '설정했습니다' : '초기화되었습니다'}.\n전화번호 뒤 4자리입니다. 학생에게 로그인 후 변경하도록 안내하세요.`);
         } catch (err) {
             alert(`❌ 비밀번호 초기화 실패: ${err.message || '다시 시도해 주세요.'}`);
         } finally {
