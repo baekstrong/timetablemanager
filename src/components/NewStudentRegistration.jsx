@@ -105,9 +105,9 @@ const NewStudentRegistration = () => {
     // 대기(만석) 모드
     const [isWaitlistMode, setIsWaitlistMode] = useState(false);
 
-    // Load entrance classes when reaching step 4 (날짜가 지난 입학반 제외)
+    // Load entrance classes when reaching 입학반 step (step 2, 날짜가 지난 입학반 제외)
     useEffect(() => {
-        if (step >= 3) {
+        if (step >= 2) {
             getEntranceClasses(true).then(classes => {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
@@ -121,9 +121,9 @@ const NewStudentRegistration = () => {
         }
     }, [step]);
 
-    // Load FAQs when reaching step 7
+    // Load FAQs when reaching 확인 step (step 5)
     useEffect(() => {
-        if (step >= 6) {
+        if (step >= 5) {
             getFAQs(true).then(setFaqs).catch(() => {});
         }
     }, [step]);
