@@ -1504,7 +1504,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                 {reg.exerciseExperience && (
                                                     <div className="cns-detail-item full">
                                                         <span className="cns-detail-label">운동 경력</span>
-                                                        <span className="cns-detail-value">{reg.exerciseExperience}</span>
+                                                        <span className="cns-detail-value" style={{ color: '#dc2626' }}>{reg.exerciseExperience}</span>
                                                     </div>
                                                 )}
                                                 {reg.healthIssues && (
