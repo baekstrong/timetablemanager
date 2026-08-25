@@ -193,7 +193,7 @@ const NewStudentRegistration = () => {
     const canProceed = () => {
         switch (step) {
             case 0: return weeklyFrequency !== null && (isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency);
-            case 1: return name.trim() && phone1.trim() && phone2.trim() && phone3.trim() && exerciseExperience.trim();
+            case 1: return name.trim() && phone1.trim() && phone2.trim() && phone3.trim() && gender && exerciseExperience.trim();
             case 2: return selectedEntrance !== null || (entranceInquiry !== '' && entranceInquiryReason.trim() !== '');
             case 3: return paymentMethod !== '';
             case 4: return true;
@@ -368,7 +368,7 @@ const NewStudentRegistration = () => {
                                 </div>
                             </div>
                             <div className="reg-field">
-                                <label>성별 (선택)</label>
+                                <label>성별 <span className="required">*</span></label>
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                     {['남', '여'].map(g => (
                                         <button
@@ -392,6 +392,16 @@ const NewStudentRegistration = () => {
                                         </button>
                                     ))}
                                 </div>
+                            </div>
+                            <div className="reg-field">
+                                <label>운동 경력 <span className="required">*</span></label>
+                                <input
+                                    type="text"
+                                    value={exerciseExperience}
+                                    onChange={(e) => setExerciseExperience(e.target.value)}
+                                    placeholder="처음 / 헬스 1년 / 필라테스 6개월 등"
+                                    className="reg-input"
+                                />
                             </div>
                             <div className="reg-field">
                                 <label>직업 (선택)</label>
@@ -428,16 +438,6 @@ const NewStudentRegistration = () => {
                                         </button>
                                     ))}
                                 </div>
-                            </div>
-                            <div className="reg-field">
-                                <label>운동 경력 <span className="required">*</span></label>
-                                <input
-                                    type="text"
-                                    value={exerciseExperience}
-                                    onChange={(e) => setExerciseExperience(e.target.value)}
-                                    placeholder="처음 / 헬스 1년 / 필라테스 6개월 등"
-                                    className="reg-input"
-                                />
                             </div>
                             <div className="reg-field">
                                 <label>불편한 곳 (선택)</label>
@@ -885,11 +885,9 @@ const NewStudentRegistration = () => {
                                 <div className="reg-summary-row">
                                     <span>연락처</span><span>{phone1}-{phone2}-{phone3}</span>
                                 </div>
-                                {gender && (
-                                    <div className="reg-summary-row">
-                                        <span>성별</span><span>{gender}</span>
-                                    </div>
-                                )}
+                                <div className="reg-summary-row">
+                                    <span>성별</span><span>{gender}</span>
+                                </div>
                                 {occupation && (
                                     <div className="reg-summary-row">
                                         <span>직업</span><span>{occupation}</span>
