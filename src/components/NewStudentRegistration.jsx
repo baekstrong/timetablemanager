@@ -55,6 +55,7 @@ const NewStudentRegistration = () => {
     const [gender, setGender] = useState('');
     const [occupation, setOccupation] = useState('');
     const [referralSource, setReferralSource] = useState('');
+    const [exerciseExperience, setExerciseExperience] = useState('');
     const [healthIssues, setHealthIssues] = useState('');
     const [exerciseGoal, setExerciseGoal] = useState('');
 
@@ -192,7 +193,7 @@ const NewStudentRegistration = () => {
     const canProceed = () => {
         switch (step) {
             case 0: return weeklyFrequency !== null && (isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency);
-            case 1: return name.trim() && phone1.trim() && phone2.trim() && phone3.trim();
+            case 1: return name.trim() && phone1.trim() && phone2.trim() && phone3.trim() && exerciseExperience.trim();
             case 2: return selectedEntrance !== null || (entranceInquiry !== '' && entranceInquiryReason.trim() !== '');
             case 3: return paymentMethod !== '';
             case 4: return true;
@@ -215,6 +216,7 @@ const NewStudentRegistration = () => {
                 gender: gender,
                 occupation: occupation.trim(),
                 referralSource,
+                exerciseExperience: exerciseExperience.trim(),
                 healthIssues: healthIssues.trim(),
                 exerciseGoal: exerciseGoal.trim(),
                 weeklyFrequency,
@@ -246,6 +248,7 @@ const NewStudentRegistration = () => {
                     entranceClassDate: data.entranceClassDate,
                     gender,
                     occupation: occupation.trim(),
+                    exerciseExperience: exerciseExperience.trim(),
                     healthIssues: healthIssues.trim(),
                     exerciseGoal: exerciseGoal.trim(),
                     wantsConsultation,
@@ -425,6 +428,16 @@ const NewStudentRegistration = () => {
                                         </button>
                                     ))}
                                 </div>
+                            </div>
+                            <div className="reg-field">
+                                <label>운동 경력 <span className="required">*</span></label>
+                                <input
+                                    type="text"
+                                    value={exerciseExperience}
+                                    onChange={(e) => setExerciseExperience(e.target.value)}
+                                    placeholder="처음 / 헬스 1년 / 필라테스 6개월 등"
+                                    className="reg-input"
+                                />
                             </div>
                             <div className="reg-field">
                                 <label>불편한 곳 (선택)</label>
@@ -882,6 +895,9 @@ const NewStudentRegistration = () => {
                                         <span>직업</span><span>{occupation}</span>
                                     </div>
                                 )}
+                                <div className="reg-summary-row">
+                                    <span>운동 경력</span><span>{exerciseExperience}</span>
+                                </div>
                                 {healthIssues && (
                                     <div className="reg-summary-row">
                                         <span>불편한 곳</span><span>{healthIssues}</span>

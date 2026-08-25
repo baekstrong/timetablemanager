@@ -1501,6 +1501,12 @@ const CoachNewStudents = ({ user, onBack }) => {
                                                         <span className="cns-detail-value">{reg.occupation}</span>
                                                     </div>
                                                 )}
+                                                {reg.exerciseExperience && (
+                                                    <div className="cns-detail-item full">
+                                                        <span className="cns-detail-label">운동 경력</span>
+                                                        <span className="cns-detail-value">{reg.exerciseExperience}</span>
+                                                    </div>
+                                                )}
                                                 {reg.healthIssues && (
                                                     <div className="cns-detail-item full">
                                                         <span className="cns-detail-label">불편한 곳</span>

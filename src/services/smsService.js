@@ -223,6 +223,9 @@ export const sendCoachNewRegistrationSMS = async (studentName, details, studentP
   if (details.entranceClassDate) {
     text += `\n입학반: ${details.entranceClassDate}`;
   }
+  if (details.exerciseExperience) {
+    text += `\n운동 경력: ${details.exerciseExperience}`;
+  }
   if (details.healthIssues) {
     text += `\n불편한 곳: ${details.healthIssues}`;
   }
