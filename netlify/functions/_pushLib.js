@@ -33,7 +33,7 @@ function verifyPathFor(req) {
  * @param {object} req    클라이언트 요청
  * @param {{name:string,isCoach:boolean}} caller  ID 토큰 클레임
  * @param {object|null} record  verifyPathFor가 가리킨 문서 데이터 (없으면 null)
- * @returns {{names: string[], title: string, body: string, tag: string, ttl: number} | null}
+ * @returns {{names: string[], title: string, body: string, tag: string, url: string, ttl: number} | null}
  */
 function buildMessage(req, caller, record) {
   switch (req.type) {
@@ -46,6 +46,7 @@ function buildMessage(req, caller, record) {
         title: `📢 ${cut(req.title, 60)}`,
         body: cut(req.content, 120),
         tag: 'notice',
+        url: req.postId ? `./?post=${req.postId}` : './',
         ttl: 604800, // 1주 — 폰을 꺼두고 잔 사람도 켜면 받아야 한다
       };
 
@@ -62,6 +63,7 @@ function buildMessage(req, caller, record) {
         title: `${caller.name}님이 ${req.type === 'reply' ? '답글' : '댓글'}을 남겼습니다`,
         body: req.type === 'reply' ? '내 댓글에 답글이 달렸습니다.' : '내 글에 새 댓글이 달렸습니다.',
         tag: 'board',
+        url: `./?post=${req.postId}`,
         ttl: 86400, // 하루 지나서 뜨는 댓글 알림은 의미가 없다
       };
     }
@@ -75,6 +77,7 @@ function buildMessage(req, caller, record) {
         title: `보강 자리가 났습니다 — ${formatDateText(record.date)} ${label}`,
         body: '1시간 내에 앱 시간표에서 [보강승인중] 칸을 눌러 수락해주세요. 미응답 시 다음 대기자에게 넘어갑니다.',
         tag: 'makeup-seat',
+        url: './?page=schedule',
         ttl: 3600, // 수락 데드라인과 같게 — 늦게 도착하면 이미 다음 순번으로 넘어갔다
       };
     }

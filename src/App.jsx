@@ -41,6 +41,20 @@ function AppContent() {
   const [user, setUser] = useState(null);
   const [studentData, setStudentData] = useState(null);
   const [currentPage, setCurrentPage] = useState('login');
+  // 알림 클릭 → 그 글로 이동. 앱이 이미 떠 있으면 서비스워커가 메시지로 알려준다
+  // (콜드 스타트는 주소의 ?post= 를 Dashboard가 직접 읽는다)
+  const [deepLinkPost, setDeepLinkPost] = useState(null);
+  useEffect(() => {
+    const sw = navigator.serviceWorker;
+    if (!sw) return;
+    const onMessage = (e) => {
+      if (e.data?.type !== 'notificationClick') return;
+      if (e.data.page) { setCurrentPage(e.data.page); return; }
+      if (e.data.postId) { setDeepLinkPost(e.data.postId); setCurrentPage('dashboard'); }
+    };
+    sw.addEventListener('message', onMessage);
+    return () => sw.removeEventListener('message', onMessage);
+  }, []);
   const [rankingInitialTab, setRankingInitialTab] = useState('ranking');
   const [rankingInitialStudent, setRankingInitialStudent] = useState('');
   const [impersonationOrigin, setImpersonationOrigin] = useState(null); // 코치 본체 (빙의 중일 때만 채워짐)
@@ -395,7 +409,7 @@ function AppContent() {
         return <Login onLogin={handleLogin} />;
 
       case 'dashboard':
-        return <Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} />;
+        return <Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} deepLinkPost={deepLinkPost} onDeepLinkDone={() => setDeepLinkPost(null)} />;
 
       case 'schedule':
         return <WeeklySchedule user={user} studentData={studentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} />;

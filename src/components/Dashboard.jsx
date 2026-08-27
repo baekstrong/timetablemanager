@@ -28,7 +28,7 @@ const formatPRSummary = (pr) => {
     }
 };
 
-const Dashboard = ({ user, onNavigate, onLogout }) => {
+const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone }) => {
     const [posts, setPosts] = useState([]);
     const [postsLoading, setPostsLoading] = useState(true);
     const [postsError, setPostsError] = useState(null);
@@ -38,6 +38,15 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     const boardCursorsRef = useRef({ 1: null });
     const boardRequestIdRef = useRef(0);
     const [viewMode, setViewMode] = useState('list');
+    // 알림 클릭으로 들어온 글 열기 — prop(앱이 떠 있던 경우) 또는 주소 ?post=(새로 열린 경우)
+    useEffect(() => {
+        const id = deepLinkPost || new URLSearchParams(window.location.search).get('post');
+        if (!id) return;
+        setSelectedPostId(id);
+        setViewMode('detail');
+        if (deepLinkPost) onDeepLinkDone?.();
+        else window.history.replaceState({}, '', window.location.pathname);
+    }, [deepLinkPost, onDeepLinkDone]);
     const [selectedPostId, setSelectedPostId] = useState(null);
     const [showPostForm, setShowPostForm] = useState(false);
     const [pushPrompt, setPushPrompt] = useState(false); // 알림 권한을 아직 안 물어본 상태
@@ -323,13 +332,13 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                 });
             } else {
                 const { notify, ...postData } = formData;
-                await createPost(postData);
+                const created = await createPost(postData);
                 if (notify) {
                     // 수강중 판정은 이미 시트를 들고 있는 여기서 — 서버는 받은 이름만 본다
                     const names = [...new Set(
                         students.filter(shouldShowInCoachStudentList).map(s => s['이름']).filter(Boolean)
                     )];
-                    pushNotice(names, postData.title, postData.content);
+                    pushNotice(names, postData.title, postData.content, created?.id);
                 }
             }
             setShowPostForm(false);
