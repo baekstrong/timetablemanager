@@ -63,7 +63,7 @@ exports.handler = async (event) => {
 
     const res = await getMessaging().sendEachForMulticast({
       tokens: targets.map((t) => t.token),
-      data: { title: msg.title, body: msg.body, tag: msg.tag, url: './' },
+      data: { title: msg.title, body: msg.body, tag: msg.tag, url: msg.url },
       webpush: { headers: { Urgency: 'high', TTL: String(msg.ttl) } },
     });
 

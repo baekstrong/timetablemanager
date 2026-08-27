@@ -98,3 +98,18 @@ describe('TTL — 오프라인이었던 사람에게 언제까지 유효한가',
       { status: 'notified', studentName: '박학생', date: '2026-09-01', period: 5 }).ttl).toBe(3600);
   });
 });
+
+describe('url — 알림을 누르면 어디로 가는가', () => {
+  it('댓글·답글은 그 글로', () => {
+    expect(buildMessage({ type: 'comment', postId: 'p1' }, student, { author: '박학생' }).url).toBe('./?post=p1');
+    expect(buildMessage({ type: 'reply', postId: 'p1', parentId: 'c1' }, student, { author: '박학생' }).url).toBe('./?post=p1');
+  });
+  it('공지는 그 공지로, postId가 없으면 앱 첫 화면으로', () => {
+    expect(buildMessage({ type: 'notice', names: ['A'], title: 'x', postId: 'n1' }, coach, null).url).toBe('./?post=n1');
+    expect(buildMessage({ type: 'notice', names: ['A'], title: 'x' }, coach, null).url).toBe('./');
+  });
+  it('보강 자리는 시간표로 (거기서 보강승인중을 눌러야 하니까)', () => {
+    expect(buildMessage({ type: 'makeupSeat', waitlistId: 'w1' }, student,
+      { status: 'notified', studentName: '박학생', date: '2026-09-01', period: 5 }).url).toBe('./?page=schedule');
+  });
+});

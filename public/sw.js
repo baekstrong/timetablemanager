@@ -63,7 +63,12 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       const open = list.find((c) => c.url.startsWith(scope));
-      return open ? open.focus() : self.clients.openWindow(target);
+      if (!open) return self.clients.openWindow(target);
+      // focus()는 이미 떠 있는 화면을 그대로 두므로, 어디로 갈지는 메시지로 알려준다
+      const postId = new URL(target).searchParams.get('post');
+      const page = new URL(target).searchParams.get('page');
+      open.postMessage({ type: 'notificationClick', postId, page });
+      return open.focus();
     })
   );
 });

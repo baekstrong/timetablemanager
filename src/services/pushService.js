@@ -82,8 +82,8 @@ const callPush = async (payload) => {
 };
 
 /** 공지 — 코치만. names는 수강중 수강생 이름 배열. */
-export const pushNotice = (names, title, content) =>
-  callPush({ type: 'notice', names, title, content });
+export const pushNotice = (names, title, content, postId) =>
+  callPush({ type: 'notice', names, title, content, postId });
 
 // 아래 둘은 대상·문구를 서버가 문서에서 직접 읽어 정한다. 여기선 어느 문서인지만 알려준다.
 /** 내 글에 댓글 — 서버가 posts/{postId}의 작성자에게 보낸다 */
