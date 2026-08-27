@@ -73,7 +73,19 @@ Channel Talk/Bezier 기반. **완전 플랫**(그라데이션·장식 그림자 
 
 - **프론트엔드**: GitHub Pages (`.github/workflows/deploy.yml`로 자동 배포, `main` 브랜치 push 시 트리거)
 - **주간 칼럼 발행**: `.github/workflows/newsletter.yml` (매주 월요일 09:00 KST, `scripts/newsletters/` 큐에서 1건)
-- **백엔드 (Netlify Functions)**: Netlify 자동 배포 (`netlify.toml` 설정, `main` 브랜치 push 시 트리거)
+- **백엔드 (Netlify Functions)**: ⚠️ **자동 배포가 아니다. main에 푸시해도 Netlify는 아무것도 하지 않는다.**
+  - Netlify 사이트(`strengthschool`)에 **GitHub 저장소가 연결돼 있지 않다**(빌드 크레딧 절약). `build_settings.repo_url`이 비어 있고 배포 이력이 전부 `Build from drop deployment`다.
+  - 배포는 백관장이 `~/Desktop/앱 제작/netlify-deploy` 폴더를 Netlify 대시보드에 **드래그&드롭**해서 한다. 함수를 고쳤으면 그 폴더의 `netlify/functions/`를 먼저 갱신해야 반영된다.
+  - **`firebase-admin`을 쓰는 함수는 의존성을 인라인한 단일 파일 `*.cjs`로 미리 번들해서 넣는다** — 드롭 배포는 그 폴더의 `package.json`으로 install하는데 거기엔 `firebase-admin`이 없다. 현재 `auth.cjs`, `push.cjs`가 이 방식(각 5.6MB).
+    ```bash
+    npx esbuild netlify/functions/push.js --bundle --platform=node --target=node20 \
+      --format=cjs --outfile="$HOME/Desktop/앱 제작/netlify-deploy/netlify/functions/push.cjs"
+    ```
+  - `sms.js`/`sheets.js`/`calendar.js`는 소스 그대로 복사한다. 단 **스테이징 `package.json`이 리포와 따로 논다** — 2026-08-27 기준 거기엔 `googleapis`만 있어서, `@googleapis/sheets`를 쓰는 리포 최신 `sheets.js`를 그대로 드롭하면 시트 연동이 죽는다. 함수를 옮길 땐 `package.json` 의존성부터 맞출 것.
+  - ⚠️ **함수 파일 확장자는 반드시 `.cjs`** — 스테이징 `package.json`이 `"type": "module"`이라 `.js`는 ESM으로 해석돼 `module is not defined in ES module scope`로 502가 난다. 2026-08-27에 이걸로 `sheets`가 죽어 앱 전체가 멈췄다(7월엔 넷리파이 번들러가 봐줬으나 지금 빌드 이미지는 안 봐준다).
+  - ⚠️ **AWS Lambda 환경변수 4KB 한도** — `GOOGLE_PRIVATE_KEY`(1.7KB)와 `FIREBASE_ADMIN_PRIVATE_KEY`(1.7KB)를 **둘 다 환경변수에 넣으면 배포가 실패한다**(`Your environment variables exceed the 4KB limit`). 안 쓰는 `VITE_*` 12개(698B)를 다 지워도 초과다. 그래서 **firebase-admin 자격증명은 esbuild `--define`으로 번들에 인라인**한다. 2026-08-27 기준 여유 870B.
+  - 번들은 `node scripts/bundle-netlify-fn.mjs <함수이름>` — 위 세 제약(의존성 인라인 / `.cjs` / 4KB)을 한 번에 처리한다.
+  - ⚠️ **`auth.cjs`·`push.cjs`에는 서비스 계정 키가 구워져 있다.** 스테이징 폴더는 git 저장소가 아니어야 하고(2026-08-27 확인) 그 파일을 공유·커밋하면 안 된다. **Lambda 호환 모드를 벗어나면 4KB 제한이 없어지므로**(넷리파이 대시보드 > 함수 설정) 그때 `--define`을 빼고 환경변수로 되돌릴 것.
   - `netlify.toml`의 `functions = "netlify/functions"` 경로에서 서버리스 함수 배포
   - 프론트엔드 빌드는 Netlify에서 하지 않음 (`command = ""`)
 - **API 연결**: 프론트엔드에서 `VITE_FUNCTIONS_URL` 환경변수로 Netlify Functions URL 지정
