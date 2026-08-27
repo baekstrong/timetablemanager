@@ -82,6 +82,10 @@ Channel Talk/Bezier 기반. **완전 플랫**(그라데이션·장식 그림자 
       --format=cjs --outfile="$HOME/Desktop/앱 제작/netlify-deploy/netlify/functions/push.cjs"
     ```
   - `sms.js`/`sheets.js`/`calendar.js`는 소스 그대로 복사한다. 단 **스테이징 `package.json`이 리포와 따로 논다** — 2026-08-27 기준 거기엔 `googleapis`만 있어서, `@googleapis/sheets`를 쓰는 리포 최신 `sheets.js`를 그대로 드롭하면 시트 연동이 죽는다. 함수를 옮길 땐 `package.json` 의존성부터 맞출 것.
+  - ⚠️ **함수 파일 확장자는 반드시 `.cjs`** — 스테이징 `package.json`이 `"type": "module"`이라 `.js`는 ESM으로 해석돼 `module is not defined in ES module scope`로 502가 난다. 2026-08-27에 이걸로 `sheets`가 죽어 앱 전체가 멈췄다(7월엔 넷리파이 번들러가 봐줬으나 지금 빌드 이미지는 안 봐준다).
+  - ⚠️ **AWS Lambda 환경변수 4KB 한도** — `GOOGLE_PRIVATE_KEY`(1.7KB)와 `FIREBASE_ADMIN_PRIVATE_KEY`(1.7KB)를 **둘 다 환경변수에 넣으면 배포가 실패한다**(`Your environment variables exceed the 4KB limit`). 안 쓰는 `VITE_*` 12개(698B)를 다 지워도 초과다. 그래서 **firebase-admin 자격증명은 esbuild `--define`으로 번들에 인라인**한다. 2026-08-27 기준 여유 870B.
+  - 번들은 `node scripts/bundle-netlify-fn.mjs <함수이름>` — 위 세 제약(의존성 인라인 / `.cjs` / 4KB)을 한 번에 처리한다.
+  - ⚠️ **`auth.cjs`·`push.cjs`에는 서비스 계정 키가 구워져 있다.** 스테이징 폴더는 git 저장소가 아니어야 하고(2026-08-27 확인) 그 파일을 공유·커밋하면 안 된다. **Lambda 호환 모드를 벗어나면 4KB 제한이 없어지므로**(넷리파이 대시보드 > 함수 설정) 그때 `--define`을 빼고 환경변수로 되돌릴 것.
   - `netlify.toml`의 `functions = "netlify/functions"` 경로에서 서버리스 함수 배포
   - 프론트엔드 빌드는 Netlify에서 하지 않음 (`command = ""`)
 - **API 연결**: 프론트엔드에서 `VITE_FUNCTIONS_URL` 환경변수로 Netlify Functions URL 지정
