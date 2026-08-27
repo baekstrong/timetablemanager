@@ -2,7 +2,7 @@ const { initializeApp, getApps, cert } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
-const { buildMessage } = require('./_pushLib');
+const { buildMessage, verifyPathFor } = require('./_pushLib');
 
 // auth.js와 같은 지연 초기화 (환경변수도 그대로 재사용 — 새로 설정할 것 없음)
 function ensureAdmin() {
@@ -41,12 +41,18 @@ exports.handler = async (event) => {
     const caller = { name: decoded.name || '', isCoach: decoded.isCoach === true };
 
     const req = JSON.parse(event.body || '{}');
-    const msg = buildMessage(req, caller);
+    const db = getFirestore();
+
+    // 공지 외에는 실제 문서를 읽어 대상·문구를 서버가 정한다 (클라이언트가 준 텍스트·수신자를 믿지 않음)
+    const path = verifyPathFor(req);
+    if (path === undefined) return json(400, { success: false, error: '필수 파라미터 누락' });
+    const record = path ? (await db.doc(path.join('/')).get()).data() || null : null;
+
+    const msg = buildMessage(req, caller, record);
     if (!msg) return json(400, { success: false, error: '잘못된 요청이거나 권한이 없습니다.' });
 
-    // 대상은 호출자가 넘긴 이름들 — 수강중 판정은 이미 시트를 들고 있는 클라이언트가 한다.
+    // 공지 대상은 호출자가 넘긴 이름들 — 수강중 판정은 이미 시트를 들고 있는 클라이언트가 한다.
     // ponytail: 서버에 같은 판정 로직을 두 벌 만들지 않으려는 것. 공지는 드물어 이름 수만큼(≈62) read여도 무해.
-    const db = getFirestore();
     const names = [...new Set(msg.names.filter(Boolean))].slice(0, 500);
     const snaps = await db.getAll(...names.map((n) => db.collection('users').doc(n)));
     const targets = snaps

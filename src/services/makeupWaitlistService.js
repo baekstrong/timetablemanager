@@ -38,7 +38,7 @@ async function applyResolution({ toExpire, toNotify }) {
             const periodLabel = periodInfo?.name || `${e.period}교시`;
             // 푸시 우선. 1시간 데드라인이 걸린 알림이라 토큰이 없거나(알림 미허용·기기 변경)
             // 발송 실패면 반드시 SMS로 폴백해야 한다.
-            const pushed = await pushMakeupSeat(e.studentName, dateText, periodLabel);
+            const pushed = await pushMakeupSeat(e.id);
             if (!pushed) {
                 if (e.phone) {
                     await sendMakeupSeatAvailableSMS(e.phone, e.studentName, dateText, periodLabel);

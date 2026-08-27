@@ -85,10 +85,12 @@ const callPush = async (payload) => {
 export const pushNotice = (names, title, content) =>
   callPush({ type: 'notice', names, title, content });
 
-/** 게시판 댓글/답글 — kind: 'comment' | 'reply' */
-export const pushComment = (to, kind, preview) =>
-  callPush({ type: kind, to, preview });
+// 아래 둘은 대상·문구를 서버가 문서에서 직접 읽어 정한다. 여기선 어느 문서인지만 알려준다.
+/** 내 글에 댓글 — 서버가 posts/{postId}의 작성자에게 보낸다 */
+export const pushComment = (postId) => callPush({ type: 'comment', postId });
 
-/** 보강 대기 자리 발생 */
-export const pushMakeupSeat = (to, dateText, periodLabel) =>
-  callPush({ type: 'makeupSeat', to, dateText, periodLabel });
+/** 내 댓글에 답글 — 서버가 그 댓글의 작성자에게 보낸다 */
+export const pushReply = (postId, parentId) => callPush({ type: 'reply', postId, parentId });
+
+/** 보강 대기 자리 발생 — 서버가 makeupWaitlists/{id}가 notified인지 확인하고 그 문서로 문구를 만든다 */
+export const pushMakeupSeat = (waitlistId) => callPush({ type: 'makeupSeat', waitlistId });

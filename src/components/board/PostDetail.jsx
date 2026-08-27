@@ -3,7 +3,7 @@ import { getPost, toggleLike, updatePost, deletePost, getComments, createComment
 import { CATEGORY_MAP, POST_LIMITS } from '../../data/boardConstants';
 import { uploadToCloudinary } from '../../services/cloudinaryService';
 import { linkifyText } from '../../utils/linkify';
-import { pushComment } from '../../services/pushService';
+import { pushComment, pushReply } from '../../services/pushService';
 import { formatLikeNames } from '../../utils/likeDisplay';
 import CommentItem from './CommentItem';
 import TierBadge from '../TierBadge';
@@ -143,10 +143,8 @@ const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {} 
                 isCoach: user.role === 'coach',
                 ...(image && { image }),
             });
-            // 글쓴이에게 푸시. 본인 글이면 안 보냄.
-            if (post?.author && post.author !== user.username) {
-                pushComment(post.author, 'comment', commentText || '사진');
-            }
+            // 글쓴이에게 푸시 (수신자·문구는 서버가 글 문서에서 정한다). 본인 글이면 호출 생략.
+            if (post?.author && post.author !== user.username) pushComment(postId);
             setCommentText('');
             removeCommentImage();
             const updated = await getComments(postId);
@@ -176,11 +174,9 @@ const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {} 
             parentId,
             ...(image && { image }),
         });
-        // 답글은 부모 댓글 작성자에게. 본인 댓글이면 안 보냄.
+        // 답글은 부모 댓글 작성자에게. 본인 댓글이면 호출 생략.
         const parentAuthor = comments.find(c => c.id === parentId)?.author;
-        if (parentAuthor && parentAuthor !== user.username) {
-            pushComment(parentAuthor, 'reply', content || '사진');
-        }
+        if (parentAuthor && parentAuthor !== user.username) pushReply(postId, parentId);
         const updated = await getComments(postId);
         setComments(updated);
     };

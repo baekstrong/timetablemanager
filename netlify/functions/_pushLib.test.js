@@ -1,50 +1,91 @@
 import { describe, it, expect } from 'vitest';
-import { buildMessage } from './_pushLib.js';
+import { buildMessage, verifyPathFor } from './_pushLib.js';
 
 const coach = { name: '백관장', isCoach: true };
 const student = { name: '김수강', isCoach: false };
 
-describe('buildMessage', () => {
-  it('공지는 코치만 — 학생이 부르면 null', () => {
-    expect(buildMessage({ type: 'notice', names: ['A'], title: '아무거나' }, student)).toBeNull();
+describe('verifyPathFor — 무엇을 대조할지', () => {
+  it('공지는 대조할 문서가 없다', () => {
+    expect(verifyPathFor({ type: 'notice' })).toBeNull();
   });
+  it('댓글·답글·보강자리는 각자의 문서를 가리킨다', () => {
+    expect(verifyPathFor({ type: 'comment', postId: 'p1' })).toEqual(['posts', 'p1']);
+    expect(verifyPathFor({ type: 'reply', postId: 'p1', parentId: 'c1' }))
+      .toEqual(['posts', 'p1', 'comments', 'c1']);
+    expect(verifyPathFor({ type: 'makeupSeat', waitlistId: 'w1' })).toEqual(['makeupWaitlists', 'w1']);
+  });
+  it('식별자가 없으면 undefined — 핸들러가 400으로 끊는다', () => {
+    expect(verifyPathFor({ type: 'comment' })).toBeUndefined();
+    expect(verifyPathFor({ type: 'reply', postId: 'p1' })).toBeUndefined();
+    expect(verifyPathFor({ type: 'makeupSeat' })).toBeUndefined();
+  });
+});
 
-  it('공지는 받은 이름을 그대로 대상으로 쓴다', () => {
-    const m = buildMessage({ type: 'notice', names: ['A', 'B'], title: '휴관 안내', content: '내용' }, coach);
+describe('buildMessage — 공지', () => {
+  it('학생이 부르면 null (자유 텍스트는 코치만)', () => {
+    expect(buildMessage({ type: 'notice', names: ['A'], title: 'x' }, student, null)).toBeNull();
+  });
+  it('코치는 받은 이름 그대로 대상', () => {
+    const m = buildMessage({ type: 'notice', names: ['A', 'B'], title: '휴관 안내', content: '내용' }, coach, null);
     expect(m.names).toEqual(['A', 'B']);
     expect(m.title).toContain('휴관 안내');
     expect(m.body).toBe('내용');
   });
-
-  it('공지 대상이 비면 null (전원 발송 사고 방지)', () => {
-    expect(buildMessage({ type: 'notice', names: [], title: 'x' }, coach)).toBeNull();
+  it('대상이 비면 null (전원 발송 사고 방지)', () => {
+    expect(buildMessage({ type: 'notice', names: [], title: 'x' }, coach, null)).toBeNull();
   });
+  it('길이는 잘린다', () => {
+    const m = buildMessage({ type: 'notice', names: ['A'], title: 'ㄱ'.repeat(99), content: 'ㄴ'.repeat(999) }, coach, null);
+    expect(m.body.length).toBe(120);
+  });
+});
 
-  it('댓글 문구는 서버가 만들고 대상은 1명', () => {
-    const m = buildMessage({ type: 'comment', to: '박학생', preview: '좋아요' }, student);
+describe('buildMessage — 댓글/답글', () => {
+  it('대상은 클라이언트가 아니라 조회한 글의 작성자', () => {
+    const m = buildMessage({ type: 'comment', postId: 'p1', to: '엉뚱한사람' }, student, { author: '박학생' });
     expect(m.names).toEqual(['박학생']);
     expect(m.title).toBe('김수강님이 댓글을 남겼습니다');
-    expect(m.body).toBe('좋아요');
   });
 
-  it('답글은 답글 문구', () => {
-    expect(buildMessage({ type: 'reply', to: '박학생' }, student).title).toContain('답글');
+  it('본문에 클라이언트 텍스트가 섞이지 않는다', () => {
+    const m = buildMessage({ type: 'comment', postId: 'p1', preview: '악성문구' }, student, { author: '박학생' });
+    expect(JSON.stringify(m)).not.toContain('악성문구');
   });
 
-  it('본문 길이는 잘린다', () => {
-    const m = buildMessage({ type: 'comment', to: 'A', preview: 'ㄱ'.repeat(200) }, student);
-    expect(m.body.length).toBe(80);
+  it('답글은 부모 댓글 작성자에게, 답글 문구로', () => {
+    const m = buildMessage({ type: 'reply', postId: 'p1', parentId: 'c1' }, student, { author: '박학생' });
+    expect(m.names).toEqual(['박학생']);
+    expect(m.title).toContain('답글');
   });
 
-  it('대상 없거나 모르는 타입이면 null', () => {
-    expect(buildMessage({ type: 'comment' }, student)).toBeNull();
-    expect(buildMessage({ type: 'makeupSeat' }, student)).toBeNull();
-    expect(buildMessage({ type: '해킹' }, coach)).toBeNull();
+  it('글이 없거나 삭제됐거나 본인 글이면 null', () => {
+    expect(buildMessage({ type: 'comment', postId: 'p1' }, student, null)).toBeNull();
+    expect(buildMessage({ type: 'comment', postId: 'p1' }, student, { author: '박학생', deleted: true })).toBeNull();
+    expect(buildMessage({ type: 'comment', postId: 'p1' }, student, { author: '김수강' })).toBeNull();
   });
+});
 
-  it('보강 자리 안내는 날짜·교시만 받고 문구는 고정', () => {
-    const m = buildMessage({ type: 'makeupSeat', to: 'A', dateText: '9/1(월)', periodLabel: '5교시' }, student);
-    expect(m.title).toBe('보강 자리가 났습니다 — 9/1(월) 5교시');
+describe('buildMessage — 보강 자리', () => {
+  const entry = { status: 'notified', studentName: '박학생', date: '2026-09-01', period: 5 };
+
+  it('notified 대기 항목의 날짜·교시로 문구를 만든다', () => {
+    const m = buildMessage({ type: 'makeupSeat', waitlistId: 'w1' }, student, entry);
+    expect(m.names).toEqual(['박학생']);
+    expect(m.title).toBe('보강 자리가 났습니다 — 9/1(화) 5교시');
     expect(m.body).toContain('보강승인중');
   });
+
+  it('3교시는 자율 표기', () => {
+    const m = buildMessage({ type: 'makeupSeat', waitlistId: 'w1' }, student, { ...entry, period: 3 });
+    expect(m.title).toContain('3교시(자율)');
+  });
+
+  it('아직 안내되지 않았거나 없는 항목이면 null (가짜 자리 알림 차단)', () => {
+    expect(buildMessage({ type: 'makeupSeat', waitlistId: 'w1' }, student, { ...entry, status: 'waiting' })).toBeNull();
+    expect(buildMessage({ type: 'makeupSeat', waitlistId: 'w1' }, student, null)).toBeNull();
+  });
+});
+
+it('모르는 타입은 null', () => {
+  expect(buildMessage({ type: '해킹' }, coach, null)).toBeNull();
 });

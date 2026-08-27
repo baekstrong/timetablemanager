@@ -556,7 +556,11 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 문자비 없이 보내는 알림. **아이폰은 홈 화면에 추가한(설치된) 경우에만 수신**되며, 안드로이드/크롬은 그냥 된다.
 
 - **토큰**: `pushService.initPush(이름, ask)` → `users/{이름}.fcmToken`. `ask=true`는 권한 팝업을 띄우는데 **아이폰은 사용자 제스처 안에서만 통하므로 버튼 클릭 핸들러에서만 true로 부를 것.** Dashboard 상단 '알림 켜기' 배너가 그 역할(권한 `default`일 때만 노출). 이미 허용한 사람은 마운트 시 조용히 갱신하고, 직전 토큰과 같으면 write를 생략한다(접속마다 write 방지).
-- **발송**: 클라이언트 → `netlify/functions/push.js`. Firebase **ID 토큰을 `Authorization: Bearer`로 검증**하고 클레임의 `name`/`isCoach`를 쓴다. **문구는 서버(`_pushLib.buildMessage`)가 만든다** — 클라이언트가 남에게 임의 텍스트를 밀어넣지 못하게. 자유 텍스트는 코치 공지뿐이고 `isCoach`로 막는다.
+- **발송**: 클라이언트 → `netlify/functions/push.js`. Firebase **ID 토큰을 `Authorization: Bearer`로 검증**하고 클레임의 `name`/`isCoach`를 쓴다.
+- ⚠️ **클라이언트가 준 텍스트·수신자를 그대로 쓰지 말 것.** 로그인한 수강생 아무나 `/push`를 부를 수 있으므로, 자유 텍스트를 받으면 남의 잠금화면에 임의 문구를 띄우는 통로가 된다(게시판과 달리 코치 눈에 안 보인다). 그래서 `_pushLib`는 두 단계로 나뉜다:
+  1. `verifyPathFor(req)` — 이 요청을 검증하려면 어떤 문서를 읽어야 하는지 반환 (댓글=`posts/{postId}`, 답글=그 댓글 문서, 보강자리=`makeupWaitlists/{id}`). 식별자가 없으면 `undefined` → 400.
+  2. `buildMessage(req, caller, record)` — **수신자와 문구를 그 문서에서 뽑는다.** 댓글/답글은 조회한 글·댓글의 `author`가 대상이고 본문은 고정 문구, 보강 자리는 `status === 'notified'`인 항목만 통과하며 날짜·교시도 그 문서에서 읽는다(가짜 자리 알림 차단).
+  - 자유 텍스트는 **코치 공지 하나뿐**이고 `isCoach`로 막는다. 검증 비용은 알림 1건당 read 1회.
 - **수강중 필터는 서버에 두지 않는다.** 대상 이름은 이미 시트를 들고 있는 코치 클라이언트가 `shouldShowInCoachStudentList`로 뽑아 넘긴다(= 문자 수신자 목록과 같은 기준). 서버에 같은 판정 로직이 두 벌 생기는 걸 피하려는 것.
 - **읽기 비용**: 알림 1건당 대상 인원수만큼 `users` read. 공지(≈62)는 드물고 댓글·보강대기는 1명이라 무시 가능. 집계 문서(`studentMeta/pushTokens`)는 **일부러 안 만들었다** — 동기화 타이밍 문제만 늘고 절감이 없다.
 - **표시**: data-only 메시지로 보내고 `public/sw.js`의 `push` 핸들러가 직접 `showNotification`. SW에 firebase SDK를 `importScripts` 하지 않는다.
