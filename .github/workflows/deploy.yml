@@ -45,6 +45,7 @@ jobs:
           VITE_FUNCTIONS_URL: ${{ secrets.VITE_FUNCTIONS_URL }}
           VITE_CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
           VITE_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
+          VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

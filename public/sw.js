@@ -37,3 +37,33 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+// ── 웹 푸시 ──
+// FCM은 data-only로 보내고 여기서 직접 표시한다.
+// ponytail: SW에 firebase SDK를 importScripts 하지 않으려는 것. notification 블록이 섞여 와도 읽도록 둘 다 본다.
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch { payload = {}; }
+  const d = payload.data || payload.notification || payload;
+  event.waitUntil(
+    self.registration.showNotification(d.title || '근력학교', {
+      body: d.body || '',
+      icon: './icon-192.png',
+      badge: './icon-192.png',
+      tag: d.tag || 'default',
+      data: { url: d.url || './' },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const scope = self.registration.scope;
+  const target = new URL(event.notification.data?.url || './', scope).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const open = list.find((c) => c.url.startsWith(scope));
+      return open ? open.focus() : self.clients.openWindow(target);
+    })
+  );
+});

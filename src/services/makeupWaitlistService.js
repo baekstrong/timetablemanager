@@ -4,6 +4,7 @@ import {
     updateMakeupWaitlistStatus,
 } from './firebaseService';
 import { sendMakeupSeatAvailableSMS } from './smsService';
+import { pushMakeupSeat } from './pushService';
 import { resolveAfterSeatFreed, resolveToTarget } from '../utils/makeupWaitlist';
 import { parseScheduleString } from '../utils/scheduleUtils';
 import { PERIODS } from '../data/mockData';
@@ -33,14 +34,17 @@ async function applyResolution({ toExpire, toNotify }) {
         try {
             await notifyMakeupWaitlist(e.id);
             const periodInfo = PERIODS.find(p => p.id === e.period);
-            if (e.phone) {
-                await sendMakeupSeatAvailableSMS(
-                    e.phone, e.studentName,
-                    formatDateText(e.date),
-                    periodInfo?.name || `${e.period}교시`
-                );
-            } else {
-                console.warn('보강 대기 전화번호 없음 — SMS 생략:', e.studentName);
+            const dateText = formatDateText(e.date);
+            const periodLabel = periodInfo?.name || `${e.period}교시`;
+            // 푸시 우선. 1시간 데드라인이 걸린 알림이라 토큰이 없거나(알림 미허용·기기 변경)
+            // 발송 실패면 반드시 SMS로 폴백해야 한다.
+            const pushed = await pushMakeupSeat(e.id);
+            if (!pushed) {
+                if (e.phone) {
+                    await sendMakeupSeatAvailableSMS(e.phone, e.studentName, dateText, periodLabel);
+                } else {
+                    console.warn('보강 대기 알림 실패 — 푸시 없음, 전화번호도 없음:', e.studentName);
+                }
             }
         } catch (err) {
             console.error('보강 대기 알림 실패:', e.id, err);
