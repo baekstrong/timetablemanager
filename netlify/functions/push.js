@@ -64,7 +64,7 @@ exports.handler = async (event) => {
     const res = await getMessaging().sendEachForMulticast({
       tokens: targets.map((t) => t.token),
       data: { title: msg.title, body: msg.body, tag: msg.tag, url: './' },
-      webpush: { headers: { Urgency: 'high', TTL: '3600' } },
+      webpush: { headers: { Urgency: 'high', TTL: String(msg.ttl) } },
     });
 
     // 해지된 토큰은 지운다 (앱 삭제·알림 차단한 사람에게 매번 재시도하지 않게)

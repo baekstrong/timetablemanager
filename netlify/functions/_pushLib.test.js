@@ -89,3 +89,12 @@ describe('buildMessage — 보강 자리', () => {
 it('모르는 타입은 null', () => {
   expect(buildMessage({ type: '해킹' }, coach, null)).toBeNull();
 });
+
+describe('TTL — 오프라인이었던 사람에게 언제까지 유효한가', () => {
+  it('공지는 1주, 댓글은 하루, 보강 자리는 수락 데드라인과 같은 1시간', () => {
+    expect(buildMessage({ type: 'notice', names: ['A'], title: 'x' }, coach, null).ttl).toBe(604800);
+    expect(buildMessage({ type: 'comment', postId: 'p1' }, student, { author: '박학생' }).ttl).toBe(86400);
+    expect(buildMessage({ type: 'makeupSeat', waitlistId: 'w1' }, student,
+      { status: 'notified', studentName: '박학생', date: '2026-09-01', period: 5 }).ttl).toBe(3600);
+  });
+});
