@@ -9,6 +9,7 @@ const PostForm = ({ user, editingPost, onSubmit, onClose }) => {
     const [title, setTitle] = useState(editingPost?.title || '');
     const [content, setContent] = useState(editingPost?.content || '');
     const [pinned, setPinned] = useState(editingPost?.pinned || false);
+    const [notify, setNotify] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
     // 이미지 관련 state
@@ -83,6 +84,7 @@ const PostForm = ({ user, editingPost, onSubmit, onClose }) => {
                 author: user.username,
                 isCoach: user.role === 'coach',
                 images: allImages,
+                notify: !editingPost && category === 'notice' && notify,
             });
 
             // 미리보기 URL 정리
@@ -209,6 +211,18 @@ const PostForm = ({ user, editingPost, onSubmit, onClose }) => {
                             onChange={e => setPinned(e.target.checked)}
                         />
                         상단 고정
+                    </label>
+                )}
+
+                {/* 푸시 알림 (새 공지 + 코치만 — 수정 시엔 다시 알리지 않는다) */}
+                {category === 'notice' && user.role === 'coach' && !editingPost && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', marginBottom: '0.75rem', cursor: 'pointer' }}>
+                        <input
+                            type="checkbox"
+                            checked={notify}
+                            onChange={e => setNotify(e.target.checked)}
+                        />
+                        수강생에게 푸시 알림 보내기
                     </label>
                 )}
 

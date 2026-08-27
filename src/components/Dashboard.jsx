@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, backfillTiersForMonth, getGradeMap, refreshStudentXP, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
+import { initPush, isPushAvailable, getPushPermission, pushNotice } from '../services/pushService';
+import { shouldShowInCoachStudentList } from '../utils/studentList';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
 import { POST_LIMITS } from '../data/boardConstants';
 import PostList from './board/PostList';
@@ -38,6 +40,7 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     const [viewMode, setViewMode] = useState('list');
     const [selectedPostId, setSelectedPostId] = useState(null);
     const [showPostForm, setShowPostForm] = useState(false);
+    const [pushPrompt, setPushPrompt] = useState(false); // 알림 권한을 아직 안 물어본 상태
     const [editingPost, setEditingPost] = useState(null);
 
     const { students, refresh } = useGoogleSheets();
@@ -61,6 +64,20 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
     // 코치 진입 시: 그 달 첫 1회만 전원 티어 백필(studentMeta/tierBackfill 잠금).
     // 앱을 안 여는 학생은 본인 갱신이 영영 안 돌아 뱃지가 두 달 전 값에 멈추므로 뒤를 받쳐준다.
     // 레벨(XP)은 증분 방식이라 백필 대상이 아니다 — 뱃지는 저장된 값만 읽는다.
+    // 푸시 토큰 등록. 이미 허용한 사람은 조용히 갱신, 아직 안 물어본 사람은 배너로 유도.
+    // (아이폰은 requestPermission이 사용자 제스처 안에서만 통해서 자동으로 못 띄운다)
+    useEffect(() => {
+        if (!user?.username) return;
+        let cancel = false;
+        isPushAvailable().then(ok => {
+            if (cancel || !ok) return;
+            const perm = getPushPermission();
+            if (perm === 'granted') initPush(user.username);
+            else if (perm === 'default') setPushPrompt(true);
+        });
+        return () => { cancel = true; };
+    }, [user]);
+
     useEffect(() => {
         if (!user || user.role !== 'coach' || !students || students.length === 0) return;
         let cancel = false;
@@ -305,7 +322,15 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                     images: formData.images || [],
                 });
             } else {
-                await createPost(formData);
+                const { notify, ...postData } = formData;
+                await createPost(postData);
+                if (notify) {
+                    // 수강중 판정은 이미 시트를 들고 있는 여기서 — 서버는 받은 이름만 본다
+                    const names = [...new Set(
+                        students.filter(shouldShowInCoachStudentList).map(s => s['이름']).filter(Boolean)
+                    )];
+                    pushNotice(names, postData.title, postData.content);
+                }
             }
             setShowPostForm(false);
             setEditingPost(null);
@@ -436,6 +461,32 @@ const Dashboard = ({ user, onNavigate, onLogout }) => {
                         </svg>
                     </button>
                 </header>
+
+                {pushPrompt && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                        background: 'var(--accent-10)', border: '1px solid var(--accent-30)',
+                        borderRadius: 'var(--r-md)', padding: '0.6rem 0.8rem', marginBottom: '1rem',
+                        fontSize: '0.85rem',
+                    }}>
+                        <span style={{ flex: 1 }}>공지·보강 자리 알림을 푸시로 받아보세요.</span>
+                        <button
+                            style={{ padding: '6px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r-chip)', fontWeight: 600, cursor: 'pointer' }}
+                            onClick={async () => {
+                                await initPush(user.username, true);
+                                setPushPrompt(false);
+                            }}
+                        >
+                            알림 켜기
+                        </button>
+                        <button
+                            style={{ padding: '6px 8px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                            onClick={() => setPushPrompt(false)}
+                        >
+                            나중에
+                        </button>
+                    </div>
+                )}
 
                 {/* 수강생 모드: 오늘이 종료일이면 메시지 표시 */}
                 {user.role !== 'coach' && isMyLastDay && (

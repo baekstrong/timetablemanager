@@ -39,6 +39,7 @@ git push
 - **백엔드 (프로덕션)**: Netlify Functions (서버리스)
 - **백엔드 (로컬)**: Express 서버 (`functions/server.js`, 포트 5001)
 - **SMS**: Solapi API (HMAC-SHA256 인증)
+- **웹 푸시**: FCM(Firebase Cloud Messaging) + `public/sw.js`의 `push` 핸들러 — 아이폰은 홈 화면에 추가한 경우에만 수신
 - **캘린더**: Google Calendar API v3 (입학반 일정 — `calendarService.js` + Netlify `calendar.js`, 종료일 동기화 — `google-apps-script/CalendarSync.gs`)
 - **차트**: Recharts
 - **이미지 업로드**: Cloudinary(unsigned upload preset) + `browser-image-compression`(`cloudinaryService.js`, 게시판 첨부)
@@ -178,6 +179,7 @@ src/
 │   ├── googleSheetsService.js       # Google Sheets API 호출 (~1768줄)
 │   ├── firebaseService.js           # Firestore CRUD (~1123줄)
 │   ├── smsService.js                # Solapi SMS 발송 (sendManualSMS 포함)
+│   ├── pushService.js               # 웹 푸시 — 토큰 등록(initPush) + 발송 호출(pushNotice/pushComment/pushMakeupSeat)
 │   ├── analyticsService.js          # 매출·통계 집계 로직
 │   └── makeupWaitlistService.js     # 보강 대기 자리 발생 감지·순차 SMS 알림 오케스트레이션 (CRUD는 firebaseService)
 ├── utils/
@@ -220,7 +222,9 @@ src/
 
 netlify/functions/
 ├── sheets.js    # Google Sheets 서버리스 함수
-└── sms.js       # Solapi SMS 서버리스 함수
+├── sms.js       # Solapi SMS 서버리스 함수
+├── push.js      # 웹 푸시 발송 (ID 토큰 검증 → users 토큰 조회 → FCM)
+└── _pushLib.js  # 푸시 본문 생성 (순수, firebase-admin 미의존 — 테스트용 분리)
 
 functions/
 ├── server.js    # 로컬 개발용 Express (Sheets + SMS API)
@@ -342,7 +346,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 
 | 컬렉션 | 용도 |
 | --- | --- |
-| `users` | 로그인 계정 `{password, isCoach, createdAt}`. 티어(출석 등급) 필드 `{tier, tierMonth('YYYY-MM'), prevTier, tierScore, tierIntroPending, tierUpdatedAt}` — 본인 접속 시 `refreshStudentTier`, 코치 접속 시 `backfillTiersForMonth`가 갱신 (아래 '티어 시스템' 참고) |
+| `users` | 로그인 계정 `{password, isCoach, createdAt}`. 웹 푸시 토큰 `{fcmToken, fcmUpdatedAt}` — 본인 기기가 저장하고(직전 토큰과 같으면 write 생략), FCM이 `registration-token-not-registered`를 뱉으면 `push.js`가 지운다. 티어(출석 등급) 필드 `{tier, tierMonth('YYYY-MM'), prevTier, tierScore, tierIntroPending, tierUpdatedAt}` — 본인 접속 시 `refreshStudentTier`, 코치 접속 시 `backfillTiersForMonth`가 갱신 (아래 '티어 시스템' 참고) |
 | `makeupRequests` | 보강 신청 (status: active/completed/cancelled) |
 | `holdingRequests` | 홀딩 신청 |
 | `absenceRequests` | 결석 신청 |
@@ -545,7 +549,21 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 | 승인 | 학생 | 승인 확인 + 준비 메시지 + 결제 링크 |
 | 승인 (예약) | 학생 | 입학반 3일 전 오전 9시 리마인더 |
 | 수동 발송 | 코치가 선택한 수강생 | 수강생 관리 → 문자 보내기 (수신자별 성공/실패 상태창) |
-| 보강 대기 자리 발생 | 대기 1순위 수강생 | 자리 발생 시 자동, 1시간 내 시간표에서 수락 안내, 무응답 시 다음 순번 |
+| 보강 대기 자리 발생 | 대기 1순위 수강생 | **푸시 우선, 실패 시 SMS 폴백** (1시간 데드라인이라 못 받으면 안 됨) |
+
+## 웹 푸시 알림 (FCM)
+
+문자비 없이 보내는 알림. **아이폰은 홈 화면에 추가한(설치된) 경우에만 수신**되며, 안드로이드/크롬은 그냥 된다.
+
+- **토큰**: `pushService.initPush(이름, ask)` → `users/{이름}.fcmToken`. `ask=true`는 권한 팝업을 띄우는데 **아이폰은 사용자 제스처 안에서만 통하므로 버튼 클릭 핸들러에서만 true로 부를 것.** Dashboard 상단 '알림 켜기' 배너가 그 역할(권한 `default`일 때만 노출). 이미 허용한 사람은 마운트 시 조용히 갱신하고, 직전 토큰과 같으면 write를 생략한다(접속마다 write 방지).
+- **발송**: 클라이언트 → `netlify/functions/push.js`. Firebase **ID 토큰을 `Authorization: Bearer`로 검증**하고 클레임의 `name`/`isCoach`를 쓴다. **문구는 서버(`_pushLib.buildMessage`)가 만든다** — 클라이언트가 남에게 임의 텍스트를 밀어넣지 못하게. 자유 텍스트는 코치 공지뿐이고 `isCoach`로 막는다.
+- **수강중 필터는 서버에 두지 않는다.** 대상 이름은 이미 시트를 들고 있는 코치 클라이언트가 `shouldShowInCoachStudentList`로 뽑아 넘긴다(= 문자 수신자 목록과 같은 기준). 서버에 같은 판정 로직이 두 벌 생기는 걸 피하려는 것.
+- **읽기 비용**: 알림 1건당 대상 인원수만큼 `users` read. 공지(≈62)는 드물고 댓글·보강대기는 1명이라 무시 가능. 집계 문서(`studentMeta/pushTokens`)는 **일부러 안 만들었다** — 동기화 타이밍 문제만 늘고 절감이 없다.
+- **표시**: data-only 메시지로 보내고 `public/sw.js`의 `push` 핸들러가 직접 `showNotification`. SW에 firebase SDK를 `importScripts` 하지 않는다.
+- **알림 종류**: 공지(`PostForm`의 '수강생에게 푸시 알림 보내기' 체크 — 새 공지 작성 시에만, 수정 땐 다시 안 감) / 내 글에 댓글 / 내 댓글에 답글 / 보강 대기 자리 발생.
+- **게시판 새 글 전체 알림은 없다** — 자유게시판 글마다 전원 폰이 울리면 스팸이라 댓글·답글만 보낸다.
+- ⚠️ **보강 대기 알림은 SMS 폴백을 지우지 말 것** — 1시간 데드라인이 걸려 있어서 토큰이 없거나(알림 미허용·기기 변경) 발송 실패면 반드시 문자로 가야 한다.
+- 로컬 Express(`functions/server.js`)엔 `/push`가 없다. 로컬 개발 중 푸시 호출은 404로 조용히 실패한다(콘솔 경고만).
 
 ## Google Calendar 연동 (입학반 일정)
 
@@ -588,6 +606,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - `VITE_FUNCTIONS_URL` (로컬 개발: `http://localhost:5001`)
 - `VITE_CLOUDINARY_CLOUD_NAME`, `VITE_CLOUDINARY_UPLOAD_PRESET` (게시판 이미지 업로드)
 - `VITE_SENTRY_DSN` (선택, 미설정 시 코드 내 기본 DSN 사용; 프로덕션에서만 init)
+- `VITE_FIREBASE_VAPID_KEY` (웹 푸시. Firebase 콘솔 > 프로젝트 설정 > 클라우드 메시징 > 웹 푸시 인증서에서 발급. **없으면 푸시 기능 전체가 조용히 no-op**)
 
 ### 서버 (Netlify Functions)
 
