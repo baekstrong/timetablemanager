@@ -38,7 +38,11 @@ export const initPush = async (userName, ask = false) => {
     if (permission === 'default' && ask) permission = await Notification.requestPermission();
     if (permission !== 'granted') return null;
 
-    const registration = await navigator.serviceWorker.ready;
+    // SW 등록이 실패하면 ready는 reject가 아니라 **영원히 대기**한다 → 버튼이 먹통이 된다.
+    const registration = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('서비스워커 준비 시간 초과')), 5000)),
+    ]);
     const token = await getToken(getMessaging(app), {
       vapidKey: VAPID_KEY,
       serviceWorkerRegistration: registration,
