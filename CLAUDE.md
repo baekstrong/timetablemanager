@@ -567,7 +567,8 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 
 문자비 없이 보내는 알림. **아이폰은 홈 화면에 추가한(설치된) 경우에만 수신**되며, 안드로이드/크롬은 그냥 된다.
 
-- **토큰**: `pushService.initPush(이름, ask)` → `users/{이름}.fcmToken`. `ask=true`는 권한 팝업을 띄우는데 **아이폰은 사용자 제스처 안에서만 통하므로 버튼 클릭 핸들러에서만 true로 부를 것.** Dashboard 상단 '알림 켜기' 배너가 그 역할(권한 `default`일 때만 노출). 이미 허용한 사람은 마운트 시 조용히 갱신하고, 직전 토큰과 같으면 write를 생략한다(접속마다 write 방지).
+- **토큰**: `pushService.initPush(이름, ask)` → `users/{이름}.fcmToken`. `ask=true`는 권한 팝업을 띄우는데 **아이폰은 사용자 제스처 안에서만 통하므로 버튼 클릭 핸들러에서만 true로 부를 것.** 이미 허용한 사람은 마운트 시 조용히 갱신하고, 직전 토큰과 같으면 write를 생략한다(접속마다 write 방지). `navigator.serviceWorker.ready`는 SW 등록 실패 시 reject가 아니라 **영원히 대기**하므로 5초 타임아웃을 걸어 실패로 떨어뜨린다(안 그러면 '알림 켜기'가 먹통).
+- **Dashboard 상단 알림 상태 줄**(`PUSH_ROW` + `src/utils/pushStatus.js`의 `resolvePushState`): 4상태를 **항상** 보여준다 — `on`(작은 회색 '🔔 알림 켜짐') / `off`(켜기 버튼) / `denied`(브라우저 설정에서 푸는 법) / `unsupported`(아이폰=홈 화면 추가 안내, 그 외=인앱 브라우저 대신 크롬으로 열라는 안내). ⚠️ **'켜짐' 판정은 권한이 아니라 `initPush`가 돌려준 토큰으로 한다** — 권한만 보면 허용해놓고 getToken이 조용히 실패한 사람이 영영 못 고친다. 2026-08-27 배포 직후 69명 중 6명만 토큰이 등록됐고 "알림 켜기 버튼이 안 보인다"(특히 갤럭시)는 문의가 나온 원인이 **권한 `default`일 때만 뜨던 옛 배너**였다. 조건을 다시 좁히지 말 것.
 - **발송**: 클라이언트 → `netlify/functions/push.js`. Firebase **ID 토큰을 `Authorization: Bearer`로 검증**하고 클레임의 `name`/`isCoach`를 쓴다.
 - ⚠️ **클라이언트가 준 텍스트·수신자를 그대로 쓰지 말 것.** 로그인한 수강생 아무나 `/push`를 부를 수 있으므로, 자유 텍스트를 받으면 남의 잠금화면에 임의 문구를 띄우는 통로가 된다(게시판과 달리 코치 눈에 안 보인다). 그래서 `_pushLib`는 두 단계로 나뉜다:
   1. `verifyPathFor(req)` — 이 요청을 검증하려면 어떤 문서를 읽어야 하는지 반환 (댓글=`posts/{postId}`, 답글=그 댓글 문서, 보강자리=`makeupWaitlists/{id}`). 식별자가 없으면 `undefined` → 400.

@@ -3,6 +3,7 @@ import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, backfillTiersForMonth, getGradeMap, refreshStudentXP, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
 import { initPush, isPushAvailable, getPushPermission, pushNotice } from '../services/pushService';
+import { resolvePushState } from '../utils/pushStatus';
 import { shouldShowInCoachStudentList } from '../utils/studentList';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
 import { POST_LIMITS } from '../data/boardConstants';
@@ -28,6 +29,25 @@ const formatPRSummary = (pr) => {
     }
 };
 
+// 알림 상태 줄 문구. 예전 배너는 권한이 'default'일 때만 떠서, 차단당했거나 토큰 등록에 실패한
+// 사람에겐 아무것도 안 보였다(= "알림 켜기 버튼이 없어요"의 원인). 4상태를 전부 안내한다.
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+const PUSH_ROW = {
+    off: { color: '#329BE7', text: '공지·보강 자리 알림을 푸시로 받아보세요.', action: '알림 켜기' },
+    denied: {
+        color: '#E94E58',
+        text: isIOS
+            ? '알림이 차단돼 있어요. 아이폰 설정 → 알림 → 근력학교에서 허용으로 바꿔주세요.'
+            : '알림이 차단돼 있어요. 주소창 왼쪽 자물쇠 → 사이트 설정 → 알림 → 허용으로 바꿔주세요.',
+    },
+    unsupported: {
+        color: '#EDBC40',
+        text: isIOS
+            ? '아이폰은 홈 화면에 추가해야 알림을 받을 수 있어요. 공유 버튼 → 홈 화면에 추가.'
+            : '이 브라우저에선 알림을 켤 수 없어요. 카톡·인스타 안에서 열었다면 크롬으로 다시 열어주세요.',
+    },
+};
+
 const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone }) => {
     const [posts, setPosts] = useState([]);
     const [postsLoading, setPostsLoading] = useState(true);
@@ -49,7 +69,7 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
     }, [deepLinkPost, onDeepLinkDone]);
     const [selectedPostId, setSelectedPostId] = useState(null);
     const [showPostForm, setShowPostForm] = useState(false);
-    const [pushPrompt, setPushPrompt] = useState(false); // 알림 권한을 아직 안 물어본 상태
+    const [pushState, setPushState] = useState(null); // null=판정 전, 'on'|'off'|'denied'|'unsupported'
     const [editingPost, setEditingPost] = useState(null);
 
     const { students, refresh } = useGoogleSheets();
@@ -70,23 +90,30 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
         return () => { cancel = true; };
     }, []);
 
-    // 코치 진입 시: 그 달 첫 1회만 전원 티어 백필(studentMeta/tierBackfill 잠금).
-    // 앱을 안 여는 학생은 본인 갱신이 영영 안 돌아 뱃지가 두 달 전 값에 멈추므로 뒤를 받쳐준다.
-    // 레벨(XP)은 증분 방식이라 백필 대상이 아니다 — 뱃지는 저장된 값만 읽는다.
-    // 푸시 토큰 등록. 이미 허용한 사람은 조용히 갱신, 아직 안 물어본 사람은 배너로 유도.
+    // 알림 상태 판정 + 이미 허용한 사람 토큰 갱신.
+    // 갱신 결과(token)가 곧 '진짜 켜짐' 여부다 — 권한만 보면 getToken이 실패한 사람을 놓친다.
     // (아이폰은 requestPermission이 사용자 제스처 안에서만 통해서 자동으로 못 띄운다)
     useEffect(() => {
         if (!user?.username) return;
         let cancel = false;
-        isPushAvailable().then(ok => {
-            if (cancel || !ok) return;
-            const perm = getPushPermission();
-            if (perm === 'granted') initPush(user.username);
-            else if (perm === 'default') setPushPrompt(true);
-        });
+        (async () => {
+            const available = await isPushAvailable();
+            const permission = getPushPermission();
+            const token = available && permission === 'granted' ? await initPush(user.username) : null;
+            if (!cancel) setPushState(resolvePushState({ available, permission, token }));
+        })();
         return () => { cancel = true; };
     }, [user]);
 
+    // 이미 granted인데 off로 잡힌 사람(토큰 등록 실패)도 이 버튼으로 재시도된다.
+    const enablePush = async () => {
+        const token = await initPush(user.username, true);
+        setPushState(resolvePushState({ available: true, permission: getPushPermission(), token }));
+    };
+
+    // 코치 진입 시: 그 달 첫 1회만 전원 티어 백필(studentMeta/tierBackfill 잠금).
+    // 앱을 안 여는 학생은 본인 갱신이 영영 안 돌아 뱃지가 두 달 전 값에 멈추므로 뒤를 받쳐준다.
+    // 레벨(XP)은 증분 방식이라 백필 대상이 아니다 — 뱃지는 저장된 값만 읽는다.
     useEffect(() => {
         if (!user || user.role !== 'coach' || !students || students.length === 0) return;
         let cancel = false;
@@ -471,31 +498,29 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
                     </button>
                 </header>
 
-                {pushPrompt && (
+                {pushState === 'on' ? (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                        🔔 알림 켜짐
+                    </div>
+                ) : PUSH_ROW[pushState] ? (
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: '0.5rem',
-                        background: 'var(--accent-10)', border: '1px solid var(--accent-30)',
+                        background: `${PUSH_ROW[pushState].color}1A`,
+                        border: `1px solid ${PUSH_ROW[pushState].color}4D`,
                         borderRadius: 'var(--r-md)', padding: '0.6rem 0.8rem', marginBottom: '1rem',
-                        fontSize: '0.85rem',
+                        fontSize: '0.85rem', lineHeight: 1.5,
                     }}>
-                        <span style={{ flex: 1 }}>공지·보강 자리 알림을 푸시로 받아보세요.</span>
-                        <button
-                            style={{ padding: '6px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r-chip)', fontWeight: 600, cursor: 'pointer' }}
-                            onClick={async () => {
-                                await initPush(user.username, true);
-                                setPushPrompt(false);
-                            }}
-                        >
-                            알림 켜기
-                        </button>
-                        <button
-                            style={{ padding: '6px 8px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-                            onClick={() => setPushPrompt(false)}
-                        >
-                            나중에
-                        </button>
+                        <span style={{ flex: 1 }}>{PUSH_ROW[pushState].text}</span>
+                        {PUSH_ROW[pushState].action && (
+                            <button
+                                style={{ flexShrink: 0, padding: '6px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r-chip)', fontWeight: 600, cursor: 'pointer' }}
+                                onClick={enablePush}
+                            >
+                                {PUSH_ROW[pushState].action}
+                            </button>
+                        )}
                     </div>
-                )}
+                ) : null}
 
                 {/* 수강생 모드: 오늘이 종료일이면 메시지 표시 */}
                 {user.role !== 'coach' && isMyLastDay && (
