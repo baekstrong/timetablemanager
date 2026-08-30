@@ -382,14 +382,17 @@ const CoachNewStudents = ({ user, onBack }) => {
                     if (ec) {
                         // SMS에 시간이 누락되지 않도록 입학반 원본에서 날짜+시간 재구성
                         const rebuilt = `${formatEntranceDate(ec.date)} ${ec.time || ''}${ec.endTime ? ' ~ ' + ec.endTime : ''}`.trim();
-                        if (rebuilt && rebuilt !== finalEntranceClassDate) {
-                            finalEntranceClassDate = rebuilt;
-                            finalEntranceDate = ec.date;
-                            await updateNewStudentRegistration(reg.id, {
-                                entranceClassDate: finalEntranceClassDate,
-                                entranceDate: finalEntranceDate
-                            });
-                        }
+                        finalEntranceClassDate = rebuilt;
+                        finalEntranceDate = ec.date;
+                        // 승인 모달에서 입학반을 바꾼 경우 reg는 로컬 객체라 Firestore엔 아직 반영이 없다.
+                        // 값이 같아 보여도 무조건 쓴다 — 안 쓰면 문서에 학생이 신청한 옛 입학반(entranceInquiry)이 남아
+                        // 명단 누락 + 나중에 '입학반 변경' 시 정원 이중 카운트가 난다.
+                        await updateNewStudentRegistration(reg.id, {
+                            entranceClassId: ec.id,
+                            entranceClassDate: finalEntranceClassDate,
+                            entranceDate: finalEntranceDate,
+                            entranceInquiry: ''
+                        });
                         if (reg.entranceCounted) {
                             // 승인 전에 미리 명단에 올려 이미 자리를 차지함 → 중복 카운트 방지, 플래그만 해제
                             await updateNewStudentRegistration(reg.id, { entranceCounted: false });
