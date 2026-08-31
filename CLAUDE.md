@@ -368,7 +368,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `disabledClasses` | 비활성화된 수업 슬롯 (키: `"월-1"`) |
 | `waitlistRequests` | 시간표 대기 신청 — 영구 시간표 변경 (status: waiting/notified/accepted/cancelled) |
 | `newStudentRegistrations` | 신규 수강 신청 (pending/approved/rejected). `smsLog{reception,approval,reminder}` 필드에 자동 문자 발송 결과 기록 → 신규 페이지 SMS 상황판(상태칩+재발송)이 이를 읽음. `registeredByCoach=true`(코치 직접 등록)는 자동문자 대상 아님. `referralSource`(유입경로: 인스타그램/네이버/지인추천/직접방문/기타) 필드를 포함하며 매출·통계 대시보드 유입경로 집계에 사용 |
-| `entranceClasses` | 입학반 정보 |
+| `entranceClasses` | 입학반 정보. `closed=true`면 코치가 수동으로 모집 마감한 상태 — 학생 신청 위자드에서 만석과 동일하게 '마감' 표시·선택 불가(코치의 승인/수동 추가는 계속 가능). 코치 입학반 카드 🔒/🔓 버튼으로 토글 |
 | `registrationFAQ` | 신규 등록 FAQ |
 | `coachPinnedMemos` | 코치가 수강생별 고정한 메모 (훈련일지) — **수강생에게 보임** |
 | `coachNotes` | 코치 전용 비공개 메모. 단일 문서 `coachNotes/notes` = `{map:{수강생명:'메모'}, updatedAt}` (몇 명을 선택해도 읽기 1회). 훈련일지 코치 화면에서 수강생 선택 시 상단 `#coachPrivateNotesSection`에 카드로 항상 노출(메모 없는 수강생은 한 줄로 접힘, `✏️ 메모 쓰기`로 펼침). 상단 퀵내비 이름 클릭은 **첫 클릭 = 코치 전용 메모 / 같은 이름 재클릭 = 훈련일지 기록**으로 왕복. 저장은 `저장` 버튼 **+ textarea `onchange`(포커스 이탈)** 양쪽 — 데스크톱에서 mousedown 시 blur로 버튼이 밀려 click이 삼켜지면 한 번 눌러선 저장이 안 되던 문제 대응(모바일은 정상이었음). 값이 캐시와 같으면 write 생략. **수강생 코드에서 절대 읽지 않으며 규칙도 `isCoach()`만 허용** — generic signedIn 목록에 넣으면 학생 read가 뚫리므로 넣지 말 것. 같은 컬렉션의 별도 문서 `coachNotes/unpaid` = `{names:[미결제 이름...], updatedAt}` — 메인 앱이 코치 진입 시 `syncUnpaidStudents`로 발행(시트 K열=X, 내용 같으면 write 생략), 훈련일지 이름칩 `미결제` 표기용. 같은 이유로 `coachNotes/reregX` = `{names:[재등록 지연 이름...], updatedAt}` — 코치 시간표(`CoachSchedule`)가 `publishReregX`로 발행(종료일 지났고 다음 등록 없음 = 시간표의 `재등록X` 배지와 같은 명단, 명단이 통째로 비면 시트 미로드로 보고 발행 생략), 훈련일지 이름칩 `재등록X` 표기용. **`studentMeta`가 아니라 여기 두는 이유는 결제·재등록 상태가 수강생끼리 보이면 안 되기 때문** |

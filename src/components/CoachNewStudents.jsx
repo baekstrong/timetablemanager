@@ -1279,6 +1279,15 @@ const CoachNewStudents = ({ user, onBack }) => {
         }
     };
 
+    const handleEntranceCloseToggle = async (ec) => {
+        try {
+            await updateEntranceClass(ec.id, { closed: !ec.closed });
+            setEntranceClassesList(prev => prev.map(c => c.id === ec.id ? { ...c, closed: !ec.closed } : c));
+        } catch (err) {
+            alert('변경 실패: ' + err.message);
+        }
+    };
+
     const handleEntranceDelete = async (ec) => {
         if (!confirm('이 입학반 일정을 삭제하시겠습니까?')) return;
         try {
@@ -1712,6 +1721,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                                         {ec.description && <div className="cns-entrance-desc">{ec.description}</div>}
                                         <div className="cns-entrance-capacity">
                                             {ec.currentCount || 0}/{ec.maxCapacity}명
+                                            {ec.closed && <span className="cns-inactive-badge">모집마감</span>}
                                             {!ec.isActive && <span className="cns-inactive-badge">비활성</span>}
                                         </div>
                                         {(() => {
@@ -1767,6 +1777,13 @@ const CoachNewStudents = ({ user, onBack }) => {
                                             }}
                                         >
                                             ✏️
+                                        </button>
+                                        <button
+                                            className="cns-icon-btn"
+                                            onClick={() => handleEntranceCloseToggle(ec)}
+                                            title={ec.closed ? '모집 재개' : '모집 마감'}
+                                        >
+                                            {ec.closed ? '🔓' : '🔒'}
                                         </button>
                                         <button
                                             className="cns-icon-btn delete"

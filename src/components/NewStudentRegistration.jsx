@@ -661,12 +661,14 @@ const NewStudentRegistration = () => {
                                 <div className="reg-empty">현재 열려있는 입학반이 없습니다.</div>
                             ) : (
                                 <div className="reg-entrance-list">
-                                    {entranceClasses.map(ec => (
+                                    {entranceClasses.map(ec => {
+                                        const isClosed = ec.closed || ec.currentCount >= ec.maxCapacity;
+                                        return (
                                         <div
                                             key={ec.id}
-                                            className={`reg-entrance-card ${selectedEntrance === ec.id ? 'selected' : ''} ${ec.currentCount >= ec.maxCapacity ? 'full' : ''}`}
+                                            className={`reg-entrance-card ${selectedEntrance === ec.id ? 'selected' : ''} ${isClosed ? 'full' : ''}`}
                                             onClick={() => {
-                                                if (ec.currentCount >= ec.maxCapacity) return;
+                                                if (isClosed) return;
                                                 setSelectedEntrance(ec.id);
                                                 setEntranceInquiry('');
                                                 setEntranceInquiryReason('');
@@ -676,12 +678,13 @@ const NewStudentRegistration = () => {
                                             <div className="reg-entrance-time">{ec.time}{ec.endTime ? ` ~ ${ec.endTime}` : ''}</div>
                                             {ec.description && <div className="reg-entrance-desc">{ec.description}</div>}
                                             <div className="reg-entrance-capacity">
-                                                {ec.currentCount >= ec.maxCapacity
+                                                {isClosed
                                                     ? '마감'
                                                     : `${ec.maxCapacity - ec.currentCount}자리 남음`}
                                             </div>
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
 
