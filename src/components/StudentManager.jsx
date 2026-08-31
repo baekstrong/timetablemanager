@@ -580,6 +580,9 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                         <tr key={index} className={editingStudent === index ? 'editing' : ''}>
                                             <td className="student-name">
                                                 {student['이름'] || '-'}
+                                                {String(getStudentField(student, '결제유무') || '').trim().toUpperCase() === 'X' && (
+                                                    <span className="student-status-badge unpaid">미결제</span>
+                                                )}
                                                 {student['이름'] && <GradeBadge grade={gradeMap[student['이름']]} style={{ marginLeft: '4px', marginRight: 0 }} />}
                                                 {onNavigate && student['이름'] && (
                                                     <button

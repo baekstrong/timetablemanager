@@ -200,7 +200,7 @@ src/
 │   ├── Login.jsx                    # 로그인 (Firestore 평문 비밀번호 비교)
 │   ├── Dashboard.jsx                # 대시보드 (커뮤니티 게시판)
 │   ├── WeeklySchedule.jsx           # 주간 시간표 (핵심 컴포넌트; 진행중/임박 셀 강조, 미결제 배지)
-│   ├── StudentManager.jsx           # 코치용 수강생 목록/관리 (이름·전화번호 검색 포함)
+│   ├── StudentManager.jsx           # 코치용 수강생 목록/관리 (이름·전화번호 검색, 행별 미결제(K열=X) 배지 포함)
 │   ├── StudentRegistrationModal.jsx # 코치용 직접 등록 모달 (신규/재등록)
 │   ├── StudentInfo.jsx              # 학생용 내 정보 조회
 │   ├── HoldingManager.jsx           # 홀딩/결석 신청
