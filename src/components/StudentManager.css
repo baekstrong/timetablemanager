@@ -151,6 +151,13 @@
     border: 1px solid #0d9488;
 }
 
+.student-status-badge.unpaid {
+    background: #E94E581A;
+    color: var(--error);
+    border: 1px solid #E94E584D;
+    margin-left: 4px;
+}
+
 .not-connected-message {
     background: white;
     border-radius: var(--r-card);
