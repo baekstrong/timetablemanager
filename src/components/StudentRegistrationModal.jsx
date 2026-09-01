@@ -419,22 +419,53 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
 
         setSubmitting(true);
         try {
-            // 신규 등록 이름 충돌 사전 검사 (시트 기록 전 — 충돌 시 빈 행 방지)
-            if (registrationType === 'new') {
-                const dupRef = doc(db, 'users', form.이름.trim());
-                const dupSnap = await getDoc(dupRef);
-                if (dupSnap.exists()) {
-                    alert('❌ 이미 동일한 이름의 계정이 존재합니다. 등록을 중단합니다. (동명이인은 이름 뒤 구분자 사용)');
+            // ⚠️ 중단 조건은 전부 시트 기록 **전에** 검사한다.
+            // 시트 행을 쓴 뒤에 중단하면 빈 행이 남고, 신규는 로그인 계정까지 이미
+            // 만들어진 상태라 다시 등록하려 하면 이름 충돌 검사에 걸려 코치가 갇힌다.
+            // (예전엔 입학반 정원 검사만 시트 쓰기 뒤에 있었다)
+            //
+            // 세 조회는 서로 결과를 안 쓰므로 한 번에 띄운다.
+            const needsEntranceCheck = registrationType === 'new' && Boolean(selectedEntranceId);
+            const [dupSnap, rows, entranceList] = await Promise.all([
+                registrationType === 'new'
+                    ? getDoc(doc(db, 'users', form.이름.trim()))
+                    : Promise.resolve(null),
+                readSheetData(`${targetSheet}!A:B`),
+                needsEntranceCheck
+                    ? getEntranceClasses(false).catch((ecErr) => { console.warn('입학반 검증 실패:', ecErr); return null; })
+                    : Promise.resolve(null),
+            ]);
+
+            // (1) 이름 충돌
+            if (dupSnap?.exists()) {
+                alert('❌ 이미 동일한 이름의 계정이 존재합니다. 등록을 중단합니다. (동명이인은 이름 뒤 구분자 사용)');
+                setSubmitting(false);
+                return;
+            }
+
+            // (2) 입학반 정원 — 조회 자체가 실패하면(entranceList === null) 종전처럼 그냥 진행한다
+            let linkedEntrance = null;
+            let linkedEntranceClassDate = '';
+            if (needsEntranceCheck && entranceList) {
+                const ec = entranceList.find(c => c.id === selectedEntranceId);
+                if (!ec) {
+                    alert('선택한 입학반이 더 이상 존재하지 않습니다. 입학반 선택을 변경해주세요.');
                     setSubmitting(false);
                     return;
                 }
+                if ((ec.currentCount || 0) >= (ec.maxCapacity || 0)) {
+                    alert('선택한 입학반이 만석입니다. 다른 입학반을 선택해주세요.');
+                    setSubmitting(false);
+                    return;
+                }
+                linkedEntrance = ec;
+                linkedEntranceClassDate = `${formatEntranceDate(ec.date)} ${ec.time || ''}${ec.endTime ? ' ~ ' + ec.endTime : ''}`.trim();
             }
 
             const startDateYYMMDD = convertToYYMMDD(form.시작날짜);
             const 결제일YYMMDD = form.결제일 ? convertToYYMMDD(form.결제일) : '';
 
-            // 시트를 읽어서 마지막 데이터 행 찾기 (B열=이름 기준)
-            const rows = await readSheetData(`${targetSheet}!A:B`);
+            // 시트의 마지막 데이터 행 찾기 (B열=이름 기준)
             let lastDataRowIndex = 1; // 기본값: 헤더행 (index 1 = sheet row 2)
             for (let i = rows.length - 1; i >= 2; i--) {
                 if (rows[i] && rows[i][1]) { // index 1 = B열 (이름)
@@ -545,30 +576,6 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
                 }
             } catch (err) {
                 console.warn('서식 적용 실패:', err);
-            }
-
-            // 입학반 연결 처리 (신규 모드 전용)
-            let linkedEntrance = null;
-            let linkedEntranceClassDate = '';
-            if (registrationType === 'new' && selectedEntranceId) {
-                try {
-                    const ecs = await getEntranceClasses(false);
-                    const ec = ecs.find(c => c.id === selectedEntranceId);
-                    if (!ec) {
-                        alert('선택한 입학반이 더 이상 존재하지 않습니다. 입학반 선택을 변경해주세요.');
-                        setSubmitting(false);
-                        return;
-                    }
-                    if ((ec.currentCount || 0) >= (ec.maxCapacity || 0)) {
-                        alert('선택한 입학반이 만석입니다. 다른 입학반을 선택해주세요.');
-                        setSubmitting(false);
-                        return;
-                    }
-                    linkedEntrance = ec;
-                    linkedEntranceClassDate = `${formatEntranceDate(ec.date)} ${ec.time || ''}${ec.endTime ? ' ~ ' + ec.endTime : ''}`.trim();
-                } catch (ecErr) {
-                    console.warn('입학반 검증 실패:', ecErr);
-                }
             }
 
             // 신규 수강생 관리 페이지에 승인 이력 남기기
