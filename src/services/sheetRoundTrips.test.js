@@ -5,7 +5,10 @@
 // 반복문 안에 readSheetData/writeSheetData를 다시 넣으면 조용히 되돌아가므로,
 // 동작이 아니라 **호출 횟수**를 못 박아 둔다.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { clearStudentScheduleAllSheets, pauseStudent } from './googleSheetsService';
+import {
+    clearStudentScheduleAllSheets, pauseStudent, requestHolding,
+    getAllStudentsFromAllSheets, invalidateStudentSheetCache,
+} from './googleSheetsService';
 
 const SHEETS = ['등록생 목록(26년8월)', '등록생 목록(26년7월)', '등록생 목록(26년6월)'];
 
@@ -24,7 +27,10 @@ const row = ({ name, schedule = '월1수1', start = '', end = '' }) => {
 const SHEET_ROWS = {
     '등록생 목록(26년8월)': [Array(18).fill(''), HEADERS,
         row({ name: '아무개' }),
-        row({ name: '홍길동', start: '260801', end: '260901' })],
+        row({ name: '홍길동', start: '260801', end: '260901' }),
+        // 미리등록(다음 등록)을 가진 수강생 — 홀딩 시 다음 등록 날짜도 밀린다
+        row({ name: '김미리', start: '260801', end: '260901' }),
+        row({ name: '김미리', start: '260902', end: '261002' })],
     '등록생 목록(26년7월)': [Array(18).fill(''), HEADERS,
         row({ name: '아무개' })],
     '등록생 목록(26년6월)': [Array(18).fill(''), HEADERS,
@@ -95,6 +101,75 @@ describe('clearStudentScheduleAllSheets (수강 종료) — 왕복 횟수', () =
     it('해당 학생이 없으면 아무것도 쓰지 않는다', async () => {
         await clearStudentScheduleAllSheets('없는사람');
         expect(countOf('batchUpdate')).toBe(0);
+    });
+});
+
+describe('requestHolding (홀딩 신청) — 왕복 횟수', () => {
+    // 학생이 "신청 중" 화면에서 기다리는 구간. 여기가 길어지면 앱을 닫고,
+    // 그러면 Firestore에만 남고 시트에 반영되지 않는다(2026-08 실제 유실 2건).
+    const aug = (d) => new Date(`2026-08-${d}T00:00:00`);
+
+    it('시트 왕복은 batchGet 1 + batchUpdate 1뿐 (색칠은 기다리지 않는다)', async () => {
+        await requestHolding('홍길동', aug('10'), aug('12'), null, null, [], [], 0, 'current', []);
+
+        expect(countOf('batchGet')).toBe(1);
+        expect(countOf('batchUpdate')).toBe(1);
+        expect(countOf('read')).toBe(0);
+        expect(countOf('write')).toBe(0);
+    });
+
+    it('M/N/O + 종료일을 한 요청에 함께 쓴다', async () => {
+        await requestHolding('홍길동', aug('10'), aug('12'), null, null, [], [], 0, 'current', []);
+
+        const upd = calls.find(c => c.path === 'batchUpdate').body.data;
+        const cols = upd.map(u => u.range.split('!')[1].replace(/\d+/, '')).sort();
+        expect(cols).toEqual(['H', 'M', 'N', 'O']); // 종료일 + 홀딩 3열
+    });
+
+    it('미리등록이 있어도 쓰기는 1회 — 다음 등록 조정분까지 같은 요청에 넣는다', async () => {
+        await requestHolding('김미리', aug('10'), aug('12'), null, null, [], [], 0, 'current', []);
+
+        expect(countOf('batchGet')).toBe(1);
+        expect(countOf('batchUpdate')).toBe(1);
+
+        // 본 등록 H·M·N·O(5행) + 다음 등록 G·H(6행)
+        const upd = calls.find(c => c.path === 'batchUpdate').body.data;
+        const rows6 = upd.filter(u => /!\w+6$/.test(u.range));
+        expect(rows6.length).toBeGreaterThan(0); // 다음 등록도 같은 요청에 실렸다
+    });
+
+    it('색칠(formatCells)을 await 하지 않는다 — batchUpdate 이후에 나가도 대기 없음', async () => {
+        await requestHolding('홍길동', aug('10'), aug('12'), null, null, [], [], 0, 'current', []);
+        // 던지고 넘어가므로 반환 시점엔 아직 안 나갔을 수 있다. 나갔든 안 나갔든
+        // batchUpdate 앞을 막지 않는 것이 핵심이라 순서만 확인한다.
+        const iUpd = calls.findIndex(c => c.path === 'batchUpdate');
+        const iFmt = calls.findIndex(c => c.path === 'formatCells');
+        expect(iUpd).toBeGreaterThanOrEqual(0);
+        if (iFmt !== -1) expect(iFmt).toBeGreaterThan(iUpd);
+    });
+});
+
+describe('getAllStudentsFromAllSheets (시간표 데이터 로드) — 왕복 횟수', () => {
+    it('시트가 몇 개든 batchGet 1회로 읽는다 (+ 시트목록 조회 1회)', async () => {
+        invalidateStudentSheetCache();
+        const students = await getAllStudentsFromAllSheets();
+
+        // 빈손으로 통과하지 않도록 — 실제로 파싱까지 됐는지 먼저 확인
+        expect(students.length).toBeGreaterThan(0);
+        expect(students.map(s => s['이름'])).toContain('홍길동');
+
+        expect(countOf('batchGet')).toBe(1);
+        expect(countOf('read')).toBe(0);
+        expect(countOf('batchUpdate')).toBe(0);
+    });
+
+    it('30초 캐시 — 연속 호출은 시트를 다시 읽지 않는다', async () => {
+        invalidateStudentSheetCache();
+        await getAllStudentsFromAllSheets();
+        await getAllStudentsFromAllSheets();
+        await getAllStudentsFromAllSheets();
+
+        expect(countOf('batchGet')).toBe(1); // 3회 호출인데 읽기는 1회
     });
 });
 

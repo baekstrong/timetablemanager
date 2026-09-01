@@ -1935,30 +1935,35 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
     });
   }
 
-  await batchUpdateSheet(updates);
-
-  // 하이라이트는 기다리지 않는다 (실패해도 홀딩 신청은 성공).
-  // 데이터는 위 batchUpdateSheet로 이미 들어갔는데, 여기서 한 번 더 왕복을 기다리면
-  // 그만큼 학생이 "신청 중" 화면에 붙잡히고 sheetsApplied 마크도 늦어진다.
-  const cellsToHighlight = updates.map(u => u.range.split('!')[1]);
-  highlightCells(cellsToHighlight, targetSheetName)
-    .then(() => console.log(`🎨 셀 하이라이트 완료: ${cellsToHighlight.join(', ')}`))
-    .catch(err => console.warn('⚠️ 셀 하이라이트 실패 (홀딩 신청은 완료됨):', err));
-
-  console.log(`✅ 홀딩 신청 완료: ${studentName}, ${startDateStr} ~ ${endDateStr}`);
-  console.log(`📅 종료일 연장: ${newEndDateStr}`);
-
-  // 선택된 등록 뒤에 미리 등록이 있으면 자동 조정
+  // 미리 등록 조정분을 먼저 계산해 본 업데이트와 같은 요청에 싣는다.
+  // 따로 쓰면 학생이 "신청 중"에서 왕복 1회(≈0.7초)를 더 기다린다.
+  const nextUpdates = [];
+  let nextSheetForHighlight = null;
   if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
     try {
-      const nSheet = nextSheetName || foundSheetName;
+      nextSheetForHighlight = nextSheetName || foundSheetName;
       const nRows = nextRows || rows;
       const nHeaders = nextHeaders || headers;
-      await adjustNextRegistration(nSheet, nRows, nHeaders, nextRegistrationIndex, newEndDate, firebaseHolidays);
+      await adjustNextRegistration(
+        nextSheetForHighlight, nRows, nHeaders, nextRegistrationIndex, newEndDate, firebaseHolidays, nextUpdates,
+      );
     } catch (adjustError) {
       console.warn('⚠️ 다음 등록 자동 조정 실패 (홀딩은 정상 처리됨):', adjustError);
     }
   }
+
+  await batchUpdateSheet([...updates, ...nextUpdates]);
+
+  // 하이라이트는 기다리지 않는다 (실패해도 홀딩 신청은 성공).
+  // 데이터는 위 batchUpdateSheet로 이미 들어갔는데, 여기서 한 번 더 왕복을 기다리면
+  // 그만큼 학생이 "신청 중" 화면에 붙잡히고 sheetsApplied 마크도 늦어진다.
+  highlightAsync(updates.map(u => u.range.split('!')[1]), targetSheetName);
+  if (nextUpdates.length > 0) {
+    highlightAsync(nextUpdates.map(u => u.range.split('!')[1]), nextSheetForHighlight);
+  }
+
+  console.log(`✅ 홀딩 신청 완료: ${studentName}, ${startDateStr} ~ ${endDateStr}`);
+  console.log(`📅 종료일 연장: ${newEndDateStr}`);
 
   return { success: true, newEndDate: newEndDateStr };
 };
