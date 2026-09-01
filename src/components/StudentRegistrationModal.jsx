@@ -364,7 +364,9 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
         }
         setSearchLoading(true);
         try {
-            const result = await findStudentAcrossSheets(form.이름.trim());
+            // 재등록 대상은 수강이 끝난 사람이라 ±2개월 윈도우에 활성 등록이 없다.
+            // 2단계로 읽으면 폴백이 100% 발동해 왕복만 늘어난다 → 처음부터 전 시트 1회.
+            const result = await findStudentAcrossSheets(form.이름.trim(), { scanAll: true });
             if (result) {
                 const scheduleStr = result.student['요일 및 시간'] || getStudentField(result.student, '요일 및 시간') || '';
                 const endDateStr = getStudentField(result.student, '종료날짜') || '';

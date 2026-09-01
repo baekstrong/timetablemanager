@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
     clearStudentScheduleAllSheets, pauseStudent, requestHolding,
     getAllStudentsFromAllSheets, invalidateStudentSheetCache,
+    processCoachHolding, processStudentAbsence, processScheduleTransfer, findStudentAcrossSheets,
 } from './googleSheetsService';
 
 const SHEETS = ['등록생 목록(26년8월)', '등록생 목록(26년7월)', '등록생 목록(26년6월)'];
@@ -170,6 +171,53 @@ describe('getAllStudentsFromAllSheets (시간표 데이터 로드) — 왕복 �
         await getAllStudentsFromAllSheets();
 
         expect(countOf('batchGet')).toBe(1); // 3회 호출인데 읽기는 1회
+    });
+});
+
+describe('다음 등록 조정을 따로 쓰지 않는다 — 나머지 경로', () => {
+    // 미리등록이 있는 수강생은 예전에 이 경로들이 전부 쓰기를 2회 했다.
+    // collector로 본 업데이트에 합쳤으므로 어느 경로든 batchUpdate는 1회여야 한다.
+    it('코치 홀딩 처리 — batchUpdate 1회', async () => {
+        await processCoachHolding('김미리', ['2026-08-10', '2026-08-12'], [], []);
+        expect(countOf('batchUpdate')).toBe(1);
+        expect(countOf('write')).toBe(0);
+    });
+
+    it('결석 처리 — batchUpdate 1회', async () => {
+        await processStudentAbsence('김미리', ['2026-08-10'], []);
+        expect(countOf('batchUpdate')).toBe(1);
+        expect(countOf('write')).toBe(0);
+    });
+
+    it('시간표 이동 — batchUpdate 1회', async () => {
+        await processScheduleTransfer('김미리', '화5목5', []);
+        expect(countOf('batchUpdate')).toBe(1);
+        expect(countOf('write')).toBe(0);
+    });
+});
+
+describe('findStudentAcrossSheets — 재등록 검색 vs 학생 조회', () => {
+    it('scanAll: 전 시트를 batchGet 1회로 — 2단계로 나눠 읽지 않는다', async () => {
+        invalidateStudentSheetCache();
+        await findStudentAcrossSheets('홍길동', { scanAll: true });
+
+        expect(countOf('batchGet')).toBe(1); // 윈도우+폴백 2회가 아니라 1회
+        expect(countOf('read')).toBe(0);
+    });
+
+    it('scanAll: 윈도우 밖(오래된 시트)에만 있는 수강생도 찾는다', async () => {
+        invalidateStudentSheetCache();
+        const found = await findStudentAcrossSheets('홍길동', { scanAll: true });
+        expect(found).toBeTruthy();
+        expect(found.student['이름']).toBe('홍길동');
+    });
+
+    it('기본(scanAll 없음): 학생 조회 경로는 그대로 — 개별 읽기 없음', async () => {
+        invalidateStudentSheetCache();
+        await findStudentAcrossSheets('홍길동');
+
+        expect(countOf('read')).toBe(0);
+        expect(countOf('batchGet')).toBeLessThanOrEqual(2); // 윈도우 + (필요시) 폴백
     });
 });
 
