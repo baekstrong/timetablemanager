@@ -1,6 +1,15 @@
 // 푸시 본문 생성 — firebase-admin에 의존하지 않아 테스트에서 그냥 import 된다 (_authLib.js와 같은 이유)
 const cut = (v, n) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, n);
 
+// 공지 본문은 줄바꿈을 살린다 — cut()은 \s+를 뭉개서 문단이 한 덩어리로 붙어버렸다.
+// 빈 줄은 지운다: 알림창은 보이는 줄 수가 곧 공간이라 빈 줄에 한 줄을 내줄 여유가 없다.
+const cutBody = (v, n) => String(v || '')
+  .split(/\r?\n/)
+  .map((line) => line.replace(/\s+/g, ' ').trim())
+  .filter(Boolean)
+  .join('\n')
+  .slice(0, n);
+
 const PERIOD_LABELS = { 1: '1교시', 2: '2교시', 3: '3교시(자율)', 4: '4교시', 5: '5교시', 6: '6교시' };
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -44,7 +53,7 @@ function buildMessage(req, caller, record) {
       return {
         names: req.names,
         title: `📢 ${cut(req.title, 60)}`,
-        body: cut(req.content, 120),
+        body: cutBody(req.content, 120),
         tag: 'notice',
         url: req.postId ? `./?post=${req.postId}` : './',
         ttl: 604800, // 1주 — 폰을 꺼두고 잔 사람도 켜면 받아야 한다

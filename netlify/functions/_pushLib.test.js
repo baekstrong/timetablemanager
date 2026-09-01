@@ -38,6 +38,18 @@ describe('buildMessage — 공지', () => {
     const m = buildMessage({ type: 'notice', names: ['A'], title: 'ㄱ'.repeat(99), content: 'ㄴ'.repeat(999) }, coach, null);
     expect(m.body.length).toBe(120);
   });
+  // 예전엔 cut()이 \s+를 공백 하나로 뭉개서 문단이 전부 한 줄로 붙어 나왔다.
+  it('본문의 줄바꿈은 살린다 (문단이 붙어 나오던 문제)', () => {
+    const m = buildMessage(
+      { type: 'notice', names: ['A'], title: 'x', content: '첫 문단\r\n\n  둘째  문단  \n\n\n셋째 문단' },
+      coach, null,
+    );
+    expect(m.body).toBe('첫 문단\n둘째 문단\n셋째 문단');
+  });
+  it('제목은 여전히 한 줄 (알림 제목은 줄바꿈이 없어야 한다)', () => {
+    const m = buildMessage({ type: 'notice', names: ['A'], title: '휴관\n안내', content: 'x' }, coach, null);
+    expect(m.title).toBe('📢 휴관 안내');
+  });
 });
 
 describe('buildMessage — 댓글/답글', () => {
