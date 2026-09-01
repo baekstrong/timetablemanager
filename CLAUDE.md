@@ -597,6 +597,9 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - 입학반 일정 추가/수정/삭제 시 `[입학반] M월 D일 (요일)` 형식 이벤트를 `GOOGLE_CALENDAR_ID` 캘린더에 자동 반영
 - `calendarService.getCalendarBaseUrl()`은 `VITE_FUNCTIONS_URL`의 `/sheets`를 떼고 `/calendar`를 붙여 엔드포인트를 결정(없으면 `/.netlify/functions/calendar`, 로컬 `http://localhost:5001/calendar`)
 - 별개로 `google-apps-script/CalendarSync.gs`는 시트에 바인딩되어 수강생 **종료일**을 전용 캘린더로 동기화 (앱과 독립적으로 시트에서 직접 실행)
+  - ⚠️ **이 파일은 리포에 있어도 자동 배포되지 않는다.** 고쳤으면 시트 > 확장 프로그램 > Apps Script 편집기에 **직접 붙여넣어야** 반영된다.
+  - 트리거 2개: `onSheetEdit`(사람이 손으로 고칠 때만) + `syncAllEndDates`(매시간). **구글 `onEdit`은 API로 바뀐 값에는 발동하지 않으므로**, 앱이 홀딩·결석·보강으로 종료일을 밀면 캘린더 반영은 전적으로 시간당 작업 몫이고 **최대 1시간 지연**된다. 바꾸자마자 캘린더가 옛 날짜인 건 정상이다.
+  - ⚠️ **`syncAllEndDates`에서 셀을 하나씩 `getValue()`로 읽지 말 것.** 그렇게 짰다가 시트 15개 × 706행 × 3칸 = 개별 읽기 2,118회가 되어 1회 실행이 176~360초까지 늘었고, **Apps Script 6분 제한(360초)에 걸려 매시간 죽었다.** 2026-09-01에 5회 연속 시간 초과로 종료일 변경이 캘린더에 반영되지 않았다. 시트 전체를 `getDataRange().getValues()`로 1회에 읽는 `forEachEndDate`를 쓴다(읽기 15회). 실행시간은 로그에 항상 남기니 360초에 다시 다가가면 그 줄로 알 수 있다.
 
 ## 훈련일지 서브앱 (training-log)
 

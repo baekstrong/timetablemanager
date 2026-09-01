@@ -116,6 +116,58 @@ function onSheetEdit(e) {
   }
 }
 
+// ============================================
+// 시트 읽기 (일괄)
+// ============================================
+
+/**
+ * 모든 등록생 시트에서 (이름, 종료일) 쌍을 수집한다.
+ *
+ * ⚠️ 셀을 하나씩 getRange().getValue()로 읽지 말 것.
+ * 예전엔 시트 15개 × 행 706개 × 칸 3개 = 개별 읽기 2,118회였고, 1회 실행이
+ * 176~360초까지 늘어 결국 Apps Script 6분 제한(360초)에 걸려 매시간 죽었다.
+ * 2026-09-01에 5회 연속 시간 초과로 시트 변경이 캘린더에 반영되지 않았다.
+ * 시트당 getDataRange().getValues() 1회면 읽기 15회로 끝난다.
+ *
+ * @param {Function} onRow  (이름, 종료일Date) 콜백
+ */
+function forEachEndDate(onRow) {
+  var sheets = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+
+  for (var s = 0; s < sheets.length; s++) {
+    var sheet = sheets[s];
+    if (sheet.getName().indexOf(SHEET_PREFIX) !== 0) continue;
+
+    var values = sheet.getDataRange().getValues(); // ← 시트 전체를 1회에
+    if (values.length <= 2) continue;
+
+    // Row 2(인덱스 1)가 헤더
+    var headers = values[1];
+    var nameCol = -1, endDateCol = -1, scheduleCol = -1;
+    for (var c = 0; c < headers.length; c++) {
+      var h = String(headers[c]).replace(/\n/g, ' ').trim();
+      if (h === '이름') nameCol = c;
+      else if (h === '종료날짜') endDateCol = c;
+      else if (h === '요일 및 시간') scheduleCol = c;
+    }
+    if (nameCol === -1 || endDateCol === -1) continue;
+
+    for (var r = 2; r < values.length; r++) { // Row 3(인덱스 2)부터 데이터
+      var name = String(values[r][nameCol]).trim();
+      var endRaw = String(values[r][endDateCol]).trim();
+      if (!name || !endRaw) continue;
+
+      // 요일 및 시간이 비어있으면 종료된 수강생 → 무시
+      if (scheduleCol !== -1 && !String(values[r][scheduleCol]).trim()) continue;
+
+      var endDate = parseDateStr(endRaw);
+      if (!endDate) continue;
+
+      onRow(name, endDate);
+    }
+  }
+}
+
 /**
  * 특정 수강생의 캘린더 이벤트를 전부 삭제 후, 모든 시트의 현재 종료일로 다시 생성
  */
@@ -132,37 +184,10 @@ function syncStudentEvents(studentName) {
   }
 
   // 2. 모든 시트에서 이 수강생의 현재 종료일을 찾아 이벤트 재생성
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheets = ss.getSheets();
-
-  for (var s = 0; s < sheets.length; s++) {
-    var sheet = sheets[s];
-    if (sheet.getName().indexOf(SHEET_PREFIX) !== 0) continue;
-
-    var nameCol = findColumnByHeader(sheet, '이름');
-    var endDateCol = findColumnByHeader(sheet, '종료날짜');
-    var scheduleCol = findColumnByHeader(sheet, '요일 및 시간');
-    if (nameCol === -1 || endDateCol === -1) continue;
-
-    var lastRow = sheet.getLastRow();
-    for (var row = 3; row <= lastRow; row++) {
-      var name = String(sheet.getRange(row, nameCol).getValue()).trim();
-      if (name !== studentName) continue;
-
-      var endDateValue = String(sheet.getRange(row, endDateCol).getValue()).trim();
-      if (!endDateValue) continue;
-
-      if (scheduleCol !== -1) {
-        var schedule = String(sheet.getRange(row, scheduleCol).getValue()).trim();
-        if (!schedule) continue;
-      }
-
-      var endDate = parseDateStr(endDateValue);
-      if (!endDate) continue;
-
-      ensureCalendarEvent(studentName, endDate);
-    }
-  }
+  forEachEndDate(function (name, endDate) {
+    if (name !== studentName) return;
+    ensureCalendarEvent(studentName, endDate);
+  });
 }
 
 /**
@@ -208,48 +233,16 @@ function ensureCalendarEvent(studentName, endDate) {
  * - 시트에서 삭제된 이벤트는 자동 정리
  */
 function syncAllEndDates() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheets = ss.getSheets();
+  var startedAt = new Date().getTime();
   var syncCount = 0;
   var calendar = getOrCreateCalendar();
 
-  // 1. 모든 시트에서 필요한 (이름, 종료날짜) 쌍 수집
+  // 1. 모든 시트에서 필요한 (이름, 종료날짜) 쌍 수집 (시트당 1회 읽기)
   var desiredEvents = {}; // 키: "이름|YYYY-MM-DD"
 
-  for (var s = 0; s < sheets.length; s++) {
-    var sheet = sheets[s];
-    var sheetName = sheet.getName();
-
-    if (sheetName.indexOf(SHEET_PREFIX) !== 0) continue;
-
-    var nameCol = findColumnByHeader(sheet, '이름');
-    var endDateCol = findColumnByHeader(sheet, '종료날짜');
-    var scheduleCol = findColumnByHeader(sheet, '요일 및 시간');
-
-    if (nameCol === -1 || endDateCol === -1) continue;
-
-    var lastRow = sheet.getLastRow();
-    if (lastRow <= 2) continue;
-
-    for (var row = 3; row <= lastRow; row++) {
-      var name = String(sheet.getRange(row, nameCol).getValue()).trim();
-      var endDateValue = String(sheet.getRange(row, endDateCol).getValue()).trim();
-
-      if (!name || !endDateValue) continue;
-
-      // 요일 및 시간이 비어있으면 종료된 수강생 → 무시
-      if (scheduleCol !== -1) {
-        var schedule = String(sheet.getRange(row, scheduleCol).getValue()).trim();
-        if (!schedule) continue;
-      }
-
-      var endDate = parseDateStr(endDateValue);
-      if (!endDate) continue;
-
-      var key = name + '|' + formatDate(endDate);
-      desiredEvents[key] = { name: name, endDate: endDate };
-    }
-  }
+  forEachEndDate(function (name, endDate) {
+    desiredEvents[name + '|' + formatDate(endDate)] = { name: name, endDate: endDate };
+  });
 
   // 2. 현재 캘린더 이벤트를 (이름, 날짜) 기준으로 맵핑
   var allEvents = calendar.getEvents(new Date(2024, 0, 1), new Date(2030, 11, 31));
@@ -293,9 +286,10 @@ function syncAllEndDates() {
     }
   }
 
-  if (syncCount > 0 || deleteCount > 0) {
-    Logger.log('동기화 완료: ' + syncCount + '건 생성, ' + deleteCount + '건 삭제');
-  }
+  // 실행시간을 항상 남긴다 — 6분(360초) 제한에 다시 다가가는지 이 줄로 판단한다.
+  var elapsed = ((new Date().getTime() - startedAt) / 1000).toFixed(1);
+  Logger.log('동기화 완료: ' + syncCount + '건 생성, ' + deleteCount + '건 삭제, ' +
+             Object.keys(desiredEvents).length + '건 대조, ' + elapsed + '초');
 }
 
 // ============================================
