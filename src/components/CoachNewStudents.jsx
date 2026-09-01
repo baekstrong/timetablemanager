@@ -22,7 +22,8 @@ import {
     getCurrentSheetName,
     readSheetData,
     writeSheetData,
-    formatCellsWithStyle,
+    batchUpdateSheet,
+    formatCellsAsync,
     getStudentField,
     calculateEndDateWithHolidays
 } from '../services/googleSheetsService';
@@ -320,11 +321,11 @@ const CoachNewStudents = ({ user, onBack }) => {
             try {
                 const columns = 'ABCDEFGHIJKLMNOPQR'.split('');
                 const cellRanges = columns.map(col => `${col}${nextSheetRow}`);
-                await formatCellsWithStyle(cellRanges, targetSheet, { red: 1.0, green: 0.87, blue: 0.68 });
+                formatCellsAsync(cellRanges, targetSheet, { red: 1.0, green: 0.87, blue: 0.68 });
 
                 // 현장 결제(네이버 외)인 경우 결제일(J), 결제유무(K)에 빨간색 음영
                 if (reg.paymentMethod !== 'naver') {
-                    await formatCellsWithStyle(
+                    formatCellsAsync(
                         [`J${nextSheetRow}`, `K${nextSheetRow}`],
                         targetSheet,
                         { red: 0.92, green: 0.36, blue: 0.36 }
@@ -533,7 +534,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                         try {
                             const columns = 'ABCDEFGHIJKLMNOPQR'.split('');
                             const cellRanges = columns.map(col => `${col}${targetRow}`);
-                            await formatCellsWithStyle(cellRanges, targetSheet, { red: 1.0, green: 1.0, blue: 1.0 }, 'LEFT');
+                            formatCellsAsync(cellRanges, targetSheet, { red: 1.0, green: 1.0, blue: 1.0 }, 'LEFT');
                         } catch (fmtErr) {
                             console.warn('음영 초기화 실패:', fmtErr);
                         }
@@ -801,7 +802,9 @@ const CoachNewStudents = ({ user, onBack }) => {
     // ── 입학반 선택/변경 ──
 
     // 승인된 수강생 시트 행 찾기 (이름 기준, 승인 시와 동일한 시트 결정 로직)
-    const findApprovedStudentRow = async (reg) => {
+    // sheetCache: 일괄 배정처럼 여러 명을 연달아 찾을 때 같은 시트를 매번 다시 읽지 않도록
+    // 호출자가 넘기는 Map. 일괄 배정은 전원 같은 입학반이라 targetSheet가 전부 같다.
+    const findApprovedStudentRow = async (reg, sheetCache = null) => {
         const entranceDateForCalc = reg.entranceInquiry || reg.entranceDate;
         const slots = slotsOf(reg);
         let targetSheet;
@@ -817,13 +820,17 @@ const CoachNewStudents = ({ user, onBack }) => {
             }
             return -1;
         };
-        let rows = await readSheetData(`${targetSheet}!A:R`);
-        let targetRow = findRow(rows);
+        const readCached = async (name) => {
+            if (sheetCache?.has(name)) return sheetCache.get(name);
+            const rs = await readSheetData(`${name}!A:R`);
+            sheetCache?.set(name, rs);
+            return rs;
+        };
+        let targetRow = findRow(await readCached(targetSheet));
         if (targetRow < 0) {
             const fallback = getCurrentSheetName();
             if (fallback !== targetSheet) {
-                const fbRows = await readSheetData(`${fallback}!A:R`);
-                const fbRow = findRow(fbRows);
+                const fbRow = findRow(await readCached(fallback));
                 if (fbRow > 0) { targetSheet = fallback; targetRow = fbRow; }
             }
         }
@@ -883,7 +890,10 @@ const CoachNewStudents = ({ user, onBack }) => {
 
     // 핵심: 승인된 reg를 특정 입학반에 배정 — 이전 입학반 인원 -1, 새 입학반 +1(또는 새로 생성),
     // 시트 시작/종료날짜 재계산, 예약 리마인더 취소+재예약, Firestore 갱신. (알럿/리로드 없음, classDateStr 반환)
-    const applyEntranceAssignment = async (reg, target, holidays) => {
+    // batch: 일괄 배정에서만 넘긴다. { sheetCache: Map, updates: [] }
+    // 시트 읽기를 캐시로 공유하고 쓰기는 모아뒀다가 호출자가 batchUpdateSheet 1회로 처리한다.
+    // (예전엔 학생 1명당 read 1~2 + write 1이 순차로 나 6명이면 왕복 12~18회였다)
+    const applyEntranceAssignment = async (reg, target, holidays, batch = null) => {
         // 1. 새 입학반 결정
         let newEcId, newDate, newTime = '10:00', newEndTime = '13:00';
         if (target.kind === 'existing') {
@@ -922,10 +932,12 @@ const CoachNewStudents = ({ user, onBack }) => {
             const endYY = endObj
                 ? convertToYYMMDD(`${endObj.getFullYear()}-${String(endObj.getMonth() + 1).padStart(2, '0')}-${String(endObj.getDate()).padStart(2, '0')}`)
                 : '';
-            const { targetSheet, targetRow } = await findApprovedStudentRow(reg);
+            const { targetSheet, targetRow } = await findApprovedStudentRow(reg, batch?.sheetCache);
             if (targetRow > 0) {
-                if (endYY) await writeSheetData(`${targetSheet}!G${targetRow}:H${targetRow}`, [[startYY, endYY]]);
-                else await writeSheetData(`${targetSheet}!G${targetRow}`, [[startYY]]);
+                const range = endYY ? `${targetSheet}!G${targetRow}:H${targetRow}` : `${targetSheet}!G${targetRow}`;
+                const values = endYY ? [[startYY, endYY]] : [[startYY]];
+                if (batch) batch.updates.push({ range, values });
+                else await writeSheetData(range, values);
             } else {
                 console.warn('시트에서 수강생 행을 찾지 못함:', reg.name);
             }
@@ -1088,7 +1100,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                         try {
                             const columns = 'ABCDEFGHIJKLMNOPQR'.split('');
                             const cellRanges = columns.map(col => `${col}${targetRow}`);
-                            await formatCellsWithStyle(cellRanges, targetSheet, { red: 1.0, green: 1.0, blue: 1.0 }, 'LEFT');
+                            formatCellsAsync(cellRanges, targetSheet, { red: 1.0, green: 1.0, blue: 1.0 }, 'LEFT');
                         } catch (fmtErr) {
                             console.warn('음영 초기화 실패:', fmtErr);
                         }
@@ -1193,11 +1205,14 @@ const CoachNewStudents = ({ user, onBack }) => {
             await updateEntranceClass(ec.id, { currentCount: (ecFresh?.currentCount || 0) + 1 });
         };
 
+        // 전원이 같은 입학반이라 시트도 같다 — 읽기는 캐시로 공유하고 쓰기는 모아서 1회로.
+        const batch = { sheetCache: new Map(), updates: [] };
+
         try {
             for (const reg of selected) {
                 if (reg.status === 'approved') {
                     // 승인된 사람: 시트 날짜 재계산 + 예약문자 재발송까지 (이전 입학반 인원 자동 정리)
-                    await applyEntranceAssignment(reg, { kind: 'existing', ec }, holidays);
+                    await applyEntranceAssignment(reg, { kind: 'existing', ec }, holidays, batch);
                 } else {
                     // 미승인(대기 포함): 명단에만 올리고 자리 차지. 시트·문자 없음. 승인 시 중복카운트 방지 플래그.
                     if (reg.entranceClassId && reg.entranceClassId !== ec.id && reg.entranceCounted) {
@@ -1213,6 +1228,9 @@ const CoachNewStudents = ({ user, onBack }) => {
                     await reserveSeat();
                 }
             }
+
+            // 모아둔 시트 쓰기를 1회로 반영
+            if (batch.updates.length > 0) await batchUpdateSheet(batch.updates);
 
             // 목록에 없는 임시 이름: 메모용 문서(이름만). 문자/시트 없음, 자리만 차지.
             if (tempName) {
