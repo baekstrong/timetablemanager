@@ -29,6 +29,13 @@ const NOTIFICATION_POLL_INTERVAL = 15 * 60 * 1000;
 
 const isPageVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
 
+// 본인 등록 조회 — ±2개월 윈도우 한 번만 읽는다.
+// requireActive 기본값(true)은 "오늘 활성인 등록이 윈도우에 없으면 전 시트를 다시 스캔"인데,
+// 실제 학생 계정 69개를 대조해보니 그게 발동하는 37명 중 25명은 윈도우에 행이 0건이라
+// 어차피 폴백을 타고(장기등록 안전장치는 그대로 살아있다), 나머지 12명은 폴백을 껐을 때
+// 선택되는 등록이 한 명도 달라지지 않았다. 즉 왕복 1회(실측 ≈790ms)를 헛쓰고 있었다.
+const STUDENT_LOOKUP = { requireActive: false };
+
 function AppContent() {
   // Check for ?register=true URL parameter
   const urlParams = new URLSearchParams(window.location.search);
@@ -65,7 +72,7 @@ function AppContent() {
   const [hasStampPendingNotification, setHasStampPendingNotification] = useState(false);
   const [isStudentDataLoading, setIsStudentDataLoading] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const { getStudentByName, findStudentAcrossSheets } = useGoogleSheets();
+  const { findStudentAcrossSheets } = useGoogleSheets();
 
   // 새 빌드 배포 감지 → 상단 새로고침 안내 배너
   useEffect(() => {
@@ -202,23 +209,13 @@ function AppContent() {
       // Don't await - let it load in background
       (async () => {
         try {
-          // 먼저 현재 월에서 빠르게 검색 (빠른 초기 로딩)
-          console.log('🔍 Searching for student in current month...');
-          const data = await getStudentByName(userData.username);
-
-          if (data) {
-            setStudentData(data);
-            console.log('📊 Loaded student data from current month:', data);
-          }
-
-          // 여러 시트에서 검색하여 이전/다음 등록 정보도 포함된 데이터로 갱신
-          console.log('🔍 Searching across multiple sheets for complete registration info...');
-          const result = await findStudentAcrossSheets(userData.username);
+          console.log('🔍 Searching across sheets for complete registration info...');
+          const result = await findStudentAcrossSheets(userData.username, STUDENT_LOOKUP);
 
           if (result) {
             setStudentData(result.student);
-            console.log(`📊 Updated student data from ${result.foundSheetName}:`, result.student);
-          } else if (!data) {
+            console.log(`📊 Loaded student data from ${result.foundSheetName}:`, result.student);
+          } else {
             console.warn('❌ Student not found in any sheet');
           }
         } catch (error) {
@@ -235,11 +232,9 @@ function AppContent() {
     setIsStudentDataLoading(true);
     (async () => {
       try {
-        const data = await getStudentByName(studentName);
-        if (data) setStudentData(data);
-        const result = await findStudentAcrossSheets(studentName);
+        const result = await findStudentAcrossSheets(studentName, STUDENT_LOOKUP);
         if (result) setStudentData(result.student);
-        else if (!data) console.warn('❌ Student not found in any sheet');
+        else console.warn('❌ Student not found in any sheet');
       } catch (error) {
         console.error('Failed to load student data:', error);
       } finally {
@@ -418,7 +413,7 @@ function AppContent() {
         return <HoldingManager user={user} studentData={studentData} isLoading={isStudentDataLoading} onBack={handleBackToDashboard} />;
 
       case 'myinfo':
-        return <StudentInfo user={user} studentData={studentData} isImpersonating={Boolean(impersonationOrigin)} onBack={handleBackToDashboard} />;
+        return <StudentInfo user={user} studentData={studentData} isLoading={isStudentDataLoading} isImpersonating={Boolean(impersonationOrigin)} onBack={handleBackToDashboard} />;
 
       case 'students':
         return <StudentManager user={user} onBack={handleBackToDashboard} onImpersonate={handleStartImpersonation} onNavigate={handleNavigate} />;

@@ -10,7 +10,6 @@ import {
     readSheetData,
     getAllSheetNames,
     getCurrentSheetName,
-    getStudentByName,
     findStudentAcrossSheets,
     calculateMembershipStats,
     generateAttendanceHistory,
@@ -189,12 +188,8 @@ export const GoogleSheetsProvider = ({ children }) => {
 
         currentSheetName: getCurrentSheetName(new Date(selectedYear, selectedMonth - 1)),
         isConnected: isAuthenticated,
-        getStudentByName: async (name) => {
-            const student = await getStudentByName(name, selectedYear, selectedMonth);
-            return student;
-        },
-        findStudentAcrossSheets: async (name) => {
-            return await findStudentAcrossSheets(name);
+        findStudentAcrossSheets: async (name, options) => {
+            return await findStudentAcrossSheets(name, options);
         },
         calculateMembershipStats,
         generateAttendanceHistory,
