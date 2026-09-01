@@ -364,9 +364,10 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
         }
         setSearchLoading(true);
         try {
-            // 재등록 대상은 수강이 끝난 사람이라 ±2개월 윈도우에 활성 등록이 없다.
-            // 2단계로 읽으면 폴백이 100% 발동해 왕복만 늘어난다 → 처음부터 전 시트 1회.
-            const result = await findStudentAcrossSheets(form.이름.trim(), { scanAll: true });
+            // requireActive:false — 재등록은 직전 수강이 끝나고 며칠 뒤라 '오늘 활성 등록'은
+            // 거의 없지만 직전 등록 행은 최근 시트에 그대로 있다(실제 421건 중 75.8%).
+            // 활성 여부로 폴백을 걸면 전 시트를 한 번 더 읽어 왕복만 늘어난다.
+            const result = await findStudentAcrossSheets(form.이름.trim(), { requireActive: false });
             if (result) {
                 const scheduleStr = result.student['요일 및 시간'] || getStudentField(result.student, '요일 및 시간') || '';
                 const endDateStr = getStudentField(result.student, '종료날짜') || '';
