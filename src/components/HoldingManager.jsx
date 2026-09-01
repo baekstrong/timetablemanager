@@ -749,6 +749,37 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
 
     return (
         <div className="holding-container">
+            {/* 제출 중 전체 차단 안내. 시트 반영이 끝나기 전에 앱을 닫으면 신청이 시트에
+                안 들어가 종료일이 안 밀린다(2026-08 실제 유실 2건) → 기다리게 만든다. */}
+            {isSubmitting && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 10000,
+                    background: 'rgba(255,255,255,0.95)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    padding: '24px', textAlign: 'center',
+                }}>
+                    <div style={{
+                        width: '44px', height: '44px', borderRadius: '50%',
+                        border: '4px solid var(--hairline)', borderTopColor: 'var(--accent)',
+                        animation: 'spin 0.9s linear infinite',
+                    }} />
+                    <p style={{ marginTop: '20px', fontSize: '17px', fontWeight: 700, color: 'var(--text)' }}>
+                        {requestType === 'holding' ? '홀딩' : '결석'} 신청을 처리하고 있습니다
+                    </p>
+                    <p style={{
+                        marginTop: '14px', padding: '12px 16px', maxWidth: '340px',
+                        background: 'rgba(233,78,88,0.1)', border: '1px solid rgba(233,78,88,0.3)',
+                        borderRadius: 'var(--r-md)', color: 'var(--error)',
+                        fontSize: '15px', fontWeight: 700, lineHeight: 1.5,
+                    }}>
+                        이 화면이 사라질 때까지<br />앱을 끄지 마세요
+                    </p>
+                    <p style={{ marginTop: '12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                        지금 끄면 신청이 제대로 접수되지 않아<br />수강 종료일이 밀리지 않습니다.
+                    </p>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+            )}
             {isLoading && (
                 <div style={{
                     position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,

@@ -298,38 +298,38 @@ async function findStudentInSheets(studentName, primarySheetName = null, referen
   // 모든 시트에서 매치 수집
   const allCandidates = []; // { sheetName, rows, headers, rowIndex, startDate, endDate }
 
-  const collectFromSheet = async (sheetName) => {
-    try {
-      const rows = await readSheetData(`${sheetName}!A:Z`);
-      if (!rows || rows.length < 2) return;
-      const headers = rows[1];
-      const indices = findAllStudentRowIndices(rows, headers, studentName);
-      if (indices.length === 0) return;
+  const collectFromSheet = (sheetName, rows) => {
+    if (!rows || rows.length < 2) return;
+    const headers = rows[1];
+    const indices = findAllStudentRowIndices(rows, headers, studentName);
+    if (indices.length === 0) return;
 
-      const startDateCol = findColumnIndex(headers, '시작날짜');
-      const endDateCol = findColumnIndex(headers, '종료날짜');
+    const startDateCol = findColumnIndex(headers, '시작날짜');
+    const endDateCol = findColumnIndex(headers, '종료날짜');
 
-      indices.forEach(idx => {
-        const startDate = startDateCol !== -1 ? parseSheetDate(rows[idx][startDateCol]) : null;
-        const endDate = endDateCol !== -1 ? parseSheetDate(rows[idx][endDateCol]) : null;
-        allCandidates.push({ sheetName, rows, headers, rowIndex: idx, startDate, endDate });
-      });
-    } catch (e) {
-      console.warn(`⚠️ ${sheetName} 시트 읽기 실패:`, e.message);
-    }
+    indices.forEach(idx => {
+      const startDate = startDateCol !== -1 ? parseSheetDate(rows[idx][startDateCol]) : null;
+      const endDate = endDateCol !== -1 ? parseSheetDate(rows[idx][endDateCol]) : null;
+      allCandidates.push({ sheetName, rows, headers, rowIndex: idx, startDate, endDate });
+    });
   };
 
-  // 우선 시트 먼저 검색
-  await collectFromSheet(primary);
-
-  // 나머지 시트도 검색
+  // 예전엔 시트를 하나씩 순차로 읽어 탭 수만큼(현재 15회) 왕복이 생겼고, 모바일에선 이것만
+  // 수 초가 걸렸다. 홀딩/결석/보강 쓰기가 전부 이 함수를 거치므로 그 대기 중에 앱을 닫으면
+  // 시트 반영이 통째로 날아간다 → batchGet 1회로 묶는다.
+  // 존재하지 않는 범위가 하나라도 섞이면 batchGet 전체가 400이므로 실제 탭만 넣는다.
   const allSheets = await getAllSheetNames();
   const studentSheets = allSheets.filter(name => name.startsWith('등록생 목록'));
+  // 정렬 전 수집 순서를 예전과 동일하게(우선 시트 먼저) 유지 — 뒤의 sort가 stable이라
+  // 시작날짜가 같거나 없는 후보의 선택 결과가 달라지지 않게 한다.
+  const targets = studentSheets.includes(primary)
+    ? [primary, ...studentSheets.filter(name => name !== primary)]
+    : studentSheets;
 
-  for (const sheetName of studentSheets) {
-    if (sheetName === primary) continue;
-    await collectFromSheet(sheetName);
-  }
+  // ponytail: 개별 읽기 폴백 없음. 예전엔 시트 1개 읽기가 실패해도 넘어갔는데, 하필 활성
+  // 등록이 든 시트가 실패하면 엉뚱한 행에 홀딩을 쓴다. 통째로 실패해 신청이 롤백되는 게 낫다.
+  const valueRanges = await batchReadSheetData(targets.map(n => `${n}!A:R`));
+  targets.forEach((name, i) => collectFromSheet(name, valueRanges[i]?.values || []));
 
   if (allCandidates.length === 0) {
     throw new Error(`학생 정보를 찾을 수 없습니다: ${studentName}`);
