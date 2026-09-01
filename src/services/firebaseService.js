@@ -299,11 +299,35 @@ export const createHoldingRequest = async (studentName, startDate, endDate, hold
             endDate,
             holdingDates: holdingDates || [],
             status: 'active',
+            // 시트 반영 전. 시트 쓰기까지 성공해야 markHoldingSheetsApplied가 true로 바꾼다.
+            // 학생이 신청 직후 탭을 닫으면 시트 쓰기가 통째로 날아가는데(2026-08 강성준·김규연),
+            // 이 플래그가 없으면 코치 쪽에서 영영 알 수 없다.
+            sheetsApplied: false,
             updatedAt: serverTimestamp()
         });
 
         console.log('홀딩 신청 생성 완료:', result.id);
         return result;
+    });
+};
+
+// 시트(M/N/O + 종료일)까지 반영 완료 표시. 이 호출이 실패하면 코치 화면에 미반영으로
+// 뜨는데, 헛경보가 조용한 유실보다 낫다.
+export const markHoldingSheetsApplied = async (holdingId) => {
+    return safeWrite(async () => {
+        await updateDocStatus('holdingRequests', holdingId, { sheetsApplied: true });
+        return { success: true };
+    });
+};
+
+// 시트 미반영 홀딩 (코치 경고용). sheetsApplied 필드가 아예 없는 옛 문서는
+// '==false'에 걸리지 않으므로 자동으로 제외된다.
+export const getUnappliedHoldings = async () => {
+    return safeRead([], async () => {
+        return await queryDocs('holdingRequests',
+            where('status', '==', 'active'),
+            where('sheetsApplied', '==', false)
+        );
     });
 };
 

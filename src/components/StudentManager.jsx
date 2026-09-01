@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets, pauseStudent, resumeStudent } from '../services/googleSheetsService';
-import { createHoldingRequest, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, deleteAllStudentAppData, recordStudentCount, getGradeMap, ensureUserAccount } from '../services/firebaseService';
+import { createHoldingRequest, markHoldingSheetsApplied, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, deleteAllStudentAppData, recordStudentCount, getGradeMap, ensureUserAccount, getUnappliedHoldings } from '../services/firebaseService';
 import { getCoachStudentListStatus, shouldShowInCoachStudentList, isPausedRegistration } from '../utils/studentList';
 import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import { setStudentPassword } from '../services/authService';
@@ -48,11 +48,22 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     const [pwResetting, setPwResetting] = useState(''); // 비밀번호 초기화 중인 수강생 이름
     const [showSmsModal, setShowSmsModal] = useState(false);
     const [gradeMap, setGradeMap] = useState({}); // 이름→학년키 (수강생 레벨 표시용)
+    const [unappliedHoldings, setUnappliedHoldings] = useState([]); // 시트 미반영 홀딩(경고용)
 
     // 학년 맵 로드(게시판과 동일 캐시 소스). 코치 백필이 채운 grade를 읽음.
     useEffect(() => {
         let cancel = false;
         getGradeMap().then(map => { if (!cancel && map) setGradeMap(map); });
+        return () => { cancel = true; };
+    }, []);
+
+    // 시트 미반영 홀딩 경고. 학생이 신청 직후 앱을 닫으면 Firestore만 남고 시트(M/N/O·종료일)가
+    // 안 밀려서, 코치는 홀딩을 쓴 줄 모르고 학생은 수업을 잃는다.
+    // ponytail: 자동 재반영은 안 한다 — 시트 쓰기는 성공했는데 플래그만 실패한 경우
+    // 재시도하면 홀딩이 2회로 중복 계산된다. 코치가 보고 직접 처리하는 게 안전.
+    useEffect(() => {
+        let cancel = false;
+        getUnappliedHoldings().then(list => { if (!cancel) setUnappliedHoldings(list || []); });
         return () => { cancel = true; };
     }, []);
 
@@ -369,7 +380,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             const endDate = sortedDates[sortedDates.length - 1];
 
             // 1. Firebase에 홀딩 기록
-            await createHoldingRequest(holdingTarget['이름'], startDate, endDate, sortedDates);
+            const created = await createHoldingRequest(holdingTarget['이름'], startDate, endDate, sortedDates);
 
             // 2. Google Sheets 업데이트 (종료일 재계산 + 다음 등록 조정)
             const result = await processCoachHolding(
@@ -378,6 +389,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                 holidays,
                 await getCountedHolidayMakeupDates(holdingTarget['이름'])
             );
+            if (created?.id) await markHoldingSheetsApplied(created.id).catch(() => {});
 
             alert(`홀딩 처리 완료!\n\n홀딩 기간: ${startDate} ~ ${endDate}\n새 종료날짜: ${result.newEndDate}\n홀딩 상태: ${result.holdingStatus}`);
 
@@ -486,6 +498,22 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             <div className="student-header">
                 <h1 className="student-title">수강생 관리</h1>
             </div>
+            {unappliedHoldings.length > 0 && (
+                <div style={{
+                    margin: '0 0 16px', padding: '14px 16px',
+                    background: 'rgba(233,78,88,0.1)', border: '1px solid rgba(233,78,88,0.3)',
+                    borderRadius: 'var(--r-md)', color: 'var(--text)', fontSize: '14px',
+                }}>
+                    <strong style={{ color: 'var(--error)' }}>⚠️ 시트에 반영 안 된 홀딩 {unappliedHoldings.length}건</strong>
+                    <div style={{ margin: '8px 0 10px' }}>
+                        {unappliedHoldings.map(h => (
+                            <div key={h.id}>· {h.studentName} — {h.startDate} ~ {h.endDate}</div>
+                        ))}
+                    </div>
+                    신청은 접수됐지만 시트의 홀딩 열(M/N/O)과 종료일이 안 바뀌었습니다.
+                    시트에서 직접 수정하거나, 위 수강생의 <strong>홀딩</strong> 버튼으로 같은 날짜를 다시 처리해 주세요.
+                </div>
+            )}
             <div className="student-header-actions-mobile">
                 <div className="info-message-mobile">
                     📋 관리 대상 수강생 조회 중 (요일 및 시간 기준)
