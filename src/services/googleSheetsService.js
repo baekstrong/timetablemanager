@@ -1252,7 +1252,7 @@ export const getAllStudentsFromAllSheets = async () => {
   const sheets = await getAllSheetNames();
   console.log('📊 Available sheets:', sheets);
 
-  // 존재하는 전 월 시트를 다 읽으면 매달 로딩이 느려진다 → 최근 창(-3~+2개월)만 읽는다
+  // 존재하는 전 월 시트를 다 읽으면 매달 로딩이 느려진다 → 최근 창(-6~+2개월)만 읽는다
   const studentSheets = filterRecentStudentSheets(sheets.filter(name => name.startsWith('등록생 목록(')));
   console.log('📋 Student sheets found (recent window):', studentSheets);
 
