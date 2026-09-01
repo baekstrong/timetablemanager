@@ -360,7 +360,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | --- | --- |
 | `users` | 로그인 계정 `{password, isCoach, createdAt}`. 웹 푸시 토큰 `{fcmToken, fcmUpdatedAt}` — 본인 기기가 저장하고(직전 토큰과 같으면 write 생략), FCM이 `registration-token-not-registered`를 뱉으면 `push.js`가 지운다. 티어(출석 등급) 필드 `{tier, tierMonth('YYYY-MM'), prevTier, tierScore, tierIntroPending, tierUpdatedAt}` — 본인 접속 시 `refreshStudentTier`, 코치 접속 시 `backfillTiersForMonth`가 갱신 (아래 '티어 시스템' 참고) |
 | `makeupRequests` | 보강 신청 (status: active/completed/cancelled) |
-| `holdingRequests` | 홀딩 신청 |
+| `holdingRequests` | 홀딩 신청. `sheetsApplied` — 시트(M/N/O + 종료일)까지 반영됐는지. 생성 시 `false`, 시트 쓰기 성공 후 `markHoldingSheetsApplied`가 `true`. 필드가 아예 없는 옛 문서는 `==false` 쿼리에 안 걸려 소급 경보가 없다 (아래 '홀딩 신청 흐름' 참고) |
 | `absenceRequests` | 결석 신청 |
 | `posts` | 커뮤니티 게시판 (category: notice/free/exercise/question, soft delete) |
 | `posts/{postId}/comments` | 게시글 댓글 (서브컬렉션, soft delete) |
@@ -455,6 +455,13 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - 취소 데드라인: 홀딩 시작일 수업 시작 **30분** 전 (보강일 포함, `getClassPeriod` 사용)
 - 코치모드에서는 데드라인 제약 없이 취소 가능 (StudentManager)
 - 코치모드에서도 수강생 관리 페이지의 '홀딩' 버튼으로 직접 처리 가능 (Firebase + Sheets 동시 기록)
+
+⚠️ **1번(Firestore)과 2~5번(시트)은 한 트랜잭션이 아니다.** 2번은 시트 탭을 여러 개 읽고 쓰느라 수 초가 걸리는데, 그 사이 학생이 앱을 닫으면(iOS는 백그라운드 전환만으로 JS 정지) 시트 쓰기도 catch의 롤백도 실행되지 않는다. 결과는 **학생 화면은 '승인됨'(Firestore) / 코치의 시트는 홀딩 미사용** — 종료일이 안 밀려 수강생이 수업을 잃는다. 2026-01~08 사이 active 홀딩 178건 중 4건이 이렇게 유실됐다(2026-09-01 강성준·김규연 2건 수동 복구).
+
+- 그래서 `sheetsApplied` 플래그를 둔다. **시트 쓰기 성공 뒤에만 `markHoldingSheetsApplied`를 부를 것** — 학생(`HoldingManager`)과 코치(`StudentManager.handleSubmitHolding`) **양쪽 경로 모두**. 코치 경로에서 빼먹으면 코치가 처리한 홀딩이 전부 미반영으로 잡혀 배너가 헛경보로 뒤덮인다.
+- `getUnappliedHoldings()`(status active + `sheetsApplied==false`)를 수강생 관리 상단 경고 배너가 읽는다.
+- **자동 재반영은 일부러 안 넣었다** — 시트 쓰기는 성공했는데 플래그 쓰기만 실패한 경우 재시도하면 홀딩이 2회로 중복 계산된다(M열 `O(2/2)`, 종료일 과연장). 헛경보가 조용한 유실보다 낫다는 판단.
+- 별개로 **같은 기간 홀딩이 Firestore에 2~3건 쌓인 중복 신청**도 관측된다(제출 버튼 연타 추정). 시트는 1회만 반영되므로 시트 기준으로는 정상이지만, 학생 화면 내역과 잔여 횟수 계산에는 영향이 있다.
 
 ### 중복 등록 처리 (미리 등록)
 
