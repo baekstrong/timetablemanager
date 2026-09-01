@@ -7,7 +7,6 @@ import {
     isSignedIn,
     getAllStudents,
     getAllStudentsFromAllSheets,
-    updateStudentHolding,
     readSheetData,
     getAllSheetNames,
     getCurrentSheetName,
@@ -115,22 +114,6 @@ export const GoogleSheetsProvider = ({ children }) => {
         // 실제로는 로그아웃하지 않음
     };
 
-    // Update student holding status
-    const updateHolding = async (rowIndex, holdingStatus, holdingStartDate, holdingEndDate) => {
-        setLoading(true);
-        setError(null);
-        try {
-            await updateStudentHolding(rowIndex, holdingStatus, holdingStartDate, holdingEndDate, selectedYear, selectedMonth);
-            await fetchStudents(); // Refresh data
-        } catch (err) {
-            console.error('Failed to update holding:', err);
-            setError('홀딩 정보 업데이트 실패');
-            throw err;
-        } finally {
-            setLoading(false);
-        }
-    };
-
     // Update student information
     const updateStudent = async (rowIndex, studentData) => {
         setLoading(true);
@@ -197,7 +180,6 @@ export const GoogleSheetsProvider = ({ children }) => {
         selectedMonth,
         signIn,
         signOut,
-        updateHolding,
         updateStudent,
         refresh,
         fetchStudents,

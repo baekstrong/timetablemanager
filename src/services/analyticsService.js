@@ -310,19 +310,27 @@ export async function getTrends(monthsCount = 6, baseDate = new Date()) {
 
 // 선택한 달 현황. registrations는 호출측에서 1회 로드해 전달.
 export async function getMonthSnapshot(year, month, registrations = []) {
-  const agg = await getAggregate(year, month);
-  const revenue = await resolveRevenue(year, month, agg);
-
-  // 전월 대비
+  // 이번 달·전월·수강생 명단은 서로 독립인데 예전엔 5번을 줄줄이 await 했다.
+  // 달 안에서만 순서가 필요하다(집계 → 매출) → 세 갈래를 병렬로.
   const prevDate = new Date(year, month - 2, 1);
   const py = prevDate.getFullYear();
   const pm = prevDate.getMonth() + 1;
-  const prevAgg = await getAggregate(py, pm);
-  const prevRevenue = await resolveRevenue(py, pm, prevAgg);
-  const trend = computeRevenueTrend([{ revenue: prevRevenue }, { revenue }]);
-  const prevDelta = { delta: trend[1].delta, deltaPct: trend[1].deltaPct };
 
-  const students = await getAllStudents(year, month).catch(() => []);
+  const monthPair = async (y, m) => {
+    const a = await getAggregate(y, m);
+    return { agg: a, revenue: await resolveRevenue(y, m, a) };
+  };
+
+  const [cur, prev, students] = await Promise.all([
+    monthPair(year, month),
+    monthPair(py, pm),
+    getAllStudents(year, month).catch(() => []),
+  ]);
+
+  const agg = cur.agg;
+  const revenue = cur.revenue;
+  const trend = computeRevenueTrend([{ revenue: prev.revenue }, { revenue }]);
+  const prevDelta = { delta: trend[1].delta, deltaPct: trend[1].deltaPct };
   const inMonth = (registrations || []).filter(r => {
     const ms = r.createdAt?.toMillis?.();
     if (!ms) return false;

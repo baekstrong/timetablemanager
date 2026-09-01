@@ -434,7 +434,7 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
             const 결제일YYMMDD = form.결제일 ? convertToYYMMDD(form.결제일) : '';
 
             // 시트를 읽어서 마지막 데이터 행 찾기 (B열=이름 기준)
-            const rows = await readSheetData(`${targetSheet}!A:R`);
+            const rows = await readSheetData(`${targetSheet}!A:B`);
             let lastDataRowIndex = 1; // 기본값: 헤더행 (index 1 = sheet row 2)
             for (let i = rows.length - 1; i >= 2; i--) {
                 if (rows[i] && rows[i][1]) { // index 1 = B열 (이름)

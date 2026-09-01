@@ -254,7 +254,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                 reg.requestedSlots
             );
             const targetSheet = getCurrentSheetName(new Date(calcStartDate + 'T00:00:00'));
-            const rows = await readSheetData(`${targetSheet}!A:R`);
+            const rows = await readSheetData(`${targetSheet}!A:B`);
             let lastDataRowIndex = 1;
             for (let i = rows.length - 1; i >= 2; i--) {
                 if (rows[i] && rows[i][1]) {
@@ -506,7 +506,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                     } else {
                         targetSheet = getCurrentSheetName();
                     }
-                    const rows = await readSheetData(`${targetSheet}!A:R`);
+                    const rows = await readSheetData(`${targetSheet}!A:B`);
                     let targetRow = -1;
                     for (let i = rows.length - 1; i >= 2; i--) {
                         if (rows[i] && rows[i][1] === reg.name) {
@@ -518,7 +518,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                     if (targetRow < 0) {
                         const fallbackSheet = getCurrentSheetName();
                         if (fallbackSheet !== targetSheet) {
-                            const fallbackRows = await readSheetData(`${fallbackSheet}!A:R`);
+                            const fallbackRows = await readSheetData(`${fallbackSheet}!A:B`);
                             for (let i = fallbackRows.length - 1; i >= 2; i--) {
                                 if (fallbackRows[i] && fallbackRows[i][1] === reg.name) {
                                     targetRow = i + 1;
@@ -822,7 +822,7 @@ const CoachNewStudents = ({ user, onBack }) => {
         };
         const readCached = async (name) => {
             if (sheetCache?.has(name)) return sheetCache.get(name);
-            const rs = await readSheetData(`${name}!A:R`);
+            const rs = await readSheetData(`${name}!A:B`);
             sheetCache?.set(name, rs);
             return rs;
         };
@@ -1069,7 +1069,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                     } else {
                         targetSheet = getCurrentSheetName();
                     }
-                    const rows = await readSheetData(`${targetSheet}!A:R`);
+                    const rows = await readSheetData(`${targetSheet}!A:B`);
                     // B열(이름)으로 해당 수강생 행 찾기
                     let targetRow = -1;
                     for (let i = rows.length - 1; i >= 2; i--) {
@@ -1082,7 +1082,7 @@ const CoachNewStudents = ({ user, onBack }) => {
                     if (targetRow < 0) {
                         const fallbackSheet = getCurrentSheetName();
                         if (fallbackSheet !== targetSheet) {
-                            const fallbackRows = await readSheetData(`${fallbackSheet}!A:R`);
+                            const fallbackRows = await readSheetData(`${fallbackSheet}!A:B`);
                             for (let i = fallbackRows.length - 1; i >= 2; i--) {
                                 if (fallbackRows[i] && fallbackRows[i][1] === reg.name) {
                                     targetRow = i + 1;
