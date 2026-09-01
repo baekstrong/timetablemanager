@@ -4,6 +4,7 @@ import { PERIODS } from '../data/mockData';
 import { getStudentField, parseHoldingStatus } from '../services/googleSheetsService';
 import {
     createHoldingRequest,
+    markHoldingSheetsApplied,
     createAbsenceRequest,
     getHoldingsByStudent,
     getAbsencesByStudent,
@@ -700,6 +701,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                 const countedHolidayDates = await getCountedHolidayMakeupDates(user.username);
                 await requestHolding(user.username, startDateObj, endDateObj, allHoldings, holidaysArray, makeupHoldingCount, targetRegistration, countedHolidayDates);
                 sheetsUpdated = true;
+                if (createdHoldingId) await markHoldingSheetsApplied(createdHoldingId).catch(() => {});
 
                 alert(`홀딩 신청이 완료되었습니다.\n기간: ${startDate} ~ ${endDate}`);
 
