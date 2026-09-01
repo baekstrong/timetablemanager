@@ -152,23 +152,22 @@ export default function StudentSchedule({
 
         async function loadStudentMakeupData() {
             try {
-                // 지난 보강 자동 완료 처리 (active → completed)
-                const activeAndCompleted = await getActiveMakeupRequests(user.username);
-                for (const m of activeAndCompleted) {
-                    if (m.status === 'active' && isClassWithinMinutes(m.makeupClass.date, m.makeupClass.period, 0)) {
-                        try {
-                            await completeMakeupRequest(m.id);
-                            m.status = 'completed';
-                        } catch (err) {
-                            console.error('수강생 보강 자동 완료 실패:', m.id, err);
-                        }
-                    }
-                }
-
+                // 세 조회는 서로 결과를 안 쓴다(getWeekMakeupRequests는 status 필터가 없어
+                // 자동완료 전환에도 영향받지 않는다) → 병렬. 자동완료도 건별 독립이라 Promise.all.
                 const { start, end } = getThisWeekRange();
-                const thisWeekMakeups = await getWeekMakeupRequests(user.username, start, end);
+                const [activeAndCompleted, thisWeekMakeups] = await Promise.all([
+                    getActiveMakeupRequests(user.username),
+                    getWeekMakeupRequests(user.username, start, end),
+                    reloadMyWaitlists(),
+                ]);
                 setMyWeekMakeupHistory(thisWeekMakeups);
-                await reloadMyWaitlists();
+
+                // 지난 보강 자동 완료 처리 (active → completed)
+                await Promise.all(activeAndCompleted
+                    .filter(m => m.status === 'active' && isClassWithinMinutes(m.makeupClass.date, m.makeupClass.period, 0))
+                    .map(m => completeMakeupRequest(m.id)
+                        .then(() => { m.status = 'completed'; })
+                        .catch(err => console.error('수강생 보강 자동 완료 실패:', m.id, err))));
             } catch (error) {
                 console.error('Failed to load student makeup data:', error);
             }
@@ -329,8 +328,7 @@ export default function StudentSchedule({
             }
 
             alert(`보강 신청 완료!\n${selectedOriginalClass.day}요일 ${selectedOriginalClass.periodName} → ${selectedMakeupSlot.day}요일 ${selectedMakeupSlot.periodName}${endDateMessage}`);
-            await reloadStudentMakeups();
-            await loadWeeklyData();
+            await Promise.all([reloadStudentMakeups(), loadWeeklyData()]);
             setShowMakeupModal(false);
             setSelectedMakeupSlot(null);
             setSelectedOriginalClass(null);
@@ -377,8 +375,7 @@ export default function StudentSchedule({
             if (makeup) await notifyMakeupSeatFreed(makeup.makeupClass);
 
             alert('보강 신청이 취소되었습니다.');
-            await reloadStudentMakeups();
-            await loadWeeklyData();
+            await Promise.all([reloadStudentMakeups(), loadWeeklyData()]);
         } catch (error) {
             alert(`보강 신청 취소 실패: ${error.message}`);
         }
@@ -419,8 +416,7 @@ export default function StudentSchedule({
             await notifyMakeupSeatFreed(mc); // 비운 기존 보강 자리 → 대기자 알림
             setChangingMakeup(null);
             alert(`보강 시간이 변경되었습니다!\n${newSlot.day}요일 ${newSlot.periodName}`);
-            await reloadStudentMakeups();
-            await loadWeeklyData();
+            await Promise.all([reloadStudentMakeups(), loadWeeklyData()]);
         } catch (error) {
             alert(`보강 시간 변경 실패: ${error.message}`);
         } finally {
@@ -569,9 +565,8 @@ export default function StudentSchedule({
             }
             alert(`보강이 확정되었습니다!\n${entry.originalClass.day}요일 ${entry.originalClass.periodName} → ${entry.day}요일 ${entry.periodName} (${entry.date})`);
             setRespondingWaitlist(null);
-            await reloadMyWaitlists();
-            await reloadStudentMakeups();
-            await loadWeeklyData();
+            // 셋 다 서로 다른 state를 채우는 읽기 전용 리로드 → 병렬 (alert 이후 대기)
+            await Promise.all([reloadMyWaitlists(), reloadStudentMakeups(), loadWeeklyData()]);
         } catch (error) {
             alert(`수락 실패: ${error.message}`);
         } finally {

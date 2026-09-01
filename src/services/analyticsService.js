@@ -256,15 +256,25 @@ export async function getTrends(monthsCount = 6, baseDate = new Date()) {
   const months = recentMonths(monthsCount, baseDate);
   // 월별 집계 블록(T2:AF3)을 한 번의 batchGet으로 읽음 (6개 요청 → 1개)
   const aggRanges = months.map(({ year, month }) => `${getSheetNameByYearMonth(year, month)}!T2:AF3`);
-  const aggVrs = await batchReadSheetData(aggRanges).catch(() => []);
-  const perMonth = await Promise.all(months.map(async ({ year, month }, i) => {
-    const rows = aggVrs[i]?.values;
-    const agg = rows ? parseAggregateBlock(rows[0], rows[1]) : await getAggregate(year, month);
-    return { year, month, revenue: await resolveRevenue(year, month, agg), refund: agg.refund };
-  }));
-  const [rawRows, terminations] = await Promise.all([
+  const windowKeys = months.map(m => ymKey(m.year, m.month));
+  const curYm = ymKey(baseDate.getFullYear(), baseDate.getMonth() + 1);
+
+  // 아래 다섯 갈래는 서로 결과를 안 쓴다. 순서가 필요한 건 집계 읽기 → 월별 매출 체인뿐이다.
+  // 예전엔 전부 줄줄이 await 해서 원격 왕복(시트 batchGet 3회 + Firestore 2회)이 그대로
+  // 더해졌다 — 대시보드 진입할 때 코치가 통째로 기다리던 구간.
+  const [perMonth, rawRows, terminations, snapshots, liveStudents] = await Promise.all([
+    batchReadSheetData(aggRanges).catch(() => []).then(aggVrs => Promise.all(
+      months.map(async ({ year, month }, i) => {
+        const rows = aggVrs[i]?.values;
+        const agg = rows ? parseAggregateBlock(rows[0], rows[1]) : await getAggregate(year, month);
+        return { year, month, revenue: await resolveRevenue(year, month, agg), refund: agg.refund };
+      }),
+    )),
     getAllRawRows().catch(() => []),
     getTerminations().catch(() => []),
+    getStudentCountSnapshots().catch(() => ({})),
+    // 이번 달이 창 안일 때만 라이브 인원을 센다 (조건은 순수 계산이라 미리 안다)
+    windowKeys.includes(curYm) ? getAllStudentsFromAllSheets().catch(() => null) : Promise.resolve(null),
   ]);
 
   const revenueTrend = computeRevenueTrend(
@@ -272,7 +282,6 @@ export async function getTrends(monthsCount = 6, baseDate = new Date()) {
   );
   const refundTrend = perMonth.map(m => ({ year: m.year, month: m.month, refund: m.refund }));
 
-  const windowKeys = months.map(m => ymKey(m.year, m.month));
   const terms = (terminations || []).map(t => ({
     studentName: t.studentName,
     ms: t.terminatedAt?.toMillis?.() ?? null,
@@ -292,17 +301,12 @@ export async function getTrends(monthsCount = 6, baseDate = new Date()) {
 
   // 총 수강생수: 시트 등록행 수가 아니라 '수강생 관리' 활성 수강생 수(월별 스냅샷) 기준.
   // 과거 달은 저장된 스냅샷만 표시(없으면 null=빈칸), 이번 달은 라이브 계산해 채우고 동시에 기록(앞으로 누적).
-  const snapshots = await getStudentCountSnapshots().catch(() => ({}));
   const totalByMonth = {};
   windowKeys.forEach((k) => { totalByMonth[k] = (snapshots[k] ?? null); });
-  const curYm = ymKey(baseDate.getFullYear(), baseDate.getMonth() + 1);
-  if (windowKeys.includes(curYm)) {
-    try {
-      const all = await getAllStudentsFromAllSheets();
-      const liveCount = (all || []).filter(shouldShowInCoachStudentList).length;
-      totalByMonth[curYm] = liveCount;
-      recordStudentCount(curYm, liveCount).catch(() => {});
-    } catch { /* 스냅샷/빈칸 유지 */ }
+  if (liveStudents) {
+    const liveCount = liveStudents.filter(shouldShowInCoachStudentList).length;
+    totalByMonth[curYm] = liveCount;
+    recordStudentCount(curYm, liveCount).catch(() => {});
   }
 
   return { months, revenueTrend, refundTrend, churnByMonth, newByMonth, totalByMonth };

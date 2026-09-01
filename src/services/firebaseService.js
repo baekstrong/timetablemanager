@@ -753,10 +753,12 @@ export const deleteAllStudentAppData = async (name) => {
             ['monthlyStamps', 'userName'],
             ['records', 'userName'],
         ];
-        for (const [coll, field] of byField) {
+        // 컬렉션끼리 서로 참조가 없어 순서가 필요 없다. 직렬로 돌면 조회 10회가
+        // 그대로 더해져 '기록 전부 삭제'가 눈에 띄게 느려진다 → 위 byId와 같이 병렬로.
+        await Promise.all(byField.map(async ([coll, field]) => {
             const docs = await queryDocs(coll, where(field, '==', trimmed));
             await Promise.all(docs.map(d => firestoreDeleteDoc(doc(db, coll, d.id))));
-        }
+        }));
 
         return { success: true };
     });

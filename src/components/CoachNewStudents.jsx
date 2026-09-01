@@ -465,8 +465,8 @@ const CoachNewStudents = ({ user, onBack }) => {
             }
 
             alert(`"${reg.name}" 수강생이 승인되었습니다.\n로그인 가능 상태입니다.${smsWarning}`);
-            await refreshSheets();
-            await loadRegistrations();
+            // 시트 재로드(무거움)와 신청목록 조회는 서로 결과를 안 쓴다 → 병렬
+            await Promise.all([refreshSheets(), loadRegistrations()]);
         } catch (err) {
             console.error('승인 실패:', err);
             alert('승인 실패: ' + err.message);
@@ -984,8 +984,8 @@ const CoachNewStudents = ({ user, onBack }) => {
     const handleChangeEntrance = async (reg, target) => {
         const holidays = await getHolidays().catch(() => []);
         const classDateStr = await applyEntranceAssignment(reg, target, holidays);
-        await refreshSheets();
-        await loadRegistrations();
+        // 서로 결과를 안 쓴다 → 병렬 (여기는 alert 이전이라 코치가 그대로 기다린다)
+        await Promise.all([refreshSheets(), loadRegistrations()]);
         alert(`"${reg.name}" 입학반을 변경했습니다.\n\n입학반: ${classDateStr}`);
     };
 
@@ -1252,8 +1252,8 @@ const CoachNewStudents = ({ user, onBack }) => {
             setSheetNewStudents([]);
             setSelectedNewStudents(new Set());
             setAddTempName('');
-            await loadEntranceClasses();
-            await loadRegistrations();
+            // 서로 결과를 안 쓴다 → 병렬 (refreshSheets는 이미 비대기)
+            await Promise.all([loadEntranceClasses(), loadRegistrations()]);
             refreshSheets();
         } catch (err) {
             console.error('수강생 추가 실패:', err);
