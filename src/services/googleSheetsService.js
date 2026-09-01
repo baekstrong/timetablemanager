@@ -1139,10 +1139,20 @@ function pickActiveRegistration(registrations) {
 
 /**
  * 여러 시트에서 학생 찾기 (모든 시트에서 검색하여 활성 등록 반환)
+ *
+ * 기본은 2단계다 — ±2개월 윈도우를 먼저 읽고(대개 캐시 적중), 오늘 활성 등록이
+ * 없을 때만 나머지 시트로 폴백. 학생 로그인처럼 활성 등록이 있는 조회는 1단계에서 끝난다.
+ *
+ * scanAll=true면 윈도우를 건너뛰고 전 시트를 batchGet 1회로 읽는다.
+ * **재등록 검색용** — 재등록 대상은 정의상 수강이 끝난 사람이라 윈도우에 활성 등록이
+ * 없고 폴백이 사실상 100% 발동한다. 그때 2단계는 왕복만 늘린다
+ * (프로덕션 실측 2.6초 → 1.1초). 전 시트를 다 읽어도 89KB라 페이로드는 문제가 아니다.
+ *
  * @param {string} studentName
+ * @param {{scanAll?: boolean}} [opts]
  * @returns {Promise<Object|null>} - { student, year, month, foundSheetName }
  */
-export const findStudentAcrossSheets = async (studentName) => {
+export const findStudentAcrossSheets = async (studentName, { scanAll = false } = {}) => {
   const today = new Date();
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth() + 1;
@@ -1158,27 +1168,30 @@ export const findStudentAcrossSheets = async (studentName) => {
 
   // 윈도우 5개 시트를 캐시·dedup·batchGet으로 1회에 읽음 (기존: 5회 개별 읽기)
   const windowSheetNames = searchMonths.map(({ year, month }) => getSheetNameByYearMonth(year, month));
-  const windowMap = await readStudentSheets(windowSheetNames);
-  searchMonths.forEach(({ year, month }) => {
-    const foundSheetName = getSheetNameByYearMonth(year, month);
-    (windowMap.get(foundSheetName) || [])
-      .filter(s => s['이름'] === studentName)
-      .forEach(student => {
-        student._foundSheetName = foundSheetName;
-        allMatches.push({ student, year, month, foundSheetName });
-      });
-  });
+  if (!scanAll) {
+    const windowMap = await readStudentSheets(windowSheetNames);
+    searchMonths.forEach(({ year, month }) => {
+      const foundSheetName = getSheetNameByYearMonth(year, month);
+      (windowMap.get(foundSheetName) || [])
+        .filter(s => s['이름'] === studentName)
+        .forEach(student => {
+          student._foundSheetName = foundSheetName;
+          allMatches.push({ student, year, month, foundSheetName });
+        });
+    });
+  }
 
   // 장기(2~3개월) 등록의 행은 "등록(결제)한 달" 시트에 남아 있어, 현재 월에서 2개월 넘게
   // 떨어진 시트에 있을 수 있다. (예: 2월 시트에 3~6월 수강 등록 행)
   // 이 경우 ±2개월 윈도우가 '오늘 활성인 등록'을 놓치고, 인접 달에 있는 '미리 등록(미래 등록)'을
   // 활성으로 오인한다 → ①아예 못 찾았거나 ②윈도우 안에 오늘 활성 등록이 없으면 전체 시트로 폴백.
   const hasActiveMatch = allMatches.some(m => studentRegistrationCoversDate(m.student, today));
-  if (allMatches.length === 0 || !hasActiveMatch) {
-    console.warn(`⚠️ "${studentName}" ±2개월 윈도우에 오늘 활성 등록 없음 — 전체 시트 스캔으로 보강`);
+  if (scanAll || allMatches.length === 0 || !hasActiveMatch) {
+    if (!scanAll) console.warn(`⚠️ "${studentName}" ±2개월 윈도우에 오늘 활성 등록 없음 — 전체 시트 스캔으로 보강`);
     try {
       const allSheets = await getAllSheetNames();
-      const windowSet = new Set(windowSheetNames); // 윈도우에서 이미 읽은 시트 제외(중복 방지)
+      // scanAll이면 윈도우를 안 읽었으므로 제외하지 않고 전부 한 번에 읽는다
+      const windowSet = scanAll ? new Set() : new Set(windowSheetNames);
       const studentSheets = allSheets
         .filter(name => name.startsWith('등록생 목록('))
         .filter(name => !windowSet.has(name));
@@ -2041,6 +2054,43 @@ async function adjustNextRegistration(sheetName, rows, headers, nextRowIndex, cu
 }
 
 /**
+ * 다음 등록(미리 등록) 조정분을 **계산만 해서** 돌려준다 — 시트에 쓰지 않는다.
+ *
+ * 호출자가 자기 updates와 합쳐 batchUpdateSheet 1회로 쓰라고 만든 것.
+ * 예전엔 이 조정이 매번 따로 써서, 미리등록이 있는 수강생은 홀딩·결석·보강 등
+ * 어느 경로든 왕복이 1회(≈0.7초)씩 더 늘었다. 실패해도 본 처리는 진행한다.
+ *
+ * @param {Object} found - findStudentInSheets 반환값
+ * @param {Date} newEndDate - 본 등록의 새 종료일
+ * @returns {Promise<{updates: Array, sheetName: string|null}>}
+ */
+async function collectNextRegistrationUpdates(found, newEndDate, firebaseHolidays = []) {
+  const { nextRegistrationIndex, nextSheetName, nextRows, nextHeaders, foundSheetName, rows, headers } = found;
+  if (nextRegistrationIndex === -1 || nextRegistrationIndex === undefined || nextRegistrationIndex === null) {
+    return { updates: [], sheetName: null };
+  }
+  const sheetName = nextSheetName || foundSheetName;
+  try {
+    const updates = [];
+    await adjustNextRegistration(
+      sheetName, nextRows || rows, nextHeaders || headers,
+      nextRegistrationIndex, newEndDate, firebaseHolidays, updates,
+    );
+    return { updates, sheetName };
+  } catch (e) {
+    console.warn('⚠️ 다음 등록 자동 조정 실패 (본 처리는 정상 진행):', e);
+    return { updates: [], sheetName: null };
+  }
+}
+
+/** collectNextRegistrationUpdates 결과의 하이라이트를 던진다(기다리지 않음). */
+const highlightNextRegistration = (nextReg) => {
+  if (nextReg.updates.length > 0) {
+    highlightAsync(nextReg.updates.map(u => u.range.split('!')[1]), nextReg.sheetName);
+  }
+};
+
+/**
  * 휴일 추가/삭제 시 영향받는 수강생의 종료일(H열)을 증분 조정.
  * @param {Object} p
  * @param {string[]} p.changedDates - 방금 추가/삭제된 날짜 'YYYY-MM-DD'
@@ -2307,22 +2357,17 @@ export const cancelHoldingInSheets = async (studentName, remainingHoldings = [],
     console.log(`📅 종료날짜 재계산: ${newEndDateStr}`);
   }
 
-  await batchUpdateSheet(updates);
+  // 다음 등록(미리 등록) 조정분을 모아 본 업데이트와 한 요청으로 쓴다
+  const parsedNewEnd = newEndDateStr ? parseSheetDate(newEndDateStr) : null;
+  const nextReg = parsedNewEnd
+    ? await collectNextRegistrationUpdates(
+      { nextRegistrationIndex, nextSheetName, nextRows, nextHeaders, foundSheetName, rows, headers },
+      parsedNewEnd, firebaseHolidays,
+    )
+    : { updates: [], sheetName: null };
 
-  // 다음 등록(미리 등록)이 있으면 시작일/종료일 자동 조정
-  if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined && newEndDateStr) {
-    try {
-      const newEndDate = parseSheetDate(newEndDateStr);
-      if (newEndDate) {
-        const nSheet = nextSheetName || foundSheetName;
-        const nRows = nextRows || rows;
-        const nHeaders = nextHeaders || headers;
-        await adjustNextRegistration(nSheet, nRows, nHeaders, nextRegistrationIndex, newEndDate, firebaseHolidays);
-      }
-    } catch (adjustError) {
-      console.warn('⚠️ 다음 등록 자동 조정 실패 (홀딩 취소는 정상 처리됨):', adjustError);
-    }
-  }
+  await batchUpdateSheet([...updates, ...nextReg.updates]);
+  highlightNextRegistration(nextReg);
 
   console.log(`✅ 홀딩 취소 완료 (Google Sheets): ${studentName}`);
   return { success: true, newEndDate: newEndDateStr };
@@ -2605,21 +2650,15 @@ export const processCoachHolding = async (studentName, holdingDates, firebaseHol
     updates.push({ range: `${foundSheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`, values: [[newEndDateStr]] });
   }
 
-  await batchUpdateSheet(updates);
+  // 5. 다음 등록 조정분을 모아 본 업데이트와 한 요청으로
+  const nextReg = await collectNextRegistrationUpdates(
+    { nextRegistrationIndex, nextSheetName, nextRows, nextHeaders, foundSheetName, rows, headers },
+    newEndDate, firebaseHolidays,
+  );
 
+  await batchUpdateSheet([...updates, ...nextReg.updates]);
   highlightAsync(updates.map(u => u.range.split('!')[1]), foundSheetName);
-
-  // 5. 다음 등록 자동 조정
-  if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
-    try {
-      const nSheet = nextSheetName || foundSheetName;
-      const nRows = nextRows || rows;
-      const nHeaders = nextHeaders || headers;
-      await adjustNextRegistration(nSheet, nRows, nHeaders, nextRegistrationIndex, newEndDate, firebaseHolidays);
-    } catch (adjustError) {
-      console.warn('⚠️ 다음 등록 자동 조정 실패:', adjustError);
-    }
-  }
+  highlightNextRegistration(nextReg);
 
   console.log(`✅ 코치 홀딩 처리 완료: ${studentName}, ${startDate} ~ ${endDate}, 새 종료일=${newEndDateStr}`);
   return {
@@ -2724,24 +2763,18 @@ export const processHolidayMakeupEndDate = async (studentName, countedHolidayDat
   const updates = [
     { range: `${foundSheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`, values: [[newEndDateStr]] }
   ];
+  const nextReg = await collectNextRegistrationUpdates(
+    { nextRegistrationIndex, nextSheetName, nextRows, nextHeaders, foundSheetName, rows, headers },
+    newEndDate, firebaseHolidays,
+  );
   try {
-    await batchUpdateSheet(updates);
+    await batchUpdateSheet([...updates, ...nextReg.updates]);
   } catch (error) {
     throw new Error(`휴일 보강 종료일 시트 업데이트 실패: ${error.message} (시트=${foundSheetName}, 행=${studentIndex + 1}, 종료일=${newEndDateStr})`);
   }
 
   highlightAsync([`${getColumnLetter(endDateCol)}${studentIndex + 1}`], foundSheetName);
-
-  if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
-    try {
-      const nSheet = nextSheetName || foundSheetName;
-      const nRows = nextRows || rows;
-      const nHeaders = nextHeaders || headers;
-      await adjustNextRegistration(nSheet, nRows, nHeaders, nextRegistrationIndex, newEndDate, firebaseHolidays);
-    } catch (adjustError) {
-      console.warn('⚠️ 다음 등록 자동 조정 실패:', adjustError);
-    }
-  }
+  highlightNextRegistration(nextReg);
 
   console.log(`✅ 휴일 보강 종료일 재계산 완료: ${studentName}, 새 종료일=${newEndDateStr}`);
   return { success: true, updated: true, newEndDate: newEndDateStr };
@@ -2774,7 +2807,7 @@ function firstClassDayAtOrAfter(refDate, scheduleStr, firebaseHolidays = []) {
 /**
  * 다음 등록(미리 등록)에 새 스케줄을 적용 — D/G/H열 모두 갱신
  */
-async function applyNewScheduleToNextRegistration(sheetName, rows, headers, nextRowIndex, newScheduleStr, currentEndDate, firebaseHolidays = []) {
+async function applyNewScheduleToNextRegistration(sheetName, rows, headers, nextRowIndex, newScheduleStr, currentEndDate, firebaseHolidays = [], collector = null) {
   const nextRow = rows[nextRowIndex];
   const nextData = buildStudentObject(headers, nextRow);
 
@@ -2822,8 +2855,13 @@ async function applyNewScheduleToNextRegistration(sheetName, rows, headers, next
   }
 
   if (updates.length > 0) {
-    await batchUpdateSheet(updates);
-    highlightAsync(updates.map(u => u.range.split('!')[1]), sheetName);
+    // collector가 오면 쓰지 않고 모아만 둔다 (adjustNextRegistration과 같은 규약)
+    if (collector) {
+      collector.push(...updates);
+    } else {
+      await batchUpdateSheet(updates);
+      highlightAsync(updates.map(u => u.range.split('!')[1]), sheetName);
+    }
     console.log(`📅 다음 등록 새 스케줄 적용: D=${newScheduleStr}, G=${formatDateToYYMMDD(newNextStart)}, H=${formatDateToYYMMDD(newNextEnd)}`);
   }
 }
@@ -2913,21 +2951,27 @@ export const processScheduleTransfer = async (studentName, newScheduleStr, fireb
     updates.push({ range: `${foundSheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`, values: [[newEndDateStr]] });
   }
 
-  await batchUpdateSheet(updates);
-
-  highlightAsync(updates.map(u => u.range.split('!')[1]), foundSheetName);
-
-  // 다음 등록(미리 등록)에도 새 스케줄 적용 (D + G + H 모두)
+  // 다음 등록(미리 등록)에도 새 스케줄 적용 (D + G + H 모두) — 본 업데이트와 한 요청으로
+  const nextUpdates = [];
+  let nextSheetForHighlight = null;
   if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined && nextRegistrationIndex !== null) {
     try {
-      const nSheet = nextSheetName || foundSheetName;
+      nextSheetForHighlight = nextSheetName || foundSheetName;
       const nRows = nextSheetName ? nextRows : rows;
       const nHeaders = nextSheetName ? nextHeaders : headers;
-      await applyNewScheduleToNextRegistration(nSheet, nRows, nHeaders, nextRegistrationIndex, newScheduleStr, newEndDate, firebaseHolidays);
+      await applyNewScheduleToNextRegistration(
+        nextSheetForHighlight, nRows, nHeaders, nextRegistrationIndex,
+        newScheduleStr, newEndDate, firebaseHolidays, nextUpdates,
+      );
     } catch (adjustError) {
       console.warn('⚠️ 다음 등록 자동 조정 실패:', adjustError);
     }
   }
+
+  await batchUpdateSheet([...updates, ...nextUpdates]);
+
+  highlightAsync(updates.map(u => u.range.split('!')[1]), foundSheetName);
+  if (nextUpdates.length > 0) highlightAsync(nextUpdates.map(u => u.range.split('!')[1]), nextSheetForHighlight);
 
   console.log(`✅ 시간표 이동 처리 완료: ${studentName}, 시작${startChanged ? '=' + newStartDateStr : ' 유지'}, 종료=${newEndDateStr}`);
   return { success: true, newSchedule: newScheduleStr, newStartDate: newStartDateStr, newEndDate: newEndDateStr, startChanged };
