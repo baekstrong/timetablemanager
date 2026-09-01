@@ -49,6 +49,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     const [showSmsModal, setShowSmsModal] = useState(false);
     const [gradeMap, setGradeMap] = useState({}); // 이름→학년키 (수강생 레벨 표시용)
     const [unappliedHoldings, setUnappliedHoldings] = useState([]); // 시트 미반영 홀딩(경고용)
+    const [dismissingHolding, setDismissingHolding] = useState(''); // '확인함' 처리 중인 홀딩 id
 
     // 학년 맵 로드(게시판과 동일 캐시 소스). 코치 백필이 채운 grade를 읽음.
     useEffect(() => {
@@ -66,6 +67,26 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         getUnappliedHoldings().then(list => { if (!cancel) setUnappliedHoldings(list || []); });
         return () => { cancel = true; };
     }, []);
+
+    // 경고에서 한 건 내리기. 시트 쓰기는 성공했는데 마크만 실패한 경우 이 버튼이 없으면
+    // 고칠 게 없는 경고가 영영 남아, 나중엔 배너 자체를 안 보게 된다.
+    const handleDismissUnappliedHolding = async (h) => {
+        const ok = confirm(
+            `${h.studentName} — ${h.startDate} ~ ${h.endDate}\n\n` +
+            `시트의 홀딩 열(M/N/O)과 종료일을 확인하셨나요?\n` +
+            `확인함으로 표시하면 이 경고가 사라집니다.`
+        );
+        if (!ok) return;
+        setDismissingHolding(h.id);
+        try {
+            await markHoldingSheetsApplied(h.id);
+            setUnappliedHoldings(prev => prev.filter(x => x.id !== h.id));
+        } catch (e) {
+            alert(`처리에 실패했습니다: ${e.message}`);
+        } finally {
+            setDismissingHolding('');
+        }
+    };
 
     const getCountedHolidayMakeupDates = async (studentName) => {
         const makeups = await getActiveMakeupRequests(studentName).catch(() => []);
@@ -507,11 +528,30 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                     <strong style={{ color: 'var(--error)' }}>⚠️ 시트에 반영 안 된 홀딩 {unappliedHoldings.length}건</strong>
                     <div style={{ margin: '8px 0 10px' }}>
                         {unappliedHoldings.map(h => (
-                            <div key={h.id}>· {h.studentName} — {h.startDate} ~ {h.endDate}</div>
+                            <div key={h.id} style={{
+                                display: 'flex', alignItems: 'center', gap: '10px',
+                                flexWrap: 'wrap', padding: '3px 0',
+                            }}>
+                                <span>· {h.studentName} — {h.startDate} ~ {h.endDate}</span>
+                                <button
+                                    onClick={() => handleDismissUnappliedHolding(h)}
+                                    disabled={dismissingHolding === h.id}
+                                    style={{
+                                        padding: '3px 10px', fontSize: '12px', fontWeight: 700,
+                                        color: 'var(--text-secondary)', background: 'var(--canvas)',
+                                        border: '1px solid var(--hairline)', borderRadius: 'var(--r-chip)',
+                                        cursor: dismissingHolding === h.id ? 'default' : 'pointer',
+                                        opacity: dismissingHolding === h.id ? 0.5 : 1,
+                                    }}
+                                >
+                                    {dismissingHolding === h.id ? '처리 중…' : '확인함'}
+                                </button>
+                            </div>
                         ))}
                     </div>
                     신청은 접수됐지만 시트의 홀딩 열(M/N/O)과 종료일이 안 바뀌었습니다.
                     시트에서 직접 수정하거나, 위 수강생의 <strong>홀딩</strong> 버튼으로 같은 날짜를 다시 처리해 주세요.
+                    시트가 이미 멀쩡하거나 처리를 마쳤으면 <strong>확인함</strong>을 눌러 내리시면 됩니다.
                 </div>
             )}
             <div className="student-header-actions-mobile">
