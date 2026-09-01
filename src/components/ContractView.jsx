@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getPendingContractForStudent, agreeToContract } from '../services/firebaseService';
-import { readSheetData, writeSheetData, formatCellsWithStyle } from '../services/googleSheetsService';
+import { readSheetData, writeSheetData, formatCellsAsync } from '../services/googleSheetsService';
 import { CONTRACT_TITLE, TRAINING_RULES, VALID_SESSION_COUNTS, GUARANTEES, RISK_NOTICE, SIGNATURE_STATEMENT } from '../data/contractTerms';
 import './ContractView.css';
 
@@ -101,7 +101,7 @@ const ContractView = ({ user, onBack }) => {
                 if (appendedRow && !registrationData.결제유무) paymentEmpty.push(`K${appendedRow}`);
                 if (appendedRow && !registrationData.결제방식) paymentEmpty.push(`L${appendedRow}`);
                 if (appendedRow && paymentEmpty.length > 0) {
-                    await formatCellsWithStyle(paymentEmpty, targetSheet, { red: 0.92, green: 0.36, blue: 0.36 });
+                    formatCellsAsync(paymentEmpty, targetSheet, { red: 0.92, green: 0.36, blue: 0.36 });
                 }
             } catch (err) {
                 console.warn('서식 적용 실패:', err);

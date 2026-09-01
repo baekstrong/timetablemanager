@@ -7,7 +7,7 @@ import {
     readSheetData,
     writeSheetData,
     calculateEndDateWithHolidays,
-    formatCellsWithStyle,
+    formatCellsAsync,
     parseScheduleString,
     isHolidayDate,
     getHolidayName
@@ -529,7 +529,7 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
                 if (registrationType === 'new') {
                     const columns = 'ABCDEFGHIJKLMNOPQR'.split('');
                     const cellRanges = columns.map(col => `${col}${nextSheetRow}`);
-                    await formatCellsWithStyle(cellRanges, targetSheet, { red: 1.0, green: 0.87, blue: 0.68 });
+                    formatCellsAsync(cellRanges, targetSheet, { red: 1.0, green: 0.87, blue: 0.68 });
                 }
 
                 // 결제일(J), 결제유무(K), 결제방식(L)이 비어있으면 빨간색 음영
@@ -538,7 +538,7 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
                 if (!form.결제유무) paymentEmpty.push(`K${nextSheetRow}`);
                 if (!form.결제방식) paymentEmpty.push(`L${nextSheetRow}`);
                 if (paymentEmpty.length > 0) {
-                    await formatCellsWithStyle(paymentEmpty, targetSheet, { red: 0.92, green: 0.36, blue: 0.36 });
+                    formatCellsAsync(paymentEmpty, targetSheet, { red: 0.92, green: 0.36, blue: 0.36 });
                 }
             } catch (err) {
                 console.warn('서식 적용 실패:', err);

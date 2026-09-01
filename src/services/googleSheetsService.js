@@ -661,6 +661,20 @@ export const highlightCells = async (ranges, sheetName, color = null) => {
 };
 
 /**
+ * 하이라이트를 기다리지 않고 던진다.
+ *
+ * 색칠은 데이터 쓰기(batchUpdateSheet)가 끝난 뒤의 장식인데, await 하면 왕복 1회
+ * (프로덕션 실측 ≈0.73초)만큼 사용자가 "처리 중" 화면에 더 붙잡힌다. 실패해도 데이터는
+ * 이미 들어가 있으므로 기다릴 이유가 없다. 쓰기 경로에서는 항상 이걸 쓸 것.
+ * @param {Array<string>} ranges
+ * @param {string} sheetName
+ */
+export const highlightAsync = (ranges, sheetName) => {
+  highlightCells(ranges, sheetName)
+    .catch(e => console.warn('⚠️ 셀 하이라이트 실패 (데이터는 정상 반영됨):', e));
+};
+
+/**
  * 배경색 + 정렬을 한 번의 API 호출로 적용
  * @param {Array<string>} ranges
  * @param {string} sheetName
@@ -669,6 +683,16 @@ export const highlightCells = async (ranges, sheetName, color = null) => {
  */
 export const formatCellsWithStyle = async (ranges, sheetName, color, horizontalAlignment = 'CENTER') => {
   return await apiPost('/formatCells', { ranges, sheetName, color, horizontalAlignment }, 'format cells');
+};
+
+/**
+ * 서식을 기다리지 않고 던진다. 이유는 highlightAsync와 같다 — 색칠은 장식이고
+ * 데이터는 이미 들어가 있다. 등록 경로처럼 서식을 2번 거는 곳은 둘 다 이걸 쓰면
+ * 순차 2왕복이 동시 발사로 바뀐다.
+ */
+export const formatCellsAsync = (ranges, sheetName, color, horizontalAlignment = 'CENTER') => {
+  formatCellsWithStyle(ranges, sheetName, color, horizontalAlignment)
+    .catch(e => console.warn('⚠️ 서식 적용 실패 (데이터는 정상 반영됨):', e));
 };
 
 // ─── 데이터 파싱 ───
@@ -1650,13 +1674,21 @@ const fmtYYMMDD = (d) => {
 // 정지 시 원래 일정을 특이사항(E)에 보존하는 태그: [정지:주횟수/요일및시간/원래시작YYMMDD]
 const PAUSE_TAG_RE = /\s*\[정지:([^/\]]*)\/([^/\]]*)\/([^\]]*)\]/;
 
-/** 이름으로 모든 등록생 시트의 해당 행을 순회 (헤더 인덱스 동봉). */
+/**
+ * 이름으로 모든 등록생 시트의 해당 행을 순회 (헤더 인덱스 동봉).
+ *
+ * ⚠️ 시트를 하나씩 readSheetData 하지 말 것 — 탭 수(현재 15)만큼 왕복이 생겨
+ * 왕복당 ≈0.7초씩 쌓인다(일시정지/재개 버튼이 12초 넘게 걸리던 원인).
+ * findStudentInSheets와 같은 이유로 batchGet 1회로 읽는다.
+ */
 const eachStudentRowAcrossSheets = async (studentName, cb) => {
   const allSheets = await getAllSheetNames();
   const studentSheets = allSheets.filter(name => name.startsWith('등록생 목록('));
-  for (const sheetName of studentSheets) {
-    let rows;
-    try { rows = await readSheetData(`${sheetName}!A:R`); } catch { continue; }
+  const valueRanges = await batchReadSheetData(studentSheets.map(n => `${n}!A:R`));
+
+  for (let si = 0; si < studentSheets.length; si++) {
+    const sheetName = studentSheets[si];
+    const rows = valueRanges[si]?.values;
     if (!rows || rows.length < 2) continue;
     const headers = rows[1];
     const col = (names) => { for (const n of names) { const i = headers.indexOf(n); if (i !== -1) return i; } return -1; };
@@ -1687,6 +1719,9 @@ export const pauseStudent = async (studentName, firebaseHolidays = []) => {
   const now = new Date();
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const results = [];
+  // 행마다 batchUpdateSheet를 부르면 등록 행 수만큼 왕복이 난다 → 전부 모아 1회로 쓴다.
+  // batchUpdate의 range는 시트명을 포함하므로 여러 시트를 한 요청에 담을 수 있다.
+  const allUpdates = [];
 
   await eachStudentRowAcrossSheets(studentName, async ({ sheetName, rowIdx, row, idx }) => {
     const schedule = idx.schedule !== -1 ? String(row[idx.schedule] || '') : '';
@@ -1719,11 +1754,12 @@ export const pauseStudent = async (studentName, firebaseHolidays = []) => {
     if (idx.end !== -1) updates.push(cell(idx.end, `${n}회`));
     if (idx.notes !== -1) updates.push(cell(idx.notes, taggedNotes));
     if (notStarted && idx.start !== -1) updates.push(cell(idx.start, ''));
-    await batchUpdateSheet(updates);
+    allUpdates.push(...updates);
     results.push({ n, notStarted, sheetName });
   });
 
   if (!results.length) throw new Error('정지할 등록을 찾지 못했습니다.');
+  await batchUpdateSheet(allUpdates);
   return results;
 };
 
@@ -1756,6 +1792,7 @@ export const resumeStudent = async (studentName, restartDate, firebaseHolidays =
 
   let cursor = new Date(restartDate); cursor.setHours(0, 0, 0, 0);
   const results = [];
+  const allUpdates = []; // 등록마다 쓰지 않고 모아서 1회로 (pauseStudent와 같은 이유)
   for (const c of collected) {
     const start = firstClassDayOnOrAfter(cursor, c.origSchedule);
     const end = calculateEndDate(start, c.n, c.origSchedule, null, firebaseHolidays);
@@ -1768,11 +1805,12 @@ export const resumeStudent = async (studentName, restartDate, firebaseHolidays =
     if (c.idx.start !== -1) updates.push(cell(c.idx.start, startStr));
     if (c.idx.end !== -1) updates.push(cell(c.idx.end, endStr));
     if (c.idx.notes !== -1) updates.push(cell(c.idx.notes, c.restNotes));
-    await batchUpdateSheet(updates);
+    allUpdates.push(...updates);
 
     results.push({ start: startStr, end: endStr, n: c.n, schedule: c.origSchedule });
     if (end) { cursor = new Date(end); cursor.setDate(cursor.getDate() + 1); }
   }
+  await batchUpdateSheet(allUpdates);
   return results;
 };
 
@@ -1934,7 +1972,7 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
  * @param {Date} currentEndDate - 현재 등록의 새 종료일
  * @param {Array} firebaseHolidays - 커스텀 공휴일
  */
-async function adjustNextRegistration(sheetName, rows, headers, nextRowIndex, currentEndDate, firebaseHolidays = []) {
+async function adjustNextRegistration(sheetName, rows, headers, nextRowIndex, currentEndDate, firebaseHolidays = [], collector = null) {
   const nextRow = rows[nextRowIndex];
   const nextData = buildStudentObject(headers, nextRow);
 
@@ -1985,12 +2023,14 @@ async function adjustNextRegistration(sheetName, rows, headers, nextRowIndex, cu
   }
 
   if (nextUpdates.length > 0) {
-    await batchUpdateSheet(nextUpdates);
-    // 하이라이트
-    try {
-      const cells = nextUpdates.map(u => u.range.split('!')[1]);
-      await highlightCells(cells, sheetName);
-    } catch (e) { /* 무시 */ }
+    // collector가 오면 쓰지 않고 모아만 둔다 — 호출자가 자기 업데이트와 합쳐 1회로 쓴다.
+    // (휴일 일괄 변경처럼 이 함수를 학생 수만큼 부르는 경로에서 왕복이 2N회로 불어나는 걸 막음)
+    if (collector) {
+      collector.push(...nextUpdates);
+    } else {
+      await batchUpdateSheet(nextUpdates);
+      highlightAsync(nextUpdates.map(u => u.range.split('!')[1]), sheetName);
+    }
     console.log(`📅 다음 등록 자동 조정: 시작일 ${newNextStartStr}, 종료일 ${newNextEndStr}`);
   }
 }
@@ -2044,9 +2084,16 @@ export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebase
 
   const isHoliday = (date) => isHolidayDate(date, firebaseHolidays);
 
-  for (const sheetName of sheetNames) {
+  // 시트를 하나씩 읽고 시트마다 따로 쓰면 왕복이 (시트 수 + 시트 수 + 미리등록자 수×2)로
+  // 불어난다. 읽기는 batchGet 1회, 쓰기는 전 시트·미리등록 조정분까지 모아 마지막에 1회.
+  const sheetValueRanges = await batchReadSheetData(sheetNames.map(n => `${n}!A:R`));
+  const allUpdates = [];
+  const allHighlights = []; // [{cells, sheetName}]
+
+  for (let sIdx = 0; sIdx < sheetNames.length; sIdx++) {
+    const sheetName = sheetNames[sIdx];
     try {
-      const rows = await readSheetData(`${sheetName}!A:R`);
+      const rows = sheetValueRanges[sIdx]?.values;
       if (!rows || rows.length < 3) {
         result.perSheet[sheetName] = 0;
         continue;
@@ -2124,12 +2171,8 @@ export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebase
       }
 
       if (updates.length > 0) {
-        await batchUpdateSheet(updates);
-        try {
-          await highlightCells(updates.map((u) => u.range.split('!')[1]), sheetName);
-        } catch (e) {
-          console.warn('휴일 종료일 조정 하이라이트 실패:', e);
-        }
+        allUpdates.push(...updates);
+        allHighlights.push({ cells: updates.map((u) => u.range.split('!')[1]), sheetName });
 
         // 미리 등록(다음 등록) 자동 조정
         const shiftedRowIndices = new Set(shifted.map((x) => x.rowIndex));
@@ -2149,9 +2192,14 @@ export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebase
           }
           if (nextIdx !== -1 && !shiftedRowIndices.has(nextIdx)) {
             try {
+              const collected = [];
               await adjustNextRegistration(
-                sheetName, rows, headers, nextIdx, s.newEndDate, firebaseHolidays,
+                sheetName, rows, headers, nextIdx, s.newEndDate, firebaseHolidays, collected,
               );
+              if (collected.length > 0) {
+                allUpdates.push(...collected);
+                allHighlights.push({ cells: collected.map((u) => u.range.split('!')[1]), sheetName });
+              }
             } catch (e) {
               console.warn(`다음 등록 조정 실패 (${s.studentName}):`, e);
             }
@@ -2163,6 +2211,11 @@ export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebase
     } catch (e) {
       result.errors.push(`${sheetName}: ${e.message}`);
     }
+  }
+
+  if (allUpdates.length > 0) {
+    await batchUpdateSheet(allUpdates);
+    allHighlights.forEach(({ cells, sheetName }) => highlightAsync(cells, sheetName));
   }
 
   return result;
@@ -2283,40 +2336,40 @@ export const clearStudentScheduleAllSheets = async (studentName) => {
   const allSheets = await getAllSheetNames();
   const studentSheets = allSheets.filter(name => name.startsWith('등록생 목록('));
 
-  let updatedCount = 0;
+  // 예전엔 시트를 하나씩 읽고(탭 수만큼 왕복) 지울 셀 하나마다 writeSheetData를 또 불렀다.
+  // 종료 버튼 한 번에 왕복이 17~19회까지 났다 → 읽기 1회 + 쓰기 1회.
+  // A:Z가 아니라 A:R로 충분하다(스키마가 A~R이고 쓰는 건 이름·요일및시간 2열뿐).
+  const valueRanges = await batchReadSheetData(studentSheets.map(n => `${n}!A:R`));
+  const updates = [];
 
-  for (const sheetName of studentSheets) {
-    try {
-      const rows = await readSheetData(`${sheetName}!A:Z`);
-      if (!rows || rows.length < 2) continue;
+  for (let si = 0; si < studentSheets.length; si++) {
+    const sheetName = studentSheets[si];
+    const rows = valueRanges[si]?.values;
+    if (!rows || rows.length < 2) continue;
 
-      const headers = rows[1];
-      const nameColIndex = headers.indexOf('이름');
-      if (nameColIndex === -1) continue;
+    const headers = rows[1];
+    const nameColIndex = headers.indexOf('이름');
+    if (nameColIndex === -1) continue;
 
-      // '요일 및 시간' 컬럼 찾기 (변형 포함)
-      let scheduleColIndex = headers.indexOf('요일 및 시간');
-      if (scheduleColIndex === -1) scheduleColIndex = headers.indexOf('요일 및\n시간');
-      if (scheduleColIndex === -1) scheduleColIndex = headers.indexOf('요일및시간');
-      if (scheduleColIndex === -1) continue;
+    // '요일 및 시간' 컬럼 찾기 (변형 포함)
+    let scheduleColIndex = headers.indexOf('요일 및 시간');
+    if (scheduleColIndex === -1) scheduleColIndex = headers.indexOf('요일 및\n시간');
+    if (scheduleColIndex === -1) scheduleColIndex = headers.indexOf('요일및시간');
+    if (scheduleColIndex === -1) continue;
 
-      for (let rowIdx = 2; rowIdx < rows.length; rowIdx++) {
-        const row = rows[rowIdx];
-        if (row[nameColIndex] === studentName && row[scheduleColIndex]) {
-          const col = getColumnLetter(scheduleColIndex);
-          const cellRange = `${sheetName}!${col}${rowIdx + 1}`;
-          await writeSheetData(cellRange, [['']]);
-          console.log(`✅ ${sheetName}에서 ${studentName}의 스케줄 삭제 완료 (${cellRange})`);
-          updatedCount++;
-        }
+    for (let rowIdx = 2; rowIdx < rows.length; rowIdx++) {
+      const row = rows[rowIdx];
+      if (row[nameColIndex] === studentName && row[scheduleColIndex]) {
+        const col = getColumnLetter(scheduleColIndex);
+        updates.push({ range: `${sheetName}!${col}${rowIdx + 1}`, values: [['']] });
       }
-    } catch (sheetError) {
-      console.warn(`⚠️ ${sheetName} 처리 중 오류:`, sheetError.message);
     }
   }
 
-  console.log(`✨ 총 ${updatedCount}개 시트에서 스케줄 삭제 완료`);
-  return updatedCount;
+  if (updates.length > 0) await batchUpdateSheet(updates);
+
+  console.log(`✨ 총 ${updates.length}개 행에서 스케줄 삭제 완료`);
+  return updates.length;
 };
 
 // ─── 결석 처리 ───
@@ -2445,13 +2498,7 @@ export const processStudentAbsence = async (studentName, absenceDates, firebaseH
 
   await batchUpdateSheet(updates);
 
-  // 하이라이트 적용
-  const cellsToHighlight = updates.map(u => u.range.split('!')[1]);
-  try {
-    await highlightCells(cellsToHighlight, foundSheetName);
-  } catch (highlightError) {
-    console.warn('⚠️ 셀 하이라이트 실패:', highlightError);
-  }
+  highlightAsync(updates.map(u => u.range.split('!')[1]), foundSheetName);
 
   console.log(`✅ 결석 처리 완료: ${studentName}, 특이사항="${newNotes}", 새 종료일=${newEndDateStr}`);
   return { success: true, newEndDate: newEndDateStr, notesText: newNotes, validAbsenceCount: validAbsenceDates.length };
@@ -2555,11 +2602,7 @@ export const processCoachHolding = async (studentName, holdingDates, firebaseHol
 
   await batchUpdateSheet(updates);
 
-  // 하이라이트
-  try {
-    const cells = updates.map(u => u.range.split('!')[1]);
-    await highlightCells(cells, foundSheetName);
-  } catch (e) { /* 무시 */ }
+  highlightAsync(updates.map(u => u.range.split('!')[1]), foundSheetName);
 
   // 5. 다음 등록 자동 조정
   if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
@@ -2682,9 +2725,7 @@ export const processHolidayMakeupEndDate = async (studentName, countedHolidayDat
     throw new Error(`휴일 보강 종료일 시트 업데이트 실패: ${error.message} (시트=${foundSheetName}, 행=${studentIndex + 1}, 종료일=${newEndDateStr})`);
   }
 
-  try {
-    await highlightCells([`${getColumnLetter(endDateCol)}${studentIndex + 1}`], foundSheetName);
-  } catch { /* 무시 */ }
+  highlightAsync([`${getColumnLetter(endDateCol)}${studentIndex + 1}`], foundSheetName);
 
   if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined) {
     try {
@@ -2777,10 +2818,7 @@ async function applyNewScheduleToNextRegistration(sheetName, rows, headers, next
 
   if (updates.length > 0) {
     await batchUpdateSheet(updates);
-    try {
-      const cells = updates.map(u => u.range.split('!')[1]);
-      await highlightCells(cells, sheetName);
-    } catch (e) { /* 무시 */ }
+    highlightAsync(updates.map(u => u.range.split('!')[1]), sheetName);
     console.log(`📅 다음 등록 새 스케줄 적용: D=${newScheduleStr}, G=${formatDateToYYMMDD(newNextStart)}, H=${formatDateToYYMMDD(newNextEnd)}`);
   }
 }
@@ -2872,10 +2910,7 @@ export const processScheduleTransfer = async (studentName, newScheduleStr, fireb
 
   await batchUpdateSheet(updates);
 
-  try {
-    const cells = updates.map(u => u.range.split('!')[1]);
-    await highlightCells(cells, foundSheetName);
-  } catch (e) { /* 무시 */ }
+  highlightAsync(updates.map(u => u.range.split('!')[1]), foundSheetName);
 
   // 다음 등록(미리 등록)에도 새 스케줄 적용 (D + G + H 모두)
   if (nextRegistrationIndex !== -1 && nextRegistrationIndex !== undefined && nextRegistrationIndex !== null) {
