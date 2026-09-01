@@ -622,19 +622,6 @@ export const writeSheetData = async (range, values) => {
 };
 
 /**
- * Append data to Google Sheets
- * @param {string} range - The A1 notation of the range to append to
- * @param {Array} values - 2D array of values to append
- * @returns {Promise}
- */
-export const appendSheetData = async (range, values) => {
-  const data = await apiPost('/append', { range, values }, 'append sheet data');
-  invalidateStudentSheetCache();
-  console.log('Data appended:', data);
-  return data;
-};
-
-/**
  * Batch update Google Sheets
  * @param {Array} updates - Array of {range, values} objects
  * @returns {Promise}
@@ -1563,31 +1550,6 @@ export const generateAttendanceHistory = (student, firebaseHolidays = []) => {
 // ─── 학생 데이터 업데이트 ───
 
 /**
- * Update student holding status
- * @param {number} rowIndex - 0-based data row index
- * @param {string} holdingStatus
- * @param {string} holdingStartDate - YYYY-MM-DD
- * @param {string} holdingEndDate - YYYY-MM-DD
- * @param {number} year
- * @param {number} month
- */
-export const updateStudentHolding = async (rowIndex, holdingStatus, holdingStartDate, holdingEndDate, year = null, month = null) => {
-  const foundSheetName = resolveSheetName(year, month);
-  const actualRow = rowIndex + 3;
-
-  await writeSheetData(`${foundSheetName}!M${actualRow}`, [[holdingStatus]]);
-
-  if (holdingStartDate) {
-    await writeSheetData(`${foundSheetName}!N${actualRow}`, [[holdingStartDate]]);
-  }
-  if (holdingEndDate) {
-    await writeSheetData(`${foundSheetName}!O${actualRow}`, [[holdingEndDate]]);
-  }
-
-  console.log(`Updated holding for row ${actualRow} in sheet ${foundSheetName}`);
-};
-
-/**
  * Update student data (주횟수, 요일 및 시간, 홀딩 정보)
  * @param {number} rowIndex - 0-based data row index
  * @param {Object} studentData - fields to update
@@ -1619,16 +1581,17 @@ export const updateStudentData = async (rowIndex, studentData, year = null, mont
     '홀딩\n종료일': 'O'
   };
 
+  // 한 행의 인접 셀들을 필드마다 따로 쓰면 왕복이 필드 수만큼 난다(수정 폼은 학생 객체를
+  // 통째로 넘겨서 보통 7칸) → batchUpdate 1회로 묶는다.
+  const updates = [];
   for (const [field, value] of Object.entries(studentData)) {
     if (columnMap[field] && value !== undefined) {
-      const column = columnMap[field];
-      const range = `${foundSheetName}!${column}${actualRow}`;
-      await writeSheetData(range, [[value]]);
-      console.log(`✅ Updated ${field} to "${value}" at ${range}`);
+      updates.push({ range: `${foundSheetName}!${columnMap[field]}${actualRow}`, values: [[value]] });
     }
   }
+  if (updates.length > 0) await batchUpdateSheet(updates);
 
-  console.log(`✨ Successfully updated student data for row ${actualRow}`);
+  console.log(`✨ Successfully updated student data for row ${actualRow} (${updates.length}칸, 왕복 1회)`);
 };
 
 // ─── 일시정지 (수강 일시정지) ───
@@ -2687,6 +2650,18 @@ export const processHolidayMakeupEndDate = async (studentName, countedHolidayDat
     return { success: true, updated: false, reason: 'no-holiday-makeup' };
   }
 
+  // 공휴일 판정은 시트 없이 되는 순수 계산이다. 아래 방어 필터에서 어차피 걸러질
+  // 날짜 때문에 전 시트를 읽는 건 낭비 — 실측 보강 641건 중 원수업이 공휴일인 건
+  // 7건(1.1%)뿐이라, 나머지 98.9%는 여기서 끝나고 시트를 아예 안 읽는다.
+  // ⚠️ 이 사전 필터를 지우면 보강 신청·대기수락마다 전 시트 batchGet이 되살아난다.
+  const holidayDates = uniqueHolidayDates.filter((ds) => {
+    const d = new Date(ds + 'T00:00:00');
+    return !isNaN(d.getTime()) && isHolidayDate(d, firebaseHolidays);
+  });
+  if (holidayDates.length === 0) {
+    return { success: true, updated: false, reason: 'no-holiday-makeup' };
+  }
+
   const referenceDate = referenceDateStr
     ? new Date(referenceDateStr + 'T00:00:00')
     : new Date(uniqueHolidayDates[0] + 'T00:00:00');
@@ -2718,7 +2693,7 @@ export const processHolidayMakeupEndDate = async (studentName, countedHolidayDat
 
   // 방어 필터: (1) 공휴일 (2) 현재 등록 기간 내 (3) 정규 수업 요일 — 다른 등록기/스테일 데이터 차단
   const classDayNumbers = getClassDays(scheduleStr);
-  const validHolidayDates = uniqueHolidayDates.filter(dateStr => {
+  const validHolidayDates = holidayDates.filter(dateStr => {
     const d = new Date(dateStr + 'T00:00:00');
     if (isNaN(d.getTime())) return false;
     if (!isHolidayDate(d, firebaseHolidays)) return false;

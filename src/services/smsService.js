@@ -553,22 +553,20 @@ export const sendApprovalNotifications = async (studentPhone, studentName, detai
     reminderSMS: false
   };
 
-  // 승인 문자 즉시 발송
-  try {
-    results.approvalSMS = await sendStudentApprovalSMS(studentPhone, studentName, details);
-  } catch (error) {
-    console.error('승인 문자 발송 실패:', error.message);
-  }
-
-  // 입학반 리마인더 예약 (입학반 날짜가 있는 경우)
+  // 승인 문자와 리마인더 예약은 서로 독립이다 — 직렬로 기다리면 코치가 승인 버튼 앞에서
+  // Solapi 왕복을 2번 기다린다. 병렬로 보내고 결과만 각각 받는다.
   console.log('📅 리마인더 체크 - entranceDate:', details.entranceDate, '| entranceClassDate:', details.entranceClassDate);
-  if (details.entranceDate && details.entranceClassDate) {
-    try {
-      results.reminderSMS = await scheduleEntranceReminderSMS(studentPhone, studentName, details);
-    } catch (error) {
-      console.error('입학반 리마인더 예약 실패:', error.message);
-    }
-  }
+  const wantsReminder = Boolean(details.entranceDate && details.entranceClassDate);
+  const [approval, reminder] = await Promise.allSettled([
+    sendStudentApprovalSMS(studentPhone, studentName, details),
+    wantsReminder ? scheduleEntranceReminderSMS(studentPhone, studentName, details) : Promise.resolve(false),
+  ]);
+
+  if (approval.status === 'fulfilled') results.approvalSMS = approval.value;
+  else console.error('승인 문자 발송 실패:', approval.reason?.message);
+
+  if (reminder.status === 'fulfilled') results.reminderSMS = reminder.value;
+  else console.error('입학반 리마인더 예약 실패:', reminder.reason?.message);
 
   return results;
 };

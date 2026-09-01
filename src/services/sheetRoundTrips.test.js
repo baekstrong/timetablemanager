@@ -9,6 +9,7 @@ import {
     clearStudentScheduleAllSheets, pauseStudent, requestHolding,
     getAllStudentsFromAllSheets, invalidateStudentSheetCache,
     processCoachHolding, processStudentAbsence, processScheduleTransfer, findStudentAcrossSheets,
+    processHolidayMakeupEndDate, updateStudentData,
 } from './googleSheetsService';
 
 const SHEETS = ['등록생 목록(26년8월)', '등록생 목록(26년7월)', '등록생 목록(26년6월)'];
@@ -230,6 +231,42 @@ describe('findStudentAcrossSheets — 재등록 검색 vs 학생 조회', () => 
         const found = await findStudentAcrossSheets('홍길동', { requireActive: false });
         expect(found).toBeTruthy();
         expect(found.student['이름']).toBe('홍길동');
+    });
+});
+
+describe('processHolidayMakeupEndDate — 공휴일 아니면 시트를 아예 안 읽는다', () => {
+    // 보강 신청·대기수락마다 불린다. 공휴일 판정은 시트 없이 되는 순수 계산인데
+    // 예전엔 읽고 나서 걸러 98.9%(실측 641건 중 634건)가 헛읽기였다.
+    it('원수업이 공휴일이 아니면 읽기 0회', async () => {
+        const r = await processHolidayMakeupEndDate('홍길동', ['2026-08-10'], []);
+
+        expect(countOf('batchGet')).toBe(0);
+        expect(countOf('read')).toBe(0);
+        expect(countOf('info')).toBe(0);
+        expect(r).toMatchObject({ updated: false, reason: 'no-holiday-makeup' });
+    });
+
+    it('커스텀 공휴일이면 그때는 읽는다 (판정을 건너뛰지 않는다)', async () => {
+        await processHolidayMakeupEndDate('홍길동', ['2026-08-10'], [{ date: '2026-08-10' }]);
+        expect(countOf('batchGet')).toBe(1);
+    });
+
+    it('한국 공휴일(광복절)도 읽는다', async () => {
+        await processHolidayMakeupEndDate('홍길동', ['2026-08-15'], []);
+        expect(countOf('batchGet')).toBe(1);
+    });
+});
+
+describe('updateStudentData — 필드마다 쓰지 않는다', () => {
+    it('여러 칸을 batchUpdate 1회로 쓴다', async () => {
+        await updateStudentData(1, {
+            _foundSheetName: '등록생 목록(26년8월)',
+            주횟수: '3', '요일 및 시간': '월1수1금1', 시작날짜: '260901', 종료날짜: '261001',
+        });
+
+        expect(countOf('batchUpdate')).toBe(1);
+        expect(countOf('write')).toBe(0); // 개별 write로 되돌아가면 실패
+        expect(calls.find(c => c.path === 'batchUpdate').body.data).toHaveLength(4);
     });
 });
 
