@@ -1899,14 +1899,13 @@ export const requestHolding = async (studentName, holdingStartDate, holdingEndDa
 
   await batchUpdateSheet(updates);
 
-  // 하이라이트 적용 (실패해도 홀딩 신청은 성공)
+  // 하이라이트는 기다리지 않는다 (실패해도 홀딩 신청은 성공).
+  // 데이터는 위 batchUpdateSheet로 이미 들어갔는데, 여기서 한 번 더 왕복을 기다리면
+  // 그만큼 학생이 "신청 중" 화면에 붙잡히고 sheetsApplied 마크도 늦어진다.
   const cellsToHighlight = updates.map(u => u.range.split('!')[1]);
-  try {
-    await highlightCells(cellsToHighlight, targetSheetName);
-    console.log(`🎨 셀 하이라이트 완료: ${cellsToHighlight.join(', ')}`);
-  } catch (highlightError) {
-    console.warn('⚠️ 셀 하이라이트 실패 (홀딩 신청은 완료됨):', highlightError);
-  }
+  highlightCells(cellsToHighlight, targetSheetName)
+    .then(() => console.log(`🎨 셀 하이라이트 완료: ${cellsToHighlight.join(', ')}`))
+    .catch(err => console.warn('⚠️ 셀 하이라이트 실패 (홀딩 신청은 완료됨):', err));
 
   console.log(`✅ 홀딩 신청 완료: ${studentName}, ${startDateStr} ~ ${endDateStr}`);
   console.log(`📅 종료일 연장: ${newEndDateStr}`);
