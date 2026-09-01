@@ -265,15 +265,14 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
             if (!user) return;
 
             try {
-                // 모든 홀딩 내역 로드 (여러 개)
-                const holdings = await getHoldingsByStudent(user.username);
+                // 서로 다른 컬렉션이고 뒤 호출이 앞 결과를 안 쓴다 → 직렬로 기다릴 이유가 없다
+                const [holdings, absenceList, makeups] = await Promise.all([
+                    getHoldingsByStudent(user.username),
+                    getAbsencesByStudent(user.username),
+                    getActiveMakeupRequests(user.username),
+                ]);
                 setAllHoldings(holdings);
-
-                const absenceList = await getAbsencesByStudent(user.username);
                 setAbsences(absenceList);
-
-                // 활성 보강 신청 로드
-                const makeups = await getActiveMakeupRequests(user.username);
                 setActiveMakeups(makeups.filter(m => m.status === 'active' || m.status === 'completed'));
             } catch (error) {
                 console.error('Failed to load holding/absence data:', error);
@@ -705,17 +704,15 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
 
                 alert(`홀딩 신청이 완료되었습니다.\n기간: ${startDate} ~ ${endDate}`);
 
-                // Reload data - 모든 홀딩 내역 다시 로드
-                const holdings = await getHoldingsByStudent(user.username);
+                // 리로드 2개는 서로 결과를 안 쓴다 → 병렬 (alert 이후 대기 시간)
+                const [holdings] = await Promise.all([
+                    getHoldingsByStudent(user.username),
+                    refresh(), // Google Sheets 데이터 새로고침 (시간표 실시간 반영)
+                ]);
                 setAllHoldings(holdings);
-
-                // Google Sheets 데이터 새로고침 (시간표 실시간 반영)
-                await refresh();
             } else {
-                // 결석 신청 - Firebase에 저장
-                for (const date of sortedDates) {
-                    await createAbsenceRequest(user.username, date);
-                }
+                // 결석 신청 - 날짜별로 독립된 문서 생성이라 직렬로 기다릴 이유가 없다
+                await Promise.all(sortedDates.map(date => createAbsenceRequest(user.username, date)));
 
                 alert(`결석 신청이 완료되었습니다.\n날짜: ${sortedDates.join(', ')}`);
 
@@ -724,12 +721,11 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                 setAbsences(absenceList);
             }
 
-            // 빠진 자리의 보강 대기자에게 순차 알림 (실패해도 신청 자체에는 영향 없음)
-            try {
-                await onSeatsFreedForDates(sortedDates, getStudentField(studentData, '요일 및 시간'));
-            } catch (e) {
-                console.error('보강 대기 알림 트리거 실패:', e);
-            }
+            // 빠진 자리의 보강 대기자 알림 — 실패해도 신청 자체에는 영향이 없고, 이미 완료
+            // alert까지 띄운 뒤라 기다릴 이유가 없다. 기다리면 대기자 SMS/푸시가 끝날 때까지
+            // 차단 화면이 남는다.
+            onSeatsFreedForDates(sortedDates, getStudentField(studentData, '요일 및 시간'))
+                .catch(e => console.error('보강 대기 알림 트리거 실패:', e));
 
             setSelectedDates([]);
         } catch (error) {

@@ -57,9 +57,11 @@ async function applyResolution({ toExpire, toNotify }) {
  * 특정 날짜+슬롯에서 자리가 1개 빠졌을 때 호출.
  * 트리거: 홀딩 처리, 결석 처리, 보강 취소, 대기 거절.
  */
-export async function onSeatFreed(date, day, period, availableSeats = null) {
+export async function onSeatFreed(date, day, period, availableSeats = null, preloaded = null) {
     try {
-        const all = (await getActiveMakeupWaitlists()).map(normalizeWaitlistEntry);
+        // preloaded: 여러 슬롯을 한 번에 처리할 때 호출자가 목록을 1회만 조회해 넘긴다.
+        // 안 넘기면 종전대로 직접 조회.
+        const all = preloaded || (await getActiveMakeupWaitlists()).map(normalizeWaitlistEntry);
         const slotEntries = all.filter(e => e.date === date && e.day === day && e.period === period);
         if (slotEntries.length === 0) return 0;
         // 실제 여석 수를 알면 그 기준으로(만석이면 0명 알림), 모르면 종전대로 1자리 가정.
@@ -83,12 +85,22 @@ export async function onSeatsFreedForDates(dates, scheduleStr) {
     const parsed = parseScheduleString(scheduleStr || '');
     if (parsed.length === 0) return;
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+    const slots = [];
     for (const date of dates) {
         const dayName = dayNames[new Date(date + 'T00:00:00').getDay()];
         for (const s of parsed.filter(p => p.day === dayName)) {
-            await onSeatFreed(date, dayName, s.period);
+            slots.push({ date, dayName, period: s.period });
         }
     }
+    if (slots.length === 0) return;
+
+    // 예전엔 슬롯마다 onSeatFreed를 직렬로 불렀고, 그 안에서 대기열 전체를 매번 다시 조회했다.
+    // 홀딩 5일이면 같은 쿼리가 5번 줄줄이 났고 이 호출은 신청 완료 알림 앞에서 await 된다.
+    // → 목록은 1회만 읽고, 슬롯 처리는 병렬로.
+    // 슬롯끼리는 date|day|period로 갈라져 대상 대기자가 겹치지 않으므로 같은 스냅샷을 써도 안전하다.
+    const all = (await getActiveMakeupWaitlists()).map(normalizeWaitlistEntry);
+    await Promise.all(slots.map(s => onSeatFreed(s.date, s.dayName, s.period, null, all)));
 }
 
 /**
