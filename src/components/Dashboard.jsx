@@ -244,7 +244,8 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
         const checkMyLastDay = async () => {
             if (user.role === 'coach') return;
             try {
-                const result = await findStudentAcrossSheets(user.username);
+                // App.jsx의 STUDENT_LOOKUP과 같은 이유로 폴백을 끈다 (본인 등록 조회)
+                const result = await findStudentAcrossSheets(user.username, { requireActive: false });
                 if (result && result.student) {
                     const endDateStr = result.student['종료날짜'];
                     if (endDateStr) {

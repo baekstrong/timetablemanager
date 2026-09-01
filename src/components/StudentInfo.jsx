@@ -6,13 +6,28 @@ import ContractHistory from './ContractHistory';
 import PasswordChangeCard from './PasswordChangeCard';
 import './StudentInfo.css';
 
-const StudentInfo = ({ user, studentData, isImpersonating = false, onBack }) => {
+// 시트가 오기 전 잠깐만 쓰이는 빈 값 (로딩 오버레이가 가린다).
+// 끝내 안 오면 아래 '정보 없음' 화면으로 빠지므로 이 값이 노출되는 일은 없다.
+// ⚠️ 예전엔 여기에 그럴싸한 목 데이터(2025-12-20~2026-01-19, 주2회, 남은 8회)가 있었다.
+// 오버레이가 Firebase만 기다리고 시트는 안 기다려서, 수강생 화면에 남의 날짜가 1~2초
+// 진짜처럼 떴다가 바뀌었다. 시트에 행이 없는 계정은 그 가짜가 영구히 보였다.
+const EMPTY_MEMBERSHIP = {
+    studentName: '', startDate: '', endDate: '', weeklyFrequency: 0,
+    totalSessions: 0, completedSessions: 0, remainingSessions: 0,
+    remainingHolding: 0, totalHolding: 0, usedHolding: 0,
+    registrationMonths: 0, attendanceCount: 0, totalClasses: 0,
+};
+
+const StudentInfo = ({ user, studentData, isLoading = false, isImpersonating = false, onBack }) => {
     const { calculateMembershipStats, generateAttendanceHistory } = useGoogleSheets();
     const [activeMakeups, setActiveMakeups] = useState([]);
     const [holdingHistory, setHoldingHistory] = useState([]);
     const [firebaseHolidays, setFirebaseHolidays] = useState([]);
     const [showContractHistory, setShowContractHistory] = useState(false);
     const [loading, setLoading] = useState(true);
+    // 구글 시트(studentData)는 App이 로그인 직후 백그라운드로 받아온다 — 그게 제일 느리므로
+    // Firebase 3건과 함께 기다린다.
+    const stillLoading = loading || isLoading;
 
     // Firebase에서 보강 신청 + 홀딩 이력 + 공휴일 로드
     useEffect(() => {
@@ -38,28 +53,10 @@ const StudentInfo = ({ user, studentData, isImpersonating = false, onBack }) => 
     }, [user]);
 
     // 구글 시트 데이터로부터 수강권 정보 계산
-    const membershipInfo = useMemo(() => {
-        if (!studentData) {
-            // 구글 시트 데이터가 없는 경우 목 데이터 사용 (폴백)
-            return {
-                studentName: user.username,
-                startDate: '2025-12-20',
-                endDate: '2026-01-19',
-                weeklyFrequency: 2,
-                totalSessions: 8,
-                completedSessions: 0,
-                remainingSessions: 8,
-                remainingHolding: 1,
-                totalHolding: 1,
-                usedHolding: 0,
-                registrationMonths: 1,
-                attendanceCount: 0,
-                totalClasses: 8
-            };
-        }
-
-        return calculateMembershipStats(studentData, firebaseHolidays);
-    }, [studentData, user.username, calculateMembershipStats, firebaseHolidays]);
+    const membershipInfo = useMemo(
+        () => (studentData ? calculateMembershipStats(studentData, firebaseHolidays) : EMPTY_MEMBERSHIP),
+        [studentData, calculateMembershipStats, firebaseHolidays]
+    );
 
     // 현재 등록 기간 내 홀딩만 필터 (시작일 7일 전부터, 보강 날짜가 시작일 직전일 수 있음)
     const currentHoldings = useMemo(() => {
@@ -84,12 +81,7 @@ const StudentInfo = ({ user, studentData, isImpersonating = false, onBack }) => 
 
     // 출석 내역 생성 (보강 + 홀딩 데이터 반영)
     const attendanceHistory = useMemo(() => {
-        if (!studentData) {
-            return [
-                { date: '2026-01-08', period: '4교시', type: '정규', status: '출석' },
-                { date: '2026-01-07', period: '2교시', type: '정규', status: '출석' },
-            ];
-        }
+        if (!studentData) return [];
 
         // 구글 시트에서 출석 내역 생성
         let history = generateAttendanceHistory(studentData, firebaseHolidays);
@@ -156,7 +148,7 @@ const StudentInfo = ({ user, studentData, isImpersonating = false, onBack }) => 
 
     return (
         <div className="student-info-container">
-            {loading && (
+            {stillLoading && (
                 <div style={{
                     position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
                     background: 'rgba(255,255,255,0.85)', zIndex: 9999,
@@ -178,6 +170,20 @@ const StudentInfo = ({ user, studentData, isImpersonating = false, onBack }) => 
                 <h1 className="student-info-title">내 정보</h1>
             </div>
 
+            {/* 시트에 행이 없으면 studentData가 끝내 안 채워진다. 예전엔 그 자리에 목 데이터가
+                그려져 남의 수강 기간이 진짜처럼 보였다 → 못 찾았다고 그대로 말한다. */}
+            {!stillLoading && !studentData ? (
+                <div className="student-info-content">
+                    <div className="membership-card">
+                        <h2>수강 정보</h2>
+                        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7, margin: '0.75rem 0 0' }}>
+                            수강 정보를 찾을 수 없습니다.<br />
+                            등록이 아직 반영되지 않았을 수 있으니 코치에게 문의해주세요.
+                        </p>
+                    </div>
+                    {!isImpersonating && <PasswordChangeCard userName={user.username} />}
+                </div>
+            ) : (
             <div className="student-info-content">
                 {/* 수강권 정보 카드 */}
                 <div className="membership-card">
@@ -356,6 +362,7 @@ const StudentInfo = ({ user, studentData, isImpersonating = false, onBack }) => 
                 {/* 비밀번호 변경 (빙의 모드에서는 숨김) */}
                 {!isImpersonating && <PasswordChangeCard userName={user.username} />}
             </div>
+            )}
 
             {showContractHistory && (
                 <ContractHistory
