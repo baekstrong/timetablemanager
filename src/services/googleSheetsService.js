@@ -1138,21 +1138,25 @@ function pickActiveRegistration(registrations) {
 }
 
 /**
- * 여러 시트에서 학생 찾기 (모든 시트에서 검색하여 활성 등록 반환)
+ * 여러 시트에서 학생 찾기 (±2개월 윈도우 → 필요 시 전체 시트 폴백)
  *
- * 기본은 2단계다 — ±2개월 윈도우를 먼저 읽고(대개 캐시 적중), 오늘 활성 등록이
- * 없을 때만 나머지 시트로 폴백. 학생 로그인처럼 활성 등록이 있는 조회는 1단계에서 끝난다.
+ * requireActive(기본 true): 윈도우에서 찾았더라도 **오늘 활성인** 등록이 없으면 전체를
+ * 다시 읽는다. 장기(2~3개월) 등록 행은 결제한 달 시트에 남아 윈도우 밖일 수 있고,
+ * 그때 인접 달의 미리등록을 활성으로 오인하면 안 되기 때문 — 학생 로그인·대시보드용.
  *
- * scanAll=true면 윈도우를 건너뛰고 전 시트를 batchGet 1회로 읽는다.
- * **재등록 검색용** — 재등록 대상은 정의상 수강이 끝난 사람이라 윈도우에 활성 등록이
- * 없고 폴백이 사실상 100% 발동한다. 그때 2단계는 왕복만 늘린다
- * (프로덕션 실측 2.6초 → 1.1초). 전 시트를 다 읽어도 89KB라 페이로드는 문제가 아니다.
+ * requireActive=false: 윈도우에서 **아무것도 못 찾았을 때만** 폴백한다.
+ * **재등록 검색용.** 재등록은 직전 수강이 끝나고 며칠 뒤에 이뤄져서(실측 중앙값 5일,
+ * 75%가 8일 이내) '오늘 활성'은 거의 항상 false지만, 직전 등록 행 자체는 최근 시트에
+ * 그대로 있다. 실제 재등록 421건을 재보니 **75.8%가 윈도우 안에 행이 있어 폴백이 불필요**했고
+ * 정말 필요한 건 10.7%(오래 쉬었다 돌아온 경우)뿐이었다. 재등록 폼은 직전 등록의
+ * 주횟수·요일·연락처·종료일만 있으면 되고, 활성 등록이 없을 때 pickActiveRegistration이
+ * 가장 최근 등록을 고르므로 윈도우만으로 충분하다.
  *
  * @param {string} studentName
- * @param {{scanAll?: boolean}} [opts]
+ * @param {{requireActive?: boolean}} [opts]
  * @returns {Promise<Object|null>} - { student, year, month, foundSheetName }
  */
-export const findStudentAcrossSheets = async (studentName, { scanAll = false } = {}) => {
+export const findStudentAcrossSheets = async (studentName, { requireActive = true } = {}) => {
   const today = new Date();
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth() + 1;
@@ -1168,30 +1172,27 @@ export const findStudentAcrossSheets = async (studentName, { scanAll = false } =
 
   // 윈도우 5개 시트를 캐시·dedup·batchGet으로 1회에 읽음 (기존: 5회 개별 읽기)
   const windowSheetNames = searchMonths.map(({ year, month }) => getSheetNameByYearMonth(year, month));
-  if (!scanAll) {
-    const windowMap = await readStudentSheets(windowSheetNames);
-    searchMonths.forEach(({ year, month }) => {
-      const foundSheetName = getSheetNameByYearMonth(year, month);
-      (windowMap.get(foundSheetName) || [])
-        .filter(s => s['이름'] === studentName)
-        .forEach(student => {
-          student._foundSheetName = foundSheetName;
-          allMatches.push({ student, year, month, foundSheetName });
-        });
-    });
-  }
+  const windowMap = await readStudentSheets(windowSheetNames);
+  searchMonths.forEach(({ year, month }) => {
+    const foundSheetName = getSheetNameByYearMonth(year, month);
+    (windowMap.get(foundSheetName) || [])
+      .filter(s => s['이름'] === studentName)
+      .forEach(student => {
+        student._foundSheetName = foundSheetName;
+        allMatches.push({ student, year, month, foundSheetName });
+      });
+  });
 
   // 장기(2~3개월) 등록의 행은 "등록(결제)한 달" 시트에 남아 있어, 현재 월에서 2개월 넘게
   // 떨어진 시트에 있을 수 있다. (예: 2월 시트에 3~6월 수강 등록 행)
   // 이 경우 ±2개월 윈도우가 '오늘 활성인 등록'을 놓치고, 인접 달에 있는 '미리 등록(미래 등록)'을
   // 활성으로 오인한다 → ①아예 못 찾았거나 ②윈도우 안에 오늘 활성 등록이 없으면 전체 시트로 폴백.
   const hasActiveMatch = allMatches.some(m => studentRegistrationCoversDate(m.student, today));
-  if (scanAll || allMatches.length === 0 || !hasActiveMatch) {
-    if (!scanAll) console.warn(`⚠️ "${studentName}" ±2개월 윈도우에 오늘 활성 등록 없음 — 전체 시트 스캔으로 보강`);
+  if (allMatches.length === 0 || (requireActive && !hasActiveMatch)) {
+    console.warn(`⚠️ "${studentName}" ±2개월 윈도우에서 못 찾음${requireActive ? '(또는 오늘 활성 등록 없음)' : ''} — 전체 시트 스캔으로 보강`);
     try {
       const allSheets = await getAllSheetNames();
-      // scanAll이면 윈도우를 안 읽었으므로 제외하지 않고 전부 한 번에 읽는다
-      const windowSet = scanAll ? new Set() : new Set(windowSheetNames);
+      const windowSet = new Set(windowSheetNames); // 윈도우에서 이미 읽은 시트 제외(중복 방지)
       const studentSheets = allSheets
         .filter(name => name.startsWith('등록생 목록('))
         .filter(name => !windowSet.has(name));

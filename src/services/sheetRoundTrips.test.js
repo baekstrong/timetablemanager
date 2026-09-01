@@ -197,27 +197,39 @@ describe('다음 등록 조정을 따로 쓰지 않는다 — 나머지 경로',
 });
 
 describe('findStudentAcrossSheets — 재등록 검색 vs 학생 조회', () => {
-    it('scanAll: 전 시트를 batchGet 1회로 — 2단계로 나눠 읽지 않는다', async () => {
+    // 재등록은 직전 수강 종료 며칠 뒤에 일어나 '오늘 활성 등록'이 거의 없다.
+    // 그렇다고 전 시트를 다시 읽을 필요는 없다 — 직전 등록 행은 최근 시트에 그대로 있다
+    // (실제 재등록 421건 중 75.8%). 활성 여부로 폴백을 걸면 왕복만 는다.
+    it('requireActive:false — 윈도우에서 찾으면 전체 스캔하지 않는다', async () => {
         invalidateStudentSheetCache();
-        await findStudentAcrossSheets('홍길동', { scanAll: true });
+        await findStudentAcrossSheets('홍길동', { requireActive: false });
 
-        expect(countOf('batchGet')).toBe(1); // 윈도우+폴백 2회가 아니라 1회
+        expect(countOf('batchGet')).toBe(1); // 윈도우 1회로 끝 (폴백 없음)
+        expect(countOf('info')).toBe(0);     // 폴백을 안 타니 시트목록도 안 읽음
         expect(countOf('read')).toBe(0);
     });
 
-    it('scanAll: 윈도우 밖(오래된 시트)에만 있는 수강생도 찾는다', async () => {
+    it('requireActive:false — 못 찾으면 그때는 전체를 스캔한다', async () => {
         invalidateStudentSheetCache();
-        const found = await findStudentAcrossSheets('홍길동', { scanAll: true });
-        expect(found).toBeTruthy();
-        expect(found.student['이름']).toBe('홍길동');
+        await findStudentAcrossSheets('없는사람', { requireActive: false });
+
+        expect(countOf('batchGet')).toBe(2); // 윈도우 + 폴백
+        expect(countOf('read')).toBe(0);
     });
 
-    it('기본(scanAll 없음): 학생 조회 경로는 그대로 — 개별 읽기 없음', async () => {
+    it('기본(requireActive:true) — 학생 조회 경로는 그대로', async () => {
         invalidateStudentSheetCache();
         await findStudentAcrossSheets('홍길동');
 
         expect(countOf('read')).toBe(0);
-        expect(countOf('batchGet')).toBeLessThanOrEqual(2); // 윈도우 + (필요시) 폴백
+        expect(countOf('batchGet')).toBeLessThanOrEqual(2);
+    });
+
+    it('찾은 수강생 정보를 제대로 돌려준다', async () => {
+        invalidateStudentSheetCache();
+        const found = await findStudentAcrossSheets('홍길동', { requireActive: false });
+        expect(found).toBeTruthy();
+        expect(found.student['이름']).toBe('홍길동');
     });
 });
 
