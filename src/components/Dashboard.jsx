@@ -4,6 +4,7 @@ import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancel
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
 import { initPush, isPushAvailable, getPushPermission, pushNotice } from '../services/pushService';
 import { resolvePushState } from '../utils/pushStatus';
+import { resolveInstallState } from '../utils/installState';
 import { shouldShowInCoachStudentList } from '../utils/studentList';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
 import { POST_LIMITS } from '../data/boardConstants';
@@ -48,6 +49,13 @@ const PUSH_ROW = {
     },
 };
 
+// 홈 화면 추가 안내 줄. 홈 화면에서 열면(standalone) 저절로 사라지므로 '닫기'가 없다.
+const INSTALL_ROW = {
+    android: { text: '홈 화면에 추가하면 앱처럼 바로 열리고 알림도 받을 수 있어요.', action: '홈 화면에 추가' },
+    'ios-safari': { text: '홈 화면에 추가하면 앱처럼 바로 열리고 알림도 받을 수 있어요. 아래 공유 버튼 → "홈 화면에 추가".' },
+    'ios-other': { text: '홈 화면에 추가하려면 사파리로 열어주세요. 사파리에서 공유 버튼 → "홈 화면에 추가".' },
+};
+
 const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone }) => {
     const [posts, setPosts] = useState([]);
     const [postsLoading, setPostsLoading] = useState(true);
@@ -70,6 +78,8 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
     const [selectedPostId, setSelectedPostId] = useState(null);
     const [showPostForm, setShowPostForm] = useState(false);
     const [pushState, setPushState] = useState(null); // null=판정 전, 'on'|'off'|'denied'|'unsupported'
+    const [installState, setInstallState] = useState(null); // 'installed'|'android'|'ios-safari'|'ios-other'|null
+    const deferredPromptRef = useRef(null);
     const [editingPost, setEditingPost] = useState(null);
 
     const { students, refresh } = useGoogleSheets();
@@ -104,6 +114,30 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
         })();
         return () => { cancel = true; };
     }, [user]);
+
+    // 홈 화면 추가 안내. 안드로이드는 beforeinstallprompt를 붙잡아 뒀다가 버튼으로 띄우고,
+    // 아이폰은 그 이벤트가 없으므로 공유 시트 문구만 바로 보여준다.
+    useEffect(() => {
+        const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        const decide = (canPrompt) => setInstallState(resolveInstallState({ standalone, ua: navigator.userAgent, canPrompt }));
+        decide(false);
+        const onBeforeInstall = (e) => {
+            e.preventDefault(); // 크롬 기본 배너 대신 우리 줄에서 띄운다
+            deferredPromptRef.current = e;
+            decide(true);
+        };
+        window.addEventListener('beforeinstallprompt', onBeforeInstall);
+        return () => window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+    }, []);
+
+    const installApp = async () => {
+        const e = deferredPromptRef.current;
+        if (!e) return;
+        deferredPromptRef.current = null; // 이벤트는 한 번만 쓸 수 있다
+        e.prompt();
+        const { outcome } = await e.userChoice;
+        setInstallState(outcome === 'accepted' ? 'installed' : null);
+    };
 
     // 이미 granted인데 off로 잡힌 사람(토큰 등록 실패)도 이 버튼으로 재시도된다.
     const enablePush = async () => {
@@ -498,6 +532,26 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
                         </svg>
                     </button>
                 </header>
+
+                {INSTALL_ROW[installState] && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                        background: '#329BE71A',
+                        border: '1px solid #329BE74D',
+                        borderRadius: 'var(--r-md)', padding: '0.6rem 0.8rem', marginBottom: '0.75rem',
+                        fontSize: '0.85rem', lineHeight: 1.5,
+                    }}>
+                        <span style={{ flex: 1 }}>📲 {INSTALL_ROW[installState].text}</span>
+                        {INSTALL_ROW[installState].action && (
+                            <button
+                                style={{ flexShrink: 0, padding: '6px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r-chip)', fontWeight: 600, cursor: 'pointer' }}
+                                onClick={installApp}
+                            >
+                                {INSTALL_ROW[installState].action}
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 {pushState === 'on' ? (
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
