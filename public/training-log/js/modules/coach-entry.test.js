@@ -64,9 +64,13 @@ describe('진입 시 흰 화면', () => {
         expect(body).not.toMatch(/load|db\.|collection\(/);
     });
 
-    it('autoLogin 실패를 반환값으로 알 수 있다', () => {
-        // 낙관적으로 세운 세션을 되돌리려면 성공 여부가 필요하다.
-        expect(main).toMatch(/const authed = await Auth\.autoLogin\(\)/);
-        expect(main).toMatch(/if \(!authed\)/);
+    it('셸을 그린 뒤 state를 되돌려 로그인 판정을 건드리지 않는다', () => {
+        // 훈련일지 JS는 해시 없는 ES 모듈 → 브라우저가 main.js와 auth.js를 따로 캐시 갱신한다.
+        // autoLogin의 반환값 같은 모듈 간 새 계약을 만들면 '새 main + 옛 auth' 조합에서
+        // 코치가 로그인 화면으로 튕긴다(실제 발생). 판정은 예전 그대로 state.currentUser 하나뿐이어야 한다.
+        const block = main.slice(main.indexOf('const saved = loadSavedLogin()'), main.indexOf('Web App Initialized'));
+        expect(block).toMatch(/paintShell\(\);\s*\n\s*state\.currentUser = null;/);
+        expect(block).toMatch(/if \(!state\.currentUser\) \{\s*\n\s*await Auth\.autoLogin\(\);/);
+        expect(block).not.toMatch(/await Auth\.autoLogin\(\)\s*;?\s*\n?\s*(const|let|if \(!authed)/);
     });
 });

@@ -304,19 +304,27 @@ async function initApp() {
     // 흰 화면 제거: 저장된 세션이 있으면 인증을 기다리기 전에 뼈대부터 그린다.
     // autoLogin은 Auth 상태 복원(최대 2.5초 대기) + 실패 시 서버 재인증까지 갈 수 있는데,
     // 예전엔 그동안 #app이 통째로 비어 있어 앱 간 이동이 백지로 보였다.
+    //
+    // ⚠️ 그리고 나서 state를 반드시 되돌린다. 아래 판정은 예전 그대로 state.currentUser 하나뿐이고,
+    // autoLogin의 반환값 같은 새 계약을 만들지 않는다 — 훈련일지 JS는 해시 없는 ES 모듈이라
+    // 브라우저가 main.js와 auth.js를 따로 캐시 갱신한다. 실제로 그 조합(새 main + 옛 auth)에서
+    // 코치가 로그인 화면으로 튕기고 수강생 목록이 '로딩중'에 멈췄다.
     const saved = loadSavedLogin();
     if (saved && saved.name) {
         state.currentUser = saved.name;
         state.isCoach = saved.isCoach || false;
         paintShell();
-    }
-
-    // 인증 성공 시 autoLogin이 render()를 호출해 데이터를 채운다.
-    const authed = await Auth.autoLogin();
-    if (!authed) {
-        // 위에서 낙관적으로 세운 세션을 되돌리고 로그인 화면으로.
         state.currentUser = null;
         state.isCoach = false;
+    }
+
+    // Auto Login 먼저 시도 (성공하면 autoLogin 안에서 render()가 불려 데이터가 채워진다)
+    if (!state.currentUser) {
+        await Auth.autoLogin();
+    }
+
+    // autoLogin이 render()를 호출하지 않은 경우 (비로그인 상태) 렌더링
+    if (!state.currentUser) {
         window.render();
     }
 
