@@ -23,6 +23,8 @@ export async function loadStudentList() {
 
     try {
         resetCoachSessionCache(); // 페이지 재진입 시 세션 캐시 비워 최신 기록 재조회
+        // 명단 메타(시간표·roster·미결제 등)는 users 결과를 쓰지 않으므로 같이 던진다.
+        const prefetch = prefetchEntryData();
         // users 컬렉션에서 수강생 목록 조회 (records 전체 조회 대비 훨씬 빠름)
         const usersSnapshot = await db.collection('users').get();
 
@@ -158,7 +160,8 @@ export async function loadStudentList() {
 
         // 진입 시 '지금(또는 방금 끝난) 수업' 명단을 자동 선택 → 코치가 이름을 고르지 않아도 된다.
         // 안쪽에서 renderCoachSessionView까지 호출한다.
-        await applyCurrentClassRoster({ silent: true });
+        await prefetch; // users 조회와 나란히 돌던 것 — 대개 이미 끝나 있다
+        await applyCurrentClassRoster({ silent: true, prefetched: true });
 
     } catch (error) {
         console.error('Error loading student list:', error);
@@ -310,6 +313,35 @@ async function rosterForSlot(slot) {
     return { names: [...new Set([...regular, ...makeups])], source: 'schedule' };
 }
 
+// 소비하지 않고 날짜만 훔쳐본다 — consumeClickedSlot이 나중에 실제로 읽어야 하므로.
+function clickedSlotDate() {
+    try { return JSON.parse(localStorage.getItem('trainingLogSlot') || 'null')?.date || null; }
+    catch { return null; }
+}
+
+function resetSlotCaches() {
+    Object.keys(rosterByDate).forEach(k => delete rosterByDate[k]);
+    Object.keys(makeupsByDate).forEach(k => delete makeupsByDate[k]);
+    lastClassesMap = null;
+    unpaidSet = null;
+}
+
+// 진입 시 필요한 메타 문서들. 서로 결과를 안 쓰므로 한 번에 던진다 (CLAUDE.md 주의사항 13).
+// loadStudentList가 users 조회와 나란히 호출하고, applyCurrentClassRoster는 이 캐시를 그대로 쓴다
+// (= 직렬 5단 → 2단). 개별 load*는 각자 catch로 폴백하므로 이 Promise.all은 reject하지 않는다.
+function prefetchEntryData() {
+    resetSlotCaches();
+    const jobs = [loadSchedules(true), loadLastClasses(), loadUnpaid(), loadReregX()];
+    // 시간표 셀을 눌러 들어왔으면 명단이 localStorage에 실려 오므로 roster는 필요 없다(태그용 보강만).
+    const clicked = clickedSlotDate();
+    if (clicked) jobs.push(loadMakeupsForDate(clicked));
+    else {
+        const date = resolveClassSlot()?.date;
+        if (date) jobs.push(loadRosterForDate(date), loadMakeupsForDate(date));
+    }
+    return Promise.all(jobs);
+}
+
 // 지금/방금 끝난 교시의 수강생을 선택 상태로 만든다. 새로고침 버튼도 이걸 호출한다.
 // 시간표에서 수업 칸을 눌러 들어온 경우: 그 수업 명단을 그대로 쓴다(자동 계산으로 덮어쓰지 않음).
 // 한 번 쓰고 지운다 → 이후 🔄 새로고침은 다시 '지금 수업' 기준.
@@ -328,19 +360,22 @@ function consumeClickedSlot() {
     }
 }
 
-export async function applyCurrentClassRoster({ silent = false } = {}) {
+export async function applyCurrentClassRoster({ silent = false, prefetched = false } = {}) {
     const clicked = consumeClickedSlot();
     if (clicked) return applyPickedSlot(clicked);
 
     let slot = resolveClassSlot();
     if (!slot) return;
 
-    // 새로고침 때마다 다시 읽는다(보강 신청·홀딩 변경 반영)
-    Object.keys(rosterByDate).forEach(k => delete rosterByDate[k]);
-    Object.keys(makeupsByDate).forEach(k => delete makeupsByDate[k]);
-    lastClassesMap = null;
-    unpaidSet = null;
-    await loadSchedules(true);
+    // 새로고침 때마다 다시 읽는다(보강 신청·홀딩 변경 반영).
+    // 진입 경로는 prefetchEntryData가 이미 비우고 던져놨으므로 건너뛴다.
+    if (!prefetched) {
+        resetSlotCaches();
+        await Promise.all([
+            loadSchedules(true), loadRosterForDate(slot.date), loadMakeupsForDate(slot.date),
+            loadLastClasses(), loadUnpaid(), loadReregX(),
+        ]);
+    }
 
     // 수업이 없는 빈 교시는 건너뛰고 실제로 사람이 있던 수업까지 되감는다.
     // (예: 금 13:44 → '마지막 수업'이 2교시인데 그 교시는 수업이 없음)
@@ -1586,10 +1621,39 @@ export async function loadAllRecords() {
 // ============================================
 let coachSessionCache = {};        // 이름 -> { dates:[최근순], byDate:{날짜:[item]} }
 let coachSessionSelectedDate = {}; // 이름 -> 현재 선택 날짜
+let coachSessionDays = {};         // 이름 -> 지금 캐시에 담긴 조회 범위(일)
+
+// 진입 시 학생당 조회 범위. 화면에 그리는 건 학생당 하루치뿐이라 넓게 받을수록 그대로 손해다 —
+// 90일이던 시절 7명 기준 560건/2.8MB가 매 진입마다 내려왔다(14일이면 104건/467KB).
+// 나머지는 날짜 드롭다운의 '더 보기'로 그때 조회한다. 이 숫자를 다시 키우지 말 것.
+const SESSION_DAYS = 14;
+const SESSION_DAYS_MORE = 180;
+const MORE_OPTION = '__more__';
 
 function resetCoachSessionCache() {
     coachSessionCache = {};
     coachSessionSelectedDate = {};
+    coachSessionDays = {};
+}
+
+// 학생 1명의 세션 캐시를 지정한 범위로 채운다. (userName,date) 복합 인덱스는 학생 달력이
+// 상시 쓰는 조합이라 존재. 실패 시 무경계 폴백.
+async function fetchSessions(name, days) {
+    const cutoffD = new Date(); cutoffD.setDate(cutoffD.getDate() - days);
+    const cutoff = `${cutoffD.getFullYear()}-${String(cutoffD.getMonth() + 1).padStart(2, '0')}-${String(cutoffD.getDate()).padStart(2, '0')}`;
+    const snap = await db.collection('records')
+        .where('userName', '==', name)
+        .where('date', '>=', cutoff)
+        .get()
+        .catch(() => db.collection('records').where('userName', '==', name).get());
+    const items = [];
+    snap.forEach(doc => {
+        const d = doc.data();
+        items.push({ id: doc.id, data: d, date: d.date, ts: tsMs(d.timestamp) });
+    });
+    const { dates, byDate } = groupSessionsByDate(items);
+    coachSessionCache[name] = { dates, byDate };
+    coachSessionDays[name] = days;
 }
 
 const escCoach = (s) => String(s ?? '').replace(/[&<>"']/g, c => (
@@ -1622,25 +1686,9 @@ export async function renderCoachSessionView() {
     if (needFetch.length > 0) {
         container.innerHTML = '<p class="text-gray-400 text-center py-8">불러오는 중…</p>';
         try {
-            // 세션 뷰 조회 범위: 최근 90일. 무경계(userName만)로 읽으면 학생당 전체 이력이
-            // 통째로 내려와(장기 수강생 수백 read×선택 인원) 코치 진입이 느려지고 비싸진다.
-            // (userName,date) 복합 인덱스는 학생 달력이 상시 쓰는 조합이라 존재. 실패 시 무경계 폴백.
-            // 90일 이전 기록은 학생 개별 화면(달력)에서 조회.
-            const cutoffD = new Date(); cutoffD.setDate(cutoffD.getDate() - 90);
-            const cutoff = `${cutoffD.getFullYear()}-${String(cutoffD.getMonth() + 1).padStart(2, '0')}-${String(cutoffD.getDate()).padStart(2, '0')}`;
             await Promise.all(needFetch.map(async (name) => {
-                const snap = await db.collection('records')
-                    .where('userName', '==', name)
-                    .where('date', '>=', cutoff)
-                    .get()
-                    .catch(() => db.collection('records').where('userName', '==', name).get());
-                const items = [];
-                snap.forEach(doc => {
-                    const d = doc.data();
-                    items.push({ id: doc.id, data: d, date: d.date, ts: tsMs(d.timestamp) });
-                });
-                const { dates, byDate } = groupSessionsByDate(items);
-                coachSessionCache[name] = { dates, byDate };
+                await fetchSessions(name, SESSION_DAYS);
+                const { dates, byDate } = coachSessionCache[name];
                 // 끝난 수업을 보고 있으면 그 날짜를, 아니면 오늘 이전 마지막 수업을 기본으로.
                 coachSessionSelectedDate[name] = (coachPreferredDate && byDate[coachPreferredDate])
                     ? coachPreferredDate
@@ -1672,10 +1720,20 @@ function renderCoachSessionBlock(name) {
     const nameChip = `<span class="text-xl font-bold text-gray-900">${escCoach(name)}</span>`;
 
     const cache = coachSessionCache[name];
+    // 진입 조회는 최근 SESSION_DAYS일뿐이다 → 그 사이 기록이 없다고 '기록 없음'으로 끝내면
+    // 오래 쉰 수강생의 지난 기록을 볼 길이 사라진다. 여기에도 더 보기를 남긴다.
+    const canLoadMore = (coachSessionDays[name] || SESSION_DAYS) < SESSION_DAYS_MORE;
     if (!cache || cache.dates.length === 0) {
         return `<div id="student-section-${escCoach(name)}" class="bg-white rounded-lg border border-[#EFEFF0] p-5 mb-4">
             ${nameChip}
-            <p class="text-gray-400 text-sm mt-3">아직 훈련일지 기록이 없습니다.</p>
+            <p class="text-gray-400 text-sm mt-3">${canLoadMore
+                ? `최근 ${SESSION_DAYS}일간 기록이 없습니다.`
+                : '훈련일지 기록이 없습니다.'}</p>
+            ${canLoadMore ? `<button data-student="${escCoach(name)}"
+                onclick="changeCoachSessionDate(this.dataset.student, '${MORE_OPTION}')"
+                class="mt-2 px-3 py-2 rounded-lg text-sm font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200">
+                ⋯ 이전 기록 불러오기
+            </button>` : ''}
         </div>`;
     }
 
@@ -1684,7 +1742,9 @@ function renderCoachSessionBlock(name) {
     const pinnedList = studentPinnedMemosCache[name] || [];
     const options = cache.dates.map(d =>
         `<option value="${escCoach(d)}"${d === selDate ? ' selected' : ''}>${escCoach(formatDate(d))}</option>`
-    ).join('');
+    ).join('')
+        // 기본 조회는 최근 SESSION_DAYS일뿐 — 그 이전 수업은 필요할 때만 받는다.
+        + (canLoadMore ? `<option value="${MORE_OPTION}">⋯ 더 오래된 기록 불러오기</option>` : '');
     const cards = records.map(item => renderCoachRecordCard(item, pinnedList)).join('');
 
     return `<div id="student-section-${escCoach(name)}" class="bg-white rounded-lg border border-[#EFEFF0] p-5 mb-4">
@@ -1733,9 +1793,26 @@ function renderCoachRecordCard(item, pinnedList = []) {
     </div>`;
 }
 
-export function changeCoachSessionDate(name, date) {
-    coachSessionSelectedDate[name] = date;
-    renderCoachSessionView(); // 캐시가 있어 재조회 없이 다시 그림
+export async function changeCoachSessionDate(name, date) {
+    if (date !== MORE_OPTION) {
+        coachSessionSelectedDate[name] = date;
+        renderCoachSessionView(); // 캐시가 있어 재조회 없이 다시 그림
+        return;
+    }
+    // '더 보기' — 그 학생만 범위를 넓혀 다시 받는다(다른 학생은 그대로).
+    const keep = coachSessionSelectedDate[name];
+    try {
+        await fetchSessions(name, SESSION_DAYS_MORE);
+    } catch (e) {
+        console.error('이전 기록 조회 실패:', name, e);
+        alert('이전 기록을 불러오지 못했습니다.');
+        renderCoachSessionView();
+        return;
+    }
+    coachSessionSelectedDate[name] = coachSessionCache[name].byDate[keep]
+        ? keep
+        : defaultSessionDate(coachSessionCache[name].dates, localToday());
+    renderCoachSessionView();
 }
 
 // Personal Message Modal Logic

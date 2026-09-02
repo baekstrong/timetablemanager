@@ -98,9 +98,10 @@ export async function login() {
     }
 }
 
+// 반환값: 인증 성공 여부. main.js가 이걸 보고 실패 시 낙관적 셸을 걷어내고 로그인 화면을 그린다.
 export async function autoLogin() {
     const saved = loadSavedLogin();
-    if (!saved || !firebaseInitialized || !db) return;
+    if (!saved || !firebaseInitialized || !db) return false;
 
     try {
         // 1) 공유 Firebase Auth 세션 우선 (메인앱이 만든 세션 = 같은 origin·프로젝트라 공유됨)
@@ -132,7 +133,7 @@ export async function autoLogin() {
             } catch (serverErr) {
                 console.warn('자동 로그인 실패:', serverErr.message);
                 clearSavedLogin();
-                return;
+                return false;
             }
         }
 
@@ -144,8 +145,10 @@ export async function autoLogin() {
         loadArchivedMemosFromStorage().then(loaded => { state.archivedMemos = loaded; });
         console.log('✅ 자동 로그인 성공!');
         if (window.render) window.render();
+        return true;
     } catch (error) {
         console.error('자동 로그인 실패:', error);
+        return false;
     }
 }
 

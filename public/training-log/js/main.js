@@ -2,6 +2,7 @@ import * as Admin from './modules/admin.js';
 import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminModalHTML, renderStampModalHTML } from './ui.js';
 
 import { state, db, firebaseInitialized } from './state.js';
+import { loadSavedLogin } from './utils.js';
 // Import all functions to expose to window
 import * as Auth from './modules/auth.js';
 import * as Sets from './modules/sets.js';
@@ -211,6 +212,17 @@ function setupStudentPinnedMemosListener() {
         });
 }
 
+// 화면 뼈대만 그린다 — Firestore 조회는 하지 않는다.
+// 규칙이 signedIn을 요구하므로 데이터는 인증(autoLogin)이 끝난 뒤 render()가 채운다.
+function paintShell() {
+    const app = document.getElementById('app');
+    if (!app) return;
+    updateBottomNav();
+    app.innerHTML = state.isCoach
+        ? renderCoachScreen() + renderAdminModalHTML() + renderStampModalHTML()
+        : renderStudentScreen();
+}
+
 window.render = async function () {
     const app = document.getElementById('app');
     if (!app) return;
@@ -289,13 +301,22 @@ async function initApp() {
         state.painFilter = true;
     }
 
-    // Auto Login 먼저 시도 (render 전에 실행하여 로그인 화면 깜빡임 방지)
-    if (!state.currentUser) {
-        await Auth.autoLogin();
+    // 흰 화면 제거: 저장된 세션이 있으면 인증을 기다리기 전에 뼈대부터 그린다.
+    // autoLogin은 Auth 상태 복원(최대 2.5초 대기) + 실패 시 서버 재인증까지 갈 수 있는데,
+    // 예전엔 그동안 #app이 통째로 비어 있어 앱 간 이동이 백지로 보였다.
+    const saved = loadSavedLogin();
+    if (saved && saved.name) {
+        state.currentUser = saved.name;
+        state.isCoach = saved.isCoach || false;
+        paintShell();
     }
 
-    // autoLogin이 render()를 호출하지 않은 경우 (비로그인 상태) 렌더링
-    if (!state.currentUser) {
+    // 인증 성공 시 autoLogin이 render()를 호출해 데이터를 채운다.
+    const authed = await Auth.autoLogin();
+    if (!authed) {
+        // 위에서 낙관적으로 세운 세션을 되돌리고 로그인 화면으로.
+        state.currentUser = null;
+        state.isCoach = false;
         window.render();
     }
 
