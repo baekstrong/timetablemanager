@@ -314,6 +314,11 @@ async function initApp() {
         state.currentUser = saved.name;
         state.isCoach = saved.isCoach || false;
         paintShell();
+        // 명단은 캐시(localStorage)로 즉시 그린다 — autoLogin이 끝날 때까지(세션 복원 0.3초,
+        // 최악은 2.5초 타임아웃 + Netlify 재로그인 3.6초) '수강생 목록 로딩 중'만 보이던 구간.
+        // ⚠️ 옵셔널 호출 — 훈련일지 JS는 해시 없는 ES 모듈이라 '새 main + 옛 coach' 조합이
+        //    실제로 뜬다. 없으면 그냥 예전 동작(로딩 중 표시)으로 떨어져야 한다.
+        if (state.isCoach && Coach.paintCachedStudentList) Coach.paintCachedStudentList();
         state.currentUser = null;
         state.isCoach = false;
     }

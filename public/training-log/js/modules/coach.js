@@ -17,6 +17,152 @@ function localToday() {
 // 코치 기능
 // ============================================
 
+// 이름 목록은 한 달에 한 번 바뀔까 말까 한 데이터인데, 예전엔 users 71문서 서버 조회가
+// 끝나야 명단이 처음 그려졌다. 앱 전환은 페이지를 통째로 새로 띄우므로 그 조회는 매번
+// 콜드 연결 위에서 일어나고(TLS 3호스트 + Auth 토큰 + Firestore 핸드셰이크), iOS에서는
+// enablePersistence의 IndexedDB가 열릴 때까지 첫 쿼리가 큐에 걸린다 → 간헐적으로 초 단위.
+// 캐시로 먼저 그리고 서버 결과는 달라졌을 때만 다시 그린다.
+const STUDENTS_CACHE_KEY = 'allStudentsCache';
+
+function readStudentsCache() {
+    try {
+        const v = JSON.parse(localStorage.getItem(STUDENTS_CACHE_KEY) || 'null');
+        return Array.isArray(v) && v.length && v.every(n => typeof n === 'string') ? v : null;
+    } catch { return null; }
+}
+
+function writeStudentsCache(names) {
+    try { localStorage.setItem(STUDENTS_CACHE_KEY, JSON.stringify(names)); } catch { /* 사파리 시크릿 등 — 캐시 없이 예전대로 */ }
+}
+
+// 저장된 선택/필터 복원 — localStorage만 읽는다(네트워크·Firestore 없음).
+function restoreCoachPrefs() {
+    if (state.selectedStudents.length === 0) {
+        const saved = localStorage.getItem('coachSelectedStudents');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                    state.selectedStudents = parsed.filter(s => state.allStudents.includes(s));
+                }
+            } catch (e) {
+                console.error('Failed to load saved selection:', e);
+            }
+        }
+    }
+
+    if (localStorage.getItem('coachPainFilter') === 'true') {
+        state.painFilter = true;
+        const chk = document.getElementById('painFilterCheck');
+        if (chk) chk.checked = true;
+    }
+    // 운동 메모만 보기: 저장된 값이 없으면 기본 true (체크)
+    const savedMemoFilter = localStorage.getItem('coachPinnedMemoFilter');
+    if (savedMemoFilter === null || savedMemoFilter === 'true') {
+        state.pinnedMemoFilter = true;
+        const chk = document.getElementById('pinnedMemoFilterCheck');
+        if (chk) chk.checked = true;
+    }
+}
+
+// state.allStudents를 화면에 그린다. 순수 DOM — 조회하지 않는다.
+function paintStudentList(studentListDiv) {
+    // 초성별로 그룹화
+    const groupedByInitial = {};
+    state.allStudents.forEach(student => {
+        const initial = getKoreanInitial(student);
+        if (!groupedByInitial[initial]) {
+            groupedByInitial[initial] = [];
+        }
+        groupedByInitial[initial].push(student);
+    });
+
+    const sortedInitials = Object.keys(groupedByInitial).sort();
+
+    let html = '';
+
+    // 전체 선택 버튼
+    const allSelected = state.selectedStudents.length === state.allStudents.length && state.allStudents.length > 0;
+    html += `
+        <div class="w-full mb-3 pb-3 border-b border-gray-300">
+            <button 
+                onclick="toggleSelectAll()"
+                class="px-4 py-2 rounded-lg text-sm font-semibold ${allSelected ? 'bg-green-500 text-white' : 'bg-[#329BE7] text-white'} hover:opacity-90 transition"
+            >
+                ${allSelected ? '✓ 전체 선택됨 (' + state.allStudents.length + '명)' : '👥 전체 선택 (' + state.allStudents.length + '명)'}
+            </button>
+            <button
+                onclick="clearStudentSelection()"
+                class="ml-2 px-4 py-2 rounded-lg text-sm font-semibold bg-red-100 text-red-700 hover:bg-red-200"
+                style="display: ${state.selectedStudents.length > 0 ? '' : 'none'}"
+            >
+                ✕ 선택 해제 (${state.selectedStudents.length})
+            </button>
+            <button
+                onclick="toggleDeleteMode()"
+                class="ml-2 px-4 py-2 rounded-lg text-sm font-semibold ${state.deleteMode ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-600'} hover:opacity-90 transition"
+            >
+                ${state.deleteMode ? '삭제 모드 ON' : '수강생 삭제'}
+            </button>
+        </div>
+    `;
+
+    sortedInitials.forEach(initial => {
+        const students = groupedByInitial[initial];
+
+        html += `
+            <div class="w-full mb-4">
+                <div class="flex items-center mb-2">
+                    <span class="text-lg font-bold text-gray-800 bg-gray-100 px-3 py-1 rounded">${initial}</span>
+                    <span class="text-xs text-gray-500 ml-2">(${students.length}명)</span>
+                </div>
+                <div class="flex flex-wrap gap-2 ml-2">
+        `;
+
+        students.forEach(student => {
+            const isSelected = state.selectedStudents.includes(student);
+            if (state.deleteMode) {
+                html += `
+                    <span class="student-badge px-3 py-2 rounded-full text-sm font-semibold bg-red-100 text-red-700 border-2 border-red-300 flex items-center gap-1">
+                        ${student}
+                        <button onclick="deleteStudentAccount('${student}')" class="ml-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold leading-none hover:bg-red-700">✕</button>
+                    </span>
+                `;
+            } else {
+                html += `
+                    <span
+                        data-name="${escHtml(student)}"
+                        class="student-badge px-3 py-2 rounded-full text-sm font-semibold ${isSelected ? 'active' : 'bg-gray-200 text-gray-700'}"
+                        onclick="toggleStudent('${student}')"
+                    >${escHtml(labelFor(student, isSelected ? '✓ ' : ''))}</span>
+                `;
+            }
+        });
+
+        html += `
+                </div>
+            </div>
+        `;
+    });
+
+    studentListDiv.innerHTML = html;
+    updateStudentSelectionSummary();
+    updateStudentQuickNav();
+}
+
+// 인증 전(paintShell 직후)에 불린다 — Firestore를 건드리면 규칙이 signedIn을 요구해 죽는다.
+// 여기서 그려두면 autoLogin(세션 복원 0.3초 ~ 재로그인 6초)을 기다리는 동안 화면이 비지 않는다.
+// render()가 셸을 다시 그리지만 loadStudentList의 캐시 페인트가 같은 태스크에서 즉시 채우므로
+// 깜빡임은 없다.
+export function paintCachedStudentList() {
+    const studentListDiv = document.getElementById('studentList');
+    const cached = readStudentsCache();
+    if (!studentListDiv || !cached) return;
+    state.allStudents = cached;
+    restoreCoachPrefs();
+    paintStudentList(studentListDiv);
+}
+
 export async function loadStudentList() {
     const studentListDiv = document.getElementById('studentList');
     if (!studentListDiv) return;
@@ -25,6 +171,15 @@ export async function loadStudentList() {
         resetCoachSessionCache(); // 페이지 재진입 시 세션 캐시 비워 최신 기록 재조회
         // 명단 메타(시간표·roster·미결제 등)는 users 결과를 쓰지 않으므로 같이 던진다.
         const prefetch = prefetchEntryData();
+
+        // 서버 조회를 기다리기 전에 캐시로 먼저 그린다 (없으면 예전처럼 '로딩 중'이 남는다).
+        const cached = readStudentsCache();
+        if (cached) {
+            state.allStudents = cached;
+            restoreCoachPrefs();
+            paintStudentList(studentListDiv);
+        }
+
         // users 컬렉션에서 수강생 목록 조회 (records 전체 조회 대비 훨씬 빠름)
         const usersSnapshot = await db.collection('users').get();
 
@@ -38,125 +193,19 @@ export async function loadStudentList() {
             }
         });
 
-        state.allStudents = Array.from(studentSet).sort();
+        const fresh = Array.from(studentSet).sort();
+        const changed = fresh.join('\u0000') !== state.allStudents.join('\u0000');
+        state.allStudents = fresh;
+        writeStudentsCache(fresh);
 
-        if (state.allStudents.length === 0) {
+        if (fresh.length === 0) {
             studentListDiv.innerHTML = '<div class="text-gray-500 text-sm">아직 등록된 수강생이 없습니다.</div>';
             return;
         }
 
-        // Restore selection from localStorage if state is empty (first load)
-        if (state.selectedStudents.length === 0) {
-            const saved = localStorage.getItem('coachSelectedStudents');
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    if (Array.isArray(parsed)) {
-                        state.selectedStudents = parsed.filter(s => state.allStudents.includes(s));
-                    }
-                } catch (e) {
-                    console.error('Failed to load saved selection:', e);
-                }
-            }
-        }
-
-        // Feature 4: Restore Filters
-        if (localStorage.getItem('coachPainFilter') === 'true') {
-            state.painFilter = true;
-            const chk = document.getElementById('painFilterCheck');
-            if (chk) chk.checked = true;
-        }
-        // 운동 메모만 보기: 저장된 값이 없으면 기본 true (체크)
-        const savedMemoFilter = localStorage.getItem('coachPinnedMemoFilter');
-        if (savedMemoFilter === null || savedMemoFilter === 'true') {
-            state.pinnedMemoFilter = true;
-            const chk = document.getElementById('pinnedMemoFilterCheck');
-            if (chk) chk.checked = true;
-        }
-
-        // 초성별로 그룹화
-        const groupedByInitial = {};
-        state.allStudents.forEach(student => {
-            const initial = getKoreanInitial(student);
-            if (!groupedByInitial[initial]) {
-                groupedByInitial[initial] = [];
-            }
-            groupedByInitial[initial].push(student);
-        });
-
-        const sortedInitials = Object.keys(groupedByInitial).sort();
-
-        let html = '';
-
-        // 전체 선택 버튼
-        const allSelected = state.selectedStudents.length === state.allStudents.length && state.allStudents.length > 0;
-        html += `
-            <div class="w-full mb-3 pb-3 border-b border-gray-300">
-                <button 
-                    onclick="toggleSelectAll()"
-                    class="px-4 py-2 rounded-lg text-sm font-semibold ${allSelected ? 'bg-green-500 text-white' : 'bg-[#329BE7] text-white'} hover:opacity-90 transition"
-                >
-                    ${allSelected ? '✓ 전체 선택됨 (' + state.allStudents.length + '명)' : '👥 전체 선택 (' + state.allStudents.length + '명)'}
-                </button>
-                <button
-                    onclick="clearStudentSelection()"
-                    class="ml-2 px-4 py-2 rounded-lg text-sm font-semibold bg-red-100 text-red-700 hover:bg-red-200"
-                    style="display: ${state.selectedStudents.length > 0 ? '' : 'none'}"
-                >
-                    ✕ 선택 해제 (${state.selectedStudents.length})
-                </button>
-                <button
-                    onclick="toggleDeleteMode()"
-                    class="ml-2 px-4 py-2 rounded-lg text-sm font-semibold ${state.deleteMode ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-600'} hover:opacity-90 transition"
-                >
-                    ${state.deleteMode ? '삭제 모드 ON' : '수강생 삭제'}
-                </button>
-            </div>
-        `;
-
-        sortedInitials.forEach(initial => {
-            const students = groupedByInitial[initial];
-
-            html += `
-                <div class="w-full mb-4">
-                    <div class="flex items-center mb-2">
-                        <span class="text-lg font-bold text-gray-800 bg-gray-100 px-3 py-1 rounded">${initial}</span>
-                        <span class="text-xs text-gray-500 ml-2">(${students.length}명)</span>
-                    </div>
-                    <div class="flex flex-wrap gap-2 ml-2">
-            `;
-
-            students.forEach(student => {
-                const isSelected = state.selectedStudents.includes(student);
-                if (state.deleteMode) {
-                    html += `
-                        <span class="student-badge px-3 py-2 rounded-full text-sm font-semibold bg-red-100 text-red-700 border-2 border-red-300 flex items-center gap-1">
-                            ${student}
-                            <button onclick="deleteStudentAccount('${student}')" class="ml-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold leading-none hover:bg-red-700">✕</button>
-                        </span>
-                    `;
-                } else {
-                    html += `
-                        <span
-                            data-name="${escHtml(student)}"
-                            class="student-badge px-3 py-2 rounded-full text-sm font-semibold ${isSelected ? 'active' : 'bg-gray-200 text-gray-700'}"
-                            onclick="toggleStudent('${student}')"
-                        >${escHtml(labelFor(student, isSelected ? '✓ ' : ''))}</span>
-                    `;
-                }
-            });
-
-            html += `
-                    </div>
-                </div>
-            `;
-        });
-
-        studentListDiv.innerHTML = html;
-        updateStudentSelectionSummary();
-
-        // Quick nav bar 업데이트
-        updateStudentQuickNav();
+        restoreCoachPrefs();
+        // 캐시로 이미 그렸고 명단이 그대로면 다시 그리지 않는다.
+        if (changed || !cached) paintStudentList(studentListDiv);
 
         // 진입 시 '지금(또는 방금 끝난) 수업' 명단을 자동 선택 → 코치가 이름을 고르지 않아도 된다.
         // 안쪽에서 renderCoachSessionView까지 호출한다.
@@ -165,7 +214,9 @@ export async function loadStudentList() {
 
     } catch (error) {
         console.error('Error loading student list:', error);
-        studentListDiv.innerHTML = '<div class="text-red-500 text-sm">수강생 목록 로딩 실패</div>';
+        if (!readStudentsCache()) {
+            studentListDiv.innerHTML = '<div class="text-red-500 text-sm">수강생 목록 로딩 실패</div>';
+        }
         updateStudentSelectionSummary();
     }
 }

@@ -69,8 +69,45 @@ describe('진입 시 흰 화면', () => {
         // autoLogin의 반환값 같은 모듈 간 새 계약을 만들면 '새 main + 옛 auth' 조합에서
         // 코치가 로그인 화면으로 튕긴다(실제 발생). 판정은 예전 그대로 state.currentUser 하나뿐이어야 한다.
         const block = main.slice(main.indexOf('const saved = loadSavedLogin()'), main.indexOf('Web App Initialized'));
-        expect(block).toMatch(/paintShell\(\);\s*\n\s*state\.currentUser = null;/);
+        // paintShell과 state 되돌리기 사이에 낀 건 캐시 페인트(옵셔널 호출)뿐이어야 한다.
+        expect(block).toMatch(/paintShell\(\);[\s\S]{0,600}?\n\s*state\.currentUser = null;\n\s*state\.isCoach = false;/);
         expect(block).toMatch(/if \(!state\.currentUser\) \{\s*\n\s*await Auth\.autoLogin\(\);/);
         expect(block).not.toMatch(/await Auth\.autoLogin\(\)\s*;?\s*\n?\s*(const|let|if \(!authed)/);
+    });
+});
+
+describe('명단을 네트워크보다 먼저 그린다', () => {
+    const html = read('../../index.html');
+
+    it('users 서버 조회를 기다리기 전에 캐시로 그린다', () => {
+        // 이 순서가 뒤집히면 명단이 다시 콜드 연결 + IndexedDB 오픈 뒤에야 나타난다.
+        const paint = coach.indexOf('paintStudentList(studentListDiv);');
+        const get = coach.indexOf("await db.collection('users').get()");
+        expect(paint).toBeGreaterThan(-1);
+        expect(get).toBeGreaterThan(-1);
+        expect(paint).toBeLessThan(get);
+    });
+
+    it('조회 실패해도 이미 그린 캐시 명단을 지우지 않는다', () => {
+        const c = coach.slice(coach.indexOf("console.error('Error loading student list:'"));
+        expect(c.slice(0, 300)).toMatch(/if \(!readStudentsCache\(\)\)/);
+    });
+
+    it('인증 전 페인트는 Firestore를 건드리지 않는다', () => {
+        // 규칙이 signedIn을 요구하므로 인증 전 조회는 permission-denied로 죽는다.
+        const body = coach.slice(coach.indexOf('export function paintCachedStudentList()'),
+            coach.indexOf('export async function loadStudentList()'));
+        expect(body).not.toMatch(/db\.|collection\(|await /);
+    });
+
+    it('main은 옵셔널 호출로 부른다', () => {
+        // 해시 없는 ES 모듈 → '새 main + 옛 coach' 조합이 실제로 뜬다. 가드가 없으면 그때 백지가 된다.
+        expect(main).toMatch(/if \(state\.isCoach && Coach\.paintCachedStudentList\) Coach\.paintCachedStudentList\(\);/);
+    });
+
+    it('연결 힌트가 있다', () => {
+        // 앱 전환마다 TLS를 새로 맺는다 — 콜드일 때 호스트당 0.3~1초.
+        ['www.gstatic.com', 'firestore.googleapis.com', 'identitytoolkit.googleapis.com']
+            .forEach(h => expect(html).toContain(`<link rel="preconnect" href="https://${h}"`));
     });
 });
