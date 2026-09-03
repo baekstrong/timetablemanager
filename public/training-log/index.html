@@ -5,6 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>실전 훈련일지</title>
+
+    <!-- 앱 전환은 페이지를 통째로 새로 띄우므로 DNS+TCP+TLS를 매번 다시 맺는다.
+         파싱 즉시 소켓을 세워두면 JS가 준비될 때쯤 핸드셰이크가 끝나 있다.
+         (콜드일 때 호스트당 0.3~1초, 웜이면 비용 0) -->
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
     <!-- Tailwind: CDN 런타임 JIT(407KB JS, DOM 변경마다 재컴파일) → 정적 빌드 CSS(21KB).
          클래스 추가 후 스타일이 안 먹으면 npm run build:tl-css 재실행 -->
     <link rel="stylesheet" href="css/tailwind.css">
