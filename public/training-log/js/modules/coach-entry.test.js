@@ -111,3 +111,32 @@ describe('명단을 네트워크보다 먼저 그린다', () => {
             .forEach(h => expect(html).toContain(`<link rel="preconnect" href="https://${h}"`));
     });
 });
+
+describe('부팅 스플래시', () => {
+    const html = read('../../index.html');
+    const app = html.slice(html.indexOf('<div id="app">'), html.indexOf('<!-- 수정 모달 -->'));
+
+    it('#app이 비어 있지 않다', () => {
+        // 예전엔 <div id="app"></div>였고, firebase CDN 3개 + ES 모듈 16개가 평가될 때까지 회색 백지였다.
+        expect(html).not.toContain('<div id="app"></div>');
+        expect(app).toContain('class="boot"');
+    });
+
+    it('스플래시는 #app 안에 있어 innerHTML 덮어쓰기로 저절로 사라진다', () => {
+        // 밖에 두면 paintShell/render가 못 지워서 별도 숨김 로직(=버그날 자리)이 생긴다.
+        expect(app.indexOf('class="boot"')).toBeGreaterThan(-1);
+        expect(app.indexOf('</div>')).toBeGreaterThan(app.indexOf('class="boot"'));
+    });
+
+    it('JS 없이 CSS만으로 동작한다', () => {
+        // 스플래시가 보여야 할 시점은 모듈이 아직 평가되기 전이다.
+        expect(app).not.toMatch(/<script|onclick=|setTimeout/);
+        expect(html).toMatch(/\.boot \{[^}]*animation: bootIn [\d.]+s ease \.25s forwards/);
+    });
+
+    it('오래 걸리면 스스로 사정을 밝힌다', () => {
+        // 영원히 도는 스피너는 거짓말이라서. 이것도 CSS 지연 애니메이션이라 타이머가 없다.
+        expect(html).toMatch(/\.boot-slow \{[\s\S]*?animation: bootIn [\d.]+s ease 8s forwards/);
+        expect(app).toContain('새로고침해 주세요');
+    });
+});
