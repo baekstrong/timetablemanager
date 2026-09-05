@@ -690,3 +690,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
         - `main.js`는 `paintShell()` 직후 `Coach.paintCachedStudentList()`를 **옵셔널 호출**로 부른다(`if (Coach.paintCachedStudentList)`). 해시 없는 ES 모듈이라 '새 main + 옛 coach' 조합이 실제로 뜨므로 가드를 지우지 말 것. 이 함수는 **인증 전에 불리므로 Firestore를 건드리면 안 된다**(규칙이 signedIn 요구).
         - `index.html`의 `preconnect` 3줄(gstatic·firestore·identitytoolkit)도 같은 목적 — 콜드일 때 호스트당 0.3~1초. 지우면 그만큼 되돌아온다.
     - 회귀 방지: `public/training-log/js/modules/coach-entry.test.js`
+
+## Codex 연결
+
+Codex의 프로젝트 진입 지침은 `AGENTS.md`다. 공통 업무 규칙은 이 문서와 관련 원본 문서를 참조하고, 공유 장기 기억은 `~/.claude/wiki/`에 누적한다.
