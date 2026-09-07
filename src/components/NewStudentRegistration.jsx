@@ -130,7 +130,7 @@ const NewStudentRegistration = () => {
     }, [step]);
 
     // 슬롯별 인원수 계산 (순수 로직은 utils/slotOccupancy).
-    // 학생 이름 기준 중복 제거 + 다음 달 다른 슬롯으로 옮긴 학생은 목적지 슬롯에서 카운트.
+    // 코치 "신규 전용"과 동일하게 현재 활성 시간표 + pending 신청을 카운트.
     const slotOccupancy = useMemo(
         () => computeSlotOccupancy(students, pendingRegistrations, parseScheduleString),
         [students, pendingRegistrations]

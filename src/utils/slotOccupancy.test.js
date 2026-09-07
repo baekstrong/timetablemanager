@@ -35,20 +35,19 @@ describe('computeSlotOccupancy', () => {
         expect(occ['월-5']).toBe(2);
     });
 
-    // 회귀: 다음 달 월5로 옮긴 학생(현재 활성 슬롯은 화5)이 목적지 월5에서 세져야
-    // '만석인데 자리 있음'으로 표시돼 정원 초과 배정되던 버그를 막는다.
-    it('다음 달 다른 슬롯으로 옮긴 학생은 목적지 슬롯에서 센다', () => {
+    // 운영 기준: 미리 등록한 다음 시간표가 있어도 신규 여석은 현재 활성 시간표로 센다.
+    it('다음 등록 시간표가 있어도 현재 슬롯에서 센다', () => {
         const students = [
             s('가', '월5'), s('나', '월5'), s('다', '월5'),
             s('라', '월5'), s('마', '월5'), s('바', '월5'), // 월5에 이미 6명
             s('X', '화5', { _nextSchedule: '월5' }),        // 화5 활성이지만 다음 달 월5로 이동
         ];
         const occ = computeSlotOccupancy(students, [], parse);
-        expect(occ['월-5']).toBe(7); // X 포함 → 만석
-        expect(occ['화-5'] || 0).toBe(0); // 옮겨간 옛 슬롯에서는 빠짐
+        expect(occ['월-5']).toBe(6); // 다음 시간표는 아직 반영하지 않음
+        expect(occ['화-5']).toBe(1); // 현재 활성 슬롯에서 카운트
     });
 
-    it('_nextSchedule 없으면 현재 슬롯으로 센다', () => {
+    it('현재 시간표만 있으면 해당 슬롯에서 센다', () => {
         const occ = computeSlotOccupancy([s('가', '화5')], [], parse);
         expect(occ['화-5']).toBe(1);
     });

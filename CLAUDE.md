@@ -542,7 +542,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 
 **등록** (NewStudentRegistration, 7단계): 개인정보 → 주횟수 → 시간표 → 입학반 → 결제방식 → 상담여부 → 요약+제출
 
-- **신규 배정 여석은 미래 시간표 기준**: `computeSlotOccupancy`가 미리 등록된 수강생의 `_nextSchedule`을 현재 시간표보다 우선해 목적지 슬롯에 선반영하고 pending 신규 신청도 합산한다. 외부 신규 신청 페이지, 코치 `신규 전용`, 신규 대기 여석 판정은 반드시 이 계산을 공유한다. 일반 코치 운영 시간표의 당일 출석 계산과 섞지 말 것.
+- **신규 배정 여석은 현재 활성 시간표 기준**: 코치 `신규 전용` 화면의 기준이 정본이다. `computeSlotOccupancy`는 D열 `요일 및 시간`과 pending 신규 신청을 합산하며, 미리 등록된 다음 시간표는 아직 선반영하지 않는다. 외부 신규 신청 페이지와 신규 대기 여석 판정도 반드시 이 계산을 공유한다.
 
 **승인** (CoachNewStudents):
 

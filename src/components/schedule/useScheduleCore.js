@@ -81,8 +81,8 @@ export function useScheduleCore({
         return transformGoogleSheetsData(students);
     }, [students]);
 
-    // 신규 배정은 현재 시간표가 아니라 다음 등록 후 실제로 차지할 슬롯을 기준으로 센다.
-    // 외부 신규 신청 페이지와 같은 계산을 공유해 코치 "신규 전용" 여석도 일치시킨다.
+    // 코치 "신규 전용"을 정본으로 현재 활성 시간표 + pending 신규 신청을 센다.
+    // 외부 신규 신청 페이지와 같은 계산을 공유해 두 화면의 여석을 일치시킨다.
     const newStudentSlotOccupancy = useMemo(
         () => computeSlotOccupancy(students || [], pendingRegistrations, parseScheduleString),
         [students, pendingRegistrations]
@@ -451,7 +451,7 @@ export function useScheduleCore({
         let pendingNames = [];
 
         if (mode === 'student' && user?.role === 'coach') {
-            // Coach "신규 전용" mode: 다음 등록 시간표 + pending 신규 신청
+            // Coach "신규 전용" mode: 현재 활성 시간표 + pending 신규 신청
             const pendingForSlot = pendingRegistrations.filter(reg =>
                 reg.requestedSlots?.some(s => s.day === day && s.period === periodObj.id)
             );
