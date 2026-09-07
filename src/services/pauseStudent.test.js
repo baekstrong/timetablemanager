@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { countRemainingSessions, todaySessionDone, firstClassDayOnOrAfter } from './googleSheetsService';
+import { countRemainingSessions, todaySessionDone, firstClassDayOnOrAfter, calculatePausedStudentResumePlan } from './googleSheetsService';
 
 describe('countRemainingSessions (양끝 포함, 공휴일 제외)', () => {
   it('화/목 주2회, 6/17~6/30 → 18·23·25·30 = 4회', () => {
@@ -34,5 +34,52 @@ describe('firstClassDayOnOrAfter (재개 시작일 보정)', () => {
   it('이미 수업일이면 그 날 그대로', () => {
     const d = firstClassDayOnOrAfter(new Date('2026-06-17T00:00:00'), '월5수5'); // 6/17=수
     expect([d.getMonth() + 1, d.getDate()]).toEqual([6, 17]);
+  });
+});
+
+describe('calculatePausedStudentResumePlan (재개 모달 종료일 미리보기)', () => {
+  const registrations = [{ n: 3 }, { n: 2 }];
+
+  it('선택한 시간표에 맞춰 실제 시작일과 최종 종료일을 다시 계산', () => {
+    const mondayWednesday = calculatePausedStudentResumePlan(
+      registrations,
+      new Date(2026, 5, 16),
+      '월1수1',
+      [],
+    );
+    const tuesdayThursday = calculatePausedStudentResumePlan(
+      registrations,
+      new Date(2026, 5, 16),
+      '화2목2',
+      [],
+    );
+
+    expect(mondayWednesday.map(plan => [plan.start, plan.end])).toEqual([
+      ['260617', '260624'],
+      ['260629', '260701'],
+    ]);
+    expect(tuesdayThursday.map(plan => [plan.start, plan.end])).toEqual([
+      ['260616', '260623'],
+      ['260625', '260630'],
+    ]);
+  });
+
+  it('선택한 슬롯 수를 새 주횟수로 사용', () => {
+    const [plan] = calculatePausedStudentResumePlan(
+      [{ n: 4 }],
+      new Date(2026, 5, 16),
+      '화2목2금2',
+      [],
+    );
+    expect(plan).toMatchObject({ schedule: '화2목2금2', weekly: '3', start: '260616', end: '260623' });
+  });
+
+  it('같은 요일에 두 교시를 선택한 시간표는 거부', () => {
+    expect(() => calculatePausedStudentResumePlan(
+      [{ n: 4 }],
+      new Date(2026, 5, 16),
+      '화1화2',
+      [],
+    )).toThrow('같은 요일에는 한 교시만 선택할 수 있습니다.');
   });
 });

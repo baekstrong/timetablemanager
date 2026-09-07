@@ -9,7 +9,7 @@ import {
     clearStudentScheduleAllSheets, pauseStudent, requestHolding,
     getAllStudentsFromAllSheets, invalidateStudentSheetCache,
     processCoachHolding, processStudentAbsence, processScheduleTransfer, findStudentAcrossSheets,
-    processHolidayMakeupEndDate, updateStudentData,
+    processHolidayMakeupEndDate, updateStudentData, getPausedStudentResumeInfo, resumeStudent,
 } from './googleSheetsService';
 
 const SHEETS = ['등록생 목록(26년8월)', '등록생 목록(26년7월)', '등록생 목록(26년6월)'];
@@ -19,9 +19,9 @@ const HEADERS = ['번호', '이름', '주횟수', '요일 및 시간', '특이�
     '시작날짜', '종료날짜', '결제금액', '결제일', '결제유무', '결제방식',
     '홀딩 사용여부', '홀딩 시작일', '홀딩 종료일', '핸드폰', '성별', '직업'];
 
-const row = ({ name, schedule = '월1수1', start = '', end = '' }) => {
+const row = ({ name, schedule = '월1수1', start = '', end = '', notes = '' }) => {
     const r = Array(18).fill('');
-    r[1] = name; r[2] = '2'; r[3] = schedule; r[6] = start; r[7] = end;
+    r[1] = name; r[2] = '2'; r[3] = schedule; r[4] = notes; r[6] = start; r[7] = end;
     return r;
 };
 
@@ -30,6 +30,7 @@ const SHEET_ROWS = {
     '등록생 목록(26년8월)': [Array(18).fill(''), HEADERS,
         row({ name: '아무개' }),
         row({ name: '홍길동', start: '260801', end: '260901' }),
+        row({ name: '정지회원', schedule: '', start: '260801', end: '5회', notes: '메모 [정지:2/월1수1/260801]' }),
         // 미리등록(다음 등록)을 가진 수강생 — 홀딩 시 다음 등록 날짜도 밀린다
         row({ name: '김미리', start: '260801', end: '260901' }),
         row({ name: '김미리', start: '260902', end: '261002' })],
@@ -288,5 +289,31 @@ describe('pauseStudent (일시정지) — 왕복 횟수', () => {
     it('정지할 등록이 없으면 던지고, 시트에 쓰지 않는다', async () => {
         await expect(pauseStudent('없는사람', [])).rejects.toThrow('정지할 등록을 찾지 못했습니다.');
         expect(countOf('batchUpdate')).toBe(0);
+    });
+});
+
+describe('resumeStudent (재개 모달) — 선택 시간표 반영', () => {
+    it('모달 정보 조회는 batchGet 1회이며 쓰지 않는다', async () => {
+        const info = await getPausedStudentResumeInfo('정지회원');
+
+        expect(info).toEqual([{ n: 5, origWeekly: '2', origSchedule: '월1수1', origStartDigits: '260801' }]);
+        expect(countOf('batchGet')).toBe(1);
+        expect(countOf('batchUpdate')).toBe(0);
+    });
+
+    it('새 시간표·주횟수·시작일·자동 종료일을 한 번에 쓴다', async () => {
+        await resumeStudent('정지회원', new Date(2026, 8, 7), '화2목2금2', []);
+
+        expect(countOf('batchGet')).toBe(1);
+        expect(countOf('batchUpdate')).toBe(1);
+        const updates = calls.find(call => call.path === 'batchUpdate').body.data;
+        const valuesByRange = Object.fromEntries(updates.map(update => [update.range, update.values[0][0]]));
+        expect(valuesByRange).toMatchObject({
+            '등록생 목록(26년8월)!C5': '3',
+            '등록생 목록(26년8월)!D5': '화2목2금2',
+            '등록생 목록(26년8월)!E5': '메모',
+            '등록생 목록(26년8월)!G5': '260908',
+            '등록생 목록(26년8월)!H5': '260917',
+        });
     });
 });

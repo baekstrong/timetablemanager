@@ -1664,6 +1664,24 @@ const fmtYYMMDD = (d) => {
 // 정지 시 원래 일정을 특이사항(E)에 보존하는 태그: [정지:주횟수/요일및시간/원래시작YYMMDD]
 const PAUSE_TAG_RE = /\s*\[정지:([^/\]]*)\/([^/\]]*)\/([^\]]*)\]/;
 
+const normalizeResumeSchedule = (scheduleStr) => {
+  const dayOrder = ['월', '화', '수', '목', '금'];
+  const slots = parseScheduleString(scheduleStr)
+    .filter(slot => dayOrder.includes(slot.day) && PERIODS.some(period => period.id === slot.period && period.type !== 'free'));
+
+  if (!slots.length) throw new Error('재개할 시간표를 선택해주세요.');
+
+  const uniqueDays = new Set(slots.map(slot => slot.day));
+  if (uniqueDays.size !== slots.length) {
+    throw new Error('같은 요일에는 한 교시만 선택할 수 있습니다.');
+  }
+
+  return [...slots]
+    .sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day) || a.period - b.period)
+    .map(slot => `${slot.day}${slot.period}`)
+    .join('');
+};
+
 /**
  * 이름으로 모든 등록생 시트의 해당 행을 순회 (헤더 인덱스 동봉).
  *
@@ -1697,6 +1715,77 @@ const eachStudentRowAcrossSheets = async (studentName, cb) => {
     }
   }
 };
+
+const collectPausedStudentRows = async (studentName) => {
+  const collected = [];
+  await eachStudentRowAcrossSheets(studentName, async ({ sheetName, rowIdx, row, idx }) => {
+    const schedule = idx.schedule !== -1 ? String(row[idx.schedule] || '') : '';
+    const endStr = idx.end !== -1 ? String(row[idx.end] || '') : '';
+    if (schedule.trim()) return;
+    if (!/^\s*\d+\s*회\s*$/.test(endStr)) return;
+
+    const notes = idx.notes !== -1 ? String(row[idx.notes] || '') : '';
+    const match = notes.match(PAUSE_TAG_RE);
+    if (!match) return;
+
+    collected.push({
+      sheetName,
+      sheetRow: rowIdx + 1,
+      idx,
+      origWeekly: match[1],
+      origSchedule: match[2],
+      origStartDigits: match[3] || '99999999',
+      n: parseInt(endStr, 10),
+      restNotes: notes.replace(PAUSE_TAG_RE, '').trim(),
+    });
+  });
+  collected.sort((a, b) => a.origStartDigits.localeCompare(b.origStartDigits));
+  return collected;
+};
+
+const planPausedRegistrations = (registrations, restartDate, scheduleFor, firebaseHolidays = []) => {
+  const parsedRestart = new Date(restartDate);
+  if (Number.isNaN(parsedRestart.getTime())) throw new Error('재시작일을 확인해주세요.');
+
+  let cursor = parsedRestart;
+  cursor.setHours(0, 0, 0, 0);
+
+  return registrations.map((registration, index) => {
+    const schedule = normalizeResumeSchedule(scheduleFor(registration, index));
+    const start = firstClassDayOnOrAfter(cursor, schedule);
+    const end = calculateEndDate(start, registration.n, schedule, null, firebaseHolidays);
+    if (!end) throw new Error('종료일을 계산하지 못했습니다. 시간표와 남은 횟수를 확인해주세요.');
+
+    const result = {
+      ...registration,
+      start: fmtYYMMDD(start),
+      end: fmtYYMMDD(end),
+      schedule,
+      weekly: String(parseScheduleString(schedule).length),
+    };
+    cursor = new Date(end);
+    cursor.setDate(cursor.getDate() + 1);
+    return result;
+  });
+};
+
+/**
+ * 재개 모달용 정지 등록 정보. 쓰기 없이 모든 월 시트를 1회 batchGet으로 읽는다.
+ */
+export const getPausedStudentResumeInfo = async (studentName) => {
+  const collected = await collectPausedStudentRows(studentName);
+  if (!collected.length) throw new Error('재개할 정지 등록을 찾지 못했습니다.');
+  return collected.map(({ n, origWeekly, origSchedule, origStartDigits }) => ({
+    n, origWeekly, origSchedule, origStartDigits,
+  }));
+};
+
+/**
+ * 재개 모달의 즉시 미리보기용 순수 계산. 선택한 시간표를 모든 정지 등록에 적용한다.
+ */
+export const calculatePausedStudentResumePlan = (registrations, restartDate, scheduleStr, firebaseHolidays = []) => (
+  planPausedRegistrations(registrations, restartDate, () => scheduleStr, firebaseHolidays)
+);
 
 /**
  * 수강생 일시정지 — 이름으로 모든 시트를 훑어 스케줄이 있는 등록 행을 전부 정지.
@@ -1755,53 +1844,37 @@ export const pauseStudent = async (studentName, firebaseHolidays = []) => {
 
 /**
  * 수강생 재개 — 정지된(스케줄 비고 종료날짜 "N회") 행을 복원.
- * 특이사항 태그에서 원래 주횟수/요일및시간을 되살리고, restartDate부터 종료날짜 재계산.
+ * 특이사항 태그에서 남은 횟수를 읽고, 선택한 시간표로 restartDate부터 종료날짜 재계산.
  * 여러 등록이면 원래 시작일 순으로 이어붙임(앞 등록 종료 다음날부터 다음 등록 시작).
  * @returns {Promise<Array<{start:string, end:string, n:number, schedule:string}>>}
  */
-export const resumeStudent = async (studentName, restartDate, firebaseHolidays = []) => {
-  const collected = [];
-  await eachStudentRowAcrossSheets(studentName, async ({ sheetName, rowIdx, row, idx }) => {
-    const schedule = idx.schedule !== -1 ? String(row[idx.schedule] || '') : '';
-    const endStr = idx.end !== -1 ? String(row[idx.end] || '') : '';
-    if (schedule.trim()) return;                 // 스케줄 있으면 정지 상태 아님
-    if (!/^\s*\d+\s*회\s*$/.test(endStr)) return; // H가 "N회" 아니면 스킵
-    const notes = idx.notes !== -1 ? String(row[idx.notes] || '') : '';
-    const m = notes.match(PAUSE_TAG_RE);
-    if (!m) return;                               // 복원 태그 없으면 원래 일정 모름 → 스킵
-    collected.push({
-      sheetName, sheetRow: rowIdx + 1, idx,
-      origWeekly: m[1], origSchedule: m[2], origStartDigits: m[3] || '99999999',
-      n: parseInt(endStr, 10),
-      restNotes: notes.replace(PAUSE_TAG_RE, '').trim(),
-    });
-  });
+export const resumeStudent = async (studentName, restartDate, scheduleOrHolidays, firebaseHolidays = []) => {
+  const collected = await collectPausedStudentRows(studentName);
 
   if (!collected.length) throw new Error('재개할 정지 등록을 찾지 못했습니다.');
-  collected.sort((a, b) => a.origStartDigits.localeCompare(b.origStartDigits));
+  // 이전 호출부(resumeStudent(name, date, holidays))도 정지 당시 시간표 복원 방식으로 호환한다.
+  const hasScheduleOverride = typeof scheduleOrHolidays === 'string';
+  const holidays = hasScheduleOverride ? firebaseHolidays : (scheduleOrHolidays || []);
+  const planned = planPausedRegistrations(
+    collected,
+    restartDate,
+    registration => hasScheduleOverride ? scheduleOrHolidays : registration.origSchedule,
+    holidays,
+  );
 
-  let cursor = new Date(restartDate); cursor.setHours(0, 0, 0, 0);
-  const results = [];
   const allUpdates = []; // 등록마다 쓰지 않고 모아서 1회로 (pauseStudent와 같은 이유)
-  for (const c of collected) {
-    const start = firstClassDayOnOrAfter(cursor, c.origSchedule);
-    const end = calculateEndDate(start, c.n, c.origSchedule, null, firebaseHolidays);
-    const startStr = fmtYYMMDD(start);
-    const endStr = end ? fmtYYMMDD(end) : '';
+  for (const c of planned) {
     const cell = (i, v) => ({ range: `${c.sheetName}!${getColumnLetter(i)}${c.sheetRow}`, values: [[v]] });
 
-    const updates = [cell(c.idx.schedule, c.origSchedule)];
-    if (c.idx.weekly !== -1) updates.push(cell(c.idx.weekly, c.origWeekly));
-    if (c.idx.start !== -1) updates.push(cell(c.idx.start, startStr));
-    if (c.idx.end !== -1) updates.push(cell(c.idx.end, endStr));
+    const updates = [cell(c.idx.schedule, c.schedule)];
+    if (c.idx.weekly !== -1) updates.push(cell(c.idx.weekly, c.weekly));
+    if (c.idx.start !== -1) updates.push(cell(c.idx.start, c.start));
+    if (c.idx.end !== -1) updates.push(cell(c.idx.end, c.end));
     if (c.idx.notes !== -1) updates.push(cell(c.idx.notes, c.restNotes));
     allUpdates.push(...updates);
-
-    results.push({ start: startStr, end: endStr, n: c.n, schedule: c.origSchedule });
-    if (end) { cursor = new Date(end); cursor.setDate(cursor.getDate() + 1); }
   }
   await batchUpdateSheet(allUpdates);
-  return results;
+  return planned.map(({ start, end, n, schedule }) => ({ start, end, n, schedule }));
 };
 
 // ─── 홀딩 신청/취소 ───

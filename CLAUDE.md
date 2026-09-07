@@ -200,7 +200,8 @@ src/
 │   ├── Login.jsx                    # 로그인 (Firestore 평문 비밀번호 비교)
 │   ├── Dashboard.jsx                # 대시보드 (커뮤니티 게시판)
 │   ├── WeeklySchedule.jsx           # 주간 시간표 (핵심 컴포넌트; 진행중/임박 셀 강조, 미결제 배지)
-│   ├── StudentManager.jsx           # 코치용 수강생 목록/관리 (이름·전화번호 검색, 행별 미결제(K열=X) 배지 포함)
+│   ├── StudentManager.jsx           # 코치용 수강생 목록/관리 (검색, 결제 배지, 일시정지/재개 등)
+│   ├── ResumeStudentModal.jsx       # 일시정지 재개 모달 (재시작일·요일/교시 선택 → 종료일 자동 계산)
 │   ├── StudentRegistrationModal.jsx # 코치용 직접 등록 모달 (신규/재등록)
 │   ├── StudentInfo.jsx              # 학생용 내 정보 조회
 │   ├── HoldingManager.jsx           # 홀딩/결석 신청
@@ -442,6 +443,13 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - 제외 조건: 수업 요일 아님, 홀딩 기간, 한국 공휴일, Firebase 커스텀 공휴일
 - 총 수업 횟수 = `주횟수 × 4 × 등록개월수`
 - 최대 365번 반복 (무한 루프 방지)
+
+### 전체 수강 일시정지/재개 흐름
+
+- 일시정지는 이름이 같은 현재 등록과 미리 등록을 모든 월 시트에서 찾아 주횟수(C)·시간표(D)를 비우고, 종료일(H)에 남은 `N회`를 기록한다. 원래 주횟수·시간표·시작일은 특이사항(E)의 `[정지:...]` 내부 태그에 보존한다.
+- 코치가 `재개`를 누르면 `ResumeStudentModal`이 열리고 재시작일과 새 요일·교시를 입력받는다. 같은 요일에는 한 교시만 선택할 수 있으며 선택 슬롯 수가 새 주횟수가 된다.
+- 모달은 `getPausedStudentResumeInfo()`로 정지된 모든 등록의 남은 횟수를 한 번에 읽고, `calculatePausedStudentResumePlan()`으로 선택 시간표·공휴일을 반영한 실제 시작일과 최종 종료일을 즉시 보여준다. 재시작일이 수업일이 아니면 그 이후 첫 선택 수업일을 실제 시작일로 사용한다.
+- 저장 시 `resumeStudent()`가 모든 정지 등록을 원래 시작일 순으로 이어 붙이고 C/D/G/H/E열 변경을 `batchUpdate` 1회에 모은다. 미리 등록까지 정지돼 있으면 앞 등록 종료 다음 수업일부터 연속 재개한다.
 
 ### 홀딩 신청 흐름
 

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets, pauseStudent, resumeStudent } from '../services/googleSheetsService';
+import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets, pauseStudent, resumeStudent, getPausedStudentResumeInfo } from '../services/googleSheetsService';
 import { createHoldingRequest, markHoldingSheetsApplied, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, deleteAllStudentAppData, recordStudentCount, getGradeMap, ensureUserAccount, getUnappliedHoldings } from '../services/firebaseService';
 import { getCoachStudentListStatus, shouldShowInCoachStudentList, isPausedRegistration } from '../utils/studentList';
 import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
@@ -10,6 +10,7 @@ import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
 import SmsSendModal from './SmsSendModal';
 import GradeBadge from './GradeBadge';
+import ResumeStudentModal from './ResumeStudentModal';
 import './StudentManager.css';
 
 const StudentManager = ({ onImpersonate, onNavigate }) => {
@@ -22,6 +23,10 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         refresh,
         holidays
     } = useGoogleSheets();
+    const normalizedHolidays = useMemo(
+        () => holidays.map(holiday => typeof holiday === 'string' ? { date: holiday } : holiday),
+        [holidays],
+    );
     const [editingStudent, setEditingStudent] = useState(null);
     const [editForm, setEditForm] = useState({});
     const [viewMode, setViewMode] = useState('table'); // 'table' or 'sheet'
@@ -44,6 +49,10 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     const [holdingProcessing, setHoldingProcessing] = useState(false);
     const [searchQuery, setSearchQuery] = useState(''); // 수강생 검색어
     const [actionProcessing, setActionProcessing] = useState(''); // 작업(종료/일시정지/재개) 처리 중 메시지
+    const [resumeTarget, setResumeTarget] = useState(null); // 재개 모달 대상
+    const [resumeRegistrations, setResumeRegistrations] = useState([]); // 정지된 등록별 남은 횟수/원래 일정
+    const [resumeInfoLoading, setResumeInfoLoading] = useState(false);
+    const [resumeInfoError, setResumeInfoError] = useState('');
     const [endTarget, setEndTarget] = useState(null); // 수강 종료 대상 (보존/전부삭제 선택 모달)
     const [pwResetting, setPwResetting] = useState(''); // 비밀번호 초기화 중인 수강생 이름
     const [showSmsModal, setShowSmsModal] = useState(false);
@@ -164,8 +173,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         }
         setActionProcessing('일시정지 처리 중...');
         try {
-            const holidaysArray = holidays.map(h => typeof h === 'string' ? { date: h } : h);
-            const results = await pauseStudent(student['이름'], holidaysArray);
+            const results = await pauseStudent(student['이름'], normalizedHolidays);
             if (refresh) await refresh();
             const summary = results
                 .map(r => `${r.notStarted ? '미리 등록' : '현재 등록'}: ${r.n}회${r.notStarted ? ' (시작 전)' : ''}`)
@@ -179,22 +187,42 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         }
     };
 
-    // 재개 (정지된 등록을 복원 + 재시작일부터 종료날짜 재계산)
-    const handleResume = async (student) => {
-        const today = new Date();
-        const defaultDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        const input = prompt(`${student['이름']} 수강생을 재개합니다.\n재시작 날짜를 입력하세요 (YYYY-MM-DD):`, defaultDate);
-        if (!input) return;
-        const restart = new Date(input.trim() + 'T00:00:00');
-        if (isNaN(restart.getTime())) {
-            alert('날짜 형식이 올바르지 않습니다. 예: 2026-07-01');
-            return;
+    const loadResumeInfo = async (student) => {
+        setResumeInfoLoading(true);
+        setResumeInfoError('');
+        setResumeRegistrations([]);
+        try {
+            const registrations = await getPausedStudentResumeInfo(student['이름']);
+            setResumeRegistrations(registrations);
+        } catch (err) {
+            console.error('재개 정보 조회 실패:', err);
+            setResumeInfoError(err.message || '정지된 수강 정보를 불러오지 못했습니다.');
+        } finally {
+            setResumeInfoLoading(false);
         }
+    };
+
+    // 재개 버튼 → 날짜·시간표·자동 종료일 모달
+    const handleResume = (student) => {
+        setResumeTarget(student);
+        loadResumeInfo(student);
+    };
+
+    const handleResumeSubmit = async ({ restartDate, schedule }) => {
+        if (!resumeTarget) return;
         setActionProcessing('재개 처리 중...');
         try {
-            const holidaysArray = holidays.map(h => typeof h === 'string' ? { date: h } : h);
-            const results = await resumeStudent(student['이름'], restart, holidaysArray);
-            if (refresh) await refresh();
+            const results = await resumeStudent(resumeTarget['이름'], restartDate, schedule, normalizedHolidays);
+            setResumeTarget(null);
+            setResumeRegistrations([]);
+            setResumeInfoError('');
+            if (refresh) {
+                try {
+                    await refresh();
+                } catch (refreshError) {
+                    console.warn('재개 후 목록 새로고침 실패:', refreshError);
+                }
+            }
             const summary = results
                 .map(r => `${r.schedule} (${r.n}회): ${r.start} ~ ${r.end}`)
                 .join('\n');
@@ -348,9 +376,8 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             // 남은 홀딩 목록 계산
             const remainingHoldingsList = existingHoldings.filter(h => h.id !== holdingData.id);
             // Google Sheets 홀딩 정보 업데이트 (종료일 재계산)
-            const holidaysArray = holidays.map(h => typeof h === 'string' ? { date: h } : h);
             const countedHolidayDates = await getCountedHolidayMakeupDates(holdingTarget['이름']);
-            await cancelHoldingInSheets(holdingTarget['이름'], remainingHoldingsList, holidaysArray, countedHolidayDates);
+            await cancelHoldingInSheets(holdingTarget['이름'], remainingHoldingsList, normalizedHolidays, countedHolidayDates);
             // 상태 업데이트
             setExistingHoldings(remainingHoldingsList);
             if (refresh) await refresh();
@@ -826,6 +853,26 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                     onClose={() => { setShowRegistrationModal(false); setRenewalStudentName(null); }}
                     onSuccess={handleRegistrationSuccess}
                     initialRenewalName={renewalStudentName}
+                />
+            )}
+
+            {resumeTarget && (
+                <ResumeStudentModal
+                    key={resumeInfoLoading ? 'loading' : resumeInfoError ? 'error' : resumeRegistrations.map(item => `${item.origStartDigits}-${item.n}`).join('|')}
+                    studentName={resumeTarget['이름']}
+                    registrations={resumeRegistrations}
+                    loading={resumeInfoLoading}
+                    loadError={resumeInfoError}
+                    holidays={normalizedHolidays}
+                    processing={actionProcessing === '재개 처리 중...'}
+                    onRetry={() => loadResumeInfo(resumeTarget)}
+                    onClose={() => {
+                        if (actionProcessing === '재개 처리 중...') return;
+                        setResumeTarget(null);
+                        setResumeRegistrations([]);
+                        setResumeInfoError('');
+                    }}
+                    onSubmit={handleResumeSubmit}
                 />
             )}
 

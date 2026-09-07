@@ -1,0 +1,318 @@
+.resume-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.48);
+}
+
+.resume-modal {
+    width: min(620px, 100%);
+    max-height: min(860px, 92vh);
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 24px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-card);
+    background: var(--canvas);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.resume-modal-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.resume-modal-heading h2,
+.resume-modal-heading p {
+    margin: 0;
+}
+
+.resume-modal-heading h2 {
+    color: var(--text);
+    font-size: 1.4rem;
+}
+
+.resume-modal-heading p {
+    margin-top: 4px;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.resume-modal-close {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-chip);
+    background: var(--canvas-tint);
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.resume-modal-state,
+.resume-modal-error {
+    min-height: 240px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.resume-modal-error p {
+    margin: 0;
+    color: var(--error);
+}
+
+.resume-modal-error button {
+    padding: 8px 14px;
+    border: 1px solid var(--accent);
+    border-radius: var(--r-chip);
+    background: var(--canvas);
+    color: var(--accent);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.resume-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.resume-form-field label,
+.resume-schedule-fieldset legend {
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.resume-form-field label span {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 400;
+}
+
+.resume-form-field input {
+    width: 100%;
+    min-height: 44px;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+}
+
+.resume-form-field input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.resume-form-field input[readonly] {
+    color: var(--accent-hover);
+    font-weight: 700;
+}
+
+.resume-form-field > span,
+.resume-schedule-fieldset > p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+
+.resume-schedule-fieldset {
+    min-width: 0;
+    margin: 20px 0;
+    padding: 0;
+    border: 0;
+}
+
+.resume-schedule-fieldset legend {
+    padding: 0;
+    margin-bottom: 4px;
+}
+
+.resume-schedule-grid {
+    min-width: 480px;
+    margin-top: 12px;
+}
+
+.resume-schedule-fieldset {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.resume-schedule-header,
+.resume-schedule-row {
+    display: grid;
+    grid-template-columns: 96px repeat(5, minmax(52px, 1fr));
+    gap: 4px;
+}
+
+.resume-schedule-header {
+    margin-bottom: 4px;
+}
+
+.resume-schedule-header strong {
+    padding: 6px 0;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    text-align: center;
+}
+
+.resume-schedule-row {
+    margin-bottom: 4px;
+}
+
+.resume-period-label {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-right: 6px;
+}
+
+.resume-period-label strong {
+    color: var(--text);
+    font-size: 0.76rem;
+}
+
+.resume-period-label span {
+    color: var(--text-muted);
+    font-size: 0.64rem;
+}
+
+.resume-schedule-row > button {
+    min-height: 44px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-chip);
+    background: var(--canvas-tint);
+    color: var(--canvas);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background var(--dur-s) var(--ease), border-color var(--dur-s) var(--ease);
+}
+
+.resume-schedule-row > button:hover {
+    border-color: var(--accent-30);
+}
+
+.resume-schedule-row > button.selected {
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.resume-schedule-summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 480px;
+    margin-top: 10px;
+    padding: 10px 12px;
+    box-sizing: border-box;
+    border: 1px solid var(--accent-20);
+    border-radius: var(--r-md);
+    background: var(--accent-10);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.resume-schedule-summary strong {
+    color: var(--accent-hover);
+}
+
+.resume-date-result {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.resume-calculation-note {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-md);
+    background: var(--canvas-tint);
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+}
+
+.resume-calculation-note p {
+    margin: 8px 0 0;
+    color: var(--error);
+}
+
+.resume-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+.resume-modal-actions button {
+    min-height: 44px;
+    padding: 10px 18px;
+    border-radius: var(--r-cta);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.resume-cancel-button {
+    border: 1px solid var(--hairline);
+    background: var(--canvas);
+    color: var(--text-secondary);
+}
+
+.resume-submit-button {
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+}
+
+.resume-modal-actions button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+@media (max-width: 560px) {
+    .resume-modal-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .resume-modal {
+        max-height: 94vh;
+        padding: 20px 16px;
+        border-radius: var(--r-card) var(--r-card) 0 0;
+    }
+
+    .resume-date-result {
+        grid-template-columns: 1fr;
+    }
+
+    .resume-modal-actions {
+        position: sticky;
+        bottom: -20px;
+        margin: 20px -16px -20px;
+        padding: 12px 16px 20px;
+        border-top: 1px solid var(--hairline);
+        background: var(--canvas);
+    }
+
+    .resume-modal-actions button {
+        flex: 1;
+    }
+}
