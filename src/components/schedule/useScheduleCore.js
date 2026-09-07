@@ -18,6 +18,7 @@ import {
 import { MOCK_DATA, MAX_CAPACITY, KOREAN_HOLIDAYS } from '../../data/mockData';
 import { getUnpaidStudentNames } from '../../utils/studentList';
 import { secondClassDayISO, cappedEndForFirstClassMove } from '../../utils/makeupEndDate';
+import { computeSlotOccupancy } from '../../utils/slotOccupancy';
 
 /**
  * 코치/학생 시간표 양쪽이 쓰는 파생 데이터와 헬퍼를 한 훅으로 집중.
@@ -79,6 +80,13 @@ export function useScheduleCore({
         if (!students || students.length === 0) return MOCK_DATA;
         return transformGoogleSheetsData(students);
     }, [students]);
+
+    // 신규 배정은 현재 시간표가 아니라 다음 등록 후 실제로 차지할 슬롯을 기준으로 센다.
+    // 외부 신규 신청 페이지와 같은 계산을 공유해 코치 "신규 전용" 여석도 일치시킨다.
+    const newStudentSlotOccupancy = useMemo(
+        () => computeSlotOccupancy(students || [], pendingRegistrations, parseScheduleString),
+        [students, pendingRegistrations]
+    );
 
     // 미결제(K열=X) 수강생 이름 집합 — 코치 시간표 배지용
     const unpaidStudentNames = useMemo(() => {
@@ -443,12 +451,12 @@ export function useScheduleCore({
         let pendingNames = [];
 
         if (mode === 'student' && user?.role === 'coach') {
-            // Coach "신규 전용" mode: registered + pending
+            // Coach "신규 전용" mode: 다음 등록 시간표 + pending 신규 신청
             const pendingForSlot = pendingRegistrations.filter(reg =>
                 reg.requestedSlots?.some(s => s.day === day && s.period === periodObj.id)
             );
             pendingNames = pendingForSlot.map(reg => reg.name);
-            currentCount = studentNames.length + pendingForSlot.length;
+            currentCount = newStudentSlotOccupancy[`${day}-${periodObj.id}`] || 0;
             availableSeats = Math.max(0, MAX_CAPACITY - currentCount);
             isFull = availableSeats === 0;
         } else {
@@ -495,6 +503,7 @@ export function useScheduleCore({
         studentHoldingRange,
         studentSchedule,
         scheduleData,
+        newStudentSlotOccupancy,
         weekDates,
         isDateHeld,
         isMyHoldingDate,

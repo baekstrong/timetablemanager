@@ -82,7 +82,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         weekAbsences,
         weekWaitlist, setWeekWaitlist,
         loadWeeklyData,
-        studentSchedule, scheduleData, weekDates,
+        studentSchedule, scheduleData, newStudentSlotOccupancy, weekDates,
         isMyHoldingDate,
         isMakeupHeld,
         lastDayStudents, delayedReregistrationStudents, lastClassByName,
@@ -211,23 +211,11 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
     // 대기(만석) 건의 여석 자동 감지
     useEffect(() => {
-        if (user?.role !== 'coach' || newStudentWaitlist.length === 0 || !scheduleData) return;
-
-        // scheduleData.regularEnrollments에서 슬롯 점유율 계산
-        const slotOccupancy = {};
-        (scheduleData.regularEnrollments || []).forEach(({ day, period, names }) => {
-            slotOccupancy[`${day}-${period}`] = names.length;
-        });
-        // pending 등록 슬롯도 반영
-        (pendingRegistrations || []).forEach(reg => {
-            (reg.requestedSlots || []).forEach(({ day, period }) => {
-                const key = `${day}-${period}`;
-                slotOccupancy[key] = (slotOccupancy[key] || 0) + 1;
-            });
-        });
+        // 시트 로드 중/실패 상태에서 빈 점유율로 대기 건을 잘못 풀지 않는다.
+        if (user?.role !== 'coach' || newStudentWaitlist.length === 0 || loading || sheetsError) return;
 
         const updates = checkWaitlistAvailability(
-            newStudentWaitlist, slotOccupancy, disabledClasses, MAX_CAPACITY
+            newStudentWaitlist, newStudentSlotOccupancy, disabledClasses, MAX_CAPACITY
         );
 
         if (updates.length > 0) {
@@ -243,7 +231,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 return reg;
             }));
         }
-    }, [user, newStudentWaitlist.length, scheduleData, disabledClasses, pendingRegistrations]);
+    }, [user, newStudentWaitlist, newStudentSlotOccupancy, disabledClasses, loading, sheetsError]);
 
     // 만석 보강 대기 백스톱 — 코치 시간표 로드 시 실제 여석 기준으로 만료/승급 처리 + 표시용 로드
     useEffect(() => {
