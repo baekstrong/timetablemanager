@@ -5,12 +5,12 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import WeeklySchedule from './components/WeeklySchedule';
 import HoldingManager from './components/HoldingManager';
-import HolidayManager from './components/HolidayManager';
+const HolidayManager = lazy(() => import('./components/HolidayManager'));
 import StudentInfo from './components/StudentInfo';
-import StudentManager from './components/StudentManager';
+const StudentManager = lazy(() => import('./components/StudentManager'));
 import GoogleSheetsTest from './components/GoogleSheetsTest';
 import NewStudentRegistration from './components/NewStudentRegistration';
-import CoachNewStudents from './components/CoachNewStudents';
+const CoachNewStudents = lazy(() => import('./components/CoachNewStudents'));
 import ContractView from './components/ContractView';
 // recharts(gzip 기준 번들의 ~30%)를 쓰는 화면만 lazy 분리 — 초기 번들에서 제외
 const Ranking = lazy(() => import('./components/Ranking'));
@@ -19,6 +19,7 @@ import BottomNav from './components/BottomNav';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import UpdateBanner from './components/UpdateBanner';
 import { startVersionCheck } from './utils/versionCheck';
+import { createVisibleTask } from './utils/visibleTask';
 import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent, getLatestPostCreatedAt, getNewStudentRegistrations, isMonthlyStampDone } from './services/firebaseService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from './config/firebase';
@@ -26,8 +27,6 @@ import './App.css';
 
 const IMPERSONATION_STORAGE_KEY = 'impersonation_origin';
 const NOTIFICATION_POLL_INTERVAL = 15 * 60 * 1000;
-
-const isPageVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
 
 // 본인 등록 조회 — ±2개월 윈도우 한 번만 읽는다.
 // requireActive 기본값(true)은 "오늘 활성인 등록이 윈도우에 없으면 전 시트를 다시 스캔"인데,
@@ -95,9 +94,7 @@ function AppContent() {
       }
     };
 
-    const checkPendingIfVisible = () => {
-      if (isPageVisible()) checkPending();
-    };
+    const checkPendingIfVisible = createVisibleTask(checkPending);
 
     checkPendingIfVisible();
     const interval = setInterval(checkPendingIfVisible, NOTIFICATION_POLL_INTERVAL);
@@ -124,7 +121,7 @@ function AppContent() {
       }
     };
 
-    const checkIfVisible = () => { if (isPageVisible()) checkStamp(); };
+    const checkIfVisible = createVisibleTask(checkStamp);
     checkIfVisible();
     const interval = setInterval(checkIfVisible, NOTIFICATION_POLL_INTERVAL);
     const onVisible = () => checkIfVisible();
@@ -152,9 +149,7 @@ function AppContent() {
       }
     };
 
-    const checkStudentNotificationsIfVisible = () => {
-      if (isPageVisible()) checkStudentNotifications();
-    };
+    const checkStudentNotificationsIfVisible = createVisibleTask(checkStudentNotifications);
 
     checkStudentNotificationsIfVisible();
     const interval = setInterval(checkStudentNotificationsIfVisible, NOTIFICATION_POLL_INTERVAL);
@@ -170,8 +165,7 @@ function AppContent() {
   useEffect(() => {
     if (!user) return;
 
-    const checkNewPostIfVisible = async () => {
-      if (!isPageVisible()) return;
+    const checkNewPostIfVisible = createVisibleTask(async () => {
       try {
         const lastSeen = parseInt(localStorage.getItem('board_last_seen') || '0');
         const latestPostTime = await getLatestPostCreatedAt();
@@ -179,7 +173,7 @@ function AppContent() {
       } catch {
         // ignore polling errors
       }
-    };
+    });
 
     checkNewPostIfVisible();
     const interval = setInterval(checkNewPostIfVisible, NOTIFICATION_POLL_INTERVAL);
@@ -464,7 +458,9 @@ function AppContent() {
       {impersonationOrigin && user && user.role === 'student' && (
         <ImpersonationBanner studentName={user.username} onExit={handleExitImpersonation} />
       )}
-      {renderPage()}
+      <Suspense fallback={<div className="loading-container" role="status">화면을 불러오는 중…</div>}>
+        {renderPage()}
+      </Suspense>
       {currentPage !== 'login' && user && (
         <BottomNav
           currentPage={currentPage}

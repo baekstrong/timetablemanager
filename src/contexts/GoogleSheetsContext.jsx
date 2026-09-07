@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
     initializeGoogleAPI,
     initializeGIS,
@@ -35,6 +35,7 @@ export const GoogleSheetsProvider = ({ children }) => {
     const [error, setError] = useState(null);
     const [availableSheets, setAvailableSheets] = useState([]);
     const [holidays, setHolidays] = useState([]);
+    const studentRequest = useRef(0);
 
     // Current selected year and month (defaults to current date)
     const now = new Date();
@@ -78,14 +79,17 @@ export const GoogleSheetsProvider = ({ children }) => {
 
     // Fetch students from all Google Sheets
     const fetchStudents = async () => {
+        const request = ++studentRequest.current;
         setLoading(true);
         setError(null);
         try {
             console.log('🔍 Fetching students from all available sheets...');
 
             const data = await getAllStudentsFromAllSheets();
+            if (request !== studentRequest.current) return data;
             setStudents(data);
             console.log(`✅ Fetched ${data.length} students from all sheets`);
+            return data;
         } catch (err) {
             console.error('❌ Failed to fetch students:', err);
             console.error('Error details:', {
@@ -93,9 +97,10 @@ export const GoogleSheetsProvider = ({ children }) => {
                 result: err.result,
                 status: err.status
             });
-            setError('학생 데이터 불러오기 실패');
+            if (request === studentRequest.current) setError('학생 데이터 불러오기 실패');
+            return null;
         } finally {
-            setLoading(false);
+            if (request === studentRequest.current) setLoading(false);
         }
     };
 
@@ -132,19 +137,21 @@ export const GoogleSheetsProvider = ({ children }) => {
 
     // Change selected month
     const changeMonth = async (year, month) => {
+        const request = ++studentRequest.current;
         setSelectedYear(year);
         setSelectedMonth(month);
         setLoading(true);
         setError(null);
         try {
             const data = await getAllStudents(year, month);
+            if (request !== studentRequest.current) return;
             setStudents(data);
             console.log(`Switched to ${year}년 ${month}월:`, data);
         } catch (err) {
             console.error('Failed to fetch students for selected month:', err);
-            setError(`학생 데이터 불러오기 실패 (${year}년 ${month}월)`);
+            if (request === studentRequest.current) setError(`학생 데이터 불러오기 실패 (${year}년 ${month}월)`);
         } finally {
-            setLoading(false);
+            if (request === studentRequest.current) setLoading(false);
         }
     };
 
@@ -165,7 +172,8 @@ export const GoogleSheetsProvider = ({ children }) => {
 
     // Refresh data from Google Sheets
     const refresh = async () => {
-        await fetchStudents();
+        const data = await fetchStudents();
+        if (data === null) throw new Error('학생 데이터 불러오기 실패');
     };
 
     const value = {

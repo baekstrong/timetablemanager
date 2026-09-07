@@ -4,7 +4,7 @@
 // 프로덕션 왕복 1회가 ≈0.73초라 버튼 한 번이 12초를 넘었다. 고친 뒤에도 누가
 // 반복문 안에 readSheetData/writeSheetData를 다시 넣으면 조용히 되돌아가므로,
 // 동작이 아니라 **호출 횟수**를 못 박아 둔다.
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
     clearStudentScheduleAllSheets, pauseStudent, requestHolding,
     getAllStudentsFromAllSheets, invalidateStudentSheetCache,
@@ -45,6 +45,8 @@ let calls;
 const countOf = (path) => calls.filter(c => c.path === path).length;
 
 beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 7, 9));
     calls = [];
     global.fetch = vi.fn(async (url, options) => {
         const u = String(url);
@@ -76,6 +78,8 @@ beforeEach(() => {
         return json({});
     });
 });
+
+afterEach(() => vi.useRealTimers());
 
 describe('clearStudentScheduleAllSheets (수강 종료) — 왕복 횟수', () => {
     it('시트가 몇 개든 batchGet 1회 + batchUpdate 1회로 끝난다', async () => {
@@ -272,6 +276,7 @@ describe('updateStudentData — 필드마다 쓰지 않는다', () => {
 
 describe('pauseStudent (일시정지) — 왕복 횟수', () => {
     it('등록이 여러 시트에 있어도 batchGet 1회 + batchUpdate 1회', async () => {
+        vi.setSystemTime(new Date(2026, 7, 11, 9));
         await pauseStudent('홍길동', []);
 
         expect(countOf('batchGet')).toBe(1);

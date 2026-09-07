@@ -12,40 +12,37 @@ function getAuthBaseUrl() {
   return 'http://localhost:5001/auth';
 }
 
+async function requestAuth(path, body) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(`${getAuthBaseUrl()}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || `인증 요청 실패 (${res.status})`);
+    }
+    return data;
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('인증 서버 응답이 늦어지고 있습니다. 잠시 후 다시 시도해주세요.');
+    throw error;
+  } finally { clearTimeout(timer); }
+}
+
 export async function serverLogin(name, password) {
-  const res = await fetch(`${getAuthBaseUrl()}/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, password }),
-  });
-  const data = await res.json();
-  if (!res.ok || !data.success) {
-    throw new Error(data.error || `로그인 실패 (${res.status})`);
-  }
+  const data = await requestAuth('/login', { name, password });
   await signInWithCustomToken(auth, data.token);
   return { isCoach: data.isCoach };
 }
 
 export async function setStudentPassword(coachName, coachPassword, targetName, newPassword) {
-  const res = await fetch(`${getAuthBaseUrl()}/set-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ coachName, coachPassword, targetName, newPassword }),
-  });
-  const data = await res.json();
-  if (!res.ok || !data.success) {
-    throw new Error(data.error || `비밀번호 설정 실패 (${res.status})`);
-  }
+  await requestAuth('/set-password', { coachName, coachPassword, targetName, newPassword });
 }
 
 export async function changeMyPassword(name, currentPassword, newPassword) {
-  const res = await fetch(`${getAuthBaseUrl()}/change-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, currentPassword, newPassword }),
-  });
-  const data = await res.json();
-  if (!res.ok || !data.success) {
-    throw new Error(data.error || `비밀번호 변경 실패 (${res.status})`);
-  }
+  await requestAuth('/change-password', { name, currentPassword, newPassword });
 }

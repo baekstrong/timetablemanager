@@ -4,11 +4,11 @@ import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminM
 import { state, db, firebaseInitialized } from './state.js';
 import { loadSavedLogin } from './utils.js';
 // Import all functions to expose to window
-import * as Auth from './modules/auth.js';
+import * as Auth from './modules/auth.js?v=20260907-perf';
 import * as Sets from './modules/sets.js';
 import * as Records from './modules/records.js';
 import * as Calendar from './modules/calendar.js';
-import * as Coach from './modules/coach.js';
+import * as Coach from './modules/coach.js?v=20260907-perf';
 import * as Stamp from './modules/stamp.js';
 import * as OneRM from './modules/onerm.js';
 

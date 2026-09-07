@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { PERIODS, DAYS } from '../../data/mockData';
 import { toggleDisabledClass, toggleLockedSlot, publishRoster, publishLastClasses, publishReregX } from '../../services/firebaseService';
 import { weekDateToISO, getWaitlistCountForSlot, isPeriodImminentOrOngoing } from '../../utils/scheduleUtils';
@@ -59,6 +59,10 @@ export default function CoachSchedule({
         return () => clearInterval(timer);
     }, []);
     const todayDayName = ['일', '월', '화', '수', '목', '금', '토'][now.getDay()];
+    // 같은 데이터는 화면과 명단 발행이 공유한다. 시각만 바뀐 렌더에서는 재계산하지 않는다.
+    const cells = useMemo(() => new Map(DAYS.flatMap(day => PERIODS.map(p =>
+        [`${day}-${p.id}`, getCellData(day, p)]
+    ))), [getCellData]);
 
     // 이 수업에 '실제로 오는 사람' — 셀 렌더와 같은 기준.
     // 화면에 라벨 없이 뜨는 사람 + '보강' 태그로 뜨는 사람.
@@ -83,7 +87,7 @@ export default function CoachSchedule({
             const iso = weekDateToISO(weekDates[day]);
             const map = {};
             PERIODS.forEach(p => {
-                const d = getCellData(day, p);
+                const d = cells.get(`${day}-${p.id}`);
                 if (d) map[String(p.id)] = attendingNamesFor(d);
                 if (map[String(p.id)]?.length) anyStudent = true;
             });
@@ -96,10 +100,8 @@ export default function CoachSchedule({
         if (anyStudent) {
             publishReregX((delayedReregistrationStudents || []).map(s => s.name).sort());
         }
-        // deps 없이 매 렌더 계산한다. 결석·보강·홀딩은 Firebase에서 뒤늦게 도착하는데
-        // scheduleData만 보고 있으면 도착 전 값(결석자 포함·보강자 누락)이 그대로 발행된다.
-        // 실제 write는 publishRoster가 날짜별 내용 비교로 억제하므로 매 렌더 실행이 싸다.
-    });
+        // getCellData가 바뀌면 cells도 교체되어 늦게 도착한 결석·보강·홀딩을 반영한다.
+    }, [cells, weekDates, lastClassByName, delayedReregistrationStudents]);
 
     // 재등록 지연 명단(코치) — 이름 옆 "(재등록X)" 표시용
     const delayedReregNames = new Set((delayedReregistrationStudents || []).map(s => s.name));
@@ -159,7 +161,7 @@ export default function CoachSchedule({
 
     // ── 셀 렌더 ──
     function renderCoachCell(day, periodObj) {
-        const data = getCellData(day, periodObj);
+        const data = cells.get(`${day}-${periodObj.id}`);
         const classDisabled = isClassDisabled(day, periodObj.id);
         const holidayReason = getHolidayInfo(day);
         const isHoliday = holidayReason !== null;

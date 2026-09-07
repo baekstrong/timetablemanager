@@ -828,19 +828,24 @@ let coachPinnedMemosCache = {};
 // 학생별 문서 대신 단일 문서의 map: 몇 명을 선택해도 읽기 1회. (studentMeta/frequencies와 같은 패턴)
 let coachNotesMap = {};
 let coachNotesLoaded = false;
+let coachNotesInflight = null;
 const expandedNotes = new Set(); // 비어 있는 메모를 코치가 직접 펼친 수강생
 
 // ponytail: 문서 1개를 세션당 1회만 읽는다. 저장은 캐시도 갱신하므로 재조회 불필요
 // (코치가 두 기기에서 동시에 쓰는 경우는 고려 안 함 — 새로고침하면 최신).
 async function loadCoachNotes() {
     if (coachNotesLoaded || !firebaseInitialized || !db) return;
-    try {
-        const doc = await db.collection('coachNotes').doc('notes').get();
-        coachNotesMap = (doc.exists && doc.data().map) ? doc.data().map : {};
-        coachNotesLoaded = true;
-    } catch (error) {
-        console.error('코치 전용 메모 조회 실패:', error);
-    }
+    if (coachNotesInflight) return coachNotesInflight;
+    coachNotesInflight = (async () => {
+        try {
+            const doc = await db.collection('coachNotes').doc('notes').get();
+            coachNotesMap = (doc.exists && doc.data().map) ? doc.data().map : {};
+            coachNotesLoaded = true;
+        } catch (error) {
+            console.error('코치 전용 메모 조회 실패:', error);
+        }
+    })().finally(() => { coachNotesInflight = null; });
+    return coachNotesInflight;
 }
 
 // 비어 있어 접혀 있던 메모를 펼친다 (퀵내비 첫 클릭·연필 버튼)
@@ -954,27 +959,35 @@ export function setupRealtimePinnedMemosListener() {
 // 저장할 때마다 스냅샷이 재발화하며 선택 인원×2 읽기가 계속 나간다(7명이면 1회당 14 read).
 // ponytail: 세션 캐시에 있으면 다시 안 읽는다. 코치 본인의 메모 쓰기는 캐시도 같이 갱신하고,
 // 다른 기기에서 바뀐 메모는 refresh 인자 또는 새로고침으로 들어온다.
+const pinnedMemosInflight = new Map();
 async function loadPinnedMemosForSelectedStudents(refresh) {
     if (!firebaseInitialized || !db || state.selectedStudents.length === 0) return;
 
-    // 두 캐시는 항상 같이 채워지므로(실패 시에도) 한쪽만 확인하면 된다.
+    // 성공한 두 문서는 함께 캐시한다. 실패는 다음 조작에서 재시도한다.
     const selected = [...new Set(state.selectedStudents)]
         .filter(name => name === refresh || !(name in coachPinnedMemosCache));
     if (selected.length === 0) return;
 
     await Promise.all(selected.map(async (studentName) => {
-        try {
-            const [studentDoc, coachDoc] = await Promise.all([
-                db.collection('pinnedMemos').doc(studentName).get(),
-                db.collection('coachPinnedMemos').doc(studentName).get()
-            ]);
-            studentPinnedMemosCache[studentName] = studentDoc.exists ? (studentDoc.data().memos || []) : [];
-            coachPinnedMemosCache[studentName] = coachDoc.exists ? (coachDoc.data().memos || []) : [];
-        } catch (error) {
-            console.error('선택 학생 메모 조회 실패:', studentName, error);
-            studentPinnedMemosCache[studentName] = studentPinnedMemosCache[studentName] || [];
-            coachPinnedMemosCache[studentName] = coachPinnedMemosCache[studentName] || [];
-        }
+        if (studentName !== refresh && pinnedMemosInflight.has(studentName)) return pinnedMemosInflight.get(studentName);
+        const request = (async () => {
+            try {
+                const [studentDoc, coachDoc] = await Promise.all([
+                    db.collection('pinnedMemos').doc(studentName).get(),
+                    db.collection('coachPinnedMemos').doc(studentName).get()
+                ]);
+                if (pinnedMemosInflight.get(studentName) !== request) return;
+                studentPinnedMemosCache[studentName] = studentDoc.exists ? (studentDoc.data().memos || []) : [];
+                coachPinnedMemosCache[studentName] = coachDoc.exists ? (coachDoc.data().memos || []) : [];
+            } catch (error) {
+                console.error('선택 학생 메모 조회 실패:', studentName, error);
+                // 실패를 정상 빈 메모로 캐시하지 않는다. 다음 조작에서 다시 읽을 수 있다.
+            }
+        })().finally(() => {
+            if (pinnedMemosInflight.get(studentName) === request) pinnedMemosInflight.delete(studentName);
+        });
+        pinnedMemosInflight.set(studentName, request);
+        return request;
     }));
 }
 
@@ -1433,6 +1446,7 @@ export function togglePinnedMemoFilter() {
 }
 
 export function toggleRecordsFilter() {
+    legacyRecordsRequest++;
     const checkbox = document.getElementById('recordsFilterCheck');
     state.recordsFilter = checkbox ? checkbox.checked : false;
     updateFilterSummary();
@@ -1479,6 +1493,8 @@ export function changeCoachExerciseFilter(exerciseName) {
 
 // 전체 기록 불러오기 (운동 기록 보기 체크 시에만 호출됨)
 export async function loadAllRecords() {
+    const request = ++legacyRecordsRequest;
+    coachViewRequest++;
     const allRecordsList = document.getElementById('allRecordsList');
 
     if (!allRecordsList) return;
@@ -1529,7 +1545,9 @@ export async function loadAllRecords() {
         });
     }
 
+    if (request !== legacyRecordsRequest) return;
     state.unsubscribe = query.limit(100).onSnapshot((snapshot) => {
+        if (request !== legacyRecordsRequest) return;
         if (snapshot.empty) {
             allRecordsList.innerHTML = '<p class="text-gray-500 text-center py-8 col-span-full">기록이 없습니다.</p>';
             // Feature 3 Fix: 기록이 없어도 고정 메모는 보여야 함
@@ -1673,6 +1691,10 @@ export async function loadAllRecords() {
 let coachSessionCache = {};        // 이름 -> { dates:[최근순], byDate:{날짜:[item]} }
 let coachSessionSelectedDate = {}; // 이름 -> 현재 선택 날짜
 let coachSessionDays = {};         // 이름 -> 지금 캐시에 담긴 조회 범위(일)
+let coachSessionInflight = new Map();
+let coachSessionGeneration = 0;
+let coachViewRequest = 0;
+let legacyRecordsRequest = 0;
 
 // 진입 시 학생당 조회 범위. 화면에 그리는 건 학생당 하루치뿐이라 넓게 받을수록 그대로 손해다 —
 // 90일이던 시절 7명 기준 560건/2.8MB가 매 진입마다 내려왔다(14일이면 104건/467KB).
@@ -1682,29 +1704,44 @@ const SESSION_DAYS_MORE = 180;
 const MORE_OPTION = '__more__';
 
 function resetCoachSessionCache() {
+    coachSessionGeneration++;
+    coachViewRequest++;
+    coachSessionInflight = new Map();
     coachSessionCache = {};
     coachSessionSelectedDate = {};
     coachSessionDays = {};
 }
 
 // 학생 1명의 세션 캐시를 지정한 범위로 채운다. (userName,date) 복합 인덱스는 학생 달력이
-// 상시 쓰는 조합이라 존재. 실패 시 무경계 폴백.
+// 상시 쓰는 조합이다. 실패를 전 기간 조회로 확대하지 않는다.
 async function fetchSessions(name, days) {
-    const cutoffD = new Date(); cutoffD.setDate(cutoffD.getDate() - days);
-    const cutoff = `${cutoffD.getFullYear()}-${String(cutoffD.getMonth() + 1).padStart(2, '0')}-${String(cutoffD.getDate()).padStart(2, '0')}`;
-    const snap = await db.collection('records')
-        .where('userName', '==', name)
-        .where('date', '>=', cutoff)
-        .get()
-        .catch(() => db.collection('records').where('userName', '==', name).get());
-    const items = [];
-    snap.forEach(doc => {
-        const d = doc.data();
-        items.push({ id: doc.id, data: d, date: d.date, ts: tsMs(d.timestamp) });
+    const key = `${name}|${days}`;
+    if (coachSessionInflight.has(key)) return coachSessionInflight.get(key);
+    const generation = coachSessionGeneration;
+    const request = (async () => {
+        const cutoffD = new Date(); cutoffD.setDate(cutoffD.getDate() - days);
+        const cutoff = `${cutoffD.getFullYear()}-${String(cutoffD.getMonth() + 1).padStart(2, '0')}-${String(cutoffD.getDate()).padStart(2, '0')}`;
+        const snap = await db.collection('records')
+            .where('userName', '==', name)
+            .where('date', '>=', cutoff)
+            .get();
+        if (generation !== coachSessionGeneration) return;
+        const items = [];
+        snap.forEach(doc => {
+            const d = doc.data();
+            items.push({ id: doc.id, data: d, date: d.date, ts: tsMs(d.timestamp) });
+        });
+        const { dates, byDate } = groupSessionsByDate(items);
+        // 180일 조회 뒤 늦게 온 14일 응답이 더 넓은 캐시를 덮어쓰지 않는다.
+        if ((coachSessionDays[name] || 0) <= days) {
+            coachSessionCache[name] = { dates, byDate };
+            coachSessionDays[name] = days;
+        }
+    })().finally(() => {
+        if (coachSessionInflight.get(key) === request) coachSessionInflight.delete(key);
     });
-    const { dates, byDate } = groupSessionsByDate(items);
-    coachSessionCache[name] = { dates, byDate };
-    coachSessionDays[name] = days;
+    coachSessionInflight.set(key, request);
+    return request;
 }
 
 const escCoach = (s) => String(s ?? '').replace(/[&<>"']/g, c => (
@@ -1713,6 +1750,8 @@ const escCoach = (s) => String(s ?? '').replace(/[&<>"']/g, c => (
 const tsMs = (ts) => (ts && ts.toDate) ? ts.toDate().getTime() : 0;
 
 export async function renderCoachSessionView() {
+    const request = ++coachViewRequest;
+    legacyRecordsRequest++;
     renderCoachNotes(); // 선택 변경의 단일 관문 — 코치 전용 메모도 여기서 같이 갱신
 
     const container = document.getElementById('allRecordsList');
@@ -1739,15 +1778,18 @@ export async function renderCoachSessionView() {
         try {
             await Promise.all(needFetch.map(async (name) => {
                 await fetchSessions(name, SESSION_DAYS);
+                if (request !== coachViewRequest) return;
                 const { dates, byDate } = coachSessionCache[name];
                 // 끝난 수업을 보고 있으면 그 날짜를, 아니면 오늘 이전 마지막 수업을 기본으로.
                 coachSessionSelectedDate[name] = (coachPreferredDate && byDate[coachPreferredDate])
                     ? coachPreferredDate
                     : defaultSessionDate(dates, localToday());
             }));
+            if (request !== coachViewRequest) return;
             // 학생 화면과 동일하게 종목별 고정 메모를 표시하려면 pinnedMemos도 필요.
             await loadPinnedMemosForSelectedStudents();
         } catch (e) {
+            if (request !== coachViewRequest) return;
             console.error('코치 세션 조회 실패:', e);
             container.innerHTML = '<p class="text-red-500 text-center py-8">기록 불러오기 실패.</p>';
             return;
@@ -1755,6 +1797,7 @@ export async function renderCoachSessionView() {
     }
 
     // 캐시에 이미 있던 수강생도 기본 날짜를 다시 정한다 — '지금 수업' 새로고침이 반영되도록.
+    if (request !== coachViewRequest) return;
     selected.forEach(name => {
         const c = coachSessionCache[name];
         if (!c || coachSessionSelectedDate[name]) return;
@@ -1934,4 +1977,3 @@ export function confirmSendMessage() {
 window.openPersonalMessageModal = openPersonalMessageModal;
 window.closePersonalMessageModal = closePersonalMessageModal;
 window.confirmSendMessage = confirmSendMessage;
-

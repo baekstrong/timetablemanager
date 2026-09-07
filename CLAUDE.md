@@ -660,7 +660,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 8. **A열 번호 자동 부여** — 신규 등록 시 A열 최대값+1로 부여 (중복 방지)
 9. **초기 로드는 최근 창(-6~+2개월) 시트만 읽는다** — `getAllStudentsFromAllSheets`가 `src/utils/recentSheets.js`의 `filterRecentStudentSheets`로 시트를 제한하므로, 컨텍스트 `students`에는 그 창 밖(7개월+ 과거)의 등록이 없다. 과거 월 상세는 `changeMonth`(단일 시트), 매출 통계는 `getAllRawRows`(전체 시트) 별도 경로 사용
     - ⚠️ **행이 있는 시트는 "결제한 달"이지 "수강하는 달"이 아니다.** 결제월과 종료일은 시작 지연 + 등록 개월(최대 3) + 홀딩(최대 3회)으로 **6개월까지 벌어진다**. 창이 `-3`이던 2026-09-01에, 5월 시트에 있던 6/30\~9/22 등록(주1회·3개월·홀딩 1회)이 창 밖으로 밀려 **수강 중인 수강생이 시간표에서 통째로 사라졌다**. 창을 다시 좁히지 말 것 — `recentSheets.test.js`의 회귀 테스트가 막는다. 읽는 시트가 늘어도 `batchReadSheetData` **한 요청**이라 왕복은 그대로 1회다(주의사항 13번)
-10. **recharts 화면은 lazy 청크** — `Ranking`·`AnalyticsDashboard`는 `App.jsx`에서 `React.lazy`로 분리 로드. 이 컴포넌트를 다른 곳에서 정적 import하면 분리가 깨진다
+10. **관리·차트 화면은 lazy 청크** — `Ranking`·`AnalyticsDashboard`·`StudentManager`·`HolidayManager`·`CoachNewStudents`는 `App.jsx`에서 `React.lazy`로 분리 로드. 이 컴포넌트를 다른 곳에서 정적 import하면 분리가 깨진다
 11. **Netlify sheets/calendar 함수는 `@googleapis/sheets`·`@googleapis/calendar` 단독 패키지 사용** — `googleapis` 전체 패키지로 되돌리면 콜드스타트가 크게 나빠진다. 인증 클라이언트는 모듈 스코프 캐시(요청마다 재생성 금지)
 12. **users 뱃지 맵은 `getUsersMaps` 1회 스캔 공유** — `getTierMap`/`getGradeMap`에 개별 스캔·개별 캐시를 다시 넣지 말 것. 티어/학년 쓰기 후에는 캐시 전체 무효화 대신 해당 항목만 제자리 갱신
 13. **시트 원격 호출은 반복문 안에 넣지 말 것 (이 저장소에서 가장 자주 재발한 성능 버그).** 왕복 1회가 프로덕션 실측 **≈0.73초**(콜드스타트 3.7초)라 루프에 들어가면 그대로 초 단위로 쌓인다. 페이로드는 15개 시트 전부 합쳐 89KB로 작아서 **병목은 언제나 데이터 양이 아니라 왕복 횟수**다.
@@ -692,5 +692,16 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
     - 회귀 방지: `public/training-log/js/modules/coach-entry.test.js`
 
 ## Codex 연결
+
+### 간헐적 지연 회귀 방지 (2026-09-07)
+
+- Sheets는 **재시도 포함 단일 API 요청 총 20초, 최대 3회**. 타임아웃·쓰기 응답 유실은 자동 재전송하지 않는다(서버에 이미 반영됐을 수 있음). 명시적 할당량 오류만 쓰기 재시도 가능. 20초는 여러 API가 이어지는 전체 사용자 작업의 제한이 아니다.
+- 학생 시트/통계 batchGet 실패를 월별 read로 확대하지 않는다. 학생 조회는 실제 시트 목록으로 범위를 걸러 아직 없는 미래 월이 전체 배치를 실패시키지 않게 한다. 정상 빈 시트는 그대로 빈 결과이며 실패는 오류로 전달한다. 캐시 무효화 이전의 응답은 새 캐시를 덮어쓰지 않는다.
+- `useWeeklyData`의 Firebase 조회는 학생 배열과 독립. 시트 변경은 `weekHoldings`를 파생 계산하고, 사용자 갱신 핸들러가 Firebase를 1회 읽는다. 최신 요청만 반영하며 부분 실패는 마지막 정상 데이터 유지+`weeklyDataLoaded=false`+오류 안내. students를 조회 콜백 의존성에 다시 넣으면 refresh 뒤 중복 조회가 되살아난다.
+- 훈련일지 코치 조회는 학생·범위별 진행 중 Promise를 공유하고 최신 선택만 렌더한다. 14일 조회 실패를 전 기간 조회로 확대하지 않는다. 메모도 진행 중 요청을 공유한다. 구형 기록 보기의 await 이후 구독 설치에도 요청 번호 가드를 유지한다.
+- 훈련일지 `main.js`·`auth.js`·`coach.js`는 이번 수정에 버전 쿼리를 사용한다. main import와 index.html modulepreload URL을 동일하게 유지하며, 공유 state.js에 별도 쿼리를 붙여 상태 모듈을 이중 생성하지 않는다. 내부 계약은 기존 호출자와 호환된다.
+- 앱 복귀 알림·버전 확인은 `createVisibleTask`로 진행 중 중복 및 1분 이내 재호출을 억제한다. 코치 시간표는 셀 결과를 화면/명단 발행에서 공유하고 시각만 갱신될 때 재계산하지 않는다.
+- 메인·훈련일지 서버 인증 fetch는 20초 제한. Firebase SDK의 토큰 교환까지 포함한 전체 로그인 제한은 아니다.
+- 검증/남은 측정: `docs/performance-fixes-2026-09-07.md`. 회귀 테스트: `requestResilience.test.js`, `useWeeklyData.test.js`, `coach-concurrency.test.js`, `authService.test.js`, `visibleTask.test.js`.
 
 Codex의 프로젝트 진입 지침은 `AGENTS.md`다. 공통 업무 규칙은 이 문서와 관련 원본 문서를 참조하고, 공유 장기 기억은 `~/.claude/wiki/`에 누적한다.

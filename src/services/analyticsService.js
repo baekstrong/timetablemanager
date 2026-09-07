@@ -235,15 +235,13 @@ export async function getAllRawRows() {
   const names = await getAllSheetNames();
   const studentSheets = (names || []).filter((n) => n.startsWith('등록생 목록('));
   if (studentSheets.length === 0) return [];
-  let valueRanges = [];
-  try {
-    valueRanges = await batchReadSheetData(studentSheets.map((n) => `${n}!A:R`));
-  } catch { valueRanges = []; }
+  const valueRanges = await batchReadSheetData(studentSheets.map((n) => `${n}!A:R`));
+  if (valueRanges.length !== studentSheets.length) throw new Error('시트 응답이 불완전합니다.');
   const arrays = await Promise.all(studentSheets.map(async (name, i) => {
     const m = name.match(/등록생 목록\((\d+)년(\d+)월\)/);
     const ym = m ? `${2000 + parseInt(m[1])}-${String(parseInt(m[2])).padStart(2, '0')}` : null;
     try {
-      const parsed = parseStudentData(valueRanges[i]?.values ?? await readSheetData(`${name}!A:R`));
+      const parsed = parseStudentData(valueRanges[i]?.values || []);
       parsed.forEach((s) => { s._ym = ym; });
       return parsed;
     } catch { return []; }

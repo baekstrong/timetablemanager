@@ -6,6 +6,8 @@
 // 캐시하고 JS/HTML은 캐시하지 않으므로, index.html이 참조하는 진입 번들 해시를
 // 주기적으로 비교해 새 배포 여부를 판단한다.
 
+import { createVisibleTask } from './visibleTask';
+
 const BASE = import.meta.env.BASE_URL || '/';
 const BUNDLE_RE = /assets\/index-[^."'\s]+\.js/;
 
@@ -40,7 +42,7 @@ export function startVersionCheck(onUpdateAvailable, { intervalMs = 5 * 60 * 100
 
   let notified = false;
 
-  const check = async () => {
+  const check = createVisibleTask(async () => {
     if (notified || document.hidden) return;
     try {
       const server = await fetchServerBundle();
@@ -51,7 +53,7 @@ export function startVersionCheck(onUpdateAvailable, { intervalMs = 5 * 60 * 100
     } catch {
       // 네트워크 오류는 무시 (다음 주기에 재시도)
     }
-  };
+  });
 
   const onVisible = () => { if (!document.hidden) check(); };
   document.addEventListener('visibilitychange', onVisible);

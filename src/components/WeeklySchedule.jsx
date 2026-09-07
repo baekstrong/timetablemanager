@@ -87,7 +87,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         isMakeupHeld,
         lastDayStudents, delayedReregistrationStudents, lastClassByName,
         getCellData, getHolidayInfo,
-        unpaidStudentNames, weeklyDataLoaded, weekFreeWorkout, freeWorkoutRoster,
+        unpaidStudentNames, weeklyDataLoaded, weeklyDataError, weekFreeWorkout, freeWorkoutRoster,
     } = scheduleCore;
 
     // 자율운동 표시: 날짜(YYYY-MM-DD) → [{id, studentName, roster?}]
@@ -423,6 +423,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
     return (
         <div className={`schedule-container ${containerModeClass}`}>
+            {weeklyDataError && <p role="alert" style={{ color: 'var(--error)' }}>{weeklyDataError}</p>}
             {isTransferring && (
                 <div style={{
                     position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999,

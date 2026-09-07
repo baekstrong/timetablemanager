@@ -52,10 +52,9 @@ export function isQuotaError(status, message) {
   return m.includes('quota') || m.includes('rate limit') || m.includes('ratelimit') || m.includes('resource_exhausted');
 }
 
-const QUOTA_MAX_RETRIES = 4;
+const QUOTA_MAX_RETRIES = 2;
 const QUOTA_BASE_DELAY_MS = 600;
-// 요청 타임아웃(ms). 함수 콜드스타트 등으로 응답이 없으면 무한 대기(무한 스피너) 대신
-// abort → 재시도 → 최종 실패(에러 표시). Netlify 함수 한계(10~26s)보다 넉넉히 잡음.
+// 재시도까지 포함한 한 API 작업의 전체 시간 예산. 20초씩 5번 기다리지 않는다.
 const REQUEST_TIMEOUT_MS = 20000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const backoffDelay = (attempt) => QUOTA_BASE_DELAY_MS * (2 ** attempt) + Math.floor(Math.random() * 200);
@@ -63,13 +62,17 @@ const backoffDelay = (attempt) => QUOTA_BASE_DELAY_MS * (2 ** attempt) + Math.fl
 // fetch + JSON + success 검사. 할당량(429/quota) 에러면 지수 백오프로 재시도.
 async function requestWithRetry(url, options, errorContext) {
   let lastError;
+  const deadline = Date.now() + REQUEST_TIMEOUT_MS;
+  const isRead = !options?.method || /\/batchGet$/.test(url);
   for (let attempt = 0; attempt <= QUOTA_MAX_RETRIES; attempt++) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw lastError || new Error('요청 시간이 초과되었습니다. 잠시 후 다시 확인해주세요.');
     let response;
     let data;
     try {
       // 타임아웃: 응답이 없으면 무한 대기하지 않도록 abort
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      const timer = setTimeout(() => controller.abort(), remaining);
       try {
         response = await fetch(url, { ...(options || {}), signal: controller.signal });
         data = await response.json();
@@ -77,19 +80,27 @@ async function requestWithRetry(url, options, errorContext) {
         clearTimeout(timer);
       }
     } catch (netErr) {
-      // 네트워크 단절/타임아웃(abort) 등 — 마지막 시도면 throw, 아니면 재시도
-      lastError = netErr;
-      if (attempt < QUOTA_MAX_RETRIES) { await sleep(backoffDelay(attempt)); continue; }
-      throw netErr;
+      // 빠른 읽기 실패만 남은 예산 안에서 재시도. 타임아웃과 쓰기 응답 유실은 종료.
+      lastError = netErr.name === 'AbortError'
+        ? new Error('응답을 확인하지 못했습니다. 잠시 후 최신 상태를 확인해주세요.')
+        : netErr;
+      const delay = backoffDelay(attempt);
+      // 쓰기는 서버 반영 후 응답만 유실됐을 수 있다. 자동 재전송하지 않는다.
+      if (isRead && netErr.name !== 'AbortError' && attempt < QUOTA_MAX_RETRIES && Date.now() + delay < deadline) {
+        await sleep(delay); continue;
+      }
+      throw lastError;
     }
     if (data && data.success) return data;
     const message = (data && data.error) || `Failed to ${errorContext}`;
-    if (isQuotaError(response.status, message) && attempt < QUOTA_MAX_RETRIES) {
+    lastError = Object.assign(new Error(message), { status: response.status });
+    const delay = backoffDelay(attempt);
+    if (isQuotaError(response.status, message) && attempt < QUOTA_MAX_RETRIES && Date.now() + delay < deadline) {
       console.warn(`⏳ Sheets 할당량 초과 — 재시도 ${attempt + 1}/${QUOTA_MAX_RETRIES} (${errorContext})`);
-      await sleep(backoffDelay(attempt));
+      await sleep(delay);
       continue;
     }
-    throw new Error(message);
+    throw lastError;
   }
   throw lastError || new Error(`Failed to ${errorContext}`);
 }
@@ -536,28 +547,24 @@ export const batchReadSheetData = async (ranges) => {
 const _studentSheetCache = new Map();    // sheetName -> { time, students }
 const _studentSheetInflight = new Map(); // sheetName -> Promise<students>
 const STUDENT_SHEET_CACHE_TTL = 30 * 1000;
+let studentSheetGeneration = 0;
 
 // 시트에 쓰기가 발생하면 캐시를 비워 read-after-write 정합성을 유지한다.
 export const invalidateStudentSheetCache = () => {
+  studentSheetGeneration++;
   _studentSheetCache.clear();
   _studentSheetInflight.clear();
 };
 
-// 미스인 시트들을 1회 batchGet으로 읽고(실패 시 개별 읽기 폴백) 파싱·캐싱한다.
+// 실패를 월별 요청으로 증폭시키지 않는다. 빈 시트는 정상 빈 결과다.
 const _fetchStudentSheets = async (names) => {
-  let valueRanges = [];
-  try {
-    valueRanges = await batchReadSheetData(names.map(n => `${n}!A:R`));
-  } catch (e) {
-    console.warn('⚠️ batchGet 실패 — 개별 읽기로 폴백:', e);
-    valueRanges = [];
-  }
+  const generation = studentSheetGeneration;
+  const valueRanges = await batchReadSheetData(names.map(n => `${n}!A:R`));
+  if (valueRanges.length !== names.length) throw new Error('시트 응답이 불완전합니다. 다시 확인해주세요.');
+  if (generation !== studentSheetGeneration) return readStudentSheets(names);
   const map = new Map();
   await Promise.all(names.map(async (name, i) => {
-    let rows = valueRanges[i]?.values;
-    if (!rows) {
-      try { rows = await readSheetData(`${name}!A:R`); } catch { rows = []; }
-    }
+    const rows = valueRanges[i]?.values || [];
     const students = parseStudentData(rows);
     students.forEach(s => { s._foundSheetName = name; });
     _studentSheetCache.set(name, { time: Date.now(), students });
@@ -574,6 +581,9 @@ const _fetchStudentSheets = async (names) => {
  * @returns {Promise<Map<string, Array>>}
  */
 const readStudentSheets = async (sheetNames) => {
+  // 미래 월 등 아직 없는 시트가 batchGet 전체를 실패시키지 않도록 필터링.
+  const available = new Set(await getAllSheetNames());
+  sheetNames = sheetNames.filter(name => available.has(name));
   const now = Date.now();
   const promiseByName = new Map();
   const toFetch = [];
@@ -591,8 +601,11 @@ const readStudentSheets = async (sheetNames) => {
   }
 
   if (toFetch.length > 0) {
+    const generation = studentSheetGeneration;
     const batchPromise = _fetchStudentSheets(toFetch)
-      .finally(() => { toFetch.forEach(n => _studentSheetInflight.delete(n)); });
+      .finally(() => {
+        if (generation === studentSheetGeneration) toFetch.forEach(n => _studentSheetInflight.delete(n));
+      });
     toFetch.forEach(name => {
       const p = batchPromise.then(map => map.get(name) || []);
       _studentSheetInflight.set(name, p);

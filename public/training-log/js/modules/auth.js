@@ -7,6 +7,23 @@ import { FUNCTIONS_BASE } from '../config.js';
 // 로그인 및 인증 관련
 // ============================================
 
+async function requestLogin(name, password) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+        const res = await fetch(`${FUNCTIONS_BASE}/auth/login`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, password }), signal: controller.signal,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || '로그인 실패');
+        return data;
+    } catch (error) {
+        if (error.name === 'AbortError') throw new Error('인증 서버 응답이 늦어지고 있습니다. 잠시 후 다시 시도해주세요.');
+        throw error;
+    } finally { clearTimeout(timer); }
+}
+
 export async function login() {
     const nameInput = document.getElementById('nameInput');
     const passwordInput = document.getElementById('passwordInput');
@@ -33,13 +50,7 @@ export async function login() {
     try {
         // 서버 로그인 시도 (커스텀 토큰)
         try {
-            const res = await fetch(`${FUNCTIONS_BASE}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, password }),
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.error || '로그인 실패');
+            const data = await requestLogin(name, password);
             await firebase.auth().signInWithCustomToken(data.token);
             state.isCoach = data.isCoach || false;
         } catch (serverErr) {
@@ -109,8 +120,8 @@ export async function autoLogin() {
             let done = false;
             const finish = (u) => { if (!done) { done = true; resolve(u); } };
             try {
-                const unsub = firebase.auth().onAuthStateChanged((u) => { unsub(); finish(u); });
-                setTimeout(() => finish(null), 2500); // 안전장치
+                const unsub = firebase.auth().onAuthStateChanged((u) => { unsub(); clearTimeout(timer); finish(u); });
+                const timer = setTimeout(() => { unsub(); finish(null); }, 2500);
             } catch (e) { finish(null); }
         });
 
@@ -120,18 +131,12 @@ export async function autoLogin() {
         } else {
             // 2) 세션 없음 → 서버 로그인 (커스텀 토큰)
             try {
-                const res = await fetch(`${FUNCTIONS_BASE}/auth/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: saved.name, password: saved.password }),
-                });
-                const data = await res.json();
-                if (!res.ok || !data.success) throw new Error(data.error || '자동 로그인 실패');
+                const data = await requestLogin(saved.name, saved.password);
                 await firebase.auth().signInWithCustomToken(data.token);
                 state.isCoach = data.isCoach || false;
             } catch (serverErr) {
                 console.warn('자동 로그인 실패:', serverErr.message);
-                clearSavedLogin();
+                // 일시적인 통신 지연으로 저장된 로그인 정보를 지우지 않는다.
                 return;
             }
         }
