@@ -95,6 +95,43 @@ describe('calculatePausedStudentResumePlan (재개 모달 종료일 미리보기
     )).toThrow('주횟수는 1회부터 5회까지 선택할 수 있습니다.');
   });
 
+  it('직접 입력한 종료일은 마지막 정지 등록의 자동 종료일을 덮어쓴다', () => {
+    const plan = calculatePausedStudentResumePlan(
+      [{ n: 3 }, { n: 2 }],
+      new Date(2026, 5, 16),
+      '월1수1',
+      [],
+      2,
+      '2026-07-10',
+    );
+    expect(plan.map(item => [item.start, item.end])).toEqual([
+      ['260617', '260624'],
+      ['260629', '260710'],
+    ]);
+  });
+
+  it('직접 입력한 종료일이 마지막 등록 시작일보다 빠르면 거부', () => {
+    expect(() => calculatePausedStudentResumePlan(
+      [{ n: 3 }, { n: 2 }],
+      new Date(2026, 5, 16),
+      '월1수1',
+      [],
+      2,
+      '2026-06-28',
+    )).toThrow('종료일은 마지막 등록 시작일(2026-06-29) 이후로 선택해주세요.');
+  });
+
+  it('존재하지 않는 종료일은 거부', () => {
+    expect(() => calculatePausedStudentResumePlan(
+      [{ n: 3 }],
+      new Date(2026, 5, 16),
+      '월1수1',
+      [],
+      2,
+      '2026-02-30',
+    )).toThrow('종료일을 확인해주세요.');
+  });
+
   it('같은 요일에 두 교시를 선택한 시간표는 거부', () => {
     expect(() => calculatePausedStudentResumePlan(
       [{ n: 4 }],

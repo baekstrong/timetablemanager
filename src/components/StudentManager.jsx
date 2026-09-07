@@ -208,12 +208,12 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         loadResumeInfo(student);
     };
 
-    const handleResumeSubmit = async ({ restartDate, schedule, weeklyFrequency }) => {
+    const handleResumeSubmit = async ({ restartDate, schedule, weeklyFrequency, endDate }) => {
         if (!resumeTarget) return;
         setActionProcessing('재개 처리 중...');
         try {
             const results = await resumeStudent(
-                resumeTarget['이름'], restartDate, schedule, normalizedHolidays, weeklyFrequency
+                resumeTarget['이름'], restartDate, schedule, normalizedHolidays, weeklyFrequency, endDate
             );
             setResumeTarget(null);
             setResumeRegistrations([]);

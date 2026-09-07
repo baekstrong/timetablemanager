@@ -33,16 +33,25 @@ describe('수강 재개 모달 — 주횟수 선택', () => {
         expect(html).toMatch(/id="resume-end-date"[^>]+value="\d{4}-\d{2}-\d{2}"/);
     });
 
+    it('자동 계산된 종료일을 직접 수정할 수 있다', () => {
+        const html = renderModal();
+        const endDateInput = html.match(/<input id="resume-end-date"[^>]*>/)?.[0] || '';
+        expect(endDateInput).toContain('type="date"');
+        expect(endDateInput).not.toContain('readonly');
+        expect(html).toContain('자동 계산된 날짜이며 직접 수정할 수 있습니다.');
+        expect(modal).toContain("endDate,");
+    });
+
     it('선택한 시간표 개수가 주횟수와 같아야 계산·제출한다', () => {
         expect(modal).toContain('const isScheduleComplete = selectedSlots.length === weeklyFrequency');
-        expect(modal).toContain('!isScheduleComplete || !endDate || processing');
+        expect(modal).toContain('!isScheduleComplete || !endDate || endDateError || processing');
         expect(modal).toContain('weeklyFrequency,');
     });
 
     it('선택한 주횟수를 실제 재개 저장 함수까지 전달한다', () => {
-        expect(manager).toContain('handleResumeSubmit = async ({ restartDate, schedule, weeklyFrequency })');
+        expect(manager).toContain('handleResumeSubmit = async ({ restartDate, schedule, weeklyFrequency, endDate })');
         expect(manager).toMatch(
-            /resumeStudent\(\s*resumeTarget\['이름'\], restartDate, schedule, normalizedHolidays, weeklyFrequency\s*\)/
+            /resumeStudent\(\s*resumeTarget\['이름'\], restartDate, schedule, normalizedHolidays, weeklyFrequency, endDate\s*\)/
         );
     });
 });

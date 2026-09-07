@@ -47,6 +47,7 @@ const ResumeStudentModal = ({
     const [selectedSlots, setSelectedSlots] = useState(() => (
         registrations?.length ? slotsFromSchedule(registrations[0].origSchedule) : []
     ));
+    const [manualEndDate, setManualEndDate] = useState('');
 
     const schedule = useMemo(() => scheduleFromSlots(selectedSlots), [selectedSlots]);
     const isScheduleComplete = selectedSlots.length === weeklyFrequency;
@@ -76,9 +77,16 @@ const ResumeStudentModal = ({
     }, [registrations, restartDate, schedule, holidays, weeklyFrequency, isScheduleComplete]);
 
     const actualStartDate = formatSheetDate(preview.plan[0]?.start);
-    const endDate = formatSheetDate(preview.plan.at(-1)?.end);
+    const lastRegistrationStartDate = formatSheetDate(preview.plan.at(-1)?.start);
+    const automaticEndDate = formatSheetDate(preview.plan.at(-1)?.end);
+    const endDate = manualEndDate || automaticEndDate;
+    const endDateError = manualEndDate && lastRegistrationStartDate && manualEndDate < lastRegistrationStartDate
+        ? `종료일은 마지막 등록 시작일(${lastRegistrationStartDate}) 이후로 선택해주세요.`
+        : '';
+    const isManualEndDate = Boolean(manualEndDate && manualEndDate !== automaticEndDate);
 
     const handleSlotClick = (day, period) => {
+        setManualEndDate('');
         setSelectedSlots(current => {
             const selectedOnDay = current.find(slot => slot.day === day);
             if (selectedOnDay?.period === period) return current.filter(slot => slot.day !== day);
@@ -91,6 +99,7 @@ const ResumeStudentModal = ({
     };
 
     const handleFrequencyClick = (frequency) => {
+        setManualEndDate('');
         setWeeklyFrequency(frequency);
         setSelectedSlots(current => [...current]
             .sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || a.period - b.period)
@@ -99,11 +108,12 @@ const ResumeStudentModal = ({
 
     const handleSubmit = (event) => {
         event.preventDefault();
-        if (!restartDate || !schedule || !isScheduleComplete || !endDate || processing) return;
+        if (!restartDate || !schedule || !isScheduleComplete || !endDate || endDateError || processing) return;
         onSubmit({
             restartDate: new Date(`${restartDate}T00:00:00`),
             schedule,
             weeklyFrequency,
+            endDate,
         });
     };
 
@@ -135,7 +145,10 @@ const ResumeStudentModal = ({
                                 id="resume-date"
                                 type="date"
                                 value={restartDate}
-                                onChange={(event) => setRestartDate(event.target.value)}
+                                onChange={(event) => {
+                                    setRestartDate(event.target.value);
+                                    setManualEndDate('');
+                                }}
                                 required
                             />
                             <span>선택한 날짜가 수업일이 아니면 다음 수업일부터 시작합니다.</span>
@@ -205,8 +218,34 @@ const ResumeStudentModal = ({
                                 <input id="resume-actual-start" value={actualStartDate} readOnly placeholder="시간표 선택 후 계산" />
                             </div>
                             <div className="resume-form-field">
-                                <label htmlFor="resume-end-date">종료일 <span>(자동 계산)</span></label>
-                                <input id="resume-end-date" value={endDate} readOnly placeholder="시간표 선택 후 계산" />
+                                <label htmlFor="resume-end-date">
+                                    {registrations.length > 1 ? '최종 종료일' : '종료일'} <span>(자동 계산 · 수정 가능)</span>
+                                </label>
+                                <input
+                                    id="resume-end-date"
+                                    type="date"
+                                    value={endDate}
+                                    min={lastRegistrationStartDate || actualStartDate || undefined}
+                                    onChange={(event) => setManualEndDate(event.target.value)}
+                                    disabled={!automaticEndDate || processing}
+                                    required
+                                    aria-describedby="resume-end-date-help"
+                                />
+                                <div className="resume-end-date-help" id="resume-end-date-help">
+                                    <span>
+                                        {isManualEndDate
+                                            ? `직접 수정됨 · 자동 계산값 ${automaticEndDate}`
+                                            : registrations.length > 1
+                                                ? '자동 계산된 마지막 등록의 종료일이며 직접 수정할 수 있습니다.'
+                                                : '자동 계산된 날짜이며 직접 수정할 수 있습니다.'}
+                                    </span>
+                                    {isManualEndDate && (
+                                        <button type="button" onClick={() => setManualEndDate('')} disabled={processing}>
+                                            자동값 사용
+                                        </button>
+                                    )}
+                                </div>
+                                {endDateError && <p className="resume-field-error" role="alert">{endDateError}</p>}
                             </div>
                         </div>
 
@@ -224,7 +263,7 @@ const ResumeStudentModal = ({
                     <button
                         type="submit"
                         className="resume-submit-button"
-                        disabled={loading || Boolean(loadError) || !schedule || !isScheduleComplete || !endDate || processing}
+                        disabled={loading || Boolean(loadError) || !schedule || !isScheduleComplete || !endDate || Boolean(endDateError) || processing}
                     >
                         {processing ? '재개 처리 중…' : '이 일정으로 재개'}
                     </button>

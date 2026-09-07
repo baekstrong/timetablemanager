@@ -315,6 +315,19 @@ describe('resumeStudent (재개 모달) — 선택 시간표 반영', () => {
             '등록생 목록(26년8월)!G5': '260908',
             '등록생 목록(26년8월)!H5': '260917',
         });
-        expect(result[0]).toMatchObject({ weekly: '3', schedule: '화2목2금2' });
+        expect(result[0]).toMatchObject({ weekly: '3', schedule: '화2목2금2', end: '260917' });
+    });
+
+    it('직접 지정한 종료일은 자동값 대신 같은 batchUpdate에 쓴다', async () => {
+        const result = await resumeStudent(
+            '정지회원', new Date(2026, 8, 7), '화2목2금2', [], 3, '2026-09-30'
+        );
+
+        expect(countOf('batchGet')).toBe(1);
+        expect(countOf('batchUpdate')).toBe(1);
+        const updates = calls.find(call => call.path === 'batchUpdate').body.data;
+        const valuesByRange = Object.fromEntries(updates.map(update => [update.range, update.values[0][0]]));
+        expect(valuesByRange['등록생 목록(26년8월)!H5']).toBe('260930');
+        expect(result[0]).toMatchObject({ weekly: '3', schedule: '화2목2금2', end: '260930' });
     });
 });

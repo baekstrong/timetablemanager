@@ -127,6 +127,38 @@
     font-weight: 700;
 }
 
+.resume-form-field input:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.resume-end-date-help {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+}
+
+.resume-end-date-help button {
+    flex: none;
+    padding: 3px 8px;
+    border: 1px solid var(--accent-30);
+    border-radius: var(--r-chip);
+    background: var(--canvas);
+    color: var(--accent-hover);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.resume-field-error {
+    margin: 0;
+    color: var(--error);
+    font-size: 0.75rem;
+}
+
 .resume-form-field > span,
 .resume-frequency-fieldset > p,
 .resume-schedule-fieldset > p {

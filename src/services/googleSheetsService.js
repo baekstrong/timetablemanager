@@ -1742,8 +1742,30 @@ const collectPausedStudentRows = async (studentName) => {
   return collected;
 };
 
+const parseResumeEndDateOverride = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  if (value instanceof Date) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) throw new Error('종료일을 확인해주세요.');
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }
+
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) throw new Error('종료일을 확인해주세요.');
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    throw new Error('종료일을 확인해주세요.');
+  }
+  return date;
+};
+
 const planPausedRegistrations = (
-  registrations, restartDate, scheduleFor, firebaseHolidays = [], expectedWeeklyFrequency = null
+  registrations, restartDate, scheduleFor, firebaseHolidays = [],
+  expectedWeeklyFrequency = null, endDateOverride = null
 ) => {
   const parsedRestart = new Date(restartDate);
   if (Number.isNaN(parsedRestart.getTime())) throw new Error('재시작일을 확인해주세요.');
@@ -1758,7 +1780,7 @@ const planPausedRegistrations = (
   let cursor = parsedRestart;
   cursor.setHours(0, 0, 0, 0);
 
-  return registrations.map((registration, index) => {
+  const planned = registrations.map((registration, index) => {
     const schedule = normalizeResumeSchedule(scheduleFor(registration, index));
     const scheduleWeekly = parseScheduleString(schedule).length;
     if (expectedWeekly !== null && scheduleWeekly !== expectedWeekly) {
@@ -1779,6 +1801,21 @@ const planPausedRegistrations = (
     cursor.setDate(cursor.getDate() + 1);
     return result;
   });
+
+  const overriddenEndDate = parseResumeEndDateOverride(endDateOverride);
+  if (overriddenEndDate && planned.length) {
+    const last = planned.at(-1);
+    const lastStartDate = parseSheetDate(last.start);
+    if (!lastStartDate || overriddenEndDate < lastStartDate) {
+      const formattedStart = lastStartDate
+        ? `${lastStartDate.getFullYear()}-${String(lastStartDate.getMonth() + 1).padStart(2, '0')}-${String(lastStartDate.getDate()).padStart(2, '0')}`
+        : '';
+      throw new Error(`종료일은 마지막 등록 시작일${formattedStart ? `(${formattedStart})` : ''} 이후로 선택해주세요.`);
+    }
+    last.end = fmtYYMMDD(overriddenEndDate);
+  }
+
+  return planned;
 };
 
 /**
@@ -1796,9 +1833,12 @@ export const getPausedStudentResumeInfo = async (studentName) => {
  * 재개 모달의 즉시 미리보기용 순수 계산. 선택한 시간표를 모든 정지 등록에 적용한다.
  */
 export const calculatePausedStudentResumePlan = (
-  registrations, restartDate, scheduleStr, firebaseHolidays = [], weeklyFrequency = null
+  registrations, restartDate, scheduleStr, firebaseHolidays = [],
+  weeklyFrequency = null, endDateOverride = null
 ) => (
-  planPausedRegistrations(registrations, restartDate, () => scheduleStr, firebaseHolidays, weeklyFrequency)
+  planPausedRegistrations(
+    registrations, restartDate, () => scheduleStr, firebaseHolidays, weeklyFrequency, endDateOverride
+  )
 );
 
 /**
@@ -1863,7 +1903,8 @@ export const pauseStudent = async (studentName, firebaseHolidays = []) => {
  * @returns {Promise<Array<{start:string, end:string, n:number, schedule:string, weekly:string}>>}
  */
 export const resumeStudent = async (
-  studentName, restartDate, scheduleOrHolidays, firebaseHolidays = [], weeklyFrequency = null
+  studentName, restartDate, scheduleOrHolidays, firebaseHolidays = [],
+  weeklyFrequency = null, endDateOverride = null
 ) => {
   const collected = await collectPausedStudentRows(studentName);
 
@@ -1877,6 +1918,7 @@ export const resumeStudent = async (
     registration => hasScheduleOverride ? scheduleOrHolidays : registration.origSchedule,
     holidays,
     hasScheduleOverride ? weeklyFrequency : null,
+    hasScheduleOverride ? endDateOverride : null,
   );
 
   const allUpdates = []; // 등록마다 쓰지 않고 모아서 1회로 (pauseStudent와 같은 이유)
