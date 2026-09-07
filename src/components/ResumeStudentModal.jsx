@@ -4,6 +4,7 @@ import { DAYS, PERIODS } from '../data/mockData';
 import './ResumeStudentModal.css';
 
 const REGULAR_PERIODS = PERIODS.filter(period => period.type !== 'free');
+const WEEKLY_FREQUENCIES = DAYS.map((_, index) => index + 1);
 
 const formatDateInput = (date) => (
     `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -23,6 +24,13 @@ const scheduleFromSlots = (slots) => [...slots]
     .map(slot => `${slot.day}${slot.period}`)
     .join('');
 
+const initialWeeklyFrequency = (registrations) => {
+    const original = Number.parseInt(registrations?.[0]?.origWeekly, 10);
+    if (WEEKLY_FREQUENCIES.includes(original)) return original;
+    const slotCount = registrations?.length ? slotsFromSchedule(registrations[0].origSchedule).length : 0;
+    return WEEKLY_FREQUENCIES.includes(slotCount) ? slotCount : 2;
+};
+
 const ResumeStudentModal = ({
     studentName,
     registrations,
@@ -35,18 +43,22 @@ const ResumeStudentModal = ({
     onSubmit,
 }) => {
     const [restartDate, setRestartDate] = useState(() => formatDateInput(new Date()));
+    const [weeklyFrequency, setWeeklyFrequency] = useState(() => initialWeeklyFrequency(registrations));
     const [selectedSlots, setSelectedSlots] = useState(() => (
         registrations?.length ? slotsFromSchedule(registrations[0].origSchedule) : []
     ));
 
     const schedule = useMemo(() => scheduleFromSlots(selectedSlots), [selectedSlots]);
+    const isScheduleComplete = selectedSlots.length === weeklyFrequency;
     const totalSessions = useMemo(
         () => (registrations || []).reduce((sum, registration) => sum + registration.n, 0),
         [registrations],
     );
 
     const preview = useMemo(() => {
-        if (!registrations?.length || !restartDate || !schedule) return { plan: [], error: '' };
+        if (!registrations?.length || !restartDate || !schedule || !isScheduleComplete) {
+            return { plan: [], error: '' };
+        }
         try {
             return {
                 plan: calculatePausedStudentResumePlan(
@@ -54,31 +66,44 @@ const ResumeStudentModal = ({
                     new Date(`${restartDate}T00:00:00`),
                     schedule,
                     holidays,
+                    weeklyFrequency,
                 ),
                 error: '',
             };
         } catch (error) {
             return { plan: [], error: error.message };
         }
-    }, [registrations, restartDate, schedule, holidays]);
+    }, [registrations, restartDate, schedule, holidays, weeklyFrequency, isScheduleComplete]);
 
     const actualStartDate = formatSheetDate(preview.plan[0]?.start);
     const endDate = formatSheetDate(preview.plan.at(-1)?.end);
 
     const handleSlotClick = (day, period) => {
         setSelectedSlots(current => {
-            const alreadySelected = current.some(slot => slot.day === day && slot.period === period);
-            if (alreadySelected) return current.filter(slot => slot.day !== day);
-            return [...current.filter(slot => slot.day !== day), { day, period }];
+            const selectedOnDay = current.find(slot => slot.day === day);
+            if (selectedOnDay?.period === period) return current.filter(slot => slot.day !== day);
+            if (selectedOnDay) {
+                return [...current.filter(slot => slot.day !== day), { day, period }];
+            }
+            if (current.length >= weeklyFrequency) return current;
+            return [...current, { day, period }];
         });
+    };
+
+    const handleFrequencyClick = (frequency) => {
+        setWeeklyFrequency(frequency);
+        setSelectedSlots(current => [...current]
+            .sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || a.period - b.period)
+            .slice(0, frequency));
     };
 
     const handleSubmit = (event) => {
         event.preventDefault();
-        if (!restartDate || !schedule || !endDate || processing) return;
+        if (!restartDate || !schedule || !isScheduleComplete || !endDate || processing) return;
         onSubmit({
             restartDate: new Date(`${restartDate}T00:00:00`),
             schedule,
+            weeklyFrequency,
         });
     };
 
@@ -116,9 +141,26 @@ const ResumeStudentModal = ({
                             <span>선택한 날짜가 수업일이 아니면 다음 수업일부터 시작합니다.</span>
                         </div>
 
+                        <fieldset className="resume-frequency-fieldset">
+                            <legend>주횟수</legend>
+                            <div className="resume-frequency-options">
+                                {WEEKLY_FREQUENCIES.map(frequency => (
+                                    <button
+                                        type="button"
+                                        key={frequency}
+                                        className={weeklyFrequency === frequency ? 'selected' : ''}
+                                        aria-pressed={weeklyFrequency === frequency}
+                                        onClick={() => handleFrequencyClick(frequency)}
+                                    >
+                                        주{frequency}회
+                                    </button>
+                                ))}
+                            </div>
+                        </fieldset>
+
                         <fieldset className="resume-schedule-fieldset">
                             <legend>시간표</legend>
-                            <p>요일마다 한 교시를 선택할 수 있습니다.</p>
+                            <p>서로 다른 요일을 {weeklyFrequency}개 선택해주세요. ({selectedSlots.length}/{weeklyFrequency})</p>
                             <div className="resume-schedule-grid">
                                 <div className="resume-schedule-header" aria-hidden="true">
                                     <span />
@@ -132,6 +174,8 @@ const ResumeStudentModal = ({
                                         </div>
                                         {DAYS.map(day => {
                                             const selected = selectedSlots.some(slot => slot.day === day && slot.period === period.id);
+                                            const hasSelectionOnDay = selectedSlots.some(slot => slot.day === day);
+                                            const disabled = selectedSlots.length >= weeklyFrequency && !hasSelectionOnDay;
                                             return (
                                                 <button
                                                     type="button"
@@ -139,6 +183,7 @@ const ResumeStudentModal = ({
                                                     className={selected ? 'selected' : ''}
                                                     aria-pressed={selected}
                                                     aria-label={`${day}요일 ${period.name} ${period.time}`}
+                                                    disabled={disabled}
                                                     onClick={() => handleSlotClick(day, period.id)}
                                                 >
                                                     {selected ? '✓' : ''}
@@ -149,7 +194,7 @@ const ResumeStudentModal = ({
                                 ))}
                             </div>
                             <div className="resume-schedule-summary">
-                                <span>선택 시간표</span>
+                                <span>선택 시간표 ({selectedSlots.length}/{weeklyFrequency})</span>
                                 <strong>{schedule || '선택해주세요'}</strong>
                             </div>
                         </fieldset>
@@ -166,8 +211,9 @@ const ResumeStudentModal = ({
                         </div>
 
                         <div className="resume-calculation-note">
-                            남은 수업 <strong>{totalSessions}회</strong> · 주 <strong>{selectedSlots.length}회</strong>
+                            남은 수업 <strong>{totalSessions}회</strong> · 주 <strong>{weeklyFrequency}회</strong>
                             {registrations.length > 1 && <> · 정지된 등록 {registrations.length}건 연속 적용</>}
+                            {!isScheduleComplete && <p role="alert">시간표를 {weeklyFrequency}개 선택해주세요.</p>}
                             {preview.error && <p role="alert">{preview.error}</p>}
                         </div>
                     </>
@@ -178,7 +224,7 @@ const ResumeStudentModal = ({
                     <button
                         type="submit"
                         className="resume-submit-button"
-                        disabled={loading || Boolean(loadError) || !schedule || !endDate || processing}
+                        disabled={loading || Boolean(loadError) || !schedule || !isScheduleComplete || !endDate || processing}
                     >
                         {processing ? '재개 처리 중…' : '이 일정으로 재개'}
                     </button>

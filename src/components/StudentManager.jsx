@@ -208,11 +208,13 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         loadResumeInfo(student);
     };
 
-    const handleResumeSubmit = async ({ restartDate, schedule }) => {
+    const handleResumeSubmit = async ({ restartDate, schedule, weeklyFrequency }) => {
         if (!resumeTarget) return;
         setActionProcessing('재개 처리 중...');
         try {
-            const results = await resumeStudent(resumeTarget['이름'], restartDate, schedule, normalizedHolidays);
+            const results = await resumeStudent(
+                resumeTarget['이름'], restartDate, schedule, normalizedHolidays, weeklyFrequency
+            );
             setResumeTarget(null);
             setResumeRegistrations([]);
             setResumeInfoError('');
@@ -224,7 +226,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                 }
             }
             const summary = results
-                .map(r => `${r.schedule} (${r.n}회): ${r.start} ~ ${r.end}`)
+                .map(r => `주${r.weekly}회 ${r.schedule} (${r.n}회): ${r.start} ~ ${r.end}`)
                 .join('\n');
             alert(`재개 처리 완료!\n\n${summary}`);
         } catch (err) {

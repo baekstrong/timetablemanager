@@ -70,8 +70,29 @@ describe('calculatePausedStudentResumePlan (재개 모달 종료일 미리보기
       new Date(2026, 5, 16),
       '화2목2금2',
       [],
+      3,
     );
     expect(plan).toMatchObject({ schedule: '화2목2금2', weekly: '3', start: '260616', end: '260623' });
+  });
+
+  it('주횟수와 시간표 개수가 다르면 거부', () => {
+    expect(() => calculatePausedStudentResumePlan(
+      [{ n: 4 }],
+      new Date(2026, 5, 16),
+      '화2목2',
+      [],
+      3,
+    )).toThrow('주 3회에 맞게 시간표를 3개 선택해주세요.');
+  });
+
+  it('주횟수는 평일 기준 1~5회만 허용', () => {
+    expect(() => calculatePausedStudentResumePlan(
+      [{ n: 4 }],
+      new Date(2026, 5, 16),
+      '월1화1수1목1금1',
+      [],
+      6,
+    )).toThrow('주횟수는 1회부터 5회까지 선택할 수 있습니다.');
   });
 
   it('같은 요일에 두 교시를 선택한 시간표는 거부', () => {

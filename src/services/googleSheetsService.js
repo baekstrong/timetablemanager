@@ -1742,15 +1742,28 @@ const collectPausedStudentRows = async (studentName) => {
   return collected;
 };
 
-const planPausedRegistrations = (registrations, restartDate, scheduleFor, firebaseHolidays = []) => {
+const planPausedRegistrations = (
+  registrations, restartDate, scheduleFor, firebaseHolidays = [], expectedWeeklyFrequency = null
+) => {
   const parsedRestart = new Date(restartDate);
   if (Number.isNaN(parsedRestart.getTime())) throw new Error('재시작일을 확인해주세요.');
+
+  const expectedWeekly = expectedWeeklyFrequency === null || expectedWeeklyFrequency === ''
+    ? null
+    : Number(expectedWeeklyFrequency);
+  if (expectedWeekly !== null && (!Number.isInteger(expectedWeekly) || expectedWeekly < 1 || expectedWeekly > 5)) {
+    throw new Error('주횟수는 1회부터 5회까지 선택할 수 있습니다.');
+  }
 
   let cursor = parsedRestart;
   cursor.setHours(0, 0, 0, 0);
 
   return registrations.map((registration, index) => {
     const schedule = normalizeResumeSchedule(scheduleFor(registration, index));
+    const scheduleWeekly = parseScheduleString(schedule).length;
+    if (expectedWeekly !== null && scheduleWeekly !== expectedWeekly) {
+      throw new Error(`주 ${expectedWeekly}회에 맞게 시간표를 ${expectedWeekly}개 선택해주세요.`);
+    }
     const start = firstClassDayOnOrAfter(cursor, schedule);
     const end = calculateEndDate(start, registration.n, schedule, null, firebaseHolidays);
     if (!end) throw new Error('종료일을 계산하지 못했습니다. 시간표와 남은 횟수를 확인해주세요.');
@@ -1760,7 +1773,7 @@ const planPausedRegistrations = (registrations, restartDate, scheduleFor, fireba
       start: fmtYYMMDD(start),
       end: fmtYYMMDD(end),
       schedule,
-      weekly: String(parseScheduleString(schedule).length),
+      weekly: String(scheduleWeekly),
     };
     cursor = new Date(end);
     cursor.setDate(cursor.getDate() + 1);
@@ -1782,8 +1795,10 @@ export const getPausedStudentResumeInfo = async (studentName) => {
 /**
  * 재개 모달의 즉시 미리보기용 순수 계산. 선택한 시간표를 모든 정지 등록에 적용한다.
  */
-export const calculatePausedStudentResumePlan = (registrations, restartDate, scheduleStr, firebaseHolidays = []) => (
-  planPausedRegistrations(registrations, restartDate, () => scheduleStr, firebaseHolidays)
+export const calculatePausedStudentResumePlan = (
+  registrations, restartDate, scheduleStr, firebaseHolidays = [], weeklyFrequency = null
+) => (
+  planPausedRegistrations(registrations, restartDate, () => scheduleStr, firebaseHolidays, weeklyFrequency)
 );
 
 /**
@@ -1845,9 +1860,11 @@ export const pauseStudent = async (studentName, firebaseHolidays = []) => {
  * 수강생 재개 — 정지된(스케줄 비고 종료날짜 "N회") 행을 복원.
  * 특이사항 태그에서 남은 횟수를 읽고, 선택한 시간표로 restartDate부터 종료날짜 재계산.
  * 여러 등록이면 원래 시작일 순으로 이어붙임(앞 등록 종료 다음날부터 다음 등록 시작).
- * @returns {Promise<Array<{start:string, end:string, n:number, schedule:string}>>}
+ * @returns {Promise<Array<{start:string, end:string, n:number, schedule:string, weekly:string}>>}
  */
-export const resumeStudent = async (studentName, restartDate, scheduleOrHolidays, firebaseHolidays = []) => {
+export const resumeStudent = async (
+  studentName, restartDate, scheduleOrHolidays, firebaseHolidays = [], weeklyFrequency = null
+) => {
   const collected = await collectPausedStudentRows(studentName);
 
   if (!collected.length) throw new Error('재개할 정지 등록을 찾지 못했습니다.');
@@ -1859,6 +1876,7 @@ export const resumeStudent = async (studentName, restartDate, scheduleOrHolidays
     restartDate,
     registration => hasScheduleOverride ? scheduleOrHolidays : registration.origSchedule,
     holidays,
+    hasScheduleOverride ? weeklyFrequency : null,
   );
 
   const allUpdates = []; // 등록마다 쓰지 않고 모아서 1회로 (pauseStudent와 같은 이유)
@@ -1873,7 +1891,7 @@ export const resumeStudent = async (studentName, restartDate, scheduleOrHolidays
     allUpdates.push(...updates);
   }
   await batchUpdateSheet(allUpdates);
-  return planned.map(({ start, end, n, schedule }) => ({ start, end, n, schedule }));
+  return planned.map(({ start, end, n, schedule, weekly }) => ({ start, end, n, schedule, weekly }));
 };
 
 // ─── 홀딩 신청/취소 ───

@@ -302,7 +302,7 @@ describe('resumeStudent (재개 모달) — 선택 시간표 반영', () => {
     });
 
     it('새 시간표·주횟수·시작일·자동 종료일을 한 번에 쓴다', async () => {
-        await resumeStudent('정지회원', new Date(2026, 8, 7), '화2목2금2', []);
+        const result = await resumeStudent('정지회원', new Date(2026, 8, 7), '화2목2금2', [], 3);
 
         expect(countOf('batchGet')).toBe(1);
         expect(countOf('batchUpdate')).toBe(1);
@@ -315,5 +315,6 @@ describe('resumeStudent (재개 모달) — 선택 시간표 반영', () => {
             '등록생 목록(26년8월)!G5': '260908',
             '등록생 목록(26년8월)!H5': '260917',
         });
+        expect(result[0]).toMatchObject({ weekly: '3', schedule: '화2목2금2' });
     });
 });

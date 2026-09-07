@@ -92,6 +92,7 @@
 }
 
 .resume-form-field label,
+.resume-frequency-fieldset legend,
 .resume-schedule-fieldset legend {
     color: var(--text);
     font-size: 0.9rem;
@@ -127,10 +128,52 @@
 }
 
 .resume-form-field > span,
+.resume-frequency-fieldset > p,
 .resume-schedule-fieldset > p {
     margin: 0;
     color: var(--text-muted);
     font-size: 0.78rem;
+}
+
+.resume-frequency-fieldset {
+    min-width: 0;
+    margin: 20px 0 0;
+    padding: 0;
+    border: 0;
+}
+
+.resume-frequency-fieldset legend {
+    padding: 0;
+    margin-bottom: 8px;
+}
+
+.resume-frequency-options {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.resume-frequency-options button {
+    min-height: 44px;
+    padding: 8px 4px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-chip);
+    background: var(--canvas-tint);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.resume-frequency-options button:hover {
+    border-color: var(--accent-30);
+}
+
+.resume-frequency-options button.selected {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
 }
 
 .resume-schedule-fieldset {
@@ -208,6 +251,11 @@
 
 .resume-schedule-row > button:hover {
     border-color: var(--accent-30);
+}
+
+.resume-schedule-row > button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
 }
 
 .resume-schedule-row > button.selected {
