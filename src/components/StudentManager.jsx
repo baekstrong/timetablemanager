@@ -11,6 +11,7 @@ import ContractHistory from './ContractHistory';
 import SmsSendModal from './SmsSendModal';
 import GradeBadge from './GradeBadge';
 import ResumeStudentModal from './ResumeStudentModal';
+import AdjustPausedSessionsModal from './AdjustPausedSessionsModal';
 import './StudentManager.css';
 
 const StudentManager = ({ onImpersonate, onNavigate }) => {
@@ -49,6 +50,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     const [holdingProcessing, setHoldingProcessing] = useState(false);
     const [searchQuery, setSearchQuery] = useState(''); // 수강생 검색어
     const [actionProcessing, setActionProcessing] = useState(''); // 작업(종료/일시정지/재개) 처리 중 메시지
+    const [adjustmentTarget, setAdjustmentTarget] = useState(null);
     const [resumeTarget, setResumeTarget] = useState(null); // 재개 모달 대상
     const [resumeRegistrations, setResumeRegistrations] = useState([]); // 정지된 등록별 남은 횟수/원래 일정
     const [resumeInfoLoading, setResumeInfoLoading] = useState(false);
@@ -725,7 +727,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
 
                                             {/* 종료날짜 */}
                                             <td>
-                                                {student['종료날짜'] || '-'}
+                                                {isPausedRegistration(student) ? `총 ${student._pausedTotal ?? parseInt(student['종료날짜'], 10)}회${student._pausedCount > 1 ? ` (등록 ${student._pausedCount}건)` : ''}` : student['종료날짜'] || '-'}
                                                 {isPausedRegistration(student) && (
                                                     <span className="student-status-badge paused">일시정지</span>
                                                 )}
@@ -809,9 +811,10 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                                             {pwResetting === student['이름'] ? '...' : '비번초기화'}
                                                         </button>
                                                         {isPausedRegistration(student) ? (
-                                                            <button onClick={() => handleResume(student)} className="resume-btn" title="재개 (정지 해제 + 종료날짜 재계산)">
-                                                                재개
-                                                            </button>
+                                                            <>
+                                                                <button onClick={() => handleResume(student)} className="resume-btn" title="재개 (정지 해제 + 종료날짜 재계산)">재개</button>
+                                                                <button onClick={() => setAdjustmentTarget(student['이름'])} className="resume-btn">잔여 조정</button>
+                                                            </>
                                                         ) : (
                                                             <button onClick={() => handlePause(student)} className="pause-btn" title="일시정지 (남은 횟수 기록 후 시간표에서 제거)">
                                                                 일시정지
@@ -857,6 +860,17 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                     initialRenewalName={renewalStudentName}
                 />
             )}
+
+            {adjustmentTarget && <AdjustPausedSessionsModal
+                studentName={adjustmentTarget}
+                onClose={() => setAdjustmentTarget(null)}
+                onSaved={async () => {
+                    setAdjustmentTarget(null);
+                    try { if (refresh) await refresh(); }
+                    catch { alert('차감 저장은 완료됐지만 목록 갱신에 실패했습니다. 새로고침해주세요.'); return; }
+                    alert('잔여 횟수 조정을 저장했습니다.');
+                }}
+            />}
 
             {resumeTarget && (
                 <ResumeStudentModal

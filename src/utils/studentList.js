@@ -41,7 +41,7 @@ const atStartOfDay = (date) => {
 export const isPausedRegistration = (student) => {
   const schedule = String(getStudentValue(student, '요일 및 시간') || '').trim();
   const end = String(getStudentValue(student, '종료날짜') || '').trim();
-  return schedule.length === 0 && /^\d+\s*회$/.test(end);
+  return schedule.length === 0 && /^\d+\s*회$/.test(end) && parseInt(end, 10) > 0;
 };
 
 export const shouldShowInCoachStudentList = (student) => {

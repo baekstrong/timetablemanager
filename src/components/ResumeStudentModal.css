@@ -396,3 +396,19 @@
         flex: 1;
     }
 }
+
+.adjustment-dialog::backdrop { background: rgba(0, 0, 0, 0.48); }
+.adjustment-dialog { color: var(--text); }
+.adjustment-field { display: grid; gap: 8px; margin: 16px 0; font-weight: 700; }
+.adjustment-field input, .adjustment-field textarea {
+    font: inherit; padding: 10px; border: 1px solid var(--hairline);
+    border-radius: var(--r-chip); color: var(--text); background: var(--canvas); min-width: 0;
+}
+.adjustment-table { width: 100%; border-collapse: collapse; }
+.adjustment-table caption { text-align: left; margin-bottom: 8px; }
+.adjustment-table th, .adjustment-table td { text-align: left; padding: 10px 6px; border-bottom: 1px solid var(--hairline); }
+.adjustment-table tbody th { font-weight: 400; }
+.adjustment-dialog button { padding: 10px 16px; border: 1px solid var(--hairline); border-radius: var(--r-chip); cursor: pointer; }
+.adjustment-dialog button[type="submit"] { color: white; background: var(--accent); }
+.adjustment-dialog button:disabled { opacity: 0.5; cursor: default; }
+.adjustment-dialog { margin: auto; width: min(620px, calc(100% - 32px)); }

@@ -1,3 +1,5 @@
+import { isPausedRegistration } from '../utils/studentList';
+import { planPausedSessionAdjustment, pausedRegistrationSnapshot } from '../utils/pausedSessions';
 import {
   parseAbsenceDatesFromNotes,
   isHolidayRelevantToStudent,
@@ -1275,8 +1277,17 @@ export const getAllStudentsFromAllSheets = async () => {
   }
 
   // 캐시·dedup·batchGet 묶음 읽기 (할당량 절약)
-  const sheetMap = await readStudentSheets(studentSheets);
-  const allStudents = studentSheets.flatMap(name => sheetMap.get(name) || []);
+  // 장기 정지는 결제월 창 밖에서도 잔여가 살아 있다. 오래된 시트는 B:H만
+  // 현재 창 조회와 병렬로 읽고, 정지 행만 추가한다(매출/연락처 전체 로드 금지).
+  const olderSheets = sheets.filter(name => name.startsWith('등록생 목록(') && !studentSheets.includes(name));
+  const [sheetMap, olderRanges] = await Promise.all([
+    readStudentSheets(studentSheets),
+    olderSheets.length ? batchReadSheetData(olderSheets.map(name => `${name}!B:H`)) : [],
+  ]);
+  const oldPaused = olderRanges.flatMap((range, index) => parseStudentData(range.values || [])
+    .filter(isPausedRegistration)
+    .map(student => ({ ...student, _foundSheetName: olderSheets[index] })));
+  const allStudents = [...studentSheets.flatMap(name => sheetMap.get(name) || []), ...oldPaused];
   console.log(`✨ Total students loaded from all sheets: ${allStudents.length}`);
 
   // 같은 이름의 수강생이 여러 시트/행에 있으면 현재 활성 등록을 우선 유지
@@ -1303,6 +1314,20 @@ export const getAllStudentsFromAllSheets = async () => {
 
   const latestByName = {};
   Object.entries(byName).forEach(([name, registrations]) => {
+    const paused = registrations.filter(isPausedRegistration);
+    if (paused.length && !registrations.some(row => studentRegistrationCoversDate(row, today))) {
+      // 원본 H는 유지한다. 합계를 등록별 편집 입력에 섞지 않는다.
+      latestByName[name] = {
+        ...paused[0],
+        _pausedTotal: paused.reduce((sum, row) => sum + parseInt(getStudentField(row, '종료날짜'), 10), 0),
+        _pausedCount: paused.length,
+      };
+      return;
+    }
+    // 0회 정지 행이 정상 등록을 대표하여 가리지 않도록 제외한다.
+    registrations = registrations.filter(row => !(String(getStudentField(row, '종료날짜')).trim() === '0회'
+      && !String(getStudentField(row, '요일 및 시간')).trim()));
+    if (!registrations.length) return;
     if (registrations.length === 1) {
       latestByName[name] = registrations[0];
       return;
@@ -1721,7 +1746,7 @@ const collectPausedStudentRows = async (studentName) => {
     const schedule = idx.schedule !== -1 ? String(row[idx.schedule] || '') : '';
     const endStr = idx.end !== -1 ? String(row[idx.end] || '') : '';
     if (schedule.trim()) return;
-    if (!/^\s*\d+\s*회\s*$/.test(endStr)) return;
+    if (!/^\s*\d+\s*회\s*$/.test(endStr) || parseInt(endStr, 10) <= 0) return;
 
     const notes = idx.notes !== -1 ? String(row[idx.notes] || '') : '';
     const match = notes.match(PAUSE_TAG_RE);
@@ -1735,11 +1760,48 @@ const collectPausedStudentRows = async (studentName) => {
       origSchedule: match[2],
       origStartDigits: match[3] || '99999999',
       n: parseInt(endStr, 10),
+      notes,
       restNotes: notes.replace(PAUSE_TAG_RE, '').trim(),
     });
   });
   collected.sort((a, b) => a.origStartDigits.localeCompare(b.origStartDigits));
   return collected;
+};
+
+/** 최신 원본과 미리보기 스냅샷을 비교한 뒤 등록별 잔여·사유를 한 번에 저장한다. */
+export const getPausedStudentAdjustmentInfo = async (studentName) => {
+  const rows = await collectPausedStudentRows(studentName);
+  if (!rows.length) throw new Error('조정할 일시정지 등록을 찾지 못했습니다.');
+  return {
+    snapshot: pausedRegistrationSnapshot(rows),
+    registrations: rows.map(({ sheetName, sheetRow, n, origStartDigits }) => ({ sheetName, sheetRow, n, origStartDigits })),
+  };
+};
+
+export const adjustPausedStudentSessions = async (studentName, targetTotal, reason, expectedSnapshot) => {
+  const cleanReason = String(reason || '').trim();
+  if (!cleanReason || cleanReason.length > 300 || /[\r\n[\]]/.test(cleanReason)) {
+    throw new Error('조정 사유를 대괄호·줄바꿈 없이 1~300자로 입력해주세요.');
+  }
+  const rows = await collectPausedStudentRows(studentName);
+  if (!expectedSnapshot || pausedRegistrationSnapshot(rows) !== expectedSnapshot) {
+    throw new Error('등록 정보가 변경되었습니다. 창을 닫고 다시 열어 확인해주세요.');
+  }
+  const plan = planPausedSessionAdjustment(rows, targetTotal);
+  const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date());
+  const total = rows.reduce((sum, row) => sum + row.n, 0);
+  const updates = plan.filter(row => row.deducted > 0).flatMap(row => {
+    if (row.idx.notes < 0 || row.idx.end < 0) throw new Error('잔여 횟수·특이사항 열을 찾지 못했습니다.');
+    // 0회는 태그도 제거해 구버전 앱에서도 재개되지 않는다. 결제 행은 보존.
+    const notes = row.after === 0 ? row.restNotes : row.notes;
+    const audit = `${date} 잔여 조정 ${row.before}→${row.after}회 (전체 ${total}→${Number(targetTotal)}회): ${cleanReason}${row.after === 0 ? ' / 소진 완료' : ''}`;
+    return [
+      { range: `${row.sheetName}!${getColumnLetter(row.idx.end)}${row.sheetRow}`, values: [[`${row.after}회`]] },
+      { range: `${row.sheetName}!${getColumnLetter(row.idx.notes)}${row.sheetRow}`, values: [[`${notes}${notes ? ' ' : ''}${audit}`]] },
+    ];
+  });
+  await batchUpdateSheet(updates);
+  return plan.map(({ sheetName, sheetRow, before, after, deducted }) => ({ sheetName, sheetRow, before, after, deducted }));
 };
 
 const parseResumeEndDateOverride = (value) => {
