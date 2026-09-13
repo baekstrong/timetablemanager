@@ -15,6 +15,7 @@ import {
 } from '../services/firebaseService';
 import { cancelHoldingInSheets } from '../services/googleSheetsService';
 import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
+import { validateHoldingDates } from '../utils/holdingDates';
 import './HoldingManager.css';
 
 // 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (timezone 문제 방지)
@@ -561,6 +562,10 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
         );
     };
 
+    // 선택 가능 여부(마감·결석 등)와 별개로 실제 수업 일정의 연속성을 검사한다.
+    const getHoldingDatesError = (dates) => validateHoldingDates(dates, weeklyFrequency,
+        date => isClassDay(date) && !isHoliday(date) && !coachHolidays[formatLocalDate(date)]);
+
     // 날짜 선택 핸들러
     const handleDateClick = (date) => {
         if (!date || !isClassDay(date) || isHoldingDate(date)) {
@@ -631,6 +636,14 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
             return;
         }
 
+        if (requestType === 'holding') {
+            const validationError = getHoldingDatesError(newDates);
+            if (validationError) {
+                alert(validationError);
+                return;
+            }
+        }
+
         setSelectedDates(newDates);
     };
 
@@ -641,6 +654,12 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
         // 홀딩 신청 시: 대상 등록 결정 + 해당 등록의 남은 횟수 재확인
         let targetRegistration = 'current';
         if (requestType === 'holding') {
+            // 중간 날짜 선택 해제·신청 유형 전환으로 생긴 비연속 선택도 저장 전에 차단한다.
+            const validationError = getHoldingDatesError(selectedDates);
+            if (validationError) {
+                alert(validationError);
+                return;
+            }
             const sorted = [...selectedDates].sort();
             targetRegistration = getTargetRegistrationForDate(new Date(sorted[0] + 'T00:00:00')) || 'current';
 
@@ -808,7 +827,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                                 <h3>홀딩 기능 안내</h3>
                                 <ul>
                                     <li>홀딩 신청 시 해당 일수만큼 수강권 기간이 자동으로 연장됩니다. (그냥 못 나오는 '결석'과 달리 수업이 차감되지 않습니다)</li>
-                                    <li>한 번 신청할 때 수업일은 최대 <strong>{weeklyFrequency}일</strong>까지 선택할 수 있습니다. (주 {weeklyFrequency}회 기준 한 주 분량)</li>
+                                    <li>한 번 신청할 때 연속된 수업일을 최대 <strong>{weeklyFrequency}일</strong>까지 선택할 수 있습니다. (주 {weeklyFrequency}회 기준 한 주 분량)</li>
                                     <li>
                                         {nextHoldingInfo
                                             ? `현재 등록: 총 ${holdingInfo.total}회 홀딩 가능 (남은 횟수: ${remainingHoldings}회)`

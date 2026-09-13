@@ -462,6 +462,9 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 
 ### 홀딩 신청 흐름
 
+- 학생 홀딩은 **연속된 실제 수업일**을 주횟수 이하로 선택한다(주2회 최대 2일, 주3회 최대 3일). 화·목/목·다음 화는 허용하지만 목·다음 목 사이 화 수업을 건너뛰면 거부한다.
+- `src/utils/holdingDates.js`를 `HoldingManager`의 날짜 추가와 제출 직전에 호출한다. 공휴일·코치 휴무·보강 이동을 반영하며, 선택 해제/결석→홀딩 전환으로 생긴 비연속 선택도 저장 전에 차단한다. 코치 직접 처리의 기존 재량 경로는 유지한다(2026-09-13).
+
 1. 학생이 날짜 선택 후 신청 → Firebase `holdingRequests` 생성
 2. Google Sheets M/N/O열 업데이트
 3. 홀딩 기간 포함하여 종료일(H열) 재계산
