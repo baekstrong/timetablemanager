@@ -713,6 +713,11 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
         - `index.html`의 `preconnect` 3줄(gstatic·firestore·identitytoolkit)도 같은 목적 — 콜드일 때 호스트당 0.3~1초. 지우면 그만큼 되돌아온다.
     - 회귀 방지: `public/training-log/js/modules/coach-entry.test.js`
 
+### 공식 측정 등록 모달 스크롤 (2026-09-15)
+
+- `PRSubmitModal`은 body 포털에 표시하고, 열릴 때 배경을 fixed로 잠근 뒤 닫힐 때 기존 스타일·스크롤 위치를 복원한다(iOS 배경 스크롤 방지).
+- 모달 높이는 `100dvh - 2rem`(구형 브라우저는 vh) 이내로 제한하고 내부 스크롤의 배경 전파를 차단한다.
+
 ## Codex 연결
 
 ### 간헐적 지연 회귀 방지 (2026-09-07)
