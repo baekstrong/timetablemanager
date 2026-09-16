@@ -59,6 +59,7 @@ Channel Talk/Bezier 기반. **완전 플랫**(그라데이션·장식 그림자 
 6. **상태색은 상태표시에만** — `--success`/`--caution`/`--error`/`--info`. 장식에 쓰지 말 것. 상태칩 패턴: 배경 `{색}1A` + 보더 `1px solid {색}4D` + 텍스트 해당 색.
 
 ### 주요 토큰
+- 수강생 시간표의 `cell-empty`(수업 없음)는 `--hairline` 회색 배경으로 신청 가능한 흰색 칸과 구분하며, hover에서도 음영을 유지한다.
 - 액센트: `--accent #329BE7`, `--accent-hover #327AB8`, `--accent-light #47C8FF`, `--accent-10/20/30`(알파)
 - 표면: `--canvas #fff`, `--surface #FCFCFC`, `--canvas-tint #F7F7F8`, `--hairline #EFEFF0`
 - 텍스트: `--text`, `--text-secondary`, `--text-muted #A7A7AA`, `--cta-dark #242428`

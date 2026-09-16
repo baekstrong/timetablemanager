@@ -172,6 +172,13 @@
 
 /* --- Type Specific Styles --- */
 
+/* 수업 없는 칸은 신청 가능한 흰색 칸과 구분한다. */
+.schedule-cell.cell-empty,
+.schedule-cell.cell-empty:hover {
+    background-color: var(--hairline);
+    cursor: default;
+}
+
 /* Free Training (Autonomous) */
 .cell-free {
     background-color: var(--caution);
