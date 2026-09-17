@@ -512,7 +512,7 @@
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
+    z-index: 2000;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -528,11 +528,19 @@
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
     max-height: calc(100vh - 2rem);
     max-height: calc(100dvh - 2rem);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.post-form-body {
+    min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
 }
 
 .post-form-modal h3 {
+    flex-shrink: 0;
     font-size: 1.1rem;
     font-weight: 700;
     color: var(--text);
@@ -570,9 +578,9 @@
     border-radius: var(--r-chip);
     font-size: 1rem;
     box-sizing: border-box;
-    min-height: 300px;
-    height: clamp(300px, 50vh, 560px);
-    height: clamp(300px, 50dvh, 560px);
+    min-height: 160px;
+    height: clamp(160px, 32vh, 400px);
+    height: clamp(160px, 32dvh, 400px);
     line-height: 1.6;
     resize: vertical;
     font-family: inherit;
@@ -588,13 +596,14 @@
 @media (max-width: 600px) {
     .post-form-modal {
         width: calc(100% - 1rem);
-        max-height: calc(100vh - 1rem);
-        max-height: calc(100dvh - 1rem);
+        max-height: calc(100vh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+        max-height: calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
         padding: 1rem;
     }
 }
 
 .post-form-actions {
+    flex-shrink: 0;
     display: flex;
     gap: 0.5rem;
     justify-content: flex-end;

@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { BOARD_CATEGORIES, POST_LIMITS } from '../../data/boardConstants';
 import { uploadMultipleImages } from '../../services/cloudinaryService';
 
@@ -95,11 +96,12 @@ const PostForm = ({ user, editingPost, onSubmit, onClose }) => {
         }
     };
 
-    return (
+    return createPortal(
         <div className="post-form-overlay">
             <div className="post-form-modal" onClick={e => e.stopPropagation()}>
                 <h3>{editingPost ? '글 수정' : '글 작성'}</h3>
 
+                <div className="post-form-body">
                 {/* Category selector */}
                 <div className="post-form-category-select">
                     {BOARD_CATEGORIES.filter(cat => cat.key !== 'all').map(cat => {
@@ -233,6 +235,8 @@ const PostForm = ({ user, editingPost, onSubmit, onClose }) => {
                     </div>
                 )}
 
+                </div>
+
                 {/* Action buttons */}
                 <div className="post-form-actions">
                     <button
@@ -261,7 +265,8 @@ const PostForm = ({ user, editingPost, onSubmit, onClose }) => {
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
