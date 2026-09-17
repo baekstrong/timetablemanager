@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { BOARD_CATEGORIES, POST_LIMITS } from '../../data/boardConstants';
 import { uploadMultipleImages } from '../../services/cloudinaryService';
@@ -19,6 +19,28 @@ const PostForm = ({ user, editingPost, onSubmit, onClose }) => {
     const [previews, setPreviews] = useState([]);        // 미리보기 URL들
     const [uploadProgress, setUploadProgress] = useState('');
     const fileInputRef = useRef(null);
+
+    // iOS에서는 overflow:hidden만으로 배경의 터치 스크롤을 막을 수 없다.
+    useEffect(() => {
+        const body = document.body;
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+        const properties = ['position', 'top', 'left', 'width', 'overflow'];
+        const previous = properties.map((property) => [
+            property, body.style.getPropertyValue(property), body.style.getPropertyPriority(property)
+        ]);
+        Object.assign(body.style, {
+            position: 'fixed', top: `-${scrollY}px`, left: `-${scrollX}px`,
+            width: '100%', overflow: 'hidden'
+        });
+        return () => {
+            previous.forEach(([property, value, priority]) => {
+                if (value) body.style.setProperty(property, value, priority);
+                else body.style.removeProperty(property);
+            });
+            window.scrollTo({ left: scrollX, top: scrollY, behavior: 'instant' });
+        };
+    }, []);
 
     const totalImageCount = existingImages.length + newFiles.length;
 
