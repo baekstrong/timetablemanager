@@ -522,11 +522,14 @@
     background: var(--canvas);
     border-radius: var(--r-md);
     padding: 1.5rem;
-    width: 90%;
-    max-width: 500px;
+    box-sizing: border-box;
+    width: calc(100% - 2rem);
+    max-width: 860px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-    max-height: 90vh;
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .post-form-modal h3 {
@@ -567,7 +570,10 @@
     border-radius: var(--r-chip);
     font-size: 1rem;
     box-sizing: border-box;
-    min-height: 120px;
+    min-height: 300px;
+    height: clamp(300px, 50vh, 560px);
+    height: clamp(300px, 50dvh, 560px);
+    line-height: 1.6;
     resize: vertical;
     font-family: inherit;
     outline: none;
@@ -577,6 +583,15 @@
 
 .post-form-textarea:focus {
     border-color: var(--accent);
+}
+
+@media (max-width: 600px) {
+    .post-form-modal {
+        width: calc(100% - 1rem);
+        max-height: calc(100vh - 1rem);
+        max-height: calc(100dvh - 1rem);
+        padding: 1rem;
+    }
 }
 
 .post-form-actions {
