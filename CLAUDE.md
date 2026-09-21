@@ -734,3 +734,9 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - 검증/남은 측정: `docs/performance-fixes-2026-09-07.md`. 회귀 테스트: `requestResilience.test.js`, `useWeeklyData.test.js`, `coach-concurrency.test.js`, `authService.test.js`, `visibleTask.test.js`.
 
 Codex의 프로젝트 진입 지침은 `AGENTS.md`다. 공통 업무 규칙은 이 문서와 관련 원본 문서를 참조하고, 공유 장기 기억은 `~/.claude/wiki/`에 누적한다.
+
+### 홀딩/결석 달력의 등록 공백 (2026-09-21)
+
+- `HoldingManager`의 전체 `membershipPeriod`는 이력 조회·전체 종료 경계용이다. 수업 자격에는 사용하지 않는다.
+- `isWithinRegisteredPeriod`가 현재·이전·다음 등록의 시작/종료를 각각 검사한다. 9/17 종료→9/29 재시작이면 9/22는 수업일이 아니다. 등록 밖 보강은 예약된 날짜만 허용한다.
+- 달력 표시·선택·연속 수업 검증·홀딩/결석 저장 전 검증에 동일한 기간 판정을 적용한다. 회귀 테스트: `src/utils/membershipDates.test.js`.

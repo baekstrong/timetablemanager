@@ -16,6 +16,7 @@ import {
 import { cancelHoldingInSheets } from '../services/googleSheetsService';
 import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import { validateHoldingDates } from '../utils/holdingDates';
+import { isWithinRegisteredPeriod } from '../utils/membershipDates';
 import './HoldingManager.css';
 
 // 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (timezone 문제 방지)
@@ -408,44 +409,9 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
         return null;
     };
 
-    // 특정 날짜가 수강 기간 내인지 확인 (보강 날짜도 허용, 이전/다음 등록 기간도 허용)
-    const isWithinMembershipPeriod = (date) => {
-        if (!date || !membershipPeriod.start || !membershipPeriod.end) return true;
-
-        // 보강으로 출석하는 날짜는 수강 기간과 무관하게 허용
-        if (getMakeupForDate(date)) return true;
-
-        const dateOnly = new Date(date);
-        dateOnly.setHours(0, 0, 0, 0);
-
-        // 현재 등록 기간 체크
-        const startOnly = new Date(membershipPeriod.start);
-        startOnly.setHours(0, 0, 0, 0);
-        const endOnly = new Date(membershipPeriod.end);
-        endOnly.setHours(0, 0, 0, 0);
-
-        if (dateOnly >= startOnly && dateOnly <= endOnly) return true;
-
-        // 이전 등록 기간 체크 (미리 등록으로 다음 계약이 선택된 경우)
-        if (prevNextPeriod.prevStart && prevNextPeriod.prevEnd) {
-            const prevStart = new Date(prevNextPeriod.prevStart);
-            prevStart.setHours(0, 0, 0, 0);
-            const prevEnd = new Date(prevNextPeriod.prevEnd);
-            prevEnd.setHours(0, 0, 0, 0);
-            if (dateOnly >= prevStart && dateOnly <= prevEnd) return true;
-        }
-
-        // 다음 등록 기간 체크 (현재 계약이 선택된 경우)
-        if (prevNextPeriod.nextStart && prevNextPeriod.nextEnd) {
-            const nextStart = new Date(prevNextPeriod.nextStart);
-            nextStart.setHours(0, 0, 0, 0);
-            const nextEnd = new Date(prevNextPeriod.nextEnd);
-            nextEnd.setHours(0, 0, 0, 0);
-            if (dateOnly >= nextStart && dateOnly <= nextEnd) return true;
-        }
-
-        return false;
-    };
+    // 전체 표시 범위를 수강 자격으로 쓰면 재등록 사이 공백도 수업일이 된다.
+    const isWithinMembershipPeriod = (date) =>
+        isWithinRegisteredPeriod(date, studentData, activeMakeups);
 
     // 이전 달로 이동
     const goToPreviousMonth = () => {
@@ -483,7 +449,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
 
     // 특정 날짜가 수업일인지 확인 (보강 반영)
     const isClassDay = (date) => {
-        if (!date) return false;
+        if (!isWithinMembershipPeriod(date)) return false;
 
         // 보강으로 이 날짜에 출석하는 경우 → 수업일
         if (getMakeupForDate(date)) return true;
@@ -650,6 +616,12 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
     // 홀딩 신청 핸들러
     const handleSubmit = async () => {
         if (selectedDates.length === 0 || !user) return;
+
+        // 선택 후 시트 정보가 갱신된 경우에도 홀딩/결석 모두 저장 전에 재검증한다.
+        if (selectedDates.some(value => !isClassDay(new Date(value + 'T00:00:00')))) {
+            alert('수강 기간 내의 실제 수업일만 신청할 수 있습니다.');
+            return;
+        }
 
         // 홀딩 신청 시: 대상 등록 결정 + 해당 등록의 남은 횟수 재확인
         let targetRegistration = 'current';
