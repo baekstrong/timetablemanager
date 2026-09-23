@@ -1,5 +1,6 @@
 import CoachHome from '../features/today/CoachHome';
 import PageLoading from './PageLoading';
+import RefreshStatus from './RefreshStatus';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import {
@@ -171,7 +172,19 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
 
     // Manual refresh state
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [refreshMsg, setRefreshMsg] = useState(''); // 새로고침 완료 피드백 (2.5초 후 사라짐)
+    const refreshInFlight = useRef(false);
+    const [refreshedAt, setRefreshedAt] = useState(null);
+    useEffect(() => {
+        if (!loading && !sheetsError && weeklyDataLoaded && !weeklyDataError && !refreshInFlight.current) {
+            setRefreshedAt(previous => previous ?? Date.now());
+        }
+    }, [loading, sheetsError, weeklyDataLoaded, weeklyDataError]);
+    const [refreshMsg, setRefreshMsg] = useState('');
+    useEffect(() => {
+        if (!refreshMsg.startsWith('✓')) return;
+        const timer = setTimeout(() => setRefreshMsg(''), 2500);
+        return () => clearTimeout(timer);
+    }, [refreshMsg]);
 
     // 시간표 변경(직접 이동) 처리 중 플래그 — 화면 이탈 방지 + 로딩 UI
     const [isTransferring, setIsTransferring] = useState(false);
@@ -262,17 +275,21 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
     // ── Handlers ──
 
     async function handleManualRefresh() {
+        if (refreshInFlight.current) return;
+        refreshInFlight.current = true;
         setIsRefreshing(true);
+        setRefreshMsg('');
         try {
             await refresh();
             await loadWeeklyData();
+            setRefreshedAt(Date.now());
             setRefreshMsg('✓ 최신 상태입니다');
         } catch (error) {
             console.error('Refresh failed:', error);
             setRefreshMsg('새로고침 실패 — 잠시 후 다시 시도해주세요');
         } finally {
+            refreshInFlight.current = false;
             setIsRefreshing(false);
-            setTimeout(() => setRefreshMsg(''), 2500);
         }
     }
 
@@ -419,7 +436,7 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
         if (!homeLoaded.current && (weeklyDataError || sheetsError)) return <div className="today-page"><p role="alert">{weeklyDataError || sheetsError}</p><button onClick={handleManualRefresh}>다시 불러오기</button></div>;
         return <>
             {(weeklyDataError || sheetsError) && <p className="today-error" role="alert">{weeklyDataError || sheetsError} <button onClick={handleManualRefresh}>다시 불러오기</button></p>}
-             <CoachHome core={scheduleCore} students={students} disabledClasses={disabledClasses} registrations={pendingRegistrations} waitlist={newStudentWaitlist} onNavigate={onNavigate} refresh={handleManualRefresh} />
+             <CoachHome core={scheduleCore} students={students} disabledClasses={disabledClasses} registrations={pendingRegistrations} waitlist={newStudentWaitlist} onNavigate={onNavigate} refresh={handleManualRefresh} refreshedAt={refreshedAt} refreshing={isRefreshing} refreshMessage={refreshMsg} />
         </>;
     }
 
@@ -453,6 +470,7 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
                 <h1 className="schedule-page-title">
                     {pageTitle}
                 </h1>
+                {user?.role === 'coach' ? <RefreshStatus refreshedAt={refreshedAt} refreshing={isRefreshing} message={refreshMsg} onRefresh={handleManualRefresh} /> : <>
                 {refreshMsg && (
                     <span style={{
                         marginLeft: 'auto',
@@ -481,6 +499,8 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
                 >
                     {isRefreshing ? '새로고침 중...' : '🔄 새로고침'}
                 </button>
+                </>}
+
             </div>
 
             {/* Google Sheets 연동 상태 (코치 전용) — 모드 토글 위 */}

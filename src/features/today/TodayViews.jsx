@@ -1,3 +1,4 @@
+import RefreshStatus from '../../components/RefreshStatus';
 import { StudentTag } from '../../components/schedule/ScheduleCell';
 import { useId, useState } from 'react';
 import { visibleTaskGroups, currentLessonId, automaticLessonId } from './todayModel';
@@ -65,7 +66,7 @@ export function StudentToday({ name, taskGroups, lessons, weekLabel, waiting, po
     </main>;
 }
 
-export function CoachToday({ dateLabel, lessons, minutes, taskGroups, notes, onAction, onEditNote, onNavigate }) {
+export function CoachToday({ onRefresh, refreshedAt, refreshing, refreshMessage, dateLabel, lessons, minutes, taskGroups, notes, onAction, onEditNote, onNavigate }) {
     const [manualId, setManualId] = useState(null);
     const currentId = currentLessonId(lessons, minutes);
     const selectedId = manualId ?? automaticLessonId(lessons, minutes);
@@ -74,7 +75,7 @@ export function CoachToday({ dateLabel, lessons, minutes, taskGroups, notes, onA
         <header className="today-header"><div><h1 className="today-coach-title">근력학교 · 코치</h1><span className="today-coach-date">{dateLabel}</span></div><div className="today-actions"><ActionButton onClick={() => onNavigate('dashboard')}>게시판</ActionButton><ActionButton onClick={() => onNavigate('schedule')}>전체 시간표</ActionButton><button className="today-link" onClick={() => onNavigate('logout')}>로그아웃</button></div></header>
         <TaskSection coach groups={taskGroups} onAction={onAction} currentPeriod={currentId} />
         <div className="today-coach-columns">
-            <section className="today-card today-daily"><div className="today-section-title"><h2>오늘 수업</h2><span className="today-muted">{lessons.length}개 수업</span></div>
+            <section className="today-card today-daily"><div className="today-section-title"><h2>오늘 수업</h2><span className="today-muted">{lessons.length}개 수업</span>{onRefresh && <RefreshStatus refreshedAt={refreshedAt} refreshing={refreshing} message={refreshMessage} onRefresh={onRefresh} />}</div>
                 {lessons.length === 0 && <p className="today-empty">오늘 예정된 수업이 없습니다.</p>}
                 {lessons.map(lesson => <button key={lesson.id} className={`today-lesson${lesson.id === currentId ? ' is-current' : ''}${lesson.id === selectedId ? ' is-selected' : ''}`} aria-pressed={lesson.id === selectedId} onClick={() => setManualId(lesson.id)}>
                     <div className="today-lesson-title"><strong>{lesson.id}교시</strong><span>{lesson.time}</span>{lesson.id === currentId && <b>수업 중</b>}</div>

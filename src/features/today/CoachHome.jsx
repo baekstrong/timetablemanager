@@ -9,7 +9,7 @@ import ReviewModal from './ReviewModal';
 
 const StudentRegistrationModal = lazy(() => import('../../components/StudentRegistrationModal'));
 
-export default function CoachHome({ core, students, disabledClasses, registrations, waitlist, onNavigate, refresh }) {
+export default function CoachHome({ core, students, disabledClasses, registrations, waitlist, onNavigate, refresh, refreshedAt, refreshing, refreshMessage }) {
     const [now, setNow] = useState(() => new Date());
     const [notes, setNotes] = useState({});
     const [notesReady, setNotesReady] = useState(false);
@@ -123,7 +123,7 @@ export default function CoachHome({ core, students, disabledClasses, registratio
     }
     return <>
         {error && <p className="today-error" role="alert">{error}</p>}
-        <CoachToday dateLabel={now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })} lessons={lessons} minutes={minutes} taskGroups={groups} notes={notes} onAction={onAction} onEditNote={name => { if (!notesReady) { setError('메모 조회가 완료되지 않았습니다. 새로고침 후 다시 시도해주세요.'); return; } setEditing(name); setDraft(notes[name] || ''); setError(''); }} onNavigate={onNavigate} />
+        <CoachToday onRefresh={refresh} refreshedAt={refreshedAt} refreshing={refreshing} refreshMessage={refreshMessage} dateLabel={now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })} lessons={lessons} minutes={minutes} taskGroups={groups} notes={notes} onAction={onAction} onEditNote={name => { if (!notesReady) { setError('메모 조회가 완료되지 않았습니다. 새로고침 후 다시 시도해주세요.'); return; } setEditing(name); setDraft(notes[name] || ''); setError(''); }} onNavigate={onNavigate} />
         {editing && <ReviewModal title={`${editing} · 코치 전용 메모`} busy={busy} onClose={() => setEditing(null)}><label className="today-field">메모<textarea value={draft} onChange={event => setDraft(event.target.value)} rows={7} /></label>{error && <p role="alert">{error}</p>}<ActionButton primary disabled={busy} onClick={saveNote}>{busy ? '저장 중…' : '저장'}</ActionButton></ReviewModal>}
         {payment && <ReviewModal title={`${payment['이름']} · 결제 확인`} busy={busy} onClose={() => setPayment(null)}><p>{payment['요일 및 시간']} · {payment['결제금액']}만원</p><label className="today-field">결제일<input type="date" value={paymentDate} onChange={event => setPaymentDate(event.target.value)} /></label><label className="today-field">결제 방식<select value={method} onChange={event => setMethod(event.target.value)}>{['카드', '네이버', '제로페이', '계좌'].map(value => <option key={value}>{value}</option>)}</select></label>{error && <p role="alert">{error}</p>}<ActionButton primary disabled={busy || !paymentDate} onClick={savePayment}>{busy ? '저장 중…' : '결제 완료로 저장'}</ActionButton></ReviewModal>}
         {renewal && <Suspense fallback={<p role="status">등록 화면을 불러오는 중…</p>}><StudentRegistrationModal initialRenewalName={renewal} onClose={() => setRenewal(null)} onSuccess={async () => { setRenewal(null); await refresh(); }} /></Suspense>}

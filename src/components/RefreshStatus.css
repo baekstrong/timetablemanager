@@ -1,0 +1,7 @@
+.refresh-status { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.refresh-status > button { border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--canvas); color: var(--accent-hover); padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; min-height: 36px; }
+.refresh-status > button:disabled { cursor: wait; opacity: .6; }
+.refresh-status__time { font-size: 12px; color: var(--text-secondary); }
+.refresh-status__message { font-size: 12px; color: var(--text-secondary); }
+.schedule-page-header > .refresh-status { margin-left: auto; }
+.today-section-title > .refresh-status { margin-left: auto; }
