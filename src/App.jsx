@@ -3,6 +3,7 @@ import { logoutSession } from './services/authService';
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { GoogleSheetsProvider, useGoogleSheets } from './contexts/GoogleSheetsContext';
 import Login from './components/Login';
+import PageLoading from './components/PageLoading';
 const Dashboard = lazy(() => import('./components/Dashboard'));
 import WeeklySchedule from './components/WeeklySchedule';
 import HoldingManager from './components/HoldingManager';
@@ -463,7 +464,7 @@ function AppContent() {
       {impersonationOrigin && user && user.role === 'student' && (
         <ImpersonationBanner studentName={user.username} onExit={handleExitImpersonation} />
       )}
-      <Suspense fallback={<div className="loading-container" role="status">화면을 불러오는 중…</div>}>
+      <Suspense fallback={<PageLoading />}>
         {renderPage()}
       </Suspense>
       {currentPage !== 'login' && user && (

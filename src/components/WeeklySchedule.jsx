@@ -1,4 +1,5 @@
 import CoachHome from '../features/today/CoachHome';
+import PageLoading from './PageLoading';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import {
@@ -394,7 +395,7 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
     }
 
     if (user?.role === 'coach' && (loading || disabledClassesLoading || lockedSlotsLoading || (view !== 'schedule' && !homeLoaded.current && !weeklyDataLoaded && !weeklyDataError)) && !isRefreshing) {
-        return <div className="loading-container" role="status"><div className="loading-spinner" /><p>정보를 불러오는 중…</p></div>;
+        return <PageLoading message="정보를 불러오는 중…" />;
     }
 
     if (!isAuthenticated) {
