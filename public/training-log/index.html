@@ -158,7 +158,16 @@
 
     <!-- Bottom Navigation Bar -->
     <nav id="bottomNav" class="bottom-nav" style="display:none;">
-        <button class="bottom-nav-tab" data-page="dashboard" onclick="window.bottomNavNavigate('dashboard')">
+        <button class="bottom-nav-tab coach-tab" style="display:none;" data-page="today" onclick="window.bottomNavNavigate('today')">
+            <div class="tab-indicator"></div>
+            <div class="tab-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 10l9-7 9 7v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1V10z" />
+                </svg>
+            </div>
+            <span class="tab-label">오늘</span>
+        </button>
+        <button class="bottom-nav-tab student-tab" style="display:none;" data-page="dashboard" onclick="window.bottomNavNavigate('dashboard')">
             <div class="tab-indicator"></div>
             <div class="tab-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">

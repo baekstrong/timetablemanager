@@ -1,3 +1,4 @@
+import './ScheduleCell.css';
 import { TAG_STYLES } from './scheduleStyles';
 
 // 이름칩을 '파스텔 배경 + 검은 굵은 글씨 + 색 뱃지'로 표기하는 상태 (보강·보강이동·홀딩·신규·결석·보강결석·합의결석)

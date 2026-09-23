@@ -44,14 +44,14 @@ const shortEntranceDate = (d) => {
     return m && day ? `${Number(m)}/${Number(day)}` : d;
 };
 
-const CoachNewStudents = ({ user, onBack }) => {
+const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
     const { refresh: refreshSheets, students: allStudents } = useGoogleSheets();
     const [activeTab, setActiveTab] = useState('registrations');
     const [loading, setLoading] = useState(false);
 
     // === 등록 목록 ===
     const [registrations, setRegistrations] = useState([]);
-    const [regFilter, setRegFilter] = useState('approved');
+    const [regFilter, setRegFilter] = useState(initialFilter);
     const [collapsedRegs, setCollapsedRegs] = useState(new Set());
     const [approving, setApproving] = useState(null);
     const [regCounts, setRegCounts] = useState({});

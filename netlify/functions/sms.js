@@ -1,3 +1,4 @@
+const { requireCoach } = require('./_requireCoach');
 const crypto = require('crypto');
 
 const SOLAPI_API_URL = 'https://api.solapi.com';
@@ -95,7 +96,7 @@ async function sendSMS(to, text, scheduledDate = null) {
 exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Max-Age': '86400',
   };
@@ -219,7 +220,13 @@ exports.handler = async (event, context) => {
 
     // POST /sms/cancel-scheduled - 예약 SMS 취소
     if (event.httpMethod === 'POST' && path === 'cancel-scheduled') {
-      const { groupId } = JSON.parse(event.body);
+      let body;
+      try { body = JSON.parse(event.body || '{}'); }
+      catch { return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: '잘못된 요청입니다.' }) }; }
+      if (!body || typeof body !== 'object' || Array.isArray(body)) return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: '잘못된 요청입니다.' }) };
+      const denied = await requireCoach(event, body);
+      if (denied) return { statusCode: denied, headers, body: JSON.stringify({ success: false, error: denied === 401 ? '로그인이 필요합니다.' : '코치 권한이 필요합니다.' }) };
+      const { groupId } = body;
       if (!groupId) {
         return {
           statusCode: 400,

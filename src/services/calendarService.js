@@ -1,3 +1,10 @@
+import { auth } from '../config/firebase';
+
+async function calendarToken() {
+  if (!auth?.currentUser) throw new Error('로그인이 필요합니다.');
+  return auth.currentUser.getIdToken();
+}
+
 /**
  * Google Calendar 연동 서비스
  * 입학반 일정 추가/수정/삭제 시 Google Calendar에 자동 반영
@@ -39,6 +46,7 @@ export const createCalendarEvent = async (date, startTime, endTime) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        idToken: await calendarToken(),
         title: formatCalendarTitle(date),
         date,
         startTime,
@@ -68,6 +76,7 @@ export const updateCalendarEvent = async (eventId, date, startTime, endTime) => 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        idToken: await calendarToken(),
         eventId,
         title: formatCalendarTitle(date),
         date,
@@ -93,7 +102,7 @@ export const deleteCalendarEvent = async (eventId) => {
     const response = await fetch(`${getCalendarBaseUrl()}/delete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ eventId }),
+      body: JSON.stringify({ eventId, idToken: await calendarToken() }),
     });
     const result = await response.json();
     if (!result.success) {

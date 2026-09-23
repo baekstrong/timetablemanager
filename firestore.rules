@@ -40,10 +40,10 @@ service cloud.firestore {
 
     // ── 비로그인 신규등록 funnel + 컨텍스트 마운트: 공개 read ──
     // holidays: GoogleSheetsProvider가 로그인 전 마운트에서 fetchHolidays()로 읽음 (막으면 앱 초기화 실패)
-    match /holidays/{id}        { allow read: if true; allow write: if signedIn(); }
-    match /disabledClasses/{id} { allow read: if true; allow write: if signedIn(); }
-    match /entranceClasses/{id} { allow read: if true; allow write: if signedIn(); }
-    match /registrationFAQ/{id} { allow read: if true; allow write: if signedIn(); }
+    match /holidays/{id}        { allow read: if true; allow write: if isCoach(); }
+    match /disabledClasses/{id} { allow read: if true; allow write: if isCoach(); }
+    match /entranceClasses/{id} { allow read: if true; allow write: if isCoach(); }
+    match /registrationFAQ/{id} { allow read: if true; allow write: if isCoach(); }
     // 신규 신청: 비로그인 read/create/update (funnel 보존). PII 공개 노출은 기존 동작과 동일 — 추후 개선 과제.
     match /newStudentRegistrations/{id} {
       allow read, create, update: if true;
@@ -64,6 +64,11 @@ service cloud.firestore {
       allow read, write: if isCoach();
     }
 
+    // 운영 설정/훈련일지에 배포하는 명단: 학생은 조회만 가능.
+    match /lockedSlots/{id} { allow read: if signedIn(); allow write: if isCoach(); }
+    match /studentMeta/{id} { allow read: if signedIn(); allow write: if isCoach(); }
+    match /studentCountSnapshots/{id} { allow read: if signedIn(); allow write: if isCoach(); }
+
     // ── 운영 + 훈련일지 컬렉션: 인증 사용자 read/write, 비인증 전면 차단 ──
     // ponytail: 우선 signedIn 으로 개방(락아웃 0 최우선). 소유자 단위 강화는 악용 시 별도 과제.
     // ⚠️ userSecrets/users 는 이 목록에 없어야 함(있으면 OR 시맨틱으로 위 차단이 뚫림).
@@ -71,9 +76,8 @@ service cloud.firestore {
       allow read, write: if signedIn() && collection in [
         'makeupRequests', 'holdingRequests', 'absenceRequests', 'waitlistRequests', 'makeupWaitlists',
         'coachPinnedMemos', 'pinnedMemos', 'renewalContracts', 'studentTerminations',
-        'personalBests', 'monthlyStamps', 'studentMeta',
+        'personalBests', 'monthlyStamps',
         'records', 'freeWorkoutAttendance', 'freeWorkoutRoster',
-        'lockedSlots', 'studentCountSnapshots',
         'exercises', 'oneRMRecords', 'archivedMemos'
       ];
     }

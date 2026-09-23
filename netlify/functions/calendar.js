@@ -1,3 +1,4 @@
+const { requireCoach } = require('./_requireCoach');
 // googleapis 전체(319개 API eager 로드)는 콜드스타트를 지배하므로 calendar 단독 패키지만 사용
 const { calendar: calendarApi, auth: googleAuth } = require('@googleapis/calendar');
 
@@ -40,7 +41,7 @@ const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID;
 exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Max-Age': '86400',
   };
@@ -57,11 +58,17 @@ exports.handler = async (event, context) => {
       return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
     }
 
+    let body;
+    try { body = JSON.parse(event.body || '{}'); }
+    catch { return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: '잘못된 요청입니다.' }) }; }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: '잘못된 요청입니다.' }) };
+    const denied = await requireCoach(event, body);
+    if (denied) return { statusCode: denied, headers, body: JSON.stringify({ success: false, error: denied === 401 ? '로그인이 필요합니다.' : '코치 권한이 필요합니다.' }) };
+
     if (!CALENDAR_ID) {
       return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'GOOGLE_CALENDAR_ID가 설정되지 않았습니다.' }) };
     }
 
-    const body = JSON.parse(event.body);
     const calendar = getCalendarClient();
 
     // POST /calendar/create

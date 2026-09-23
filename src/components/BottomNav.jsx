@@ -1,13 +1,13 @@
 import './BottomNav.css';
 
-const BottomNav = ({ currentPage, user, onNavigate, hasNewStudentNotification, hasWaitlistNotification, hasContractNotification, hasNewPostNotification, hasStampPendingNotification }) => {
+const BottomNav = ({ currentPage, user, onNavigate, hasNewStudentNotification, hasWaitlistNotification, hasContractNotification, hasNewPostNotification, hasStampPendingNotification, preview = false }) => {
     const coachTabs = [
         {
-            id: 'dashboard',
-            label: '게시판',
+            id: 'today',
+            label: '오늘',
             icon: (
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10l9-7 9 7v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1V10z" />
                 </svg>
             )
         },
@@ -100,20 +100,21 @@ const BottomNav = ({ currentPage, user, onNavigate, hasNewStudentNotification, h
     const tabs = user.role === 'coach' ? coachTabs : studentTabs;
 
     const handleTabClick = (tabId) => {
-        if (tabId === 'training-log') {
-            window.location.href = './training-log/index.html';
+        if (tabId === 'training-log' && !preview) {
+            window.location.assign('./training-log/index.html');
             return;
         }
         onNavigate(tabId);
     };
 
     return (
-        <nav className="bottom-nav">
+        <nav className="bottom-nav" aria-label="주요 메뉴">
             {tabs.map(tab => {
                 const isActive = currentPage === tab.id;
                 return (
                     <button
                         key={tab.id}
+                        aria-current={isActive ? 'page' : undefined}
                         className={`bottom-nav-tab ${isActive ? 'active' : ''}`}
                         onClick={() => handleTabClick(tab.id)}
                     >
@@ -123,7 +124,7 @@ const BottomNav = ({ currentPage, user, onNavigate, hasNewStudentNotification, h
                             {tab.id === 'newstudents' && hasNewStudentNotification && (
                                 <span className="notification-dot" />
                             )}
-                            {tab.id === 'dashboard' && (hasWaitlistNotification || hasContractNotification || hasNewPostNotification) && (
+                            {((tab.id === 'today' && (hasWaitlistNotification || hasContractNotification)) || (tab.id === 'dashboard' && (hasNewPostNotification || hasWaitlistNotification || hasContractNotification))) && (
                                 <span className="notification-dot" />
                             )}
                             {tab.id === 'training-log' && hasStampPendingNotification && (

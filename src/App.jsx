@@ -1,8 +1,9 @@
+import { logoutSession } from './services/authService';
 
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { GoogleSheetsProvider, useGoogleSheets } from './contexts/GoogleSheetsContext';
 import Login from './components/Login';
-import Dashboard from './components/Dashboard';
+const Dashboard = lazy(() => import('./components/Dashboard'));
 import WeeklySchedule from './components/WeeklySchedule';
 import HoldingManager from './components/HoldingManager';
 const HolidayManager = lazy(() => import('./components/HolidayManager'));
@@ -36,17 +37,17 @@ const NOTIFICATION_POLL_INTERVAL = 15 * 60 * 1000;
 const STUDENT_LOOKUP = { requireActive: false };
 
 function AppContent() {
-  // Check for ?register=true URL parameter
-  const urlParams = new URLSearchParams(window.location.search);
-  const isRegistrationMode = urlParams.get('register') === 'true';
-
-  if (isRegistrationMode) {
-    return <NewStudentRegistration />;
-  }
-
   const [user, setUser] = useState(null);
   const [studentData, setStudentData] = useState(null);
+  const studentLookupRequest = useRef(0);
   const [currentPage, setCurrentPage] = useState('login');
+  const [newStudentFilter, setNewStudentFilter] = useState('approved');
+  const [calendarDay, setCalendarDay] = useState(() => new Date().toLocaleDateString('sv-SE'));
+  useEffect(() => {
+    const timer = setInterval(() => setCalendarDay(new Date().toLocaleDateString('sv-SE')), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+
   // 알림 클릭 → 그 글로 이동. 앱이 이미 떠 있으면 서비스워커가 메시지로 알려준다
   // (콜드 스타트는 주소의 ?post= 를 Dashboard가 직접 읽는다)
   const [deepLinkPost, setDeepLinkPost] = useState(null);
@@ -186,53 +187,35 @@ function AppContent() {
   }, [user]);
 
   const handleLogin = async (userData) => {
+    studentLookupRequest.current += 1;
+    setStudentData(null);
     setUser(userData);
 
     // Check if there's a target page from bottom nav (e.g. navigating from training log)
     const targetPage = sessionStorage.getItem('targetPage');
     if (targetPage) {
       sessionStorage.removeItem('targetPage');
-      setCurrentPage(targetPage);
+      setCurrentPage(userData.role !== 'coach' && targetPage === 'today' ? 'dashboard' : targetPage);
     } else {
-      setCurrentPage('dashboard');
+      setCurrentPage(userData.role === 'coach' && !new URLSearchParams(window.location.search).has('post') ? 'today' : 'dashboard');
     }
 
-    // If student role, fetch their data from Google Sheets in background
-    if (userData.role === 'student') {
-      setIsStudentDataLoading(true);
-      // Don't await - let it load in background
-      (async () => {
-        try {
-          console.log('🔍 Searching across sheets for complete registration info...');
-          const result = await findStudentAcrossSheets(userData.username, STUDENT_LOOKUP);
-
-          if (result) {
-            setStudentData(result.student);
-            console.log(`📊 Loaded student data from ${result.foundSheetName}:`, result.student);
-          } else {
-            console.warn('❌ Student not found in any sheet');
-          }
-        } catch (error) {
-          console.error('Failed to load student data:', error);
-          // Continue even if data fetch fails
-        } finally {
-          setIsStudentDataLoading(false);
-        }
-      })();
-    }
+    if (userData.role === 'student') void loadStudentDataInBackground(userData.username);
   };
 
   const loadStudentDataInBackground = (studentName) => {
+    const request = ++studentLookupRequest.current;
     setIsStudentDataLoading(true);
-    (async () => {
+    return (async () => {
       try {
         const result = await findStudentAcrossSheets(studentName, STUDENT_LOOKUP);
+        if (request !== studentLookupRequest.current) return;
         if (result) setStudentData(result.student);
         else console.warn('❌ Student not found in any sheet');
       } catch (error) {
         console.error('Failed to load student data:', error);
       } finally {
-        setIsStudentDataLoading(false);
+        if (request === studentLookupRequest.current) setIsStudentDataLoading(false);
       }
     })();
   };
@@ -265,7 +248,7 @@ function AppContent() {
         password: studentPassword,
         isCoach: false
       }));
-    } catch {}
+    } catch { /* Storage may be unavailable. */ }
 
     try {
       sessionStorage.setItem(IMPERSONATION_STORAGE_KEY, JSON.stringify({
@@ -305,7 +288,7 @@ function AppContent() {
       console.warn('Failed to restore savedUser:', err);
     }
 
-    try { sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY); } catch {}
+    try { sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY); } catch { /* Storage may be unavailable. */ }
     setImpersonationOrigin(null);
     setStudentData(null);
     if (origin) {
@@ -350,13 +333,18 @@ function AppContent() {
     }
   }, [user]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try { await logoutSession(); }
+    catch { window.alert('로그아웃에 실패했습니다. 다시 시도해주세요.'); return; }
+    studentLookupRequest.current += 1;
+    setIsStudentDataLoading(false);
     // Disable auto-login but preserve saved credentials if "Remember Me" was checked
     const savedCredentials = localStorage.getItem('login_credentials');
     if (savedCredentials) {
       try {
         const credentials = JSON.parse(savedCredentials);
         credentials.autoLogin = false; // Disable auto-login
+        delete credentials.password; // 로그아웃 후에는 저장한 이름만 유지
         localStorage.setItem('login_credentials', JSON.stringify(credentials));
       } catch (err) {
         console.error('Failed to update credentials:', err);
@@ -365,7 +353,9 @@ function AppContent() {
 
     // Clear training log session to sync logout
     localStorage.removeItem('savedUser');
-    try { sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY); } catch {}
+    localStorage.removeItem('coachSelectedStudents');
+    localStorage.removeItem('trainingLogSlot');
+    try { sessionStorage.removeItem('quickReturn'); sessionStorage.removeItem('targetPage'); sessionStorage.removeItem(IMPERSONATION_STORAGE_KEY); } catch { /* Storage may be unavailable. */ }
 
     setUser(null);
     setStudentData(null);
@@ -374,6 +364,17 @@ function AppContent() {
   };
 
   const handleNavigate = (page, subTab, student) => {
+    if (page === 'logout') { handleLogout(); return; }
+    if (page === 'training-log') {
+      if (subTab?.attendees && user?.role === 'coach') {
+        localStorage.setItem('coachSelectedStudents', JSON.stringify(subTab.attendees));
+        localStorage.setItem('trainingLogSlot', JSON.stringify({ date: calendarDay, dayLabel: ['일','월','화','수','목','금','토'][new Date().getDay()], periodId: subTab.id, names: subTab.attendees }));
+      }
+      window.location.assign('./training-log/index.html'); return;
+    }
+    if (page === 'post') { setDeepLinkPost(subTab); setCurrentPage('dashboard'); return; }
+    if (page === 'newstudents') setNewStudentFilter(subTab || 'approved');
+
     if (page === 'dashboard') {
       localStorage.setItem('board_last_seen', String(Date.now()));
       setHasNewPostNotification(false);
@@ -387,7 +388,7 @@ function AppContent() {
   };
 
   const handleBackToDashboard = () => {
-    setCurrentPage('dashboard');
+    setCurrentPage(user?.role === 'coach' ? 'today' : 'dashboard');
     window.scrollTo(0, 0);
   };
 
@@ -397,11 +398,15 @@ function AppContent() {
       case 'login':
         return <Login onLogin={handleLogin} />;
 
+      case 'today':
+        if (user?.role !== 'coach') return <Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} deepLinkPost={deepLinkPost} onDeepLinkDone={() => setDeepLinkPost(null)} />;
+        return <WeeklySchedule key={`${user?.username}-${calendarDay}`} user={user} studentData={studentData} onNavigate={handleNavigate} onBack={handleBackToDashboard} view="today" />;
+
       case 'dashboard':
         return <Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} deepLinkPost={deepLinkPost} onDeepLinkDone={() => setDeepLinkPost(null)} />;
 
       case 'schedule':
-        return <WeeklySchedule user={user} studentData={studentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} />;
+        return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} />;
 
       case 'holding':
         return <HoldingManager user={user} studentData={studentData} isLoading={isStudentDataLoading} onBack={handleBackToDashboard} />;
@@ -416,7 +421,7 @@ function AppContent() {
         return <HolidayManager user={user} onBack={handleBackToDashboard} />;
 
       case 'newstudents':
-        return <CoachNewStudents user={user} onBack={handleBackToDashboard} />;
+        return <CoachNewStudents key={newStudentFilter} initialFilter={newStudentFilter} user={user} onBack={handleBackToDashboard} />;
 
       case 'contractView':
         return <ContractView user={user} onBack={handleBackToDashboard} />;
@@ -478,9 +483,10 @@ function AppContent() {
 }
 
 function App() {
+  const registrationMode = new URLSearchParams(window.location.search).get('register') === 'true';
   return (
     <GoogleSheetsProvider>
-      <AppContent />
+      {registrationMode ? <NewStudentRegistration /> : <AppContent />}
     </GoogleSheetsProvider>
   );
 }

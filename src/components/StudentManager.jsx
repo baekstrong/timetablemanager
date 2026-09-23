@@ -617,6 +617,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                     >
                         ✉️ 문자 보내기
                     </button>
+                    <button className="view-switch-btn" onClick={() => onNavigate('newstudents')}>신규·입학반 관리</button>
                     <div className="student-count">총 {activeStudents.length}명</div>
                 </div>
                 <input

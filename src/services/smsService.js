@@ -1,3 +1,4 @@
+import { auth } from '../config/firebase';
 /**
  * Solapi 문자 발송 서비스
  * 신규 수강 접수/승인/입학반 알림 문자 발송
@@ -99,10 +100,12 @@ export const cancelScheduledSMS = async (groupId) => {
   if (!groupId) return false;
   try {
     const baseUrl = getSmsBaseUrl();
+    if (!auth?.currentUser) throw new Error('로그인이 필요합니다.');
+    const idToken = await auth.currentUser.getIdToken();
     const response = await fetch(`${baseUrl}/cancel-scheduled`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groupId })
+      body: JSON.stringify({ groupId, idToken })
     });
     const data = await response.json();
     if (data.success) {

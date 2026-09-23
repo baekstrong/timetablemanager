@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import CoachHome from '../features/today/CoachHome';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import {
     getDisabledClasses,
@@ -26,7 +27,7 @@ import { buildUpdatedSchedule, parseSheetDate, weekDateToISO } from '../utils/sc
 import { syncMakeupWaitlists, normalizeWaitlistEntry } from '../services/makeupWaitlistService';
 import './WeeklySchedule.css';
 
-const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
+const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) => {
     const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student');
     const { students, isAuthenticated, isConnected, error: sheetsError, loading, refresh } = useGoogleSheets();
 
@@ -89,6 +90,9 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
         getCellData, getHolidayInfo,
         unpaidStudentNames, weeklyDataLoaded, weeklyDataError, weekFreeWorkout, freeWorkoutRoster,
     } = scheduleCore;
+
+    const homeLoaded = useRef(false);
+    useEffect(() => { if (weeklyDataLoaded) homeLoaded.current = true; }, [weeklyDataLoaded]);
 
     // 자율운동 표시: 날짜(YYYY-MM-DD) → [{id, studentName, roster?}]
     // 날짜별 출석(weekFreeWorkout) + 요일 고정 명단(freeWorkoutRoster)을 머지(이름 중복 제거).
@@ -373,7 +377,7 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
 
     // 최초 로드만 전체화면 스피너. 수동 새로고침(isRefreshing) 중엔 표+버튼을 유지해
     // 새로고침 버튼이 사라져 클릭이 유실되는 문제를 막는다.
-    if (loading && !isRefreshing) {
+    if (user?.role !== 'coach' && loading && !isRefreshing) {
         return (
             <div className="schedule-container">
                 <div className="schedule-page-header">
@@ -387,6 +391,10 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 </div>
             </div>
         );
+    }
+
+    if (user?.role === 'coach' && (loading || disabledClassesLoading || lockedSlotsLoading || (view !== 'schedule' && !homeLoaded.current && !weeklyDataLoaded && !weeklyDataError)) && !isRefreshing) {
+        return <div className="loading-container" role="status"><div className="loading-spinner" /><p>정보를 불러오는 중…</p></div>;
     }
 
     if (!isAuthenticated) {
@@ -403,6 +411,15 @@ const WeeklySchedule = ({ user, studentData, onBack, onNavigate }) => {
                 </div>
             </div>
         );
+    }
+
+    if (view !== 'schedule' && user?.role === 'coach') {
+        if (!homeLoaded.current && !weeklyDataLoaded && !weeklyDataError) return <p className="today-empty" role="status">오늘 정보를 불러오는 중…</p>;
+        if (!homeLoaded.current && (weeklyDataError || sheetsError)) return <div className="today-page"><p role="alert">{weeklyDataError || sheetsError}</p><button onClick={handleManualRefresh}>다시 불러오기</button></div>;
+        return <>
+            {(weeklyDataError || sheetsError) && <p className="today-error" role="alert">{weeklyDataError || sheetsError} <button onClick={handleManualRefresh}>다시 불러오기</button></p>}
+             <CoachHome core={scheduleCore} students={students} disabledClasses={disabledClasses} registrations={pendingRegistrations} waitlist={newStudentWaitlist} onNavigate={onNavigate} refresh={handleManualRefresh} />
+        </>;
     }
 
     // ── Main render ──

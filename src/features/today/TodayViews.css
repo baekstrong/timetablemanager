@@ -1,0 +1,92 @@
+.today-page { color: var(--text); margin: 0 auto; padding: 28px 24px 112px; }
+.today-page button, .today-modal button, .today-modal input, .today-modal textarea, .today-preview-toolbar button, .today-preview-toolbar select { font: inherit; }
+.today-student { max-width: 480px; }
+.today-coach { max-width: 1260px; }
+.today-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.today-header h1 { font-size: 24px; margin: 4px 0; }
+.today-header p { color: var(--accent-hover); font-size: 13px; font-weight: 700; }
+.today-card { border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--canvas); padding: 20px; margin-bottom: 16px; min-width: 0; }
+.today-section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.today-section-title h2 { font-size: 16px; margin: 0; }
+.today-section-title > .today-link, .today-section-title > .today-muted { margin-left: auto; }
+.today-muted { color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
+.today-count, .today-status { color: var(--accent-hover); background: var(--accent-10); border-radius: var(--r-chip); padding: 4px 8px; font-size: 12px; white-space: nowrap; }
+.today-link { color: var(--accent-hover); background: transparent; border: 0; cursor: pointer; padding: 6px 0; font-size: 13px; font-weight: 600; }
+.today-button { padding: 10px 14px; border: 1px solid var(--hairline); background: var(--canvas); color: var(--accent-hover); border-radius: var(--r-md); font-size: 13px !important; font-weight: 600 !important; cursor: pointer; min-height: 44px; }
+.today-button-primary { background: var(--accent); color: var(--canvas); border-color: var(--accent); }
+.today-button:disabled { opacity: .45; cursor: not-allowed; }
+.today-actions { display: flex; gap: 8px; }
+.today-student .today-actions > * { flex: 1; }
+.today-task-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--hairline); }
+.today-task-row:first-child { border-top: 0; }
+.today-task-row > div { min-width: 0; overflow-wrap: anywhere; }
+.today-task-row > button { flex-shrink: 0; }
+.today-task-title { font-size: 14px; line-height: 1.6; }
+.today-task-row.is-current .today-task-title { font-weight: 700; }
+.today-tasks-coach .today-task-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+.today-task-group h3 { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+.today-task-group h3 span { margin-left: 8px; color: var(--accent-hover); }
+.today-week-list { margin: 8px 0 16px; }
+.today-week-row { display: flex; align-items: center; gap: 16px; border-top: 1px solid var(--hairline); padding: 16px 0; }
+.today-date { text-align: center; width: 32px; flex-shrink: 0; font-size: 13px; }
+.today-date span { display: block; font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+.today-week-time { flex: 1; min-width: 0; }
+.today-week-time > strong { font-size: 17px; }
+.today-week-time s { color: var(--text-secondary); }
+.today-status.is-cancelled { color: var(--text-secondary); background: var(--canvas-tint); }
+.today-waiting summary { cursor: pointer; font-size: 13px; padding: 2px 0; }
+.today-waiting summary > span { float: right; color: var(--accent-hover); }
+.today-story { display: flex; flex-direction: column; gap: 6px; background: none; border: 0; border-top: 1px solid var(--hairline); width: 100%; padding: 16px 0; text-align: left; color: var(--text); cursor: pointer; }
+.today-story strong { font-size: 14px; line-height: 1.7; }
+.today-story small { color: var(--accent-hover); font-size: 10px; }
+.today-footnote { display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 4px 12px; }
+.today-coach-columns { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 20px; align-items: start; }
+.today-daily { padding: 16px; }
+.today-lesson { display: block; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--canvas); width: 100%; text-align: left; color: var(--text); cursor: pointer; margin-top: 12px; overflow: hidden; }
+.today-lesson-title { display: flex; align-items: center; gap: 8px; padding: 9px 10px; background: var(--canvas-tint); font-size: 12px; }
+.today-lesson-title b { color: var(--accent-hover); font-size: 11px; margin-left: auto; }
+.today-lesson.is-current .today-lesson-title { background: #1769AA; color: white; }
+.today-lesson.is-current .today-lesson-title b { color: white; }
+.today-lesson.is-selected { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: -2px; background: #329BE726; }
+.today-lesson.is-selected .today-lesson-title { background: transparent; color: var(--text); }
+.today-lesson.is-selected .today-lesson-title b { color: var(--accent-hover); }
+.today-lesson-body { padding: 10px; font-size: 13px; }
+.today-roster { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.today-note-list { margin-top: 16px; }
+.today-note { display: block; width: 100%; border: 1px solid var(--hairline); border-radius: var(--r-md); padding: 16px; margin-bottom: 12px; background: var(--canvas); text-align: left; color: var(--text); cursor: pointer; }
+.today-note > span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.today-note p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; font-size: 14px; margin-top: 8px; }
+.today-log-link { margin-top: 8px; }
+.today-empty { padding: 20px 0; color: var(--text-secondary); font-size: 14px; }
+@media (max-width: 850px) { .today-coach-columns { grid-template-columns: 1fr; } .today-header { flex-wrap: wrap; } }
+@media (max-width: 480px) { .today-page { padding: 20px 12px 112px; } .today-card { padding: 16px; } .today-week-row { gap: 10px; } .today-week-time > strong { font-size: 16px; } }
+.today-modal { margin: auto; width: min(520px, calc(100% - 24px)); max-height: calc(100dvh - 32px); border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 0; background: var(--canvas); color: var(--text); }
+.today-modal-wide { width: min(760px, calc(100% - 24px)); }
+.today-modal::backdrop { background: rgba(0,0,0,.4); }
+.today-modal > header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--hairline); position: sticky; top: 0; background: var(--canvas); z-index: 2; }
+.today-modal h2 { font-size: 18px; }
+.today-modal > header button { border: 0; background: var(--canvas-tint); color: var(--text); border-radius: var(--r-md); width: 44px; height: 44px; font-size: 24px; cursor: pointer; }
+.today-modal-content { padding: 20px; }
+.today-modal-content > .today-actions { margin-top: 20px; }
+.today-field { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; font-size: 14px; }
+.today-field input, .today-field select, .today-field textarea { font: inherit; font-size: 16px; width: 100%; padding: 12px; color: var(--text); background: var(--canvas); border: 1px solid var(--grid-line); border-radius: var(--r-chip); }
+.today-field textarea { resize: vertical; }
+.today-error { margin: 16px auto; max-width: 1200px; padding: 12px; color: var(--error); }
+.today-modal .holding-container, .today-modal .contract-view-container { min-height: 0; padding: 0; }
+.today-modal .holding-header, .today-modal .contract-header { display: none; }
+.today-modal .holding-content { grid-template-columns: 1fr; }
+.today-modal .contract-content { padding: 0; }
+@media (min-width: 851px) { .bottom-nav { max-width: 720px; margin-left: auto; margin-right: auto; } }
+@media (min-width: 851px) {
+  .today-coach { padding-top: 20px; }
+  .today-coach .today-header { margin-bottom: 16px; }
+  .today-coach .today-tasks { padding: 16px 20px; }
+  .today-coach .today-task-row { padding: 7px 0; }
+  .today-coach .today-task-row .today-button { min-height: 36px; padding: 6px 12px; }
+  .today-coach .today-lesson { margin-top: 8px; }
+  .today-coach .today-lesson-title { padding: 6px 9px; }
+  .today-coach .today-lesson-body { padding: 7px 9px; }
+  .today-coach .today-roster { margin-top: 5px; gap: 4px; }
+}
+.today-student .today-header { padding: 16px; background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-card); }
+.today-student .today-header h1 { color: var(--accent); font-size: 22px; }

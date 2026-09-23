@@ -601,21 +601,12 @@ export const getLockedSlots = async () => {
         const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
         const activeKeys = [];
-        const expiredIds = [];
 
         for (const d of docs) {
-            if (d.date && d.date < todayStr) {
-                expiredIds.push(d.id);
-            } else {
-                activeKeys.push(d.key);
-            }
+            if (!d.date || d.date >= todayStr) activeKeys.push(d.key);
         }
 
-        if (expiredIds.length > 0) {
-            await Promise.all(expiredIds.map(id => firestoreDeleteDoc(doc(db, 'lockedSlots', id))));
-            console.log('만료된 슬롯 잠금 삭제:', expiredIds.length, '건');
-        }
-
+        // 조회는 읽기만 수행한다. 만료 항목은 화면에서 제외하며 학생에게 삭제 권한을 요구하지 않는다.
         console.log('잠긴 슬롯 조회:', activeKeys);
         return activeKeys;
     } catch (error) {

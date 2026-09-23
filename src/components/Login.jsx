@@ -1,3 +1,4 @@
+import { readSessionIdentity } from '../../public/training-log/js/sessionIdentity';
 import { useState, useEffect } from 'react';
 import { db, auth } from '../config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -59,27 +60,22 @@ const Login = ({ onLogin }) => {
         if (auth && savedUserRaw) {
             let done = false;
             const finish = (cb) => { if (done) return; done = true; cb(); };
-            const unsub = onAuthStateChanged(auth, (fbUser) => {
-                unsub();
-                if (fbUser) {
+            const unsub = onAuthStateChanged(auth, async (fbUser) => {
+                try {
+                    const saved = JSON.parse(savedUserRaw);
+                    const identity = await readSessionIdentity(fbUser, saved.name);
                     finish(() => {
-                        try {
-                            const su = JSON.parse(savedUserRaw);
-                            console.log('⚡ 공유 Firebase 세션 — 즉시 로그인 (서버 재인증 생략)');
-                            sessionStorage.removeItem('quickReturn');
-                            onLogin({ username: su.name, role: su.isCoach ? 'coach' : 'student' });
-                        } catch (e) {
-                            console.warn('savedUser 파싱 실패, 폴백:', e);
-                            runSavedAutoLogin();
-                        }
+                        if (!identity) { runSavedAutoLogin(); return; }
+                        sessionStorage.removeItem('quickReturn');
+                        onLogin({ username: identity.name, role: identity.isCoach ? 'coach' : 'student' });
                     });
-                } else {
+                } catch {
                     finish(runSavedAutoLogin);
                 }
             });
             // 안전장치: 2.5초 내 세션 콜백 없으면 폴백
             const t = setTimeout(() => finish(runSavedAutoLogin), 2500);
-            return () => { clearTimeout(t); unsub(); };
+            return () => { done = true; clearTimeout(t); unsub(); };
         }
 
         // 공유 세션 확인 대상 아님 → 기존 동작

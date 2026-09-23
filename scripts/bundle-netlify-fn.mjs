@@ -25,7 +25,7 @@ const STAGING = path.join(homedir(), 'Desktop/앱 제작/netlify-deploy/netlify/
 const key = JSON.parse(readFileSync('firebase-admin-key.json', 'utf8'));
 
 // firebase-admin을 쓰는 함수만 자격증명을 굽는다.
-const NEEDS_ADMIN = ['push', 'auth'];
+const NEEDS_ADMIN = ['push', 'auth', 'calendar', 'sms'];
 const define = NEEDS_ADMIN.includes(name) ? {
   'process.env.FIREBASE_ADMIN_PROJECT_ID': JSON.stringify(key.project_id),
   'process.env.FIREBASE_ADMIN_CLIENT_EMAIL': JSON.stringify(key.client_email),

@@ -1,3 +1,4 @@
+import { readSessionIdentity } from '../sessionIdentity.js';
 import { state, db, firebaseInitialized } from '../state.js';
 import { saveLogin, loadSavedLogin, clearSavedLogin } from '../utils.js';
 import { loadPinnedExercisesFromStorage, loadArchivedMemosFromStorage, migrateLocalStorageToFirestore } from './records.js';
@@ -100,7 +101,7 @@ export async function login() {
         let errorMessage = '';
 
         if (error.code === 'permission-denied') {
-            errorMessage = '❌ Firestore 권한 오류!\n\n해결 방법:\n1. Firebase Console 접속\n2. Firestore Database > 규칙 탭\n3. allow read, write: if true; 로 변경\n4. [게시] 버튼 클릭';
+            errorMessage = '❌ 접근 권한을 확인할 수 없습니다. 다시 로그인하거나 코치에게 문의해주세요.';
         } else {
             errorMessage = '❌ 로그인 실패\n\n' + error.message;
         }
@@ -125,9 +126,10 @@ export async function autoLogin() {
             } catch (e) { finish(null); }
         });
 
-        if (sessionUser) {
+        const identity = await readSessionIdentity(sessionUser, saved.name);
+        if (identity) {
             console.log('⚡ 공유 Firebase 세션 — 즉시 자동 로그인 (서버 재인증 생략)');
-            state.isCoach = saved.isCoach || false;
+            state.isCoach = identity.isCoach;
         } else {
             // 2) 세션 없음 → 서버 로그인 (커스텀 토큰)
             try {
@@ -154,7 +156,9 @@ export async function autoLogin() {
     }
 }
 
-export function logout() {
+export async function logout() {
+    try { await firebase.auth().signOut(); }
+    catch { alert('로그아웃에 실패했습니다. 다시 시도해주세요.'); return; }
     if (state.unsubscribe) state.unsubscribe();
     if (state.coachMemosUnsubscribe) state.coachMemosUnsubscribe(); // 코치 메모 리스너 해제
     if (state.studentPinnedMemosUnsubscribe) state.studentPinnedMemosUnsubscribe(); // 수강생 메모 리스너 해제
@@ -162,6 +166,11 @@ export function logout() {
     // Clear all localStorage keys used by both apps
     localStorage.removeItem('savedUser');
     localStorage.removeItem('login_credentials');
+    localStorage.removeItem('coachSelectedStudents');
+    localStorage.removeItem('trainingLogSlot');
+    sessionStorage.removeItem('impersonation_origin');
+    sessionStorage.removeItem('quickReturn');
+    sessionStorage.removeItem('targetPage');
 
     state.currentUser = null;
     state.userPassword = null;

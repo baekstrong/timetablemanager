@@ -1,5 +1,5 @@
 import { auth } from '../config/firebase';
-import { signInWithCustomToken } from 'firebase/auth';
+import { signInWithCustomToken, signOut } from 'firebase/auth';
 
 // smsService.js와 동일한 베이스 URL 해석: VITE_FUNCTIONS_URL의 /sheets를 /auth로 교체
 function getAuthBaseUrl() {
@@ -45,4 +45,8 @@ export async function setStudentPassword(coachName, coachPassword, targetName, n
 
 export async function changeMyPassword(name, currentPassword, newPassword) {
   await requestAuth('/change-password', { name, currentPassword, newPassword });
+}
+
+export async function logoutSession() {
+  await signOut(auth);
 }
