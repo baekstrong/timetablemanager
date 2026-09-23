@@ -4,6 +4,8 @@
 .today-coach { max-width: 1260px; }
 .today-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
 .today-header h1 { font-size: 24px; margin: 4px 0; }
+.today-header .today-coach-title { color: var(--accent-hover); margin: 0 0 8px; }
+.today-coach-date { color: var(--text-secondary); font-size: 14px; line-height: 1.7; }
 .today-header p { color: var(--accent-hover); font-size: 13px; font-weight: 700; }
 .today-card { border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--canvas); padding: 20px; margin-bottom: 16px; min-width: 0; }
 .today-section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }

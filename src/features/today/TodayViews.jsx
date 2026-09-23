@@ -71,7 +71,7 @@ export function CoachToday({ dateLabel, lessons, minutes, taskGroups, notes, onA
     const selectedId = manualId ?? automaticLessonId(lessons, minutes);
     const selected = lessons.find(lesson => lesson.id === selectedId);
     return <main className="today-page today-coach">
-        <header className="today-header"><div><p>근력학교 · 코치</p><h1>오늘</h1><span className="today-muted">{dateLabel}</span></div><div className="today-actions"><ActionButton onClick={() => onNavigate('dashboard')}>게시판</ActionButton><ActionButton onClick={() => onNavigate('schedule')}>전체 시간표</ActionButton><button className="today-link" onClick={() => onNavigate('logout')}>로그아웃</button></div></header>
+        <header className="today-header"><div><h1 className="today-coach-title">근력학교 · 코치</h1><span className="today-coach-date">{dateLabel}</span></div><div className="today-actions"><ActionButton onClick={() => onNavigate('dashboard')}>게시판</ActionButton><ActionButton onClick={() => onNavigate('schedule')}>전체 시간표</ActionButton><button className="today-link" onClick={() => onNavigate('logout')}>로그아웃</button></div></header>
         <TaskSection coach groups={taskGroups} onAction={onAction} currentPeriod={currentId} />
         <div className="today-coach-columns">
             <section className="today-card today-daily"><div className="today-section-title"><h2>오늘 수업</h2><span className="today-muted">{lessons.length}개 수업</span></div>
