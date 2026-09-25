@@ -6,6 +6,9 @@ import Login from '../components/Login';
 import StudentSchedule from '../components/schedule/StudentSchedule';
 import NoticeTicker from '../components/board/NoticeTicker';
 import BottomNav from '../components/BottomNav';
+import StudentGrowthHeader from '../components/StudentGrowthHeader';
+import MonthlyPRBanner from '../components/MonthlyPRBanner';
+import { useStudentGrowth } from '../hooks/useStudentGrowth';
 import LiveBoardReview, { LiveBoardPostDetail } from './LiveBoardReview';
 import LiveStudentInfoReview from './LiveStudentInfoReview';
 import LiveTrainingLogReview from './LiveTrainingLogReview';
@@ -37,6 +40,7 @@ const identityFromSession = async firebaseUser => {
 };
 
 function LiveSchedule({ user, student, students, disabledClasses, lockedSlots, onRefresh, loading, loadedAt, onNavigate, onOpenNotice }) {
+    const growth = useStudentGrowth({ user, readOnly: true });
     // Reuse the exact production capacity calculation, with all automatic writes off.
     const core = useScheduleCore({ user, students, mode: 'student', studentData: student, readOnly: true });
     const freeWorkoutByDate = useMemo(() => {
@@ -54,7 +58,9 @@ function LiveSchedule({ user, student, students, disabledClasses, lockedSlots, o
         return map;
     }, [core.weekFreeWorkout, core.freeWorkoutRoster, core.weekDates]);
     return <div className="schedule-container mode-student student-class-page">
+        <StudentGrowthHeader user={user} {...growth} onRetry={growth.retry} onOpen={() => onNavigate('ranking', 'graph')} />
         <NoticeTicker user={user} onOpen={onOpenNotice} />
+        <MonthlyPRBanner onOpen={() => onNavigate('ranking')} refreshKey={loadedAt.getTime()} />
         <div className="student-live-heading"><h1>내 수업</h1><button type="button" disabled={loading} onClick={onRefresh}>{loading ? '조회 중…' : '새로고침'}</button></div>
         <p className="student-live-context">{user.username}님의 실제 일정 · {loadedAt.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 조회</p>
         <StudentSchedule user={user} studentData={student} studentSchedule={core.studentSchedule}
@@ -84,6 +90,10 @@ function LiveStudentPages(props) {
         return () => window.removeEventListener('popstate', handleBack);
     }, []);
     const navigate = (next, date = '') => {
+        if (next === 'ranking') {
+            setMessage(date === 'graph' ? '실제 앱에서는 성장 보기를 누르면 누적 훈련량·학년 화면으로 이동합니다.' : '실제 앱에서는 이달의 PR을 누르면 랭킹 화면으로 이동합니다. 이 검토에서는 실제 갱신 기록을 조회합니다.');
+            return;
+        }
         if (!STUDENT_PAGES.has(next)) {
             setMessage('신청·계약 변경은 실제 앱에서 이용할 수 있어요. 이 화면에서는 조회만 가능합니다.');
             return;

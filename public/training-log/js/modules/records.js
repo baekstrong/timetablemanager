@@ -164,7 +164,7 @@ export async function addRecord() {
         // 저장 확인은 즉시. 신기록 축하는 판정이 돌아오는 대로 표시한다.
         // 예전엔 이 판정을 기다리느라 저장이 끝나도 화면이 잠겨 있었다.
         if (!window.completeStudentRecord) alert('✅ 기록이 저장되었습니다!');
-        prPromise.then(prStatus => { if (prStatus && state.currentUser === recordUser && !state.isCoach) showPRCelebration(prStatus); });
+        prPromise.then(prStatus => { if (prStatus && state.currentUser === recordUser && !state.isCoach) showPRCelebration(prStatus, recordUser); });
     } catch (error) {
         console.error('Error adding record:', error);
         alert('기록 저장 실패: ' + error.message);
@@ -210,7 +210,37 @@ async function computePR(exercise, newSets, excludeId = null) {
     return result ? { exercise, ...result } : null;
 }
 
-function showPRCelebration(pr) {
+let levelUpDialog = null;
+let prCelebrationDialog = null;
+let celebrationQueue = [];
+
+function isImpersonatedStudent(userName) {
+    try { return JSON.parse(sessionStorage.getItem('impersonation_origin') || 'null')?.impersonatedName === userName; }
+    catch { return true; } // 빙의 여부를 확인할 수 없으면 확인 표시는 소비하지 않는다.
+}
+
+function discardOtherStudentCelebrations(userName) {
+    if (levelUpDialog && levelUpDialog.userName !== userName) levelUpDialog.close(false);
+    if (prCelebrationDialog && prCelebrationDialog.userName !== userName) prCelebrationDialog.close(false);
+    celebrationQueue = celebrationQueue.filter(item => item.userName === userName);
+}
+
+function showNextCelebration() {
+    while (!levelUpDialog && !prCelebrationDialog && celebrationQueue.length) {
+        const next = celebrationQueue.shift();
+        if (next.userName !== state.currentUser || state.isCoach) continue;
+        if (next.type === 'grade') showLevelUp(next.toKey, next.userName);
+        else showPRCelebration(next.pr, next.userName);
+    }
+}
+
+function showPRCelebration(pr, userName = state.currentUser) {
+    if (!userName || state.currentUser !== userName || state.isCoach) return;
+    discardOtherStudentCelebrations(userName);
+    if (levelUpDialog || prCelebrationDialog) {
+        celebrationQueue.push({ type: 'pr', pr, userName });
+        return;
+    }
     const esc = (s) => String(s).replace(/[&<>"']/g, c => (
         { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
     ));
@@ -218,20 +248,44 @@ function showPRCelebration(pr) {
     if (pr.weightPR) lines.push(`💪 새 최고 무게 <b>${pr.weight}kg</b>`);
     if (pr.repsPR) lines.push(`🔥 새 최다 반복 <b>${pr.reps}</b>`);
 
-    document.getElementById('prCelebrationOverlay')?.remove();
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
     const overlay = document.createElement('div');
     overlay.id = 'prCelebrationOverlay';
     overlay.className = 'modal active';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'prCelebrationTitle');
     overlay.innerHTML = `
         <div class="modal-content max-w-sm w-full text-center">
             <div class="text-5xl mb-2">🎉</div>
-            <p class="text-lg font-bold text-gray-800 mb-1">${esc(pr.exercise)} 개인 기록 경신!</p>
+            <p id="prCelebrationTitle" class="text-lg font-bold text-gray-800 mb-1">${esc(pr.exercise)} 개인 기록 경신!</p>
             <p class="text-sm text-gray-600 mb-2">${lines.join('<br>')}</p>
             <p class="text-sm text-gray-600 mb-4">어제의 나보다 강해졌어요. 이런 하루가 쌓여서 지금의 몸을 만들어요 💪</p>
-            <button onclick="document.getElementById('prCelebrationOverlay')?.remove()"
+            <button type="button"
                 class="w-full bg-[#329BE7] hover:bg-[#327AB8] text-white py-2.5 rounded-lg font-bold">좋았어! 💪</button>
         </div>`;
+    const button = overlay.querySelector('button');
+    const dialog = { userName, close };
+    function close(advance = true) {
+        overlay.remove();
+        document.removeEventListener('keydown', onKeyDown);
+        if (prCelebrationDialog !== dialog) return;
+        prCelebrationDialog = null;
+        document.body.style.overflow = previousOverflow;
+        if (state.currentUser === userName && previousFocus?.isConnected) previousFocus.focus();
+        if (advance) showNextCelebration();
+    }
+    function onKeyDown(event) {
+        if (event.key === 'Escape') { event.preventDefault(); close(); }
+        if (event.key === 'Tab') { event.preventDefault(); button.focus(); }
+    }
+    button.onclick = () => close();
+    prCelebrationDialog = dialog;
     document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', onKeyDown);
+    button.focus();
 }
 
 // ============================================
@@ -243,21 +297,25 @@ function showPRCelebration(pr) {
 // 로그인 후 1회: users 문서에서 XP 상태 로드. xpVolume 없으면 본인 기록으로 1회 시딩.
 export async function loadMyXpState() {
     if (!firebaseInitialized || !db || !state.currentUser || state.isCoach) return;
+    const userName = state.currentUser;
     try {
-        const ref = db.collection('users').doc(state.currentUser);
+        const ref = db.collection('users').doc(userName);
         const snap = await ref.get();
+        if (state.currentUser !== userName || state.isCoach) return;
         const u = snap.exists ? (snap.data() || {}) : {};
         state.xpCoef = Number(u.xpCoef) || 1;
         if (typeof u.xpVolume === 'number') {
             state.xpVolume = u.xpVolume;
         } else {
             // 시딩: 본인 기록 전체 합(본인분만 읽어 저렴). 1회만 — 이후엔 저장돼 증분으로 굴러감.
-            const rs = await db.collection('records').where('userName', '==', state.currentUser).get();
+            const rs = await db.collection('records').where('userName', '==', userName).get();
+            if (state.currentUser !== userName || state.isCoach) return;
             let vol = 0;
             rs.forEach(d => { vol += recordVolume(d.data()); });
             state.xpVolume = vol;
             const xp0 = Math.round(vol * state.xpCoef);
             await ref.set({ xpVolume: vol, xp: xp0, grade: xpToGrade(xp0).key }, { merge: true });
+            if (state.currentUser !== userName || state.isCoach) return;
         }
         const xp = Math.round(state.xpVolume * state.xpCoef);
         state.grade = u.grade || xpToGrade(xp).key;
@@ -272,6 +330,7 @@ export async function loadMyXpState() {
 async function applyXpDelta(deltaVolume) {
     if (!firebaseInitialized || !db || !state.currentUser || state.isCoach) return;
     if (state.xpVolume == null || !deltaVolume) return; // 로드 전이거나 변화 없음
+    const userName = state.currentUser;
     const newVolume = Math.max(0, state.xpVolume + deltaVolume);
     state.xpVolume = newVolume;
     const xp = Math.round(newVolume * state.xpCoef);
@@ -280,33 +339,104 @@ async function applyXpDelta(deltaVolume) {
     const fromKey = state.gradeSeen;
     state.grade = newGrade;
     const patch = { xpVolume: newVolume, xp, grade: newGrade, xpUpdatedAt: window.firebase.firestore.FieldValue.serverTimestamp() };
-    if (leveledUp) { patch.gradeSeen = newGrade; state.gradeSeen = newGrade; }
     try {
-        await db.collection('users').doc(state.currentUser).set(patch, { merge: true });
+        // gradeSeen은 팝업의 확인 버튼에서만 전진시킨다. 종료·미확인은 메인앱에 남긴다.
+        await db.collection('users').doc(userName).set(patch, { merge: true });
     } catch (e) {
         console.error('XP 저장 실패:', e);
+        return { leveledUp, from: fromKey, to: newGrade, saved: false };
     }
-    if (leveledUp) showLevelUp(newGrade);
+    if (leveledUp && state.currentUser === userName && !state.isCoach && gradeRank(newGrade) > gradeRank(state.gradeSeen)) showLevelUp(newGrade, userName);
     return { leveledUp, from: fromKey, to: newGrade };
 }
 
-function showLevelUp(toKey) {
+function showLevelUp(toKey, userName) {
     const to = GRADES.find(g => g.key === toKey);
-    if (!to) return;
-    document.getElementById('levelUpOverlay')?.remove();
+    if (!to || state.currentUser !== userName || state.isCoach || isImpersonatedStudent(userName) || gradeRank(toKey) <= gradeRank(state.gradeSeen)) return;
+    discardOtherStudentCelebrations(userName);
+    if (prCelebrationDialog) {
+        const queued = celebrationQueue.find(item => item.type === 'grade' && item.userName === userName);
+        if (!queued) celebrationQueue.push({ type: 'grade', toKey, userName });
+        else if (gradeRank(toKey) > gradeRank(queued.toKey)) queued.toKey = toKey;
+        return;
+    }
+    if (levelUpDialog?.userName === userName && gradeRank(levelUpDialog.toKey) >= gradeRank(toKey)) return;
+    levelUpDialog?.close(false);
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
     const overlay = document.createElement('div');
     overlay.id = 'levelUpOverlay';
     overlay.className = 'modal active';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'levelUpTitle');
     overlay.innerHTML = `
-        <div class="modal-content max-w-sm w-full text-center">
-            <div class="text-5xl mb-2">🎓</div>
-            <p class="text-lg font-bold text-gray-800 mb-1">레벨 업!</p>
-            <p class="text-2xl font-extrabold text-[#329BE7] mb-1">${to.label}</p>
-            <p class="text-sm text-gray-600 mb-4">이제 운동이 어색하지 않죠? 몸이 운동을 기억하기 시작했어요 💪</p>
-            <button onclick="document.getElementById('levelUpOverlay')?.remove()"
-                class="w-full bg-[#329BE7] hover:bg-[#327AB8] text-white py-2.5 rounded-lg font-bold">좋았어! 🎉</button>
+        <div class="modal-content grade-alert-content">
+            <span class="grade-alert-icon" aria-hidden="true">🎓</span>
+            <h2 id="levelUpTitle">학년이 올랐어요</h2>
+            <p class="grade-alert-grade">${to.label}</p>
+            <p class="grade-alert-description">차곡차곡 쌓은 훈련의 결과예요.</p>
+            <p class="grade-alert-status" role="status" aria-live="polite"></p>
+            <button type="button" class="grade-alert-confirm">확인</button>
+            <button type="button" class="grade-alert-later">나중에 확인</button>
         </div>`;
+    const confirmButton = overlay.querySelector('.grade-alert-confirm');
+    const laterButton = overlay.querySelector('.grade-alert-later');
+    const status = overlay.querySelector('.grade-alert-status');
+    const dialog = { userName, toKey, close };
+    function close(advance = true) {
+        overlay.remove();
+        document.removeEventListener('keydown', onKeyDown);
+        if (levelUpDialog !== dialog) return;
+        levelUpDialog = null;
+        document.body.style.overflow = previousOverflow;
+        if (state.currentUser === userName && previousFocus?.isConnected) previousFocus.focus();
+        if (advance) showNextCelebration();
+    }
+    function onKeyDown(event) {
+        if (event.key === 'Escape') { event.preventDefault(); close(); }
+        if (event.key !== 'Tab') return;
+        const first = confirmButton.disabled ? laterButton : confirmButton;
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); laterButton.focus(); }
+        else if (!event.shiftKey && document.activeElement === laterButton) { event.preventDefault(); first.focus(); }
+    }
+    confirmButton.onclick = async () => {
+        if (confirmButton.disabled) return;
+        if (state.currentUser !== userName || state.isCoach || isImpersonatedStudent(userName)) { close(); return; }
+        confirmButton.disabled = true;
+        confirmButton.textContent = '확인 저장 중…';
+        status.textContent = '';
+        try {
+            const ref = db.collection('users').doc(userName);
+            const seen = await db.runTransaction(async transaction => {
+                const snapshot = await transaction.get(ref);
+                if (isImpersonatedStudent(userName)) return null;
+                if (!snapshot.exists) throw new Error('수강생 정보를 불러오지 못했습니다.');
+                const stored = snapshot.data()?.gradeSeen;
+                // 다른 탭에서 더 높은 학년을 먼저 확인했어도 절대 낮추지 않는다.
+                if (gradeRank(stored) >= gradeRank(toKey)) return stored;
+                transaction.set(ref, { gradeSeen: toKey }, { merge: true });
+                return toKey;
+            });
+            if (!seen || state.currentUser !== userName || state.isCoach || isImpersonatedStudent(userName)) { close(); return; }
+            if (gradeRank(seen) > gradeRank(state.gradeSeen)) state.gradeSeen = seen;
+            close();
+        } catch (error) {
+            console.error('학년 확인 저장 실패:', error);
+            if (state.currentUser !== userName || state.isCoach || isImpersonatedStudent(userName)) { close(); return; }
+            if (levelUpDialog !== dialog) return;
+            status.textContent = '확인을 저장하지 못했어요. 다시 시도해주세요.';
+            confirmButton.disabled = false;
+            confirmButton.textContent = '다시 확인';
+            confirmButton.focus();
+        }
+    };
+    laterButton.onclick = () => close();
+    levelUpDialog = dialog;
     document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', onKeyDown);
+    confirmButton.focus();
 }
 
 // ============================================

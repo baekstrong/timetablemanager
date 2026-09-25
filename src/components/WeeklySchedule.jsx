@@ -25,12 +25,14 @@ import FreeWorkoutModal from './schedule/FreeWorkoutModal';
 import CoachSchedule from './schedule/CoachSchedule';
 import StudentSchedule from './schedule/StudentSchedule';
 import NoticeTicker from './board/NoticeTicker';
+import StudentGrowthHeader from './StudentGrowthHeader';
+import MonthlyPRBanner from './MonthlyPRBanner';
 import { useScheduleCore } from './schedule/useScheduleCore';
 import { buildUpdatedSchedule, parseSheetDate, weekDateToISO } from '../utils/scheduleUtils';
 import { syncMakeupWaitlists, normalizeWaitlistEntry } from '../services/makeupWaitlistService';
 import './WeeklySchedule.css';
 
-const WeeklySchedule = ({ user, studentData, isStudentDataLoading = false, onStudentDataRefresh, onNavigate, hasContractNotification = false, hasWaitlistNotification = false, view = 'schedule' }) => {
+const WeeklySchedule = ({ user, studentData, studentGrowth, isStudentDataLoading = false, onStudentDataRefresh, onNavigate, hasContractNotification = false, hasWaitlistNotification = false, view = 'schedule' }) => {
     const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student');
     const { students, isAuthenticated, isConnected, error: sheetsError, loading, refresh } = useGoogleSheets();
 
@@ -452,7 +454,9 @@ const WeeklySchedule = ({ user, studentData, isStudentDataLoading = false, onStu
 
     return (
         <div className={`schedule-container ${containerModeClass}${user?.role === 'student' && !isForceMode ? ' student-class-page' : ''}`}>
+            {user?.role === 'student' && !isForceMode && studentGrowth && <StudentGrowthHeader user={user} {...studentGrowth} onRetry={studentGrowth.retry} onOpen={() => onNavigate?.('ranking', 'graph')} />}
             {user?.role === 'student' && !isForceMode && <NoticeTicker user={user} onOpen={postId => onNavigate?.('post', postId)} refreshKey={refreshedAt} />}
+            {user?.role === 'student' && !isForceMode && <MonthlyPRBanner onOpen={() => onNavigate?.('ranking')} refreshKey={refreshedAt} />}
             {weeklyDataError && <p role="alert" style={{ color: 'var(--error)' }}>{weeklyDataError}</p>}
             {isTransferring && (
                 <div style={{

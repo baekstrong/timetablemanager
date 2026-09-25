@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getNoticeReads, getNoticeSummaries } from '../../services/noticeService';
 import { isNoticeUnread } from '../../utils/noticeState';
 import './NoticeTicker.css';
@@ -13,12 +13,17 @@ export default function NoticeTicker({ user, onOpen, services = DEFAULT_SERVICES
     const [paused, setPaused] = useState(false);
     const [interacting, setInteracting] = useState(false);
     const [hidden, setHidden] = useState(() => document.hidden);
+    const previousRequest = useRef(null);
     const notices = feed.owner === username ? feed.notices : [];
 
     useEffect(() => {
         if (!username) return;
         let cancelled = false;
-        Promise.all([services.getNoticeSummaries(), services.getNoticeReads(username)])
+        const previous = previousRequest.current;
+        const force = Boolean(previous && previous.username === username && previous.services === services
+            && (previous.retry !== retry || (previous.refreshKey != null && previous.refreshKey !== refreshKey)));
+        previousRequest.current = { username, services, refreshKey, retry };
+        Promise.all([services.getNoticeSummaries({ force }), services.getNoticeReads(username, { force })])
             .then(([notices, reads]) => {
                 if (!cancelled) { setFeed({ owner: username, notices, reads, error: false }); setIndex(0); }
             })

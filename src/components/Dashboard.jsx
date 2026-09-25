@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getMonthlyPRUpdaters, getTierMap, refreshStudentTier, backfillTiersForMonth, getGradeMap, refreshStudentXP, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../services/firebaseService';
+import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getTierMap, backfillTiersForMonth, getGradeMap, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
 import { initPush, isPushAvailable, getPushPermission, pushNotice } from '../services/pushService';
 import { resolvePushState } from '../utils/pushStatus';
@@ -11,24 +11,9 @@ import { POST_LIMITS } from '../data/boardConstants';
 import PostList from './board/PostList';
 import PostDetail from './board/PostDetail';
 import PostForm from './board/PostForm';
-import TierBadge from './TierBadge';
-import TierChangeModal from './TierChangeModal';
-import GradeChangeModal from './GradeChangeModal';
-import GradeHero from './GradeHero';
+import MonthlyPRBanner from './MonthlyPRBanner';
 import './board/Board.css';
 import './Dashboard.css';
-
-const formatPRSummary = (pr) => {
-    const i = pr.intensity || {};
-    const r = pr.reps || {};
-    switch (pr.prType) {
-        case 'oneRM': return `${i.value}${i.unit || 'kg'}`;
-        case 'weightThenReps': return `${i.value}${i.unit || 'kg'} × ${r.value}회`;
-        case 'timeHold': return `${r.value}초`;
-        case 'bodyweightReps': return `${r.value}회`;
-        default: return '';
-    }
-};
 
 // 알림 상태 줄 문구. 예전 배너는 권한이 'default'일 때만 떠서, 차단당했거나 토큰 등록에 실패한
 // 사람에겐 아무것도 안 보였다(= "알림 켜기 버튼이 없어요"의 원인). 4상태를 전부 안내한다.
@@ -84,13 +69,9 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
 
     const { students, refresh } = useGoogleSheets();
 
-    // 티어(출석 등급) — 게시판 뱃지용 이름→티어 맵 + 승급/강등 팝업
+    // 게시판 작성자 배지만 조회한다. 본인 성장 정보와 안내는 App의 내 수업에서 관리한다.
     const [tierMap, setTierMap] = useState({});
-    const [tierChange, setTierChange] = useState(null);
-    const [gradeChange, setGradeChange] = useState(null);
-    // 학년(XP) — 인사말 GradeHero용 + 게시판/댓글 학년 뱃지용
     const [gradeMap, setGradeMap] = useState({});
-    const [myXp, setMyXp] = useState(null); // null = 아직 로드 전 → 학년칩 숨김(초1 깜빡임 방지)
     // PR 축하 팝업 (코치 대리 입력 후 학생 첫 접속 시 1회)
     const [prCelebration, setPrCelebration] = useState(null);
 
@@ -163,27 +144,11 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
         return () => { cancel = true; };
     }, [user, students]);
 
-    // 새 달 첫 접속 시 지난달 활동으로 티어 재계산 → 변동 있으면 팝업.
-    // 같은 달엔 changed:false라 재실행돼도 중복 팝업 없음.
+    // 게시판은 배지와 기존 PR 축하만 담당한다. 티어·학년 확인 상태는 여기서 소비하지 않는다.
     useEffect(() => {
         if (!user || user.role === 'coach') return;
-        // 시트 로딩 완료 후 1회만 실행 — 마운트 직후 빈 students로 한 번 더 돌아
-        // 티어/XP/학년맵 조회가 전부 2배로 나가고 성별 없는 XP 계산이 선행되던 중복 제거.
         if (!students || students.length === 0) return;
         let cancel = false;
-        refreshStudentTier({ userName: user.username }).then(change => {
-            if (cancel || !change) return;
-            if (change.tier) setTierMap(prev => ({ ...prev, [user.username]: change.tier }));
-            if (change.changed) setTierChange(change);
-        }).catch(err => console.error('티어 갱신 실패:', err)); // 조용히 실패하면 뱃지가 지난달 값에 멈춘다
-        // 같은 학생이 여러 시트 행에 있을 수 있어 성별이 채워진 행을 우선(랭킹 genderMap과 동일).
-        const myGender = (students.find(s => (s['이름'] || '').trim() === user.username && (s['성별'] || '').trim())?.['성별'] || '').trim();
-        refreshStudentXP({ userName: user.username, gender: myGender }).then(res => {
-            if (cancel || !res) return;
-            setMyXp(res.xp);
-            if (res.isNew) setGradeChange({ from: null, to: res.grade, isNew: true });
-            else if (res.promoted) setGradeChange({ from: res.fromGrade, to: res.grade, isNew: false });
-        });
         getGradeMap().then(map => { if (!cancel && map) setGradeMap(map); });
         consumePRCelebration(user.username).then(p => {
             if (!cancel && p) setPrCelebration(p.kind === 'milestone'
@@ -210,49 +175,6 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
     }, [waitlistProcessingId]);
     // 수강생 재등록 계약
     const [pendingContract, setPendingContract] = useState(null);
-    // 이달의 PR 갱신자 미리보기
-    const [recentPRs, setRecentPRs] = useState([]);
-
-    // 이달의 PR 미리보기 (코치/학생 공통) — 전체 목록을 받아 배너에서 슬라이드 회전
-    useEffect(() => {
-        (async () => {
-            try {
-                const data = await getMonthlyPRUpdaters(30);
-                setRecentPRs(data);
-            } catch (err) {
-                console.error('이달의 PR 로드 실패:', err);
-            }
-        })();
-    }, [user]);
-
-    // 이달의 PR 배너: 3명씩 보여주며 위로 한 칸씩 슬라이드 (뉴스 티커 스타일)
-    const PR_VISIBLE = 3;
-    const PR_LINE_HEIGHT = 22; // px
-    const [prBannerIndex, setPrBannerIndex] = useState(0);
-    const [prBannerAnimate, setPrBannerAnimate] = useState(true);
-
-    useEffect(() => {
-        if (recentPRs.length <= PR_VISIBLE) { setPrBannerIndex(0); return; }
-        const id = setInterval(() => {
-            setPrBannerIndex((i) => i + 1);
-        }, 2500);
-        return () => clearInterval(id);
-    }, [recentPRs.length]);
-
-    // 끝(원본 길이 만큼 진행)에 도달하면 transition 끄고 0으로 점프 → 무한 루프 효과
-    useEffect(() => {
-        if (recentPRs.length <= PR_VISIBLE) return;
-        if (prBannerIndex !== recentPRs.length) return;
-        const t = setTimeout(() => {
-            setPrBannerAnimate(false);
-            setPrBannerIndex(0);
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => setPrBannerAnimate(true));
-            });
-        }, 550);
-        return () => clearTimeout(t);
-    }, [prBannerIndex, recentPRs.length]);
-
     useEffect(() => {
         if (user.role === 'coach') return;
         const loadStudentData = async () => {
@@ -518,19 +440,18 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
             </div>
 
             <div className="dashboard-content">
-                <header className="dashboard-header">
+                <header className={`dashboard-header${user.role !== 'coach' ? ' student-board-header' : ''}`}>
                     <div className="header-left">
                         <h1 className="dashboard-title">
-                            환영합니다, {user.role !== 'coach' && <TierBadge tier={tierMap[user.username]} style={{ height: '20px', fontSize: '0.75rem' }} />}{user.username}님
+                            {user.role === 'coach' ? `환영합니다, ${user.username}님` : '게시판'}
                         </h1>
-                        {user.role !== 'coach' && myXp != null && <GradeHero xp={myXp} onClick={() => onNavigate('ranking', 'graph')} />}
                     </div>
-                    <button onClick={onLogout} className="logout-button">
+                    {user.role === 'coach' && <button onClick={onLogout} className="logout-button">
                         <span>로그아웃</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                         </svg>
-                    </button>
+                    </button>}
                 </header>
 
                 {INSTALL_ROW[installState] && (
@@ -763,58 +684,8 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
                     </div>
                 )}
 
-                {/* 이달의 PR 카드 (랭킹 진입점) */}
-                <div
-                    onClick={() => onNavigate('ranking')}
-                    style={{
-                        marginBottom: '1rem',
-                        padding: '12px 16px',
-                        borderRadius: '10px',
-                        background: '#329BE71A',
-                        border: '1px solid var(--hairline)',
-                        cursor: 'pointer'
-                    }}
-                >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: recentPRs.length ? '8px' : 0 }}>
-                        <span style={{ fontWeight: 700, color: 'var(--accent-hover)', fontSize: '0.95rem' }}>🏆 이달의 PR</span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--accent-hover)' }}>랭킹 보기 ›</span>
-                    </div>
-                    {recentPRs.length === 0 ? (
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>최근 30일 갱신된 PR이 없습니다.</div>
-                    ) : (() => {
-                        const visibleCount = Math.min(PR_VISIBLE, recentPRs.length);
-                        const trackItems = recentPRs.length > PR_VISIBLE
-                            ? [...recentPRs, ...recentPRs.slice(0, PR_VISIBLE)]
-                            : recentPRs;
-                        return (
-                            <div style={{ overflow: 'hidden', height: `${visibleCount * PR_LINE_HEIGHT}px` }}>
-                                <div
-                                    style={{
-                                        transform: `translateY(-${prBannerIndex * PR_LINE_HEIGHT}px)`,
-                                        transition: prBannerAnimate ? 'transform 0.5s ease' : 'none'
-                                    }}
-                                >
-                                    {trackItems.map((p, idx) => (
-                                        <div
-                                            key={`${p.id}-${idx}`}
-                                            style={{
-                                                height: `${PR_LINE_HEIGHT}px`,
-                                                lineHeight: `${PR_LINE_HEIGHT}px`,
-                                                fontSize: '0.85rem',
-                                                color: 'var(--text)',
-                                                whiteSpace: 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis'
-                                            }}
-                                        >
-                                            <TierBadge tier={tierMap[p.userName]} /><strong>{p.userName}</strong> — {p.exercise} {formatPRSummary(p)} <span style={{ color: 'var(--text-muted)' }}>{p.date}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        );
-                    })()}
-                </div>
+                {/* 수강생 PR은 내 수업에서, 코치는 기존 게시판 위치에서 표시한다. */}
+                {user.role === 'coach' && <MonthlyPRBanner onOpen={() => onNavigate('ranking')} />}
 
                 {/* 게시판 섹션 */}
                 {viewMode === 'list' ? (
@@ -854,9 +725,6 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
                 )}
 
             </div>
-
-            <TierChangeModal change={tierChange} onClose={() => setTierChange(null)} />
-            <GradeChangeModal change={gradeChange} onClose={() => setGradeChange(null)} />
 
             {prCelebration && (
                 <div style={{

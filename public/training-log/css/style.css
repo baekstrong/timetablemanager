@@ -220,6 +220,19 @@ body.modal-open {
     -webkit-overflow-scrolling: touch;
 }
 
+.grade-alert-content { max-width:360px; border-radius:12px; text-align:center; color:#242428; }
+.grade-alert-icon { display:block; margin-bottom:12px; font-size:40px; }
+.grade-alert-content h2 { margin:0 0 10px; font-size:20px; font-weight:700; }
+.grade-alert-grade { margin:0 0 10px; color:#327AB8; font-size:26px; font-weight:800; }
+.grade-alert-description { margin:0; color:#66666b; font-size:14px; line-height:1.6; }
+.grade-alert-status { margin:12px 0; color:#b42318; font-size:13px; line-height:1.6; }
+.grade-alert-status:empty { margin:20px 0 0; }
+.grade-alert-content button { display:block; width:100%; min-height:44px; border:0; border-radius:8px; font:inherit; cursor:pointer; }
+.grade-alert-confirm { color:#fff; background:#329BE7; font-weight:700 !important; }
+.grade-alert-confirm:disabled { cursor:wait; opacity:.65; }
+.grade-alert-later { margin-top:4px; color:#66666b; background:transparent; }
+.grade-alert-content button:focus-visible { outline:2px solid #327AB8; outline-offset:2px; }
+
 /* Student Quick Navigation Bar (Sticky) */
 .student-quick-nav {
     position: sticky;

@@ -21,6 +21,8 @@ const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'))
 import BottomNav from './components/BottomNav';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import UpdateBanner from './components/UpdateBanner';
+import StudentGrowthModal from './components/StudentGrowthModal';
+import { useStudentGrowth } from './hooks/useStudentGrowth';
 import { startVersionCheck } from './utils/versionCheck';
 import { createVisibleTask } from './utils/visibleTask';
 import { getPendingRegistrationCount, getActiveWaitlistRequests, getPendingContractForStudent, getLatestPostCreatedAt, getNewStudentRegistrations, isMonthlyStampDone } from './services/firebaseService';
@@ -75,7 +77,14 @@ function AppContent() {
   const [hasStampPendingNotification, setHasStampPendingNotification] = useState(false);
   const [isStudentDataLoading, setIsStudentDataLoading] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const { findStudentAcrossSheets } = useGoogleSheets();
+  const { findStudentAcrossSheets, students, loading: sheetsLoading } = useGoogleSheets();
+  const growthGender = (students?.find(student => (student['이름'] || '').trim() === user?.username && (student['성별'] || '').trim())?.['성별'] || '').trim();
+  let growthReadOnly = Boolean(impersonationOrigin);
+  // 빙의 복원 effect보다 먼저 시작되는 조회도 본인 미확인 알림을 소비하지 않는다.
+  try { growthReadOnly ||= JSON.parse(sessionStorage.getItem(IMPERSONATION_STORAGE_KEY) || 'null')?.impersonatedName === user?.username && Boolean(user?.username); }
+  catch { /* 저장소를 사용할 수 없으면 현재 메모리의 빙의 상태를 따른다. */ }
+  const studentGrowth = useStudentGrowth({ user, gender: growthGender,
+    ready: !sheetsLoading && Boolean(students?.length), readOnly: growthReadOnly, month: calendarDay.slice(0, 7) });
 
   // 새 빌드 배포 감지 → 상단 새로고침 안내 배너
   useEffect(() => {
@@ -408,14 +417,14 @@ function AppContent() {
         return <Login onLogin={handleLogin} />;
 
       case 'today':
-        if (user?.role !== 'coach') return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} hasWaitlistNotification={hasWaitlistNotification} />;
+        if (user?.role !== 'coach') return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} hasWaitlistNotification={hasWaitlistNotification} />;
         return <WeeklySchedule key={`${user?.username}-${calendarDay}`} user={user} studentData={studentData} onNavigate={handleNavigate} onBack={handleBackToDashboard} view="today" />;
 
       case 'dashboard':
         return <Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} deepLinkPost={deepLinkPost} onDeepLinkDone={() => setDeepLinkPost(null)} />;
 
       case 'schedule':
-        return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} hasWaitlistNotification={hasWaitlistNotification} />;
+        return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} hasWaitlistNotification={hasWaitlistNotification} />;
 
       case 'holding':
         return <HoldingManager onStudentDataRefresh={refreshStudentData} key={holdingInitialDate} initialDate={holdingInitialDate} user={user} studentData={studentData} isLoading={isStudentDataLoading} onBack={handleBackToDashboard} />;
@@ -475,6 +484,10 @@ function AppContent() {
       <Suspense fallback={<PageLoading />}>
         {renderPage()}
       </Suspense>
+      {user?.role === 'student' && ['schedule', 'today'].includes(currentPage) && studentGrowth.showNotice && (
+        <StudentGrowthModal tierChange={studentGrowth.tierChange} gradeChange={studentGrowth.gradeChange}
+          busy={studentGrowth.busy} error={studentGrowth.confirmError} onConfirm={studentGrowth.confirm} onLater={studentGrowth.later} />
+      )}
       {currentPage !== 'login' && user && (
         <BottomNav
           currentPage={currentPage}

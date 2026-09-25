@@ -19,6 +19,7 @@ import {
     arrayRemove,
     increment,
     writeBatch,
+    runTransaction,
     onSnapshot,
     startAfter
 } from 'firebase/firestore';
@@ -1820,8 +1821,8 @@ export const getMonthlyAttendanceHistory = async (userName, monthsBack = 12) => 
 // ============================================
 
 // 지정 달(ym 'YYYY-MM')의 Firebase 활동 소스 수집. 본인 이름 + 그 달 날짜 범위로 경계해 읽는다.
-const getMonthlyActivitySources = async (userName, ym) => {
-    return safeRead({ recordDates: new Set(), freeDates: new Set() }, async () => {
+const getMonthlyActivitySources = async (userName, ym, { strict = false } = {}) => {
+    const load = async () => {
         const [y, m] = ym.split('-').map(Number);
         const monthStart = `${ym}-01`;
         const next = new Date(y, m, 1);
@@ -1830,50 +1831,96 @@ const getMonthlyActivitySources = async (userName, ym) => {
         // 본인분 + 그 달 범위로 경계해서 읽는다. 무경계(userName만)로 읽으면 재원 기간에
         // 비례해 read가 무한 증가 — 장기 수강생의 매월 첫 접속이 수백 read가 되던 원인.
         // (userName,date) 복합 인덱스는 훈련일지 달력이 상시 쓰는 조합이라 이미 존재.
-        // 만일 인덱스가 없어 실패하면 기존 무경계 쿼리로 폴백해 기능은 유지한다.
+        // 기존 호출만 실패 시 본인 전체 기록으로 폴백한다. 새 성장 화면(strict)은 오류로 전달한다.
         const inMonth = d => d && d >= monthStart && d < nextStart;
         // freeWorkoutAttendance는 (studentName,date) 복합 인덱스가 없어 범위 쿼리가 매번 실패하고
-        // 폴백으로 재조회했다(헛왕복 1회). 컬렉션이 소형이라 인덱스를 만들 이유가 없어 이름으로만 읽는다.
+        // 폴백으로 재조회했다(헛왕복 1회). 기존 제약: 월 티어 갱신 때 본인 전체 자율운동 이력을
+        // 한 번 읽고 아래에서 월을 거른다. 학생 이름 조건은 있으나 날짜 범위 조건은 없다.
         const [records, free] = await Promise.all([
             queryDocs('records', where('userName', '==', name), where('date', '>=', monthStart), where('date', '<', nextStart))
-                .catch(() => queryDocs('records', where('userName', '==', name))),
+                .catch(error => { if (strict) throw error; return queryDocs('records', where('userName', '==', name)); }),
             queryDocs('freeWorkoutAttendance', where('studentName', '==', name)),
         ]);
         const recordDates = new Set(records.filter(r => inMonth(r.date)).map(r => r.date));
         const freeDates = new Set(free.filter(r => inMonth(r.date)).map(r => r.date).filter(Boolean));
         return { recordDates, freeDates };
-    });
+    };
+    // 확인을 유예하는 새 성장 화면은 조회 실패를 0점으로 저장하지 않는다.
+    return strict ? load() : safeRead({ recordDates: new Set(), freeDates: new Set() }, load);
 };
 
+const growthRefreshInflight = new Map();
+function runGrowthRefresh(kind, name, deferSeen, fallback, load) {
+    const key = JSON.stringify([kind, name, deferSeen]);
+    if (growthRefreshInflight.has(key)) return growthRefreshInflight.get(key);
+    const request = (deferSeen
+        ? Promise.resolve().then(() => { assertFirebase(); return load(); })
+        : safeRead(fallback, load))
+        .finally(() => { if (growthRefreshInflight.get(key) === request) growthRefreshInflight.delete(key); });
+    growthRefreshInflight.set(key, request);
+    return request;
+}
+
+function pendingTierResult(data, month) {
+    const isNew = !data.prevTier;
+    const direction = isNew ? 0 : compareTiers(data.prevTier, data.tier);
+    return {
+        changed: Boolean(data.tierIntroPending) && (isNew || direction !== 0),
+        isNew, direction, tier: data.tier || null, prevTier: data.prevTier || null, month,
+    };
+}
+
 // 새 달 첫 접속 시 지난달 활동으로 티어 재계산 → users/{이름}에 저장.
-// 같은 달에 이미 계산했으면 그냥 현재 티어 반환(팝업 없음). 첫 계산(이전 티어 없음)은 팝업 생략.
-export const refreshStudentTier = async ({ userName }) => {
-    return safeRead({ changed: false, tier: null }, async () => {
-        const name = (userName || '').trim();
-        if (!name) return { changed: false, tier: null };
+// deferSeen은 계산과 실제 확인을 분리한다. 기존 호출자는 종전처럼 조회 시 소비한다.
+export const refreshStudentTier = async ({ userName, deferSeen = false }) => {
+    const name = (userName || '').trim();
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return runGrowthRefresh(`tier:${ym}`, name, deferSeen, { changed: false, tier: null }, async () => {
+        if (!name) {
+            if (deferSeen) throw new Error('성장 정보를 확인할 수강생 이름이 필요합니다.');
+            return { changed: false, tier: null };
+        }
         const userRef = doc(db, 'users', name);
         const snap = await getDoc(userRef);
-        if (!snap.exists()) return { changed: false, tier: null };
+        if (!snap.exists()) {
+            if (deferSeen) throw new Error('성장 정보를 불러올 사용자 정보를 찾지 못했습니다.');
+            return { changed: false, tier: null };
+        }
         const u = snap.data() || {};
-        const now = new Date();
-        const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         if (u.tierMonth === ym) {
             // 이번 달 등급은 이미 매겨짐(백필). 본인이 아직 안내를 못 받았으면 여기서 1회 팝업.
             // 백필이 저장해둔 prevTier로 승급/강등을 판정한다 — 무조건 인트로로 띄우면 승급 축하가 사라진다.
             if (u.tierIntroPending) {
-                await updateDoc(userRef, { tierIntroPending: false });
-                const isNew = !u.prevTier;
-                const direction = isNew ? 0 : compareTiers(u.prevTier, u.tier);
-                return { changed: isNew || direction !== 0, isNew, direction, tier: u.tier, prevTier: u.prevTier || null };
+                if (!deferSeen) await updateDoc(userRef, { tierIntroPending: false });
+                return pendingTierResult(u, ym);
             }
-            return { changed: false, tier: u.tier };
+            return { changed: false, tier: u.tier, month: ym };
         }
 
         const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const lastYm = `${lm.getFullYear()}-${String(lm.getMonth() + 1).padStart(2, '0')}`;
-        const src = await getMonthlyActivitySources(name, lastYm);
+        const src = await getMonthlyActivitySources(name, lastYm, { strict: deferSeen });
         const score = computeActiveScore(src);
         const tier = scoreToTier(score);
+        if (deferSeen) {
+            const result = await runTransaction(db, async transaction => {
+                const latest = await transaction.get(userRef);
+                if (!latest.exists()) throw new Error('성장 정보를 저장할 사용자 정보를 찾지 못했습니다.');
+                const current = latest.data() || {};
+                // 다른 탭/백필이 이미 이번 달을 저장하거나 확인했다면 다시 pending으로 만들지 않는다.
+                if (/^\d{4}-\d{2}$/.test(current.tierMonth || '') && current.tierMonth >= ym) {
+                    return pendingTierResult(current, current.tierMonth);
+                }
+                const prevTier = current.tier || null;
+                const changed = !prevTier || compareTiers(prevTier, tier.key) !== 0;
+                const patch = { tier: tier.key, tierMonth: ym, tierScore: score, prevTier, tierIntroPending: changed };
+                transaction.update(userRef, { ...patch, tierUpdatedAt: serverTimestamp() });
+                return { ...pendingTierResult(patch, ym), score };
+            });
+            if (usersMapsCache && result.tier) usersMapsCache.tierMap[name] = result.tier;
+            return result;
+        }
         const prevTier = u.tier || null;
         const isNew = !prevTier; // 첫 계산 → 등급 안내 팝업
         const direction = prevTier ? compareTiers(prevTier, tier.key) : 0;
@@ -1884,7 +1931,7 @@ export const refreshStudentTier = async ({ userName }) => {
         // 캐시를 통째로 비우면 다음 getTierMap이 users 전체를 재스캔한다 → 해당 항목만 제자리 갱신
         if (usersMapsCache) usersMapsCache.tierMap[name] = tier.key;
         // 첫 진입(isNew)이면 무조건 팝업, 이후엔 승급/강등 시에만.
-        return { changed: isNew || direction !== 0, isNew, direction, score, tier: tier.key, prevTier };
+        return { changed: isNew || direction !== 0, isNew, direction, score, tier: tier.key, prevTier, month: ym };
     });
 };
 
@@ -2090,13 +2137,20 @@ export const syncUnpaidStudents = async (students) => {
 const xpSessionCache = new Map(); // name -> { xp, grade }
 
 // 본인 records 전량 재계산 → users/{이름}에 xp/grade 저장. (본인 데이터로 경계됨, 폭증 아님)
-export const refreshStudentXP = async ({ userName, gender }) => {
-    return safeRead({ xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null }, async () => {
-        const name = (userName || '').trim();
-        if (!name) return { xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null };
+export const refreshStudentXP = async ({ userName, gender, deferSeen = false }) => {
+    const name = (userName || '').trim();
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return runGrowthRefresh(`xp:${month}:${gender || ''}`, name, deferSeen, { xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null }, async () => {
+        if (!name) {
+            if (deferSeen) throw new Error('성장 정보를 확인할 수강생 이름이 필요합니다.');
+            return { xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null };
+        }
         // 이번 세션서 이미 계산했으면 저장값만 반환 — user doc·records 재조회·재팝업 없음.
         // 단, 늦게 도착한 확실한 성별로 계수가 바뀌면(예: 시트 로드 후 '여') 재계산해 오염된 값을 치유한다.
-        if (xpSessionCache.has(name)) {
+        // 유예 모드는 다른 화면/기기의 확인 결과까지 본인 문서에서 다시 읽는다.
+        // 미확인 이벤트를 캐시에서 지우거나 이미 확인한 이벤트를 재생하지 않는다.
+        if (!deferSeen && xpSessionCache.has(name)) {
             const c = xpSessionCache.get(name);
             if (resolveCoef(gender, c.coef) === c.coef) {
                 return { xp: c.xp, grade: c.grade, isNew: false, promoted: false, fromGrade: null };
@@ -2104,7 +2158,10 @@ export const refreshStudentXP = async ({ userName, gender }) => {
         }
         const userRef = doc(db, 'users', name);
         const snap = await getDoc(userRef);
-        if (!snap.exists()) return { xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null };
+        if (!snap.exists()) {
+            if (deferSeen) throw new Error('성장 정보를 불러올 사용자 정보를 찾지 못했습니다.');
+            return { xp: 0, grade: null, isNew: false, promoted: false, fromGrade: null };
+        }
         const u = snap.data() || {};
         // 성별 미도착(시트 로딩 지연) 시 1로 리셋하지 말고 저장된 xpCoef를 유지 → 학년 하락/깜빡임 방지.
         const coef = resolveCoef(gender, u.xpCoef);
@@ -2115,6 +2172,28 @@ export const refreshStudentXP = async ({ userName, gender }) => {
             const records = await queryDocs('records', where('userName', '==', name));
             let vol = 0; for (const r of records) vol += recordVolume(r);
             xpVolume = vol;
+        }
+        if (deferSeen) {
+            const result = await runTransaction(db, async transaction => {
+                const latest = await transaction.get(userRef);
+                if (!latest.exists()) throw new Error('성장 정보를 저장할 사용자 정보를 찾지 못했습니다.');
+                const current = latest.data() || {};
+                // 훈련일지의 증분/확인이 먼저 끝났다면 가장 최근 카운터와 확인값을 보존한다.
+                const currentVolume = typeof current.xpVolume === 'number' ? current.xpVolume : xpVolume;
+                const currentCoef = resolveCoef(gender, current.xpCoef);
+                const xp = Math.round(currentVolume * currentCoef);
+                const grade = xpToGrade(xp).key;
+                const prevSeen = current.gradeSeen || null;
+                const promoted = Boolean(prevSeen) && gradeRank(prevSeen) >= 0 && gradeRank(grade) > gradeRank(prevSeen);
+                const patch = { xp, xpVolume: currentVolume, xpCoef: currentCoef, grade };
+                if (Object.entries(patch).some(([key, value]) => current[key] !== value)) {
+                    transaction.update(userRef, { ...patch, gradeUpdatedAt: serverTimestamp() });
+                }
+                return { xp, grade, isNew: !prevSeen, promoted, fromGrade: promoted ? prevSeen : null };
+            });
+            if (usersMapsCache) usersMapsCache.gradeMap[name] = result.grade;
+            xpSessionCache.delete(name);
+            return result;
         }
         const xp = Math.round(xpVolume * coef);
         const grade = xpToGrade(xp).key;

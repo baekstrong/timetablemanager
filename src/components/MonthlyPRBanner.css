@@ -1,0 +1,22 @@
+.monthly-pr-banner { min-width: 0; margin-bottom: var(--sp-md); padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--accent-10); color: var(--text); }
+.monthly-pr-heading { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.monthly-pr-heading h2 { flex-shrink: 0; margin: 0; color: var(--accent-hover); font-size: 14px; line-height: 1.5; }
+.monthly-pr-banner button { font: inherit; cursor: pointer; }
+.monthly-pr-link { min-height: 32px; margin-left: auto; padding: 4px 0; border: 0; background: transparent; color: var(--accent-hover); font-size: 12px !important; white-space: nowrap; }
+.monthly-pr-controls { display: flex; flex-shrink: 0; gap: 2px; }
+.monthly-pr-controls button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--r-chip); background: transparent; color: var(--accent-hover); }
+.monthly-pr-controls button:first-child { font-size: 22px; }
+.monthly-pr-controls button:hover, .monthly-pr-controls button[aria-pressed="true"] { background: var(--accent-10); }
+.monthly-pr-records { display: block; width: 100%; min-width: 0; margin-top: 4px; padding: 0; border: 0; border-radius: var(--r-chip); background: transparent; color: var(--text); text-align: left; }
+.monthly-pr-row { display: block; height: 24px; line-height: 24px; font-size: 13px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.monthly-pr-date { color: var(--text-secondary); font-size: 11px; }
+.monthly-pr-message { margin: 4px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
+.monthly-pr-error { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.monthly-pr-error button { min-height: 32px; border: 0; background: transparent; color: var(--accent-hover); font-size: 12px; text-decoration: underline; }
+.monthly-pr-banner button:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
+@media (max-width: 359px) {
+    .monthly-pr-banner { padding: 8px 10px; }
+    .monthly-pr-heading { gap: 4px; }
+    .monthly-pr-heading h2 { font-size: 13px; }
+    .monthly-pr-link { font-size: 11px !important; }
+}

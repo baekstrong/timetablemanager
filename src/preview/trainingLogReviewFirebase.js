@@ -143,6 +143,51 @@ export function createMemoryFirestore(initialDocuments = {}, onChange = () => {}
         doc: path => documentReference(path),
         // Resolve without opening IndexedDB. Writes still finish in this memory map.
         enablePersistence: async () => {},
+        runTransaction: async callback => {
+            // Match the compat get/set contract without sending anything outside
+            // this map. Failed callbacks commit nothing; overlapping reads retry.
+            for (let attempt = 0; attempt < 5; attempt++) {
+                const reads = new Map();
+                const pending = [];
+                const transaction = {
+                    get: async ref => {
+                        if (pending.length) throw new Error('트랜잭션은 쓰기 전에 문서를 읽어야 합니다.');
+                        const data = clone(documents.get(ref.path));
+                        reads.set(ref.path, data);
+                        log('get', ref.path);
+                        return { ...documentSnapshot(ref.path),
+                            data: () => clone(data), get: name => clone(field(data, name)) };
+                    },
+                    set: (ref, data, options = {}) => {
+                        pending.push({ type: 'set', path: ref.path, data: clone(data), merge: options.merge });
+                        return transaction;
+                    },
+                    update: (ref, data) => {
+                        pending.push({ type: 'update', path: ref.path, data: clone(data), merge: true });
+                        return transaction;
+                    },
+                    delete: ref => { pending.push({ type: 'delete', path: ref.path }); return transaction; },
+                };
+                const result = await callback(transaction);
+                if ([...reads].some(([path, data]) => !equal(documents.get(path), data))) continue;
+                const staged = new Map(documents);
+                for (const operation of pending) {
+                    if (operation.type === 'delete') staged.delete(operation.path);
+                    else {
+                        if (operation.type === 'update' && !staged.has(operation.path)) throw new Error(`검토 문서가 없습니다: ${operation.path}`);
+                        staged.set(operation.path, patch(operation.merge ? staged.get(operation.path) : {}, operation.data));
+                    }
+                }
+                for (const { path } of pending) {
+                    if (staged.has(path)) documents.set(path, staged.get(path));
+                    else documents.delete(path);
+                }
+                pending.forEach(({ type, path }) => log(type, path));
+                if (pending.length) notify();
+                return result;
+            }
+            throw new Error('검토 트랜잭션의 동시 변경을 처리하지 못했습니다. 다시 시도해 주세요.');
+        },
         batch: () => {
             const pending = [];
             const batch = {
