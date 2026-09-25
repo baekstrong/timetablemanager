@@ -73,3 +73,17 @@
 @media(max-width:360px) { .student-class-day .student-class-status { padding:1px 3px; font-size:10px; } }
 
 .student-class-grid-time strong { font-size:12px; color:var(--text); white-space:nowrap; }
+
+.student-class-grid-legend { display:flex; flex-wrap:wrap; gap:12px; margin:0 0 8px; color:var(--text-secondary); font-size:11px; }
+.student-class-grid-legend span { display:flex; align-items:center; gap:4px; }
+.student-class-grid-legend span::before { content:""; width:10px; height:10px; border:1px solid var(--hairline); border-radius:2px; }
+.student-classes .student-class-grid .student-class-slot.slot-kind-lesson { background:var(--accent-10); color:var(--text); }
+.student-classes .student-class-grid .student-class-slot.slot-kind-free { background:color-mix(in srgb, var(--caution) 20%, var(--canvas)); color:var(--text); }
+.student-classes .student-class-grid .student-class-slot.slot-kind-empty { background:var(--hairline); color:var(--text-secondary); }
+.student-classes .student-class-grid .student-class-slot.status-regular,
+.student-classes .student-class-grid .student-class-slot.status-makeup { border-color:var(--accent); }
+.student-class-grid-legend .is-lesson::before { background:var(--accent-10); }
+.student-class-grid-legend .is-free::before { background:color-mix(in srgb, var(--caution) 20%, var(--canvas)); }
+.student-class-grid-legend .is-empty::before { background:var(--hairline); }
+
+.student-class-grid-time span { white-space:nowrap; }
