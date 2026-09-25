@@ -78,15 +78,6 @@ const BottomNav = ({ currentPage, user, onNavigate, hasNewStudentNotification, h
             )
         },
         {
-            id: 'holding',
-            label: '홀딩/결석',
-            icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-            )
-        },
-        {
             id: 'myinfo',
             label: '내 정보',
             icon: (
@@ -97,7 +88,12 @@ const BottomNav = ({ currentPage, user, onNavigate, hasNewStudentNotification, h
         }
     ];
 
-    const tabs = user.role === 'coach' ? coachTabs : studentTabs;
+    const tabs = user.role === 'coach' ? coachTabs : [
+        { ...studentTabs[1], label: '내 수업' }, studentTabs[2], studentTabs[0], studentTabs[3],
+    ];
+    const activePage = user.role === 'coach' ? currentPage
+        : currentPage === 'holding' || currentPage === 'today' ? 'schedule'
+        : currentPage === 'contractView' ? 'myinfo' : currentPage;
 
     const handleTabClick = (tabId) => {
         if (tabId === 'training-log' && !preview) {
@@ -108,23 +104,27 @@ const BottomNav = ({ currentPage, user, onNavigate, hasNewStudentNotification, h
     };
 
     return (
-        <nav className="bottom-nav" aria-label="주요 메뉴">
+        <nav className="bottom-nav" data-role={user.role === 'coach' ? 'coach' : 'student'} aria-label="주요 메뉴">
             {tabs.map(tab => {
-                const isActive = currentPage === tab.id;
+                const isActive = activePage === tab.id;
                 return (
                     <button
                         key={tab.id}
+                        type="button"
                         aria-current={isActive ? 'page' : undefined}
                         className={`bottom-nav-tab ${isActive ? 'active' : ''}`}
                         onClick={() => handleTabClick(tab.id)}
                     >
                         <div className="tab-indicator" />
-                        <div className="tab-icon">
+                        <div className="tab-icon" aria-hidden="true">
                             {tab.icon}
                             {tab.id === 'newstudents' && hasNewStudentNotification && (
                                 <span className="notification-dot" />
                             )}
-                            {((tab.id === 'today' && (hasWaitlistNotification || hasContractNotification)) || (tab.id === 'dashboard' && (hasNewPostNotification || hasWaitlistNotification || hasContractNotification))) && (
+                            {((tab.id === 'today' && (hasWaitlistNotification || hasContractNotification))
+                                || (tab.id === 'schedule' && user.role !== 'coach' && hasWaitlistNotification)
+                                || (tab.id === 'myinfo' && hasContractNotification)
+                                || (tab.id === 'dashboard' && hasNewPostNotification)) && (
                                 <span className="notification-dot" />
                             )}
                             {tab.id === 'training-log' && hasStampPendingNotification && (

@@ -1,0 +1,9 @@
+.slr-banner { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--hairline); background: var(--canvas-tint); font-size: 11px; color: var(--text-secondary); }
+.slr-banner button, .slr-refresh, .slr-tools button, .slr-unchanged button { min-height: 36px; padding: 6px 10px; border: 1px solid var(--hairline); border-radius: var(--r-chip); background: var(--canvas); color: var(--text-secondary); font: inherit; cursor: pointer; }
+.slr-refresh { margin-left: auto; min-height: 44px; }
+.slr-notice { padding: 10px 16px; background: var(--accent-10); color: var(--text); font-size: 13px; }
+.slr-tools { margin-top: 24px; border-top: 1px solid var(--hairline); padding-top: 12px; font-size: 12px; color: var(--text-secondary); }
+.slr-tools summary { padding: 8px 0; cursor: pointer; }
+.slr-tools p { margin-top: 8px; }
+.slr-unchanged { max-width: 480px; margin: 32px auto; padding: 20px; }
+.slr-unchanged p { margin: 16px 0; line-height: 1.7; }

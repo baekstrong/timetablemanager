@@ -24,12 +24,13 @@ import CoachWaitlistModal from './schedule/CoachWaitlistModal';
 import FreeWorkoutModal from './schedule/FreeWorkoutModal';
 import CoachSchedule from './schedule/CoachSchedule';
 import StudentSchedule from './schedule/StudentSchedule';
+import NoticeTicker from './board/NoticeTicker';
 import { useScheduleCore } from './schedule/useScheduleCore';
 import { buildUpdatedSchedule, parseSheetDate, weekDateToISO } from '../utils/scheduleUtils';
 import { syncMakeupWaitlists, normalizeWaitlistEntry } from '../services/makeupWaitlistService';
 import './WeeklySchedule.css';
 
-const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) => {
+const WeeklySchedule = ({ user, studentData, isStudentDataLoading = false, onStudentDataRefresh, onNavigate, hasContractNotification = false, hasWaitlistNotification = false, view = 'schedule' }) => {
     const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student');
     const { students, isAuthenticated, isConnected, error: sheetsError, loading, refresh } = useGoogleSheets();
 
@@ -78,6 +79,11 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
         return user;
     }, [isForceMode, forceModeStudent, user]);
     const effectiveStudentData = isForceMode ? forceModeStudentData : studentData;
+    // 개별 수강권 조회가 성공해도 전체 명단이 없으면 보강 여석을 판단할 수 없다.
+    const studentRosterError = user?.role !== 'coach'
+        ? sheetsError ? '최신 수강생 명단을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.'
+            : !students?.length ? '수강생 명단을 확인할 수 없습니다. 새로고침 후 다시 확인해주세요.' : ''
+        : '';
 
     // 코치/학생 공통 파생 데이터 + useWeeklyData 래핑
     const scheduleCore = useScheduleCore({ user: effectiveUser, students, mode, studentData: effectiveStudentData, refresh, pendingRegistrations });
@@ -90,7 +96,7 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
         isMakeupHeld,
         lastDayStudents, delayedReregistrationStudents, lastClassByName,
         getCellData, getHolidayInfo,
-        unpaidStudentNames, weeklyDataLoaded, weeklyDataError, weekFreeWorkout, freeWorkoutRoster,
+        weekHoldings, weekHolidays, getEffectiveEndDate, unpaidStudentNames, weeklyDataLoaded, weeklyDataError, weekFreeWorkout, freeWorkoutRoster,
     } = scheduleCore;
 
     const homeLoaded = useRef(false);
@@ -280,7 +286,7 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
         setIsRefreshing(true);
         setRefreshMsg('');
         try {
-            await refresh();
+            await Promise.all([refresh(), onStudentDataRefresh?.()]);
             await loadWeeklyData();
             setRefreshedAt(Date.now());
             setRefreshMsg('✓ 최신 상태입니다');
@@ -389,13 +395,13 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
         ? '코치 시간표'
         : mode === 'studentForce'
             ? (forceModeStudent ? `수강생 전용 — ${forceModeStudent}` : '수강생 전용 시간표')
-            : '수강생 시간표';
+            : user?.role === 'coach' ? '수강생 시간표' : '내 수업';
 
     // ── Loading / not-authenticated states ──
 
     // 최초 로드만 전체화면 스피너. 수동 새로고침(isRefreshing) 중엔 표+버튼을 유지해
     // 새로고침 버튼이 사라져 클릭이 유실되는 문제를 막는다.
-    if (user?.role !== 'coach' && loading && !isRefreshing) {
+    if (user?.role !== 'coach' && (loading || isStudentDataLoading) && !isRefreshing) {
         return (
             <div className="schedule-container">
                 <div className="schedule-page-header">
@@ -445,7 +451,8 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
     const containerModeClass = mode === 'studentForce' ? 'mode-student' : `mode-${mode}`;
 
     return (
-        <div className={`schedule-container ${containerModeClass}`}>
+        <div className={`schedule-container ${containerModeClass}${user?.role === 'student' && !isForceMode ? ' student-class-page' : ''}`}>
+            {user?.role === 'student' && !isForceMode && <NoticeTicker user={user} onOpen={postId => onNavigate?.('post', postId)} refreshKey={refreshedAt} />}
             {weeklyDataError && <p role="alert" style={{ color: 'var(--error)' }}>{weeklyDataError}</p>}
             {isTransferring && (
                 <div style={{
@@ -502,6 +509,13 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
                 </>}
 
             </div>
+
+            {user?.role !== 'coach' && (hasContractNotification || hasWaitlistNotification) && (
+                <div className="student-account-actions" aria-label="확인할 알림">
+                    {hasContractNotification && <button onClick={() => onNavigate?.('contractView')}>재등록 계약서 확인 <span aria-hidden="true">→</span></button>}
+                    {hasWaitlistNotification && <button onClick={() => onNavigate?.('dashboard')}>고정 시간 변경 대기 알림 확인 <span aria-hidden="true">→</span></button>}
+                </div>
+            )}
 
             {/* Google Sheets 연동 상태 (코치 전용) — 모드 토글 위 */}
             {user?.role === 'coach' && (
@@ -675,12 +689,18 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
                     getCellData={getCellData}
                     getHolidayInfo={getHolidayInfo}
                     loadWeeklyData={loadWeeklyData}
-                    refreshStudents={refresh}
+                    refreshStudents={async () => { await Promise.all([refresh(), onStudentDataRefresh?.()]); }}
                     isClassDisabled={isClassDisabled}
                     isSlotLocked={isSlotLocked}
                     newStudentWaitlist={newStudentWaitlist}
                     onCoachCellClick={handleCoachWaitlistCellClick}
                     freeWorkoutByDate={freeWorkoutByDate}
+                    onNavigate={onNavigate}
+                    weekHolidays={weekHolidays}
+                    weekHoldings={weekHoldings}
+                    weeklyDataLoaded={weeklyDataLoaded && (user?.role === 'coach' || (!loading && !isStudentDataLoading && !studentRosterError))}
+                    weeklyDataError={studentRosterError || weeklyDataError}
+                    getEffectiveEndDate={getEffectiveEndDate}
                 />
             )}
 
@@ -727,11 +747,17 @@ const WeeklySchedule = ({ user, studentData, onNavigate, view = 'schedule' }) =>
                     getCellData={getCellData}
                     getHolidayInfo={getHolidayInfo}
                     loadWeeklyData={loadWeeklyData}
-                    refreshStudents={refresh}
+                    refreshStudents={async () => { await Promise.all([refresh(), onStudentDataRefresh?.()]); }}
                     isClassDisabled={isClassDisabled}
                     isSlotLocked={isSlotLocked}
                     forceMode={true}
                     freeWorkoutByDate={freeWorkoutByDate}
+                    onNavigate={onNavigate}
+                    weekHolidays={weekHolidays}
+                    weekHoldings={weekHoldings}
+                    weeklyDataLoaded={weeklyDataLoaded}
+                    weeklyDataError={weeklyDataError}
+                    getEffectiveEndDate={getEffectiveEndDate}
                 />
             )}
 

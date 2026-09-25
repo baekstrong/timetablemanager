@@ -1,10 +1,32 @@
 import { describe, it, expect } from 'vitest';
-import { getPeriodEndMinutes, isPeriodImminentOrOngoing, wouldDoubleBookDay, isDelayedReregistration, slotsOf } from './scheduleUtils';
+import { getPeriodEndMinutes, isPeriodImminentOrOngoing, wouldDoubleBookDay, isDelayedReregistration, slotsOf, getThisWeekRange, weekDateToISO } from './scheduleUtils';
 
 const P5 = { id: 5, name: '5교시', time: '19:50 ~ 21:20', startHour: 19, startMinute: 50 };
 const P3 = { id: 3, name: '3교시(자율)', time: '15:00 ~ 17:00', type: 'free', startHour: 15, startMinute: 0 };
 
 const at = (h, m) => new Date(2026, 5, 12, h, m); // 임의의 날짜, 시각만 의미 있음
+
+describe('일요일부터 전환하는 이번 주 시간표', () => {
+    it('토요일은 지난 월~금, 일요일 0시부터 다음 월~금이다', () => {
+        expect(getThisWeekRange(new Date(2026, 8, 26, 23, 59, 59)))
+            .toEqual({ start: '2026-09-21', end: '2026-09-25' });
+        expect(getThisWeekRange(new Date(2026, 8, 27, 0, 0, 0)))
+            .toEqual({ start: '2026-09-28', end: '2026-10-02' });
+        expect(getThisWeekRange(new Date(2026, 8, 28, 9)))
+            .toEqual({ start: '2026-09-28', end: '2026-10-02' });
+    });
+    it('연말·연초에도 월~금 날짜와 M/D의 실제 연도를 유지한다', () => {
+        expect(getThisWeekRange(new Date(2026, 11, 27)))
+            .toEqual({ start: '2026-12-28', end: '2027-01-01' });
+        expect(getThisWeekRange(new Date(2027, 0, 1)))
+            .toEqual({ start: '2026-12-28', end: '2027-01-01' });
+        expect(getThisWeekRange(new Date(2027, 0, 3)))
+            .toEqual({ start: '2027-01-04', end: '2027-01-08' });
+        expect(weekDateToISO('1/1', new Date(2026, 11, 27))).toBe('2027-01-01');
+        expect(weekDateToISO('12/28', new Date(2027, 0, 1))).toBe('2026-12-28');
+        expect(weekDateToISO('1/4', new Date(2027, 0, 3))).toBe('2027-01-04');
+    });
+});
 
 describe('getPeriodEndMinutes', () => {
     it('time 문자열의 끝 시간을 분으로 반환한다', () => {

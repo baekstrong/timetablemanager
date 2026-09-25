@@ -1,4 +1,4 @@
-import { state, db, firebaseInitialized } from '../state.js';
+import { state, db } from '../state.js';
 
 // ============================================
 // 운동 종목 관리 (Exercises Collection)
@@ -14,7 +14,7 @@ export async function loadExercisesList() {
             const names = JSON.parse(cached);
             exercisesCache = names;
             updateExerciseDatalistFromNames(names);
-        } catch (e) { /* 캐시 파싱 실패 시 무시 */ }
+        } catch { /* 캐시 파싱 실패 시 무시 */ }
     }
 
     try {
@@ -93,7 +93,7 @@ export async function addExercise() {
 
         await db.collection('exercises').add({
             name: name,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            createdAt: window.firebase.firestore.FieldValue.serverTimestamp()
         });
 
         input.value = '';
@@ -171,13 +171,13 @@ export function loadMyCustomExercises() {
     try {
         const raw = localStorage.getItem(customCacheKey());
         if (raw) myCustomExercisesCache = JSON.parse(raw) || [];
-    } catch (e) { /* 캐시 파싱 실패 무시 */ }
+    } catch { /* 캐시 파싱 실패 무시 */ }
 }
 
 function rememberCustomExercise(name) {
     if (!name || exercisesCache.includes(name) || myCustomExercisesCache.includes(name)) return;
     myCustomExercisesCache.push(name);
-    try { localStorage.setItem(customCacheKey(), JSON.stringify(myCustomExercisesCache)); } catch (e) { /* 무시 */ }
+    try { localStorage.setItem(customCacheKey(), JSON.stringify(myCustomExercisesCache)); } catch { /* 무시 */ }
 }
 
 // Called when exercises are loaded from Firestore
@@ -209,28 +209,16 @@ export function handleExerciseSearch(query) {
     const all = [...exercisesCache, ...myCustomExercisesCache.filter(n => !exercisesCache.includes(n))];
     const q = (query || '').trim();
     const filtered = q
-        ? all.filter(name => name.toLowerCase().includes(q.toLowerCase()))
+        ? all.filter(name => normalizeExerciseName(name).includes(normalizeExerciseName(q)))
         : all;
 
     let html = filtered.map(name => {
         const mine = myCustomExercisesCache.includes(name) && !exercisesCache.includes(name);
-        return `
-        <div class="px-4 py-3 hover:bg-[#329BE71A] cursor-pointer text-gray-700 font-medium border-b border-[#EFEFF0] last:border-0 transition-colors"
-             onclick="selectExerciseSuggestion('${name}')">
-            ${name}${mine ? ' <span class="text-xs text-gray-400">(내 종목)</span>' : ''}
-        </div>`;
+        return `<button type="button" data-exercise-name="${escapeHtml(name)}"><span>${escapeHtml(name)}</span>${mine ? '<small>내 종목</small>' : ''}</button>`;
     }).join('');
-
-    // 목록에 정확히 일치하는 종목이 없으면 '직접 추가' 옵션 노출 (개인 운동용)
     const safeQ = q.replace(/['"\\<>]/g, '');
-    const exact = all.some(name => name.toLowerCase() === q.toLowerCase());
-    if (safeQ && !exact) {
-        html += `
-        <div class="px-4 py-3 hover:bg-[#329BE71A] cursor-pointer text-[#329BE7] font-semibold border-t border-[#EFEFF0] transition-colors"
-             onclick="selectCustomExercise('${safeQ}')">
-            + '${safeQ}' 직접 추가 <span class="text-xs text-gray-400">(내 운동으로 저장)</span>
-        </div>`;
-    }
+    const exact = all.some(name => normalizeExerciseName(name) === normalizeExerciseName(q));
+    if (safeQ && !exact) html += `<button type="button" data-custom-exercise="${escapeHtml(safeQ)}"><span>＋ '${escapeHtml(safeQ)}' 직접 추가</span><small>내 운동으로 저장</small></button>`;
 
     if (!html) {
         suggestionBox.classList.add('hidden');
@@ -239,9 +227,35 @@ export function handleExerciseSearch(query) {
 
     suggestionBox.innerHTML = html;
     suggestionBox.classList.remove('hidden');
+    document.getElementById('exercise')?.setAttribute('aria-expanded', 'true');
+}
+
+export function handleExerciseSearchKeydown(event) {
+    const box = document.getElementById('exerciseSuggestions');
+    if (event.key === 'Escape') { box?.classList.add('hidden'); event.currentTarget.setAttribute('aria-expanded', 'false'); }
+    if (event.key === 'ArrowDown' && !box?.classList.contains('hidden')) { event.preventDefault(); box?.querySelector('button')?.focus(); }
+}
+
+export function handleExerciseSuggestionKeydown(event) {
+    const box = document.getElementById('exerciseSuggestions');
+    if (!box) return;
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        document.getElementById('exercise')?.focus();
+        box.classList.add('hidden');
+        document.getElementById('exercise')?.setAttribute('aria-expanded', 'false');
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        const buttons = [...box.querySelectorAll('button')];
+        const index = buttons.indexOf(event.target);
+        if (index < 0) return;
+        event.preventDefault();
+        buttons[(index + (event.key === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length]?.focus();
+    }
 }
 
 export function selectExerciseSuggestion(name) {
+    window.prepareStudentExercise?.(name);
     const input = document.getElementById('exercise');
     if (input) {
         input.value = name;
@@ -260,7 +274,8 @@ export function selectExerciseSuggestion(name) {
     if (window.renderExerciseMemo) window.renderExerciseMemo();
 
     // 이전 기록 불러오기 confirm
-    if (window.loadPreviousRecord) window.loadPreviousRecord(name);
+    if (!window.prepareStudentExercise && window.loadPreviousRecord) window.loadPreviousRecord(name);
+    input?.setAttribute('aria-expanded', 'false');
 }
 
 // 개인 운동 직접 추가 — 공용 목록에 없는 종목을 본인 종목으로 등록해 선택
@@ -272,7 +287,8 @@ export function selectCustomExercise(rawName) {
 }
 
 // 선택 잠금 해제 — 다시 검색할 수 있게 입력칸 비우고 풀어줌
-export function clearExerciseSelection() {
+export function clearExerciseSelection(options = {}) {
+    window.clearStudentExercise?.(options);
     const input = document.getElementById('exercise');
     if (input) {
         input.value = '';
@@ -301,10 +317,17 @@ export function isCustomExercise(name) {
 document.addEventListener('click', function (e) {
     const suggestionBox = document.getElementById('exerciseSuggestions');
     const input = document.getElementById('exercise');
+    const exerciseButton = e.target.closest('[data-exercise-name], [data-custom-exercise]');
+    if (exerciseButton && suggestionBox?.contains(exerciseButton)) {
+        if (exerciseButton.dataset.exerciseName) selectExerciseSuggestion(exerciseButton.dataset.exerciseName);
+        else selectCustomExercise(exerciseButton.dataset.customExercise);
+        return;
+    }
 
     if (suggestionBox && !suggestionBox.classList.contains('hidden')) {
         if (!suggestionBox.contains(e.target) && e.target !== input) {
             suggestionBox.classList.add('hidden');
+            input?.setAttribute('aria-expanded', 'false');
         }
     }
 

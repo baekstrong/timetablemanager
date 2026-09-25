@@ -1,3 +1,4 @@
+import { getLoginPage } from './utils/appNavigation';
 import { logoutSession } from './services/authService';
 
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
@@ -42,6 +43,7 @@ function AppContent() {
   const [studentData, setStudentData] = useState(null);
   const studentLookupRequest = useRef(0);
   const [currentPage, setCurrentPage] = useState('login');
+  const [holdingInitialDate, setHoldingInitialDate] = useState('');
   const [newStudentFilter, setNewStudentFilter] = useState('approved');
   const [calendarDay, setCalendarDay] = useState(() => new Date().toLocaleDateString('sv-SE'));
   useEffect(() => {
@@ -194,32 +196,37 @@ function AppContent() {
 
     // Check if there's a target page from bottom nav (e.g. navigating from training log)
     const targetPage = sessionStorage.getItem('targetPage');
-    if (targetPage) {
-      sessionStorage.removeItem('targetPage');
-      setCurrentPage(userData.role !== 'coach' && targetPage === 'today' ? 'dashboard' : targetPage);
-    } else {
-      setCurrentPage(userData.role === 'coach' && !new URLSearchParams(window.location.search).has('post') ? 'today' : 'dashboard');
-    }
+    if (targetPage) sessionStorage.removeItem('targetPage');
+    setCurrentPage(getLoginPage({
+      role: userData.role, targetPage,
+      hasPost: new URLSearchParams(window.location.search).has('post'),
+    }));
 
     if (userData.role === 'student') void loadStudentDataInBackground(userData.username);
   };
 
-  const loadStudentDataInBackground = (studentName) => {
+  const loadStudentDataInBackground = (studentName, { showLoading = true, throwOnError = false } = {}) => {
     const request = ++studentLookupRequest.current;
-    setIsStudentDataLoading(true);
+    if (showLoading) setIsStudentDataLoading(true);
     return (async () => {
       try {
         const result = await findStudentAcrossSheets(studentName, STUDENT_LOOKUP);
         if (request !== studentLookupRequest.current) return;
         if (result) setStudentData(result.student);
+        else if (throwOnError) throw new Error('최신 수강 정보를 찾을 수 없습니다.');
         else console.warn('❌ Student not found in any sheet');
       } catch (error) {
         console.error('Failed to load student data:', error);
+        if (throwOnError) throw error;
       } finally {
         if (request === studentLookupRequest.current) setIsStudentDataLoading(false);
       }
     })();
   };
+
+  const refreshStudentData = () => user?.role === 'student'
+    ? loadStudentDataInBackground(user.username, { showLoading: false, throwOnError: true })
+    : Promise.resolve();
 
   const handleStartImpersonation = async (student) => {
     if (!user || user.role !== 'coach') return;
@@ -264,7 +271,7 @@ function AppContent() {
 
     setUser({ username: studentName, role: 'student' });
     setStudentData(null);
-    setCurrentPage('dashboard');
+    setCurrentPage('schedule');
     window.scrollTo(0, 0);
     loadStudentDataInBackground(studentName);
   };
@@ -373,6 +380,7 @@ function AppContent() {
       }
       window.location.assign('./training-log/index.html'); return;
     }
+    if (page === 'holding') setHoldingInitialDate(typeof subTab === 'string' ? subTab : '');
     if (page === 'post') { setDeepLinkPost(subTab); setCurrentPage('dashboard'); return; }
     if (page === 'newstudents') setNewStudentFilter(subTab || 'approved');
 
@@ -389,7 +397,7 @@ function AppContent() {
   };
 
   const handleBackToDashboard = () => {
-    setCurrentPage(user?.role === 'coach' ? 'today' : 'dashboard');
+    setCurrentPage(user?.role === 'coach' ? 'today' : 'schedule');
     window.scrollTo(0, 0);
   };
 
@@ -400,20 +408,20 @@ function AppContent() {
         return <Login onLogin={handleLogin} />;
 
       case 'today':
-        if (user?.role !== 'coach') return <Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} deepLinkPost={deepLinkPost} onDeepLinkDone={() => setDeepLinkPost(null)} />;
+        if (user?.role !== 'coach') return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} hasWaitlistNotification={hasWaitlistNotification} />;
         return <WeeklySchedule key={`${user?.username}-${calendarDay}`} user={user} studentData={studentData} onNavigate={handleNavigate} onBack={handleBackToDashboard} view="today" />;
 
       case 'dashboard':
         return <Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} deepLinkPost={deepLinkPost} onDeepLinkDone={() => setDeepLinkPost(null)} />;
 
       case 'schedule':
-        return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} />;
+        return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} hasWaitlistNotification={hasWaitlistNotification} />;
 
       case 'holding':
-        return <HoldingManager user={user} studentData={studentData} isLoading={isStudentDataLoading} onBack={handleBackToDashboard} />;
+        return <HoldingManager onStudentDataRefresh={refreshStudentData} key={holdingInitialDate} initialDate={holdingInitialDate} user={user} studentData={studentData} isLoading={isStudentDataLoading} onBack={handleBackToDashboard} />;
 
       case 'myinfo':
-        return <StudentInfo user={user} studentData={studentData} isLoading={isStudentDataLoading} isImpersonating={Boolean(impersonationOrigin)} onBack={handleBackToDashboard} />;
+        return <StudentInfo user={user} studentData={studentData} isLoading={isStudentDataLoading} isImpersonating={Boolean(impersonationOrigin)} onNavigate={handleNavigate} onLogout={handleLogout} hasPendingContract={hasContractNotification} onBack={handleBackToDashboard} />;
 
       case 'students':
         return <StudentManager user={user} onBack={handleBackToDashboard} onImpersonate={handleStartImpersonation} onNavigate={handleNavigate} />;
@@ -459,7 +467,7 @@ function AppContent() {
   };
 
   return (
-    <div className="app">
+    <div className={`app${user?.role === 'student' ? ' student-app' : ''}`}>
       {updateAvailable && <UpdateBanner />}
       {impersonationOrigin && user && user.role === 'student' && (
         <ImpersonationBanner studentName={user.username} onExit={handleExitImpersonation} />

@@ -1,76 +1,34 @@
-import * as Admin from './modules/admin.js';
-import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminModalHTML, renderStampModalHTML } from './ui.js';
+import * as Admin from './modules/admin.js?v=20260925-student-ux';
+import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminModalHTML, renderStampModalHTML } from './ui.js?v=20260925-student-ux';
 
 import { state, db, firebaseInitialized } from './state.js';
 import { loadSavedLogin } from './utils.js';
 // Import all functions to expose to window
-import * as Auth from './modules/auth.js?v=20260907-perf';
-import * as Sets from './modules/sets.js';
-import * as Records from './modules/records.js';
-import * as Calendar from './modules/calendar.js';
-import * as Coach from './modules/coach.js?v=20260907-perf';
+import * as Auth from './modules/auth.js?v=20260925-student-ux';
+import * as Sets from './modules/sets.js?v=20260925-student-ux';
+import * as Records from './modules/records.js?v=20260925-student-ux';
+import * as Calendar from './modules/calendar.js?v=20260925-student-ux';
+import * as Coach from './modules/coach.js?v=20260925-student-ux';
 import * as Stamp from './modules/stamp.js';
-import * as OneRM from './modules/onerm.js';
+import * as OneRM from './modules/onerm.js?v=20260925-student-ux';
+import * as StudentWorkspace from './modules/student-workspace.js?v=20260925-student-ux';
 
 // ============================================
 // Auto Save Logic (DOM Dependent)
 // ============================================
 
 window.autoSaveFormData = function () {
-    if (!state.currentUser || state.isCoach) return;
-
-    const formData = {
-        exercise: document.getElementById('exercise')?.value || '',
-        memo: document.getElementById('memo')?.value || '',
-        painCheck: document.getElementById('painCheck')?.checked || false,
-        sets: state.currentSets,
-        timestamp: Date.now()
-    };
-
-    localStorage.setItem(`autoSave_${state.currentUser}`, JSON.stringify(formData));
-
-    // 핀 버튼 업데이트
-    updatePinButton();
-}
-
+    StudentWorkspace.saveStudentDraft();
+    window.updatePinButton?.();
+};
 function loadAutoSavedData() {
-    if (!state.currentUser || state.isCoach) return;
-
-    const saved = localStorage.getItem(`autoSave_${state.currentUser}`);
-    if (!saved) return;
-
-    try {
-        const formData = JSON.parse(saved);
-        if (Date.now() - formData.timestamp > 30 * 60 * 1000) {
-            localStorage.removeItem(`autoSave_${state.currentUser}`);
-            return;
-        }
-
-        if (formData.exercise || formData.memo || formData.sets.length > 0) {
-            if (confirm('저장되지 않은 입력 내용이 있습니다. 복구하시겠습니까?')) {
-                const exerciseEl = document.getElementById('exercise');
-                if (exerciseEl) exerciseEl.value = formData.exercise;
-
-                const memoEl = document.getElementById('memo');
-                if (memoEl) memoEl.value = formData.memo;
-
-                const painEl = document.getElementById('painCheck');
-                if (painEl) painEl.checked = formData.painCheck;
-
-                state.currentSets = formData.sets || [];
-                Sets.renderSets();
-            }
-            localStorage.removeItem(`autoSave_${state.currentUser}`);
-        }
-    } catch (e) {
-        console.error('Auto-save load error:', e);
-    }
+    // Drafts are restored deliberately when opening their writing date/exercise.
+    StudentWorkspace.updateStudentStartButton();
 }
-
 window.clearAutoSave = function () {
-    if (!state.currentUser) return;
-    localStorage.removeItem(`autoSave_${state.currentUser}`);
-}
+    // Kept for older modules; successful saves clear only that date/exercise draft.
+    if (state.currentUser) localStorage.removeItem(`autoSave_${state.currentUser}`);
+};
 
 // Navigate back to timetable app while preserving login session
 window.navigateToTimetable = function () {
@@ -102,7 +60,8 @@ window.navigateToTimetable = function () {
 // ============================================
 
 window.bottomNavNavigate = function (page) {
-    if (page === 'training-log') return; // Already on this page
+    if (page === 'training-log') { if (!state.isCoach) StudentWorkspace.showStudentCalendar(); return; }
+    StudentWorkspace.saveStudentDraft();
 
     // Prepare credentials for auto-login back in React app
     sessionStorage.setItem('quickReturn', 'true');
@@ -136,6 +95,14 @@ function updateBottomNav() {
     }
 
     nav.style.display = 'flex';
+
+    nav.dataset.role = state.isCoach ? 'coach' : 'student';
+    nav.querySelectorAll('.bottom-nav-tab').forEach(tab => {
+        if (tab.dataset.page === 'training-log') tab.setAttribute('aria-current', 'page');
+        else tab.removeAttribute('aria-current');
+    });
+    const scheduleLabel = nav.querySelector('[data-page="schedule"] .tab-label');
+    if (scheduleLabel) scheduleLabel.textContent = state.isCoach ? '시간표' : '내 수업';
 
     // Show/hide role-specific tabs
     const coachTabs = nav.querySelectorAll('.coach-tab');
@@ -250,7 +217,12 @@ window.render = async function () {
         Coach.setupRealtimePinnedMemosListener();
         Admin.loadExercisesList();
     } else {
-        app.innerHTML = renderStudentScreen(); // Datalist already added in ui.js
+        const today = new Date();
+        state.selectedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        state.calendarYear = today.getFullYear();
+        state.calendarMonth = today.getMonth();
+        app.innerHTML = renderStudentScreen();
+        StudentWorkspace.initializeStudentWorkspace();
         Admin.loadMyCustomExercises(); // 내 개인 종목(localStorage) 로드 → 자동완성에 병합
         Sets.renderSets(); // 세트 수 드롭다운 + 기본 1세트를 폼 로드 시 바로 표시
         // 리스너는 즉시 설정 (Promise 아님)
@@ -285,6 +257,7 @@ async function initApp() {
     Object.assign(window, Admin);
     Object.assign(window, Stamp);
     Object.assign(window, OneRM);
+    Object.assign(window, StudentWorkspace);
 
     window.loadAutoSavedData = loadAutoSavedData; // Explicitly assign local function
 

@@ -6,6 +6,7 @@ import { StudentToday, CoachToday, ActionButton } from '../features/today/TodayV
 import ReviewModal from '../features/today/ReviewModal';
 import BottomNav from '../components/BottomNav';
 import './preview.css';
+import StudentTimetablePreview from './StudentTimetablePreview';
 
 const roster = (...names) => names.map(name => ({ name }));
 const lessons = [
@@ -56,6 +57,7 @@ function Preview() {
     const open = item => { setModal(item); setAgreed(false); };
     const navigate = target => { setPage(target); window.scrollTo(0, 0); };
     const finish = () => { if (modal.id) setDone(previous => [...previous, modal.id]); setModal(null); };
+    if (role === 'student') return <><aside className="today-preview-toolbar" aria-label="미리보기 설정"><strong>수강생 홈 · 목업 · 9/24 13:00 기준</strong><div><button onClick={() => setRole('coach')}>코치 보기</button><label><input type="checkbox" checked={empty} onChange={event => setEmpty(event.target.checked)} /> 확인할 일 없음</label></div></aside><StudentTimetablePreview empty={empty} /></>;
     return <>
         <aside className="today-preview-toolbar" aria-label="미리보기 설정"><strong>로컬 검토 · 예시 데이터</strong><div><button onClick={() => { setRole('student'); setPage('today'); }} aria-pressed={role === 'student'}>수강생</button><button onClick={() => { setRole('coach'); setPage('today'); }} aria-pressed={role === 'coach'}>코치</button><label><input type="checkbox" checked={empty} onChange={event => setEmpty(event.target.checked)} /> 확인할 일 없음</label>{role === 'coach' && <label>시각 <select value={minutes} onChange={event => setMinutes(Number(event.target.value))}><option value={610}>10:10</option><option value={735}>12:15</option><option value={1000}>16:40</option><option value={1200}>20:00</option><option value={1300}>21:40</option></select></label>}</div></aside>
         {page === 'today' && (role === 'student' ? <StudentToday name="민서" taskGroups={groups} lessons={week} weekLabel="9월 21일 — 27일" waiting={fixedWaiting ? [{ id: 'fixed', type: 'fixed', title: '고정 시간 변경 대기', description: '수·금 19:50 → 화·목 19:50' }] : []} posts={posts} onAction={open} onNavigate={navigate} onPost={post => open({ type: 'post', ...post })} /> : <CoachToday refreshedAt={refreshedAt} onRefresh={() => setRefreshedAt(Date.now())} dateLabel="9월 23일 수요일" lessons={lessons} minutes={minutes} taskGroups={groups} notes={notes} onAction={open} onEditNote={name => { setDraft(notes[name] || ''); open({ type: 'note', name }); }} onNavigate={navigate} />)}

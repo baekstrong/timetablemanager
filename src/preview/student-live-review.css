@@ -1,0 +1,21 @@
+.student-live-banner { max-width:732px; margin:16px auto 0; padding:14px 16px; background:var(--accent-10); border:1px solid var(--accent-20); border-radius:var(--r-md); color:var(--text); font-size:13px; line-height:1.7; }
+.student-live-banner strong { display:block; color:var(--accent-hover); }
+.student-live-banner p { margin:4px 0 0; }
+.student-live-panel { max-width:732px; margin:16px auto; padding:16px; color:var(--text); }
+.student-live-picker { display:grid; gap:8px; }
+.student-live-picker label { font-size:14px; font-weight:700; }
+.student-live-picker input,.student-live-picker select { width:100%; min-height:44px; padding:10px 12px; border:1px solid var(--hairline); border-radius:var(--r-md); background:var(--canvas); color:var(--text); font-size:15px; }
+.student-live-picker select { min-height:120px; }
+.student-live-heading { display:flex; gap:12px; align-items:center; justify-content:space-between; }
+.student-live-heading h1 { margin:0; font-size:22px; }
+.student-live-heading button,.student-live-panel>button { padding:10px 14px; min-height:44px; border:1px solid var(--hairline); border-radius:var(--r-chip); background:var(--canvas); color:var(--accent-hover); }
+.student-live-context { color:var(--text-secondary); font-size:13px; line-height:1.7; margin:8px 0 0; }
+.student-live-error { padding:20px 0; line-height:1.7; }
+.student-live-content { max-width:732px; margin:0 auto; padding-bottom:calc(100px + env(safe-area-inset-bottom, 0px)); scroll-margin-top:16px; }
+.student-live-page[hidden] { display:none; }
+.student-live-content .student-class-page { padding-bottom:24px; }
+.student-live-action-note { margin:12px 16px; padding:12px; background:var(--canvas-tint); color:var(--text-secondary); font-size:13px; line-height:1.7; }
+.slr-unchanged { max-width:732px; margin:16px auto; padding:20px; }
+.slr-unchanged p { margin:16px 0; line-height:1.7; }
+.slr-unchanged button { min-height:44px; padding:8px 12px; border:1px solid var(--hairline); border-radius:var(--r-chip); background:var(--canvas); color:var(--text); }
+@media(max-width:760px) { .student-live-banner { margin:12px 16px 0; } .student-live-panel { margin:8px auto; } }

@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { escapeHTML } from './student-workspace-logic.js?v=20260925-student-ux';
 
 // ============================================
 // 세트 추가/제거 및 관리
@@ -62,13 +63,15 @@ export function renderSets() {
         const isFreeform = isFreeformIntensity(set.intensity.unit);
 
         html += `
-            <div class="set-row">
+            <div class="set-row student-set-row">
                 <div class="flex items-center gap-2 mb-2">
                     <span class="text-sm font-semibold text-gray-700 min-w-[60px]">${index + 1}세트</span>
                     ${state.currentSets.length > 1 ? `<button onclick="removeSet(${index})" type="button" class="set-delete-btn text-red-600 text-sm font-semibold">삭제</button>` : ''}
                     ${moveButtons('moveSet', index, state.currentSets.length)}
                 </div>
 
+                ${!state.isCoach && window.studentPreviousSetHTML ? window.studentPreviousSetHTML(index) : ''}
+                <div class="student-set-inputs ${isSecXReps ? 'duration-layout' : ''}">
                 <!-- 강도 입력 -->
                 <div class="mb-2">
                     <label class="text-xs text-gray-600 mb-1 block">강도</label>
@@ -82,7 +85,7 @@ export function renderSets() {
                                 type="text"
                                 inputmode="${isFreeform ? 'text' : 'decimal'}"
                                 id="intensity-value-${index}"
-                                value="${set.intensity.value}"
+                                value="${escapeHTML(set.intensity.value)}"
                                 placeholder="${isFreeform ? '자유 입력' : '80'}"
                                 oninput="updateSetIntensity(${index}, this.value)"
                                 class="intensity-input px-3 py-2 border rounded-lg text-sm"
@@ -110,7 +113,7 @@ export function renderSets() {
                                 type="text"
                                 inputmode="numeric"
                                 id="reps-value-${index}"
-                                value="${set.reps.value}"
+                                value="${escapeHTML(set.reps.value)}"
                                 placeholder="30"
                                 oninput="updateSetRepsValue(${index}, this.value)"
                                 class="w-16 px-2 py-2 border rounded-lg text-sm"
@@ -121,7 +124,7 @@ export function renderSets() {
                                 type="text"
                                 inputmode="numeric"
                                 id="reps-count-${index}"
-                                value="${set.reps.count || ''}"
+                                value="${escapeHTML(set.reps.count || '')}"
                                 placeholder="3"
                                 oninput="updateSetRepsCount(${index}, this.value)"
                                 class="w-16 px-2 py-2 border rounded-lg text-sm"
@@ -132,7 +135,7 @@ export function renderSets() {
                                 type="text"
                                 inputmode="numeric"
                                 id="reps-value-${index}"
-                                value="${set.reps.value}"
+                                value="${escapeHTML(set.reps.value)}"
                                 placeholder="10"
                                 oninput="updateSetRepsValue(${index}, this.value)"
                                 class="intensity-input px-3 py-2 border rounded-lg text-sm"
@@ -148,6 +151,7 @@ export function renderSets() {
                             <option value="초 x 회" ${set.reps.unit === '초 x 회' ? 'selected' : ''}>초 x 회</option>
                         </select>
                     </div>
+                </div>
                 </div>
             </div>
         `;
@@ -278,6 +282,7 @@ export function updateSetIntensityUnit(index, unit) {
         }
 
         renderSets();
+        if (window.autoSaveFormData) window.autoSaveFormData();
     }
 }
 
@@ -306,5 +311,6 @@ export function updateSetRepsUnit(index, unit) {
         if (!state.currentSets[index].reps) state.currentSets[index].reps = { value: '', unit: '회' };
         state.currentSets[index].reps.unit = unit;
         renderSets();
+        if (window.autoSaveFormData) window.autoSaveFormData();
     }
 }

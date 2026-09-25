@@ -20,7 +20,7 @@ const STATUS_MAP = {
     cancelled: { label: '취소', className: 'cancelled' }
 };
 
-const ContractHistory = ({ studentName, isCoach, onClose }) => {
+const ContractHistory = ({ studentName, isCoach, onClose, loadHistory = getContractHistory }) => {
     const [contracts, setContracts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [expandedId, setExpandedId] = useState(null);
@@ -28,7 +28,7 @@ const ContractHistory = ({ studentName, isCoach, onClose }) => {
     useEffect(() => {
         const load = async () => {
             try {
-                const data = await getContractHistory(studentName);
+                const data = await loadHistory(studentName);
                 setContracts(data);
             } catch (err) {
                 console.error('계약 이력 로드 실패:', err);
@@ -36,7 +36,7 @@ const ContractHistory = ({ studentName, isCoach, onClose }) => {
             setLoading(false);
         };
         load();
-    }, [studentName]);
+    }, [studentName, loadHistory]);
 
     const handleCancel = async (contractId) => {
         if (!confirm('이 계약을 취소하시겠습니까?')) return;

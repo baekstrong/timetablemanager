@@ -24,6 +24,13 @@ const extraBadges = (lastClass, reregX, unpaid) => (
     </>
 );
 
+/** 코치 시간표와 수강생 일정에서 함께 사용하는 상태 칩. */
+export function ScheduleStatusBadge({ status, label, className = '' }) {
+    const style = { ...TAG_STYLES[status] };
+    delete style.textDecoration; // 상태 글자는 취소선 없이 읽을 수 있게 유지
+    return <span className={`status-badge${className ? ` ${className}` : ''}`} style={style}>{label}</span>;
+}
+
 /** 보강·보강이동·홀딩·신규·결석·보강결석·시작지연: 파스텔 이름칩(검은 굵은 글씨)+색 뱃지. 그 외: 칩 배경 색 형태. */
 export function StudentTag({ name, status, label, unpaid = false, reregX = false, lastClass = false }) {
     const tagStyle = TAG_STYLES[status] || {};
@@ -35,12 +42,10 @@ export function StudentTag({ name, status, label, unpaid = false, reregX = false
             color: 'var(--text)',
             fontWeight: 700,
         };
-        const badgeStyle = { ...tagStyle };
-        delete badgeStyle.textDecoration; // 뱃지엔 취소선 없음
         return (
             <span className="student-tag" style={chipStyle}>
                 {name}
-                {label && <span className="status-badge" style={badgeStyle}>{label}</span>}
+                {label && <ScheduleStatusBadge status={status} label={label} />}
                 {extraBadges(lastClass, reregX, unpaid)}
             </span>
         );

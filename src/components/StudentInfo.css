@@ -420,3 +420,5 @@
         padding: 10px 12px;
     }
 }
+
+.student-info-logout { margin-left: auto; min-height: 44px; padding: 8px 12px; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--canvas); color: var(--text-secondary); font: inherit; cursor: pointer; }

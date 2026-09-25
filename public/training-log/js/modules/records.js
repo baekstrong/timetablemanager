@@ -1,8 +1,8 @@
+import { localDate, escapeHTML } from './student-workspace-logic.js?v=20260925-student-ux';
 import { state, db, firebaseInitialized, persistenceEnabled } from '../state.js';
-import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue, moveButtons, swapSets } from './sets.js';
-import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js';
-import { formatDate } from '../utils.js';
-import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js';
+import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue, moveButtons, swapSets } from './sets.js?v=20260925-student-ux';
+import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js?v=20260925-student-ux';
+import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js?v=20260925-student-ux';
 import { evaluatePR, pastSetsFrom } from './pr-logic.js';
 import { xpToGrade, gradeRank, recordVolume, GRADES } from './grades.js';
 
@@ -53,7 +53,7 @@ function setAddRecordBtnBusy(busy) {
     const btn = document.getElementById('addRecordBtn');
     if (btn) {
         btn.disabled = busy;
-        btn.textContent = busy ? '저장 중…' : '✅ 운동 완료!';
+        btn.textContent = busy ? '저장 중…' : '기록 저장';
     }
     if (busy) showBlockingOverlay('기록 저장 중…');
     else hideBlockingOverlay();
@@ -65,6 +65,9 @@ export async function addRecord() {
     const exercise = document.getElementById('exercise').value.trim();
     const memo = document.getElementById('memo').value.trim();
     const painCheck = document.getElementById('painCheck').checked;
+    const writingDate = state.studentWriteDate || state.selectedDate;
+    const recordUser = state.currentUser;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(writingDate) || writingDate > localDate()) { alert('작성 날짜를 확인해주세요.'); return; }
 
     if (!exercise) {
         alert('운동 종목은 필수입니다!');
@@ -94,7 +97,8 @@ export async function addRecord() {
         const ref = db.collection('records').doc();
 
         // order = 그 날 기록 수. 화면 목록(onSnapshot)이 이미 들고 있으므로 서버에 다시 묻지 않는다.
-        const count = await currentDayRecordCount();
+        const count = await currentDayRecordCount(writingDate);
+        if (state.currentUser !== recordUser || state.isCoach) return;
 
         // PR 판정은 저장을 막지 않는다 — 쓰기와 같이 출발시키고, 화면을 푼 뒤 결과만 받는다.
         const prPromise = computePR(exercise, validSets, ref.id).catch(prErr => {
@@ -109,16 +113,16 @@ export async function addRecord() {
         }
 
         const writePromise = ref.set({
-            userName: state.currentUser,
+            userName: recordUser,
             exercise: exercise,
             sets: validSets,
             memo: '', // Always empty for record history, as requested
             pain: painCheck,
-            date: state.selectedDate,
+            date: writingDate,
             feedback: '',
             order: count, // Assign order
             custom: isCustomExercise(exercise), // 개인 전용 종목이면 true (공용 목록엔 안 들어감)
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            timestamp: window.firebase.firestore.FieldValue.serverTimestamp()
         });
 
         // 오프라인 캐시가 켜져 있으면 쓰기는 이미 IndexedDB에 커밋됐고 전송은 SDK가 책임진다
@@ -126,6 +130,10 @@ export async function addRecord() {
         // 캐시가 없으면(사파리 시크릿 등) 탭을 닫는 순간 유실되므로 예전처럼 기다린다.
         if (persistenceEnabled) {
             writePromise.catch(err => {
+                window.restoreFailedStudentRecord?.(ref.id, { date: writingDate, exercise, memo, painCheck, sets: validSets }, recordUser);
+                if (state.currentUser !== recordUser || state.isCoach) return;
+                if (writingDate === localDate()) state.studentTodayHasRecords = false;
+                window.renderCalendar?.();
                 console.error('Error adding record:', err);
                 alert('기록 저장 실패: ' + err.message);
             });
@@ -133,7 +141,8 @@ export async function addRecord() {
             await writePromise;
         }
 
-        clearExerciseSelection(); // 입력칸 비우고 잠금 해제
+        window.completeStudentRecord?.(writingDate, exercise);
+        clearExerciseSelection({ saved: true }); // 완료한 초안만 지우고 입력 잠금 해제
         document.getElementById('memo').value = '';
         document.getElementById('painCheck').checked = false;
         state.currentSets = [];
@@ -145,18 +154,17 @@ export async function addRecord() {
 
         if (window.renderCalendar) window.renderCalendar();
 
-        // XP 증분은 저장 완료를 막지 않는다(읽기+쓰기 = 왕복 2회).
-        // 레벨업 팝업은 applyXpDelta가 스스로 띄우므로 결과를 기다릴 필요가 없다.
+        // XP 증분은 저장 완료를 막지 않는다. 기존 로컬 durability 기준을 유지한다.
         applyXpDelta(recordVolume({ sets: validSets }));
 
         // 알림 전에 오버레이를 내린다 — alert가 동기 차단이라 finally보다 먼저 치워야 한다.
         isAddingRecord = false;
         setAddRecordBtnBusy(false);
 
-        // 저장 확인은 즉시. 신기록 축하는 판정(읽기 1회)이 돌아오는 대로 뒤따라 뜬다.
+        // 저장 확인은 즉시. 신기록 축하는 판정이 돌아오는 대로 표시한다.
         // 예전엔 이 판정을 기다리느라 저장이 끝나도 화면이 잠겨 있었다.
-        alert('✅ 기록이 저장되었습니다!');
-        prPromise.then(prStatus => { if (prStatus) showPRCelebration(prStatus); });
+        if (!window.completeStudentRecord) alert('✅ 기록이 저장되었습니다!');
+        prPromise.then(prStatus => { if (prStatus && state.currentUser === recordUser && !state.isCoach) showPRCelebration(prStatus); });
     } catch (error) {
         console.error('Error adding record:', error);
         alert('기록 저장 실패: ' + error.message);
@@ -173,13 +181,13 @@ export async function addRecord() {
 // 그 날 기록 수(order 용). loadMyRecords의 onSnapshot이 같은 사용자·날짜를 이미 구독 중이면
 // 그 캐시가 곧 정답이다 — 서버에 다시 묻지 않는다(저장 경로에서 왕복 1회 제거).
 // 구독 키가 다르거나(코치·다른 날짜) 첫 스냅샷 전이면 그때만 서버에 묻는다.
-async function currentDayRecordCount() {
-    if (lastRecordDocs && state.recordsSubKey === `${state.currentUser}__${state.selectedDate}`) {
+async function currentDayRecordCount(date = state.selectedDate) {
+    if (lastRecordDocs && state.recordsSubKey === `${state.currentUser}__${date}`) {
         return lastRecordDocs.length;
     }
     const snapshot = await db.collection('records')
         .where('userName', '==', state.currentUser)
-        .where('date', '==', state.selectedDate)
+        .where('date', '==', date)
         .get();
     return snapshot.size;
 }
@@ -271,7 +279,7 @@ async function applyXpDelta(deltaVolume) {
     const leveledUp = gradeRank(newGrade) > gradeRank(state.gradeSeen);
     const fromKey = state.gradeSeen;
     state.grade = newGrade;
-    const patch = { xpVolume: newVolume, xp, grade: newGrade, xpUpdatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+    const patch = { xpVolume: newVolume, xp, grade: newGrade, xpUpdatedAt: window.firebase.firestore.FieldValue.serverTimestamp() };
     if (leveledUp) { patch.gradeSeen = newGrade; state.gradeSeen = newGrade; }
     try {
         await db.collection('users').doc(state.currentUser).set(patch, { merge: true });
@@ -306,41 +314,8 @@ function showLevelUp(toKey) {
 // ============================================
 
 export async function loadPreviousRecord(exerciseName) {
-    if (!exerciseName || !state.currentUser || state.isCoach) return;
-    if (!firebaseInitialized || !db) return;
-
-    try {
-        const snapshot = await db.collection('records')
-            .where('userName', '==', state.currentUser)
-            .where('exercise', '==', exerciseName)
-            .orderBy('timestamp', 'desc')
-            .limit(1)
-            .get();
-
-        if (snapshot.empty) return;
-
-        const data = snapshot.docs[0].data();
-        if (!data.sets || data.sets.length === 0) return;
-
-        const setsText = data.sets.map((s, i) => {
-            const intensity = s.intensity?.unit === '맨몸' ? '맨몸' : s.intensity?.unit === '자율' ? (s.intensity?.value || '자율') : `${s.intensity?.value || ''}${s.intensity?.unit || 'kg'}`;
-            const reps = s.reps?.unit === '초 x 회'
-                ? `${s.reps?.value || ''}초×${s.reps?.count || ''}회`
-                : `${s.reps?.value || ''}${s.reps?.unit || '회'}`;
-            return `${i + 1}세트: ${intensity} × ${reps}`;
-        }).join('\n');
-
-        if (confirm(`이전 기록이 있습니다.\n\n${setsText}\n\n이전과 동일하게 불러올까요?`)) {
-            state.currentSets = data.sets.map(s => ({
-                intensity: { value: s.intensity?.value || '', unit: s.intensity?.unit || 'kg' },
-                reps: { value: s.reps?.value || '', unit: s.reps?.unit || '회', count: s.reps?.count || '' }
-            }));
-            renderSets();
-            if (window.autoSaveFormData) window.autoSaveFormData();
-        }
-    } catch (error) {
-        console.error('이전 기록 조회 실패:', error);
-    }
+    // The reference stays separate from the input; copying requires an explicit action.
+    if (window.loadStudentReferences) return window.loadStudentReferences(exerciseName);
 }
 
 window.loadPreviousRecord = loadPreviousRecord;
@@ -373,12 +348,14 @@ export function loadMyRecords() {
         .where('userName', '==', state.currentUser)
         .where('date', '==', state.selectedDate)
         .onSnapshot((snapshot) => {
+            if (state.recordsSubKey !== subKey) return;
             const docs = [];
             snapshot.forEach((doc) => {
                 docs.push({ id: doc.id, data: doc.data() });
             });
             renderRecordsList(docs);
         }, (error) => {
+            if (state.recordsSubKey !== subKey) return;
             console.error('Error loading records:', error);
             recordsList.innerHTML = '<p class="text-red-500 text-center py-4">기록 불러오기 실패.</p>';
         });
@@ -448,7 +425,7 @@ function renderRecordsList(docs) {
                         <div class="flex justify-between items-start mb-2">
                             <div class="flex-1">
                                 <div class="flex items-center gap-2 mb-1">
-                                    <span class="font-bold text-lg text-gray-800">${data.exercise}</span>
+                                    <span class="font-bold text-lg text-gray-800">${escapeHTML(data.exercise)}</span>
                                     ${data.pain ? '<span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">⚠️ 통증</span>' : ''}
                                 </div>
                                 ${setsDisplay}
@@ -457,6 +434,7 @@ function renderRecordsList(docs) {
                         </div>
                         ${memoText ? `<div class="mt-2 mb-2 flex items-start gap-2 bg-[#F7F7F8] border-l-4 border-[#329BE7] rounded px-3 py-2"><span class="shrink-0">📝</span><span class="text-sm text-gray-800 leading-relaxed" style="white-space: pre-wrap;">${memoText}</span></div>` : ''}
                         
+                        ${data.feedback ? `<div class="student-record-feedback"><strong>코치 피드백</strong><p>${escapeHTML(data.feedback)}</p></div>` : ''}
                         <div class="flex gap-2 mt-2">
                             <button onclick="moveRecord('${doc.id}', -1)" class="text-xs text-gray-800 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">
                                 ▲
@@ -940,7 +918,7 @@ export function savePinnedExercisesToStorage() {
             db.collection('pinnedMemos').doc(state.currentUser).set({
                 userName: state.currentUser,
                 memos: state.pinnedExercises,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
             });
         }
     }
@@ -1001,7 +979,7 @@ export async function deleteCoachMessage(memoId) {
             }
             if (idx !== -1) {
                 memos.splice(idx, 1);
-                await docRef.update({ memos, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                await docRef.update({ memos, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
                 updatePinnedDisplay();
                 alert('삭제되었습니다.');
             }
@@ -1080,7 +1058,7 @@ export async function migrateLocalStorageToFirestore() {
     try {
         const doc = await db.collection('pinnedMemos').doc(state.currentUser).get();
         if (doc.exists) { localStorage.setItem(doneKey, '1'); return; }
-    } catch (error) { }
+    } catch { /* Keep the existing local memo if migration is unavailable. */ }
 
     try {
         const memos = JSON.parse(localData);
@@ -1088,12 +1066,12 @@ export async function migrateLocalStorageToFirestore() {
             await db.collection('pinnedMemos').doc(state.currentUser).set({
                 userName: state.currentUser,
                 memos: memos,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
                 migratedFrom: 'localStorage'
             });
         }
         localStorage.setItem(doneKey, '1');
-    } catch (error) { }
+    } catch { /* Keep the existing local memo if migration is unavailable. */ }
 }
 
 export async function pinCoachMemo(userName, docId, exercise) {
@@ -1134,7 +1112,7 @@ export async function pinCoachMemo(userName, docId, exercise) {
         await coachMemoRef.set({
             userName: userName,
             memos: memos,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
         });
 
         alert(`✅ "${userName}"에게 피드백이 고정되었습니다!`);
@@ -1196,7 +1174,7 @@ export async function saveFeedback(docId) {
                 await coachMemoRef.set({
                     userName: userName,
                     memos: memos,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
                 });
             }
             // 방금 문서를 직접 고쳤으니 이 학생만 캐시를 건너뛰고 다시 읽는다
@@ -1294,7 +1272,7 @@ export async function deleteCoachMemoFromDashboard(userName, memoIndex) {
                 await docRef.set({
                     userName: userName,
                     memos: memos,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
                 });
             }
 
@@ -1332,7 +1310,7 @@ export async function viewAllPinnedMemos() {
             message += `${data.userName} (${(data.memos || []).length}개)\n`;
         });
         alert(message);
-    } catch (error) {
+    } catch {
         alert('고정 메모 조회에 실패했습니다.');
     }
 }
@@ -1392,7 +1370,7 @@ export function saveArchivedMemosToStorage() {
             db.collection('archivedMemos').doc(state.currentUser).set({
                 userName: state.currentUser,
                 memos: state.archivedMemos,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
             });
         }
     }
@@ -1560,7 +1538,7 @@ export async function removeCoachPinnedMemo(index) {
             await db.collection('coachPinnedMemos').doc(state.currentUser).set({
                 userName: state.currentUser,
                 memos: state.coachPinnedMemos,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
             });
         }
         updatePinnedDisplay();

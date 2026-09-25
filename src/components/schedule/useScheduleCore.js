@@ -31,9 +31,10 @@ export function useScheduleCore({
     studentData,
     refresh,
     pendingRegistrations = [],
+    readOnly = false,
 }) {
-    const weeklyData = useWeeklyData({ user, students, mode, refresh });
-    const { weekMakeupRequests, weekHoldings, weekAbsences, weekHolidays } = weeklyData;
+    const weeklyData = useWeeklyData({ user, students, mode, refresh, readOnly });
+    const { weekMakeupRequests, weekHoldings, weekAbsences, weekHolidays, currentWeekStart } = weeklyData;
 
     // ── Student holding period (from Sheets N/O columns) ──
     const studentHoldingRange = useMemo(() => {
@@ -77,9 +78,10 @@ export function useScheduleCore({
     }, [studentData]);
 
     const scheduleData = useMemo(() => {
-        if (!students || students.length === 0) return MOCK_DATA;
+        // 학생의 여석 판단에 예시 명단을 사용하지 않는다. 기존 코치 표시만 유지한다.
+        if (!students || students.length === 0) return !readOnly && (user?.role === 'coach' || mode === 'studentForce') ? MOCK_DATA : transformGoogleSheetsData([]);
         return transformGoogleSheetsData(students);
-    }, [students]);
+    }, [students, readOnly, user?.role, mode]);
 
     // 코치 "신규 전용"을 정본으로 현재 활성 시간표 + pending 신규 신청을 센다.
     // 외부 신규 신청 페이지와 같은 계산을 공유해 두 화면의 여석을 일치시킨다.
@@ -96,11 +98,7 @@ export function useScheduleCore({
 
     // Week dates (Mon-Fri) as { '월': 'M/D', ... }
     const weekDates = useMemo(() => {
-        const today = new Date();
-        const dayOfWeek = today.getDay();
-        const monday = new Date(today);
-        const diff = dayOfWeek === 0 ? 1 : 1 - dayOfWeek;
-        monday.setDate(today.getDate() + diff);
+        const monday = new Date(`${currentWeekStart}T00:00:00`);
 
         const dates = {};
         const dayNames = ['월', '화', '수', '목', '금'];
@@ -110,7 +108,7 @@ export function useScheduleCore({
             dates[dayName] = `${date.getMonth() + 1}/${date.getDate()}`;
         });
         return dates;
-    }, []);
+    }, [currentWeekStart]);
 
     // ── Effective end date (considering makeup requests) ──
     const getEffectiveEndDate = useCallback((student, endDate) => {

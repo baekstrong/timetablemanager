@@ -9,6 +9,9 @@ export const state = {
     coachMemosUnsubscribe: null,
     studentPinnedMemosUnsubscribe: null,
     selectedDate: new Date().toISOString().split('T')[0],
+    studentWriteDate: null, // Writing date is independent of selectedDate (calendar browsing).
+    studentView: 'calendar',
+    studentTodayHasRecords: false,
     selectedStudents: [],
     allStudents: [],
     calendarYear: new Date().getFullYear(),

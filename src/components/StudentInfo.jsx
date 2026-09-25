@@ -11,6 +11,8 @@ import './StudentInfo.css';
 // ⚠️ 예전엔 여기에 그럴싸한 목 데이터(2025-12-20~2026-01-19, 주2회, 남은 8회)가 있었다.
 // 오버레이가 Firebase만 기다리고 시트는 안 기다려서, 수강생 화면에 남의 날짜가 1~2초
 // 진짜처럼 떴다가 바뀌었다. 시트에 행이 없는 계정은 그 가짜가 영구히 보였다.
+const infoServices = { getActiveMakeupRequests, getHoldingHistory, getHolidays };
+
 const EMPTY_MEMBERSHIP = {
     studentName: '', startDate: '', endDate: '', weeklyFrequency: 0,
     totalSessions: 0, completedSessions: 0, remainingSessions: 0,
@@ -18,7 +20,8 @@ const EMPTY_MEMBERSHIP = {
     registrationMonths: 0, attendanceCount: 0, totalClasses: 0,
 };
 
-const StudentInfo = ({ user, studentData, isLoading = false, isImpersonating = false, onBack }) => {
+const StudentInfo = ({ user, studentData, isLoading = false, isImpersonating = false, readOnly = false, onNavigate, onLogout, hasPendingContract = false, services = infoServices }) => {
+    const { getActiveMakeupRequests, getHoldingHistory, getHolidays } = services;
     const { calculateMembershipStats, generateAttendanceHistory } = useGoogleSheets();
     const [activeMakeups, setActiveMakeups] = useState([]);
     const [holdingHistory, setHoldingHistory] = useState([]);
@@ -50,7 +53,7 @@ const StudentInfo = ({ user, studentData, isLoading = false, isImpersonating = f
             }
         };
         loadData();
-    }, [user]);
+    }, [user, getActiveMakeupRequests, getHoldingHistory, getHolidays]);
 
     // 구글 시트 데이터로부터 수강권 정보 계산
     const membershipInfo = useMemo(
@@ -168,7 +171,14 @@ const StudentInfo = ({ user, studentData, isLoading = false, isImpersonating = f
             )}
             <div className="student-info-header">
                 <h1 className="student-info-title">내 정보</h1>
+                {!readOnly && onLogout && <button type="button" className="student-info-logout" onClick={onLogout}>로그아웃</button>}
             </div>
+
+            {!readOnly && hasPendingContract && onNavigate && (
+                <div className="student-account-actions">
+                    <button type="button" onClick={() => onNavigate('contractView')}>재등록 계약서 확인 <span aria-hidden="true">→</span></button>
+                </div>
+            )}
 
             {/* 시트에 행이 없으면 studentData가 끝내 안 채워진다. 예전엔 그 자리에 목 데이터가
                 그려져 남의 수강 기간이 진짜처럼 보였다 → 못 찾았다고 그대로 말한다. */}
@@ -181,7 +191,7 @@ const StudentInfo = ({ user, studentData, isLoading = false, isImpersonating = f
                             등록이 아직 반영되지 않았을 수 있으니 코치에게 문의해주세요.
                         </p>
                     </div>
-                    {!isImpersonating && <PasswordChangeCard userName={user.username} />}
+                    {!readOnly && !isImpersonating && <PasswordChangeCard userName={user.username} />}
                 </div>
             ) : (
             <div className="student-info-content">
@@ -338,6 +348,9 @@ const StudentInfo = ({ user, studentData, isLoading = false, isImpersonating = f
                     border: '1px solid var(--hairline)'
                 }}>
                     <button
+                        type="button"
+                        disabled={readOnly}
+                        title={readOnly ? '실데이터 조회 전용 화면에서는 계약 이력을 열지 않습니다.' : undefined}
                         onClick={() => setShowContractHistory(true)}
                         style={{
                             width: '100%',
@@ -348,25 +361,26 @@ const StudentInfo = ({ user, studentData, isLoading = false, isImpersonating = f
                             fontSize: '0.95rem',
                             fontWeight: '600',
                             color: 'var(--text)',
-                            cursor: 'pointer',
+                            cursor: readOnly ? 'default' : 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '0.5rem'
                         }}
                     >
-                        계약 이력 보기
+                        {readOnly ? '계약 이력 · 조회 전용 화면에서 제외' : '계약 이력 보기'}
                     </button>
                 </div>
 
                 {/* 비밀번호 변경 (빙의 모드에서는 숨김) */}
-                {!isImpersonating && <PasswordChangeCard userName={user.username} />}
+                {!readOnly && !isImpersonating && <PasswordChangeCard userName={user.username} />}
             </div>
             )}
 
-            {showContractHistory && (
+            {!readOnly && showContractHistory && (
                 <ContractHistory
                     studentName={user.username}
+                    loadHistory={services.getContractHistory}
                     isCoach={false}
                     onClose={() => setShowContractHistory(false)}
                 />

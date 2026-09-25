@@ -1,0 +1,16 @@
+/* Keep the parent's slot sizing and eligibility. Only its contents get a hierarchy. */
+.student-class-slot.student-makeup-slot { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-width:0; min-height:64px; padding:6px 1px; overflow-wrap:anywhere; line-height:1.35; }
+.student-class-slot.student-makeup-slot .student-makeup-slot-title { max-width:100%; font-size:11px; font-weight:700; line-height:1.35; }
+.student-class-slot.student-makeup-slot .student-makeup-slot-badge { display:inline-block; box-sizing:border-box; max-width:100%; margin:0; padding:2px 2px; border-radius:4px; font-size:10px; line-height:1.35; white-space:normal; word-break:keep-all; overflow-wrap:anywhere; }
+.student-class-slot.student-makeup-slot .student-makeup-slot-detail,.student-class-slot.student-makeup-slot .student-makeup-slot-availability { display:block; max-width:100%; color:var(--text-secondary); font-size:10px; line-height:1.35; }
+.student-class-slot.student-makeup-slot .student-makeup-slot-availability { font-size:9px; }
+.student-class-slot.student-makeup-slot .student-makeup-slot-availability.is-wait { color:var(--accent-hover); font-weight:600; }
+.student-class-slot.student-makeup-slot .student-makeup-slot-label { max-width:100%; }
+/* A disabled action is still a meaningful personal record. Never fade its status. */
+.student-class-slot.student-makeup-slot.has-personal-status,.student-class-slot.student-makeup-slot.has-personal-status:disabled { opacity:1!important; color:var(--text); background:var(--canvas-tint); }
+.student-class-slot.student-makeup-slot.status-regular,.student-class-slot.student-makeup-slot.status-regular:disabled,.student-class-slot.student-makeup-slot.status-makeup,.student-class-slot.student-makeup-slot.status-makeup:disabled,.student-class-slot.student-makeup-slot.status-freeWorkoutAttendance,.student-class-slot.student-makeup-slot.status-freeWorkoutAttendance:disabled { color:var(--accent-hover); background:var(--accent-10); }
+.student-class-slot.student-makeup-slot .student-makeup-slot-badge.is-attendance { color:var(--accent-hover); background:var(--canvas); border:1px solid var(--accent-30); }
+@media(max-width:360px) {
+ .student-class-slot.student-makeup-slot .student-makeup-slot-badge { padding-inline:1px; font-size:9px; }
+ .student-class-slot.student-makeup-slot .student-makeup-slot-detail { font-size:9px; }
+}

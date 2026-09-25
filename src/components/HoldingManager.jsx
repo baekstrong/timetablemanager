@@ -1,6 +1,6 @@
+import ReviewModal from '../features/today/ReviewModal';
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { PERIODS } from '../data/mockData';
 import { getStudentField, parseHoldingStatus } from '../services/googleSheetsService';
 import {
     createHoldingRequest,
@@ -17,7 +17,10 @@ import { cancelHoldingInSheets } from '../services/googleSheetsService';
 import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import { validateHoldingDates } from '../utils/holdingDates';
 import { isWithinRegisteredPeriod } from '../utils/membershipDates';
+import { parseHoldingDate, getHoldingClass, getHoldingRequestDateError, isBeforeHoldingDeadline } from '../utils/holdingEligibility';
 import './HoldingManager.css';
+
+const holdingServices = { createHoldingRequest, markHoldingSheetsApplied, createAbsenceRequest, getHoldingsByStudent, getAbsencesByStudent, cancelHolding, cancelAbsence, getHolidays, getActiveMakeupRequests, cancelHoldingInSheets, onSeatsFreedForDates };
 
 // 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (timezone 문제 방지)
 const formatLocalDate = (date) => {
@@ -27,8 +30,8 @@ const formatLocalDate = (date) => {
     return `${year}-${month}-${day}`;
 };
 
-const getCountedHolidayMakeupDates = async (studentName) => {
-    const makeups = await getActiveMakeupRequests(studentName).catch(() => []);
+const getCountedHolidayMakeupDates = async (studentName, loadMakeups) => {
+    const makeups = await loadMakeups(studentName).catch(() => []);
     return [...new Set(makeups.map(m => m.originalClass?.date).filter(Boolean))];
 };
 
@@ -58,51 +61,23 @@ const isHoliday = (date) => {
     return KOREAN_HOLIDAYS_2026[dateStr];
 };
 
-const HoldingManager = ({ user, studentData, isLoading }) => {
+const HoldingManager = ({ user, studentData, isLoading, initialDate = '', onBack, onStudentDataRefresh, services = holdingServices, readOnly = false }) => {
+    const { createHoldingRequest, markHoldingSheetsApplied, createAbsenceRequest, getHoldingsByStudent, getAbsencesByStudent, cancelHolding, cancelAbsence, getHolidays, getActiveMakeupRequests, cancelHoldingInSheets, onSeatsFreedForDates } = services;
     const { requestHolding, refresh } = useGoogleSheets();
     const [requestType, setRequestType] = useState('holding'); // 'holding' | 'absence'
     const [selectedDates, setSelectedDates] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showConfirmation, setShowConfirmation] = useState(false);
     const [allHoldings, setAllHoldings] = useState([]); // Firebase의 모든 홀딩 내역
     const [absences, setAbsences] = useState([]);
     const [coachHolidays, setCoachHolidays] = useState({}); // 코치가 설정한 휴일
     const [activeMakeups, setActiveMakeups] = useState([]); // 활성 보강 신청
+    const [requestDataState, setRequestDataState] = useState('loading');
 
-    // 달력 월 선택 (기본값: 현재 월)
-    const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
-    const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
-
-    // 수강생의 정규 수업 요일 파싱
-    const schedule = useMemo(() => {
-        if (!studentData) return [];
-        const scheduleStr = studentData['요일 및 시간'];
-        if (!scheduleStr) return [];
-
-        const result = [];
-        const dayMap = { '월': '월', '화': '화', '수': '수', '목': '목', '금': '금' };
-        const chars = scheduleStr.replace(/\s/g, '');
-
-        let i = 0;
-        while (i < chars.length) {
-            const char = chars[i];
-            if (dayMap[char]) {
-                const day = char;
-                i++;
-                let periodStr = '';
-                while (i < chars.length && /\d/.test(chars[i])) {
-                    periodStr += chars[i];
-                    i++;
-                }
-                if (periodStr) {
-                    const period = parseInt(periodStr);
-                    result.push({ day, period });
-                }
-            } else {
-                i++;
-            }
-        }
-        return result;
-    }, [studentData]);
+    // 내 수업에서 선택한 날짜의 달로 이동하되 신청 검증은 기존 선택 핸들러를 거친다.
+    const validContextDate = /^\d{4}-\d{2}-\d{2}$/.test(initialDate) ? parseHoldingDate(initialDate) : null;
+    const [calendarYear, setCalendarYear] = useState(() => (validContextDate || new Date()).getFullYear());
+    const [calendarMonth, setCalendarMonth] = useState(() => (validContextDate || new Date()).getMonth());
 
     // 수강 기간 파싱 (보강으로 연장된 실질적 종료일 반영)
     const membershipPeriod = useMemo(() => {
@@ -182,12 +157,9 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
         };
     }, [studentData, activeMakeups]);
 
-    // 주 횟수 (홀딩 가능 횟수 제한용)
-    const weeklyFrequency = useMemo(() => {
-        if (!studentData) return 2;
-        const freq = parseInt(studentData['주횟수']) || 2;
-        return freq;
-    }, [studentData]);
+    // 선택한 날짜의 등록 기준으로 안내한다. 다음 등록의 주횟수가 달라도 현재 값에 묶지 않는다.
+    const selectedRegistration = getHoldingClass(parseHoldingDate(selectedDates[0] || initialDate), studentData, activeMakeups)?.registration || studentData;
+    const weeklyFrequency = Number.parseInt(selectedRegistration?.['주횟수'], 10) || 2;
 
     // 홀딩 정보 파싱 (여러달 수강권 지원) - 현재 등록
     const holdingInfo = useMemo(() => {
@@ -210,17 +182,17 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
         : 0;
 
     // 홀딩 사용 완료 여부 (현재+다음 모두 남은 횟수가 0인 경우)
-    const hasUsedAllHoldings = remainingHoldings <= 0 && (!nextHoldingInfo || nextRemainingHoldings <= 0);
+    const hasUsedAllHoldings = [studentData, studentData?._prevRegistration, studentData?._nextRegistration]
+        .filter(Boolean).every(registration => {
+            const info = parseHoldingStatus(getStudentField(registration, '홀딩 사용여부'));
+            return info.total - info.used <= 0;
+        });
+    const selectedHoldingInfo = parseHoldingStatus(getStudentField(selectedRegistration, '홀딩 사용여부'));
+    const selectedRemainingHoldings = Math.max(0, selectedHoldingInfo.total - selectedHoldingInfo.used);
 
     // 홀딩 내역 조회 (Firebase 데이터 기반 - 현재 등록 기간만 표시)
     const holdingHistory = useMemo(() => {
         if (allHoldings.length === 0) return [];
-
-        // 수업 요일 목록
-        const classDays = schedule.map(s => {
-            const dayMap = { '월': 1, '화': 2, '수': 3, '목': 4, '금': 5 };
-            return dayMap[s.day];
-        });
 
         // 현재 등록 기간의 시작일 (이전 등록 홀딩 필터용, 7일 여유)
         let cutoffStr = null;
@@ -242,10 +214,10 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                 const endDate = new Date(holding.endDate + 'T00:00:00');
 
                 // 홀딩 기간 내 수업일 계산
-                const dates = [];
+                const dates = [...(holding.holdingDates || [])];
                 const current = new Date(startDate);
-                while (current <= endDate) {
-                    if (classDays.includes(current.getDay())) {
+                while (!holding.holdingDates?.length && current <= endDate) {
+                    if (getHoldingClass(current, studentData, activeMakeups)) {
                         dates.push(formatLocalDate(current));
                     }
                     current.setDate(current.getDate() + 1);
@@ -259,48 +231,34 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                     status: '승인됨'
                 };
             }).sort((a, b) => new Date(a.startDate) - new Date(b.startDate)); // 날짜순 정렬
-    }, [allHoldings, schedule, membershipPeriod]);
+    }, [allHoldings, studentData, activeMakeups, membershipPeriod]);
 
-    // Load all holdings and absences from Firebase
+    // 신청 자격을 결정하는 자료가 모두 도착하기 전에는 선택/신청을 열지 않는다.
     useEffect(() => {
+        let cancelled = false;
         const loadData = async () => {
+            setRequestDataState('loading');
             if (!user) return;
-
             try {
-                // 서로 다른 컬렉션이고 뒤 호출이 앞 결과를 안 쓴다 → 직렬로 기다릴 이유가 없다
-                const [holdings, absenceList, makeups] = await Promise.all([
-                    getHoldingsByStudent(user.username),
-                    getAbsencesByStudent(user.username),
-                    getActiveMakeupRequests(user.username),
+                const [holdings, absenceList, makeups, holidays] = await Promise.all([
+                    getHoldingsByStudent(user.username), getAbsencesByStudent(user.username),
+                    getActiveMakeupRequests(user.username), getHolidays(),
                 ]);
+                if (cancelled) return;
                 setAllHoldings(holdings);
                 setAbsences(absenceList);
                 setActiveMakeups(makeups.filter(m => m.status === 'active' || m.status === 'completed'));
+                setCoachHolidays(Object.fromEntries(holidays.map(item => [item.date, item.reason || '휴일'])));
+                setRequestDataState('ready');
             } catch (error) {
-                console.error('Failed to load holding/absence data:', error);
+                if (cancelled) return;
+                setRequestDataState('error');
+                console.error('홀딩·결석 신청 정보 조회 실패:', error);
             }
         };
         loadData();
-    }, [user]);
-
-    // Load coach holidays from Firebase
-    useEffect(() => {
-        const loadCoachHolidays = async () => {
-            try {
-                const holidays = await getHolidays();
-                // Firebase 휴일을 { 'YYYY-MM-DD': '사유' } 형태로 변환
-                const holidayMap = {};
-                holidays.forEach(h => {
-                    holidayMap[h.date] = h.reason || '휴일';
-                });
-                setCoachHolidays(holidayMap);
-                console.log('📅 코치 휴일 로드됨:', holidayMap);
-            } catch (error) {
-                console.error('Failed to load coach holidays:', error);
-            }
-        };
-        loadCoachHolidays();
-    }, []);
+        return () => { cancelled = true; };
+    }, [user, getHoldingsByStudent, getAbsencesByStudent, getActiveMakeupRequests, getHolidays]);
 
     // 달력 생성 (월~금만 표시, 모든 날짜 표시)
     const calendar = useMemo(() => {
@@ -345,69 +303,8 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
         return { year, month, dates };
     }, [calendarYear, calendarMonth]);
 
-    // 이전/다음 등록 기간도 파싱 (미리 등록 대응)
-    const prevNextPeriod = useMemo(() => {
-        if (!studentData) return { prevStart: null, prevEnd: null, nextStart: null, nextEnd: null };
-
-        const parseDate = (dateStr) => {
-            if (!dateStr) return null;
-            const cleaned = String(dateStr).replace(/\D/g, '');
-            if (cleaned.length === 6) {
-                return new Date(parseInt('20' + cleaned.substring(0, 2)), parseInt(cleaned.substring(2, 4)) - 1, parseInt(cleaned.substring(4, 6)));
-            } else if (cleaned.length === 8) {
-                return new Date(parseInt(cleaned.substring(0, 4)), parseInt(cleaned.substring(4, 6)) - 1, parseInt(cleaned.substring(6, 8)));
-            }
-            if (String(dateStr).includes('-')) return new Date(dateStr);
-            return null;
-        };
-
-        const prev = studentData._prevRegistration;
-        const next = studentData._nextRegistration;
-        return {
-            prevStart: prev ? parseDate(prev['시작날짜']) : null,
-            prevEnd: prev ? parseDate(prev['종료날짜']) : null,
-            nextStart: next ? parseDate(next['시작날짜']) : null,
-            nextEnd: next ? parseDate(next['종료날짜']) : null,
-        };
-    }, [studentData]);
-
-    // 날짜가 속한 대상 등록 결정 ('current' | 'next' | null)
-    // 현재 등록 기간과 다음 등록 기간(미리 등록)을 각각 검사
-    const getTargetRegistrationForDate = (date) => {
-        if (!date) return null;
-        const d = new Date(date);
-        d.setHours(0, 0, 0, 0);
-
-        // 현재 등록의 raw 기간 (membershipPeriod는 확장되므로 직접 파싱)
-        const parseField = (s) => {
-            if (!s) return null;
-            const cleaned = String(s).replace(/\D/g, '');
-            if (cleaned.length === 6) {
-                return new Date(parseInt('20' + cleaned.substring(0, 2)), parseInt(cleaned.substring(2, 4)) - 1, parseInt(cleaned.substring(4, 6)));
-            }
-            if (cleaned.length === 8) {
-                return new Date(parseInt(cleaned.substring(0, 4)), parseInt(cleaned.substring(4, 6)) - 1, parseInt(cleaned.substring(6, 8)));
-            }
-            if (String(s).includes('-')) return new Date(s);
-            return null;
-        };
-
-        const curStart = parseField(studentData?.['시작날짜']);
-        const curEnd = parseField(studentData?.['종료날짜']);
-        if (curStart && curEnd) {
-            const s = new Date(curStart); s.setHours(0, 0, 0, 0);
-            const e = new Date(curEnd); e.setHours(0, 0, 0, 0);
-            if (d >= s && d <= e) return 'current';
-        }
-
-        if (prevNextPeriod.nextStart && prevNextPeriod.nextEnd) {
-            const s = new Date(prevNextPeriod.nextStart); s.setHours(0, 0, 0, 0);
-            const e = new Date(prevNextPeriod.nextEnd); e.setHours(0, 0, 0, 0);
-            if (d >= s && d <= e) return 'next';
-        }
-
-        return null;
-    };
+    const getClassInfo = date => getHoldingClass(date, studentData, activeMakeups);
+    const getTargetRegistrationForDate = date => getClassInfo(date)?.key || null;
 
     // 전체 표시 범위를 수강 자격으로 쓰면 재등록 사이 공백도 수업일이 된다.
     const isWithinMembershipPeriod = (date) =>
@@ -433,91 +330,9 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
         }
     };
 
-    // 특정 날짜에 보강으로 출석하는지 확인
-    const getMakeupForDate = (date) => {
-        if (!date || activeMakeups.length === 0) return null;
-        const dateStr = formatLocalDate(date);
-        return activeMakeups.find(m => m.makeupClass.date === dateStr);
-    };
-
-    // 특정 날짜가 보강으로 인해 원래 수업을 빠지는 날인지 확인
-    const isOriginalClassMovedOut = (date) => {
-        if (!date || activeMakeups.length === 0) return false;
-        const dateStr = formatLocalDate(date);
-        return activeMakeups.some(m => m.originalClass.date === dateStr);
-    };
-
-    // 특정 날짜가 수업일인지 확인 (보강 반영)
-    const isClassDay = (date) => {
-        if (!isWithinMembershipPeriod(date)) return false;
-
-        // 보강으로 이 날짜에 출석하는 경우 → 수업일
-        if (getMakeupForDate(date)) return true;
-
-        // 보강으로 원래 수업을 다른 날로 옮긴 경우 → 수업일 아님
-        if (isOriginalClassMovedOut(date)) return false;
-
-        const dayOfWeek = date.getDay();
-        const dayMap = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금' };
-        const dayName = dayMap[dayOfWeek];
-        return schedule.some(s => s.day === dayName);
-    };
-
-    // 특정 날짜의 수업 시간 가져오기 (보강 반영)
-    const getClassPeriod = (date) => {
-        if (!date) return null;
-
-        // 보강으로 이 날짜에 출석하는 경우 → 보강 교시
-        const makeup = getMakeupForDate(date);
-        if (makeup) return makeup.makeupClass.period;
-
-        // 보강으로 원래 수업을 다른 날로 옮긴 경우 → 교시 없음
-        if (isOriginalClassMovedOut(date)) return null;
-
-        const dayOfWeek = date.getDay();
-        const dayMap = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금' };
-        const dayName = dayMap[dayOfWeek];
-        const classInfo = schedule.find(s => s.day === dayName);
-        return classInfo ? classInfo.period : null;
-    };
-
-    // 홀딩 신청 가능 여부 확인 (수업 시작 2시간 전까지)
-    const canRequestHolding = (date) => {
-        if (!date) return false;
-
-        const periodId = getClassPeriod(date);
-        if (!periodId) return false;
-
-        const period = PERIODS.find(p => p.id === periodId);
-        if (!period) return false;
-
-        const classDateTime = new Date(date);
-        classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
-
-        const twoHoursBefore = new Date(classDateTime.getTime() - 2 * 60 * 60 * 1000);
-
-        const now = new Date();
-        return now < twoHoursBefore;
-    };
-
-    // 결석 신청 가능 여부 확인 (수업 시작 10분 전까지)
-    const canRequestAbsence = (date) => {
-        if (!date) return false;
-
-        const periodId = getClassPeriod(date);
-        if (!periodId) return false;
-
-        const period = PERIODS.find(p => p.id === periodId);
-        if (!period) return false;
-
-        const classDateTime = new Date(date);
-        classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
-
-        const tenMinBefore = new Date(classDateTime.getTime() - 10 * 60 * 1000);
-
-        const now = new Date();
-        return now < tenMinBefore;
-    };
+    const getMakeupForDate = date => getClassInfo(date)?.makeup || null;
+    const isClassDay = date => !!getClassInfo(date);
+    const getClassPeriod = date => getClassInfo(date)?.period || null;
 
     // 이미 홀딩 신청한 날짜인지 확인 (정규 수업일 + 홀딩 기간 범위 모두 체크)
     const isHoldingDate = (date) => {
@@ -528,121 +343,74 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
         );
     };
 
-    // 선택 가능 여부(마감·결석 등)와 별개로 실제 수업 일정의 연속성을 검사한다.
-    const getHoldingDatesError = (dates) => validateHoldingDates(dates, weeklyFrequency,
-        date => isClassDay(date) && !isHoliday(date) && !coachHolidays[formatLocalDate(date)]);
-
-    // 날짜 선택 핸들러
-    const handleDateClick = (date) => {
-        if (!date || !isClassDay(date) || isHoldingDate(date)) {
-            return;
-        }
-
-        const canRequest = requestType === 'absence' ? canRequestAbsence(date) : canRequestHolding(date);
-        if (!canRequest) {
-            if (requestType === 'absence') {
-                alert('결석 신청은 수업 시작 10분 전까지만 가능합니다.');
-            } else {
-                alert('홀딩 신청은 수업 시작 2시간 전까지만 가능합니다.');
-            }
-            return;
-        }
-
-        // 종료날짜 이후 날짜 선택 방지
-        if (!isWithinMembershipPeriod(date)) {
-            alert('수강 기간 내의 날짜만 선택할 수 있습니다.');
-            return;
-        }
-
-        const dateStr = formatLocalDate(date);
-
-        // 이미 선택된 날짜면 제거
-        if (selectedDates.includes(dateStr)) {
-            setSelectedDates(selectedDates.filter(d => d !== dateStr));
-            return;
-        }
-
-        // 홀딩 신청 시: 날짜가 속한 등록 기간 기준으로 남은 횟수 확인
-        if (requestType === 'holding') {
-            const target = getTargetRegistrationForDate(date);
-            if (target === 'next') {
-                if (!nextHoldingInfo || nextRemainingHoldings <= 0) {
-                    alert(`다음 등록의 홀딩을 모두 사용하셨습니다.\n(${nextHoldingInfo?.used || 0}/${nextHoldingInfo?.total || 0}회 사용)`);
-                    return;
-                }
-            } else {
-                if (remainingHoldings <= 0) {
-                    alert(`홀딩을 모두 사용하셨습니다.\n(${holdingInfo.used}/${holdingInfo.total}회 사용)`);
-                    return;
-                }
-            }
-
-            // 이미 선택된 날짜들과 다른 등록 기간이면 차단
-            if (selectedDates.length > 0) {
-                const existingTarget = getTargetRegistrationForDate(new Date(selectedDates[0] + 'T00:00:00'));
-                if (existingTarget && target && existingTarget !== target) {
-                    alert('하나의 홀딩 신청에는 같은 등록 기간의 날짜만 선택할 수 있습니다.');
-                    return;
-                }
-            }
-        }
-
-        // 새로운 날짜 추가
-        const newDates = [...selectedDates, dateStr].sort();
-
-        // 주 횟수만큼만 홀딩 가능 (주2회→2회, 주3회→3회)
-        // 선택된 날짜 중 실제 수업일만 카운트
-        const selectedClassDays = newDates.filter(d => {
-            const dateObj = new Date(d + 'T00:00:00');
-            return isClassDay(dateObj);
+    const getDateRequestError = date => {
+        if (isLoading || requestDataState !== 'ready') return '수업 정보를 확인한 뒤 다시 선택해주세요.';
+        return getHoldingRequestDateError({
+            date, classInfo: getClassInfo(date), requestType,
+            holiday: date && (isHoliday(date) || coachHolidays[formatLocalDate(date)]),
+            holdings: allHoldings, absences,
         });
+    };
 
-        if (selectedClassDays.length > weeklyFrequency) {
-            alert(`한 번에 신청할 수 있는 홀딩 수업일은 최대 ${weeklyFrequency}일입니다.\n(주 ${weeklyFrequency}회 기준 한 주 분량)`);
+    // 신청 마감이나 결석 때문에 중간 실제 수업을 건너뛰는 것은 허용하지 않는다.
+    const getHoldingDatesError = dates => {
+        const classes = dates.map(value => getClassInfo(parseHoldingDate(value)));
+        const first = classes[0];
+        if (!first || classes.some(item => !item)) return '수강 기간 내의 실제 수업일만 신청할 수 있습니다.';
+        if (classes.some(item => item.key !== first.key)) return '하나의 홀딩 신청에는 같은 등록 기간의 날짜만 선택할 수 있습니다.';
+        const info = parseHoldingStatus(getStudentField(first.registration, '홀딩 사용여부'));
+        if (info.total - info.used <= 0) return `선택한 등록의 홀딩을 모두 사용하셨습니다. (${info.used}/${info.total}회 사용)`;
+        return validateHoldingDates(dates, first.weeklyFrequency,
+            date => isClassDay(date) && !isHoliday(date) && !coachHolidays[formatLocalDate(date)]);
+    };
+
+    const getAbsenceDatesError = dates => {
+        const counts = new Map();
+        for (const value of dates) {
+            const item = getClassInfo(parseHoldingDate(value));
+            if (!item) return '수강 기간 내의 실제 수업일만 신청할 수 있습니다.';
+            const count = (counts.get(item.key) || 0) + 1;
+            if (count > item.weeklyFrequency) return `한 번에 신청할 수 있는 결석 수업일은 등록별 최대 ${item.weeklyFrequency}일입니다.`;
+            counts.set(item.key, count);
+        }
+        return null;
+    };
+
+    const handleDateClick = date => {
+        if (!date || isSubmitting) return;
+        const dateStr = formatLocalDate(date);
+        // 시간이 지나 선택 불가가 된 날짜도 해제할 수 있다.
+        if (selectedDates.includes(dateStr)) {
+            setSelectedDates(selectedDates.filter(value => value !== dateStr));
             return;
         }
-
-        if (requestType === 'holding') {
-            const validationError = getHoldingDatesError(newDates);
-            if (validationError) {
-                alert(validationError);
-                return;
-            }
-        }
-
+        const dateError = getDateRequestError(date);
+        if (dateError) { alert(dateError); return; }
+        const newDates = [...selectedDates, dateStr].sort();
+        const validationError = requestType === 'holding' ? getHoldingDatesError(newDates) : getAbsenceDatesError(newDates);
+        if (validationError) { alert(validationError); return; }
         setSelectedDates(newDates);
+    };
+
+    const refreshStudentData = async () => {
+        // 신청 자체가 성공한 뒤 조회 실패를 신청 실패/롤백으로 오해하지 않는다.
+        const results = await Promise.allSettled([refresh(), onStudentDataRefresh?.()]);
+        if (results.some(result => result.status === 'rejected')) {
+            console.error('신청 후 수강 정보 갱신 실패:', results.filter(result => result.status === 'rejected'));
+            alert('신청 내용은 저장되었지만 최신 수강 정보를 불러오지 못했습니다. 내 수업에서 새로고침해주세요.');
+        }
     };
 
     // 홀딩 신청 핸들러
     const handleSubmit = async () => {
-        if (selectedDates.length === 0 || !user) return;
-
-        // 선택 후 시트 정보가 갱신된 경우에도 홀딩/결석 모두 저장 전에 재검증한다.
-        if (selectedDates.some(value => !isClassDay(new Date(value + 'T00:00:00')))) {
-            alert('수강 기간 내의 실제 수업일만 신청할 수 있습니다.');
-            return;
-        }
-
-        // 홀딩 신청 시: 대상 등록 결정 + 해당 등록의 남은 횟수 재확인
-        let targetRegistration = 'current';
-        if (requestType === 'holding') {
-            // 중간 날짜 선택 해제·신청 유형 전환으로 생긴 비연속 선택도 저장 전에 차단한다.
-            const validationError = getHoldingDatesError(selectedDates);
-            if (validationError) {
-                alert(validationError);
-                return;
-            }
-            const sorted = [...selectedDates].sort();
-            targetRegistration = getTargetRegistrationForDate(new Date(sorted[0] + 'T00:00:00')) || 'current';
-
-            const targetInfo = targetRegistration === 'next' ? nextHoldingInfo : holdingInfo;
-            const targetRemaining = targetInfo ? targetInfo.total - targetInfo.used : 0;
-            if (targetRemaining <= 0) {
-                const label = targetRegistration === 'next' ? '다음 등록의 홀딩' : '홀딩';
-                alert(`${label}을 모두 사용하셨습니다.\n(${targetInfo?.used || 0}/${targetInfo?.total || 0}회 사용)`);
-                return;
-            }
-        }
+        // 조회 화면은 확인 단계까지만 제공한다. UI를 거치지 않은 호출도 저장하지 않는다.
+        if (readOnly || selectedDates.length === 0 || !user || isSubmitting) return;
+        // 확인창에 머무는 동안 마감이 지난 경우도 저장 직전에 다시 검사한다.
+        const dateError = selectedDates.map(value => getDateRequestError(parseHoldingDate(value))).find(Boolean);
+        if (dateError) { alert(dateError); return; }
+        const validationError = requestType === 'holding' ? getHoldingDatesError(selectedDates) : getAbsenceDatesError(selectedDates);
+        if (validationError) { alert(validationError); return; }
+        const targetRegistration = getTargetRegistrationForDate(parseHoldingDate([...selectedDates].sort()[0]));
 
         setIsSubmitting(true);
         let createdHoldingId = null;
@@ -675,7 +443,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                 const makeupHoldingCount = sortedDates.filter(dateStr => {
                     const dateObj = new Date(dateStr + 'T00:00:00');
                     const dayName = dayMap[dateObj.getDay()];
-                    const isRegularDay = schedule.some(s => s.day === dayName);
+                    const isRegularDay = getClassInfo(dateObj)?.schedule.some(s => s.day === dayName);
                     return !isRegularDay && getMakeupForDate(dateObj);
                 }).length;
 
@@ -688,7 +456,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                 const endDateObj = parseLocalDate(endDate);
                 // 기존 홀딩 목록을 전달하여 종료일 계산에 포함
                 const holidaysArray = Object.entries(coachHolidays).map(([date, reason]) => ({ date, reason }));
-                const countedHolidayDates = await getCountedHolidayMakeupDates(user.username);
+                const countedHolidayDates = await getCountedHolidayMakeupDates(user.username, getActiveMakeupRequests);
                 await requestHolding(user.username, startDateObj, endDateObj, allHoldings, holidaysArray, makeupHoldingCount, targetRegistration, countedHolidayDates);
                 sheetsUpdated = true;
                 if (createdHoldingId) await markHoldingSheetsApplied(createdHoldingId).catch(() => {});
@@ -698,7 +466,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                 // 리로드 2개는 서로 결과를 안 쓴다 → 병렬 (alert 이후 대기 시간)
                 const [holdings] = await Promise.all([
                     getHoldingsByStudent(user.username),
-                    refresh(), // Google Sheets 데이터 새로고침 (시간표 실시간 반영)
+                    refreshStudentData(),
                 ]);
                 setAllHoldings(holdings);
             } else {
@@ -708,15 +476,20 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                 alert(`결석 신청이 완료되었습니다.\n날짜: ${sortedDates.join(', ')}`);
 
                 // Reload data
-                const absenceList = await getAbsencesByStudent(user.username);
+                const [absenceList] = await Promise.all([getAbsencesByStudent(user.username), refreshStudentData()]);
                 setAbsences(absenceList);
             }
 
             // 빠진 자리의 보강 대기자 알림 — 실패해도 신청 자체에는 영향이 없고, 이미 완료
             // alert까지 띄운 뒤라 기다릴 이유가 없다. 기다리면 대기자 SMS/푸시가 끝날 때까지
             // 차단 화면이 남는다.
-            onSeatsFreedForDates(sortedDates, getStudentField(studentData, '요일 및 시간'))
-                .catch(e => console.error('보강 대기 알림 트리거 실패:', e));
+            sortedDates.forEach(value => {
+                const date = parseHoldingDate(value);
+                const period = getClassPeriod(date);
+                const dayName = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
+                onSeatsFreedForDates([value], `${dayName}${period}`)
+                    .catch(e => console.error('보강 대기 알림 트리거 실패:', e));
+            });
 
             setSelectedDates([]);
         } catch (error) {
@@ -727,15 +500,56 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                     console.error('홀딩 Firebase 롤백 실패:', rollbackError);
                 }
             }
-            alert(`홀딩 신청에 실패했습니다: ${error.message}`);
+            alert(`${requestType === 'holding' ? '홀딩' : '결석'} 신청에 실패했습니다: ${error.message}`);
             console.error('홀딩 신청 오류:', error);
         } finally {
             setIsSubmitting(false);
         }
     };
 
+    const canCancelOnDate = (date, minutes) => requestDataState === 'ready' && !isLoading
+        && isBeforeHoldingDeadline(date, getClassPeriod(date), minutes);
+
+    const handleCancelHolding = async holding => {
+        if (readOnly || isSubmitting || !user) return;
+        const date = parseHoldingDate(holding.startDate);
+        if (!canCancelOnDate(date, 60)) { alert('홀딩 취소는 수업 시작 1시간 전까지만 가능합니다.'); return; }
+        if (!confirm(`홀딩을 취소하시겠습니까?\n기간: ${holding.startDate} ~ ${holding.endDate}`)) return;
+        if (!canCancelOnDate(date, 60)) { alert('홀딩 취소 마감 시간이 지났습니다.'); return; }
+        setIsSubmitting(true);
+        try {
+            await cancelHolding(holding.id);
+            const remaining = allHoldings.filter(item => item.id !== holding.id);
+            const holidays = Object.entries(coachHolidays).map(([value, reason]) => ({ date: value, reason }));
+            const countedHolidayDates = await getCountedHolidayMakeupDates(user.username, getActiveMakeupRequests);
+            await cancelHoldingInSheets(user.username, remaining, holidays, countedHolidayDates, date);
+            setAllHoldings(remaining);
+            await refreshStudentData();
+            alert('홀딩이 취소되었습니다.');
+        } catch (error) {
+            alert('취소 실패: ' + error.message);
+        } finally { setIsSubmitting(false); }
+    };
+
+    const handleCancelAbsence = async absence => {
+        if (readOnly || isSubmitting || !user) return;
+        const date = parseHoldingDate(absence.date);
+        if (!canCancelOnDate(date, 0)) { alert('결석 취소는 수업 시작 전까지만 가능합니다.'); return; }
+        if (!confirm('결석을 취소하시겠습니까?')) return;
+        if (!canCancelOnDate(date, 0)) { alert('결석 취소 마감 시간이 지났습니다.'); return; }
+        setIsSubmitting(true);
+        try {
+            await cancelAbsence(absence.id);
+            const [updated] = await Promise.all([getAbsencesByStudent(user.username), refreshStudentData()]);
+            setAbsences(updated);
+            alert('결석이 취소되었습니다.');
+        } catch (error) {
+            alert('취소 실패: ' + error.message);
+        } finally { setIsSubmitting(false); }
+    };
+
     return (
-        <div className="holding-container">
+        <div className={`holding-container${readOnly ? ' holding-read-only' : ''}`}>
             {/* 제출 중 전체 차단 안내. 시트 반영이 끝나기 전에 앱을 닫으면 신청이 시트에
                 안 들어가 종료일이 안 밀린다(2026-08 실제 유실 2건) → 기다리게 만든다. */}
             {isSubmitting && (
@@ -767,7 +581,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                     <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                 </div>
             )}
-            {isLoading && (
+            {(isLoading || requestDataState === 'loading') && (
                 <div style={{
                     position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
                     background: 'rgba(255,255,255,0.85)', zIndex: 9999,
@@ -786,11 +600,23 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                 </div>
             )}
             <div className="holding-header">
+                {onBack && <button type="button" className="back-button" onClick={onBack} disabled={isSubmitting}>← 내 수업</button>}
                 <h1 className="holding-title">{requestType === 'absence' ? '결석 신청' : '홀딩 신청'}</h1>
             </div>
+            {readOnly && <p className="holding-readonly-notice">조회 전용 · 날짜 선택과 신청 내용 확인만 가능합니다.</p>}
+            {validContextDate && (
+                <div className="student-account-actions">
+                    <button type="button" disabled={isSubmitting || isLoading || requestDataState !== 'ready' || selectedDates.includes(initialDate)} onClick={() => handleDateClick(validContextDate)}>
+                        {`${validContextDate.getMonth() + 1}월 ${validContextDate.getDate()}일 수업 ${selectedDates.includes(initialDate) ? '선택됨' : '선택하기'}`}
+                    </button>
+                </div>
+            )}
 
             <div className="holding-content">
+                {requestDataState === 'error' && <p role="alert">수업 정보를 불러오지 못했습니다. 화면을 다시 열어주세요.</p>}
                 {/* 안내 (홀딩/결석 모드에 따라 전환) */}
+                <details className="holding-policy">
+                    <summary>{requestType === 'holding' ? '홀딩 신청·취소 기준' : '결석 신청·취소 기준'}</summary>
                 <div className={`info-card ${requestType === 'absence' ? 'absence' : ''}`}>
                     <div className="info-icon">ℹ️</div>
                     <div className="info-content">
@@ -851,6 +677,8 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                     </div>
                 </div>
 
+                </details>
+
                 {/* 홀딩 사용 완료 알림 (현재 + 다음 등록 모두 소진된 경우) */}
                 {hasUsedAllHoldings && (
                     <div className="info-card" style={{ background: '#fee2e2', borderColor: '#ef4444' }}>
@@ -880,16 +708,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                                     {holdingHistory.map(holdingData => {
                                         // 홀딩 시작일 수업 시작 1시간 전까지 취소 가능 (보강일 포함)
                                         const holdingStartDate = new Date(holdingData.startDate + 'T00:00:00');
-                                        const periodId = getClassPeriod(holdingStartDate);
-                                        const period = periodId ? PERIODS.find(p => p.id === periodId) : null;
-
-                                        let canCancelHolding = true;
-                                        if (period) {
-                                            const classDateTime = new Date(holdingStartDate);
-                                            classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
-                                            const deadline = new Date(classDateTime.getTime() - 60 * 60 * 1000);
-                                            canCancelHolding = new Date() < deadline;
-                                        }
+                                        const canCancelHolding = canCancelOnDate(holdingStartDate, 60);
 
                                         return (
                                             <div key={holdingData.id} style={{ marginTop: '8px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid var(--accent-30)' }}>
@@ -904,30 +723,9 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                                                     </div>
                                                     {canCancelHolding ? (
                                                         <button
-                                                            onClick={async () => {
-                                                                if (confirm(`홀딩을 취소하시겠습니까?\n기간: ${holdingData.startDate} ~ ${holdingData.endDate}`)) {
-                                                                    try {
-                                                                        // Firebase 홀딩 취소
-                                                                        await cancelHolding(holdingData.id);
-                                                                        // 남은 홀딩 목록 계산 (취소된 홀딩 제외)
-                                                                        const remainingHoldingsList = allHoldings.filter(h => h.id !== holdingData.id);
-                                                                        // Google Sheets의 홀딩 정보 업데이트 (남은 홀딩 고려하여 종료일 재계산)
-                                                                        const holidaysArray = Object.entries(coachHolidays).map(([date, reason]) => ({ date, reason }));
-                                                                        const countedHolidayDates = await getCountedHolidayMakeupDates(user.username);
-                                                                        await cancelHoldingInSheets(user.username, remainingHoldingsList, holidaysArray, countedHolidayDates);
-
-                                                                        // 상태 업데이트
-                                                                        setAllHoldings(remainingHoldingsList);
-
-                                                                        // Google Sheets 데이터 새로고침 (시간표 실시간 반영)
-                                                                        await refresh();
-
-                                                                        alert('홀딩이 취소되었습니다.');
-                                                                    } catch (error) {
-                                                                        alert('취소 실패: ' + error.message);
-                                                                    }
-                                                                }
-                                                            }}
+                                                            disabled={readOnly || isSubmitting}
+                                                            title={readOnly ? '조회 전용 화면에서는 취소할 수 없습니다.' : undefined}
+                                                            onClick={() => handleCancelHolding(holdingData)}
                                                             style={{
                                                                 padding: '6px 12px',
                                                                 background: '#dc2626',
@@ -975,20 +773,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                                     }).map(absence => {
                                         // 결석 날짜의 수업 시간이 지났는지 확인
                                         const absenceDate = new Date(absence.date + 'T00:00:00');
-                                        const dayOfWeek = absenceDate.getDay();
-                                        const dayMap = { 1: '월', 2: '화', 3: '수', 4: '목', 5: '금' };
-                                        const dayName = dayMap[dayOfWeek];
-                                        const classInfo = schedule.find(s => s.day === dayName);
-
-                                        let canCancelAbsence = true;
-                                        if (classInfo) {
-                                            const period = PERIODS.find(p => p.id === classInfo.period);
-                                            if (period) {
-                                                const classDateTime = new Date(absenceDate);
-                                                classDateTime.setHours(period.startHour, period.startMinute, 0, 0);
-                                                canCancelAbsence = new Date() < classDateTime;
-                                            }
-                                        }
+                                        const canCancelAbsence = canCancelOnDate(absenceDate, 0);
 
                                         return (
                                             <div key={absence.id} style={{ marginTop: '8px', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #E94E584D' }}>
@@ -998,18 +783,9 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                                                     </div>
                                                     {canCancelAbsence ? (
                                                         <button
-                                                            onClick={async () => {
-                                                                if (confirm('결석을 취소하시겠습니까?')) {
-                                                                    try {
-                                                                        await cancelAbsence(absence.id);
-                                                                        const updated = await getAbsencesByStudent(user.username);
-                                                                        setAbsences(updated);
-                                                                        alert('결석이 취소되었습니다.');
-                                                                    } catch (error) {
-                                                                        alert('취소 실패: ' + error.message);
-                                                                    }
-                                                                }
-                                                            }}
+                                                            disabled={readOnly || isSubmitting}
+                                                            title={readOnly ? '조회 전용 화면에서는 취소할 수 없습니다.' : undefined}
+                                                            onClick={() => handleCancelAbsence(absence)}
                                                             style={{
                                                                 padding: '6px 12px',
                                                                 background: '#dc2626',
@@ -1059,7 +835,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                         />
                         <span className="type-icon">⏸️</span>
                         <span className="type-label">홀딩 신청</span>
-                        <span className="type-desc">{hasUsedAllHoldings ? '사용 완료' : `남은 횟수: ${remainingHoldings}회`}</span>
+                        <span className="type-desc">{hasUsedAllHoldings ? '사용 완료' : `선택한 등록 잔여: ${selectedRemainingHoldings}회`}</span>
                     </label>
                     <label className={`type-option absence ${requestType === 'absence' ? 'selected' : ''}`}>
                         <input
@@ -1119,8 +895,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                                 const coachHolidayName = coachHolidays[dateStr];
                                 const holidayName = koreanHolidayName || coachHolidayName; // 한국 공휴일 또는 코치 설정 휴일
                                 const isOutOfPeriod = !isInPeriod; // 수강 기간 외 날짜
-                                const timeCheck = requestType === 'absence' ? canRequestAbsence(date) : canRequestHolding(date);
-                                const canRequest = isClass && timeCheck && !isHolding && !isAbsence && !holidayName && isInPeriod;
+                                const canRequest = !getDateRequestError(date);
 
                                 return (
                                     <div
@@ -1182,7 +957,7 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                             ))}
                         </div>
                         <button
-                            onClick={handleSubmit}
+                            onClick={() => setShowConfirmation(true)}
                             className="submit-button"
                             disabled={isSubmitting}
                         >
@@ -1194,6 +969,17 @@ const HoldingManager = ({ user, studentData, isLoading }) => {
                     </div>
                 )}
             </div>
+
+            {showConfirmation && <ReviewModal title={requestType === 'holding' ? '홀딩 신청 확인' : '결석 신청 확인'} busy={isSubmitting} onClose={() => setShowConfirmation(false)}>
+                <p className="holding-confirm-dates">{selectedDates.map(date => date.slice(5).replace('-', '/')).join(', ')} · 총 {selectedDates.length}일</p>
+                <p className="holding-confirm-description">{requestType === 'holding'
+                    ? '선택한 수업을 쉬고, 해당 수업일만큼 수강 기간을 연장합니다. 홀딩 사용 횟수는 1회 차감됩니다.'
+                    : '선택한 수업의 결석을 알립니다. 수업 횟수는 차감되며 수강 기간은 연장되지 않습니다.'}</p>
+                <div className="holding-confirm-actions">
+                    <button type="button" disabled={isSubmitting} onClick={() => setShowConfirmation(false)}>다시 선택</button>
+                    <button type="button" disabled={readOnly || isSubmitting} onClick={() => { setShowConfirmation(false); void handleSubmit(); }}>{readOnly ? '조회 전용 · 신청 불가' : isSubmitting ? '신청 중…' : '신청 확정'}</button>
+                </div>
+            </ReviewModal>}
 
             {/* 홀딩 내역 */}
             <div className="history-card">

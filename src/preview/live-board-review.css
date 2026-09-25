@@ -1,0 +1,26 @@
+.live-board-review { max-width:732px; margin:16px auto; padding:0 16px 110px; color:var(--text); }
+.live-board-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.live-board-heading h1 { margin:0; font-size:22px; font-weight:700; }
+.live-board-refresh,.live-board-back { min-height:44px; padding:8px 12px; border:1px solid var(--hairline); border-radius:var(--r-chip); background:var(--canvas); color:var(--accent-hover); font-size:14px; }
+.live-board-refresh:disabled { opacity:.5; }
+.live-board-back { margin-bottom:12px; }
+.live-board-review .board-tab { min-height:38px; }
+.live-board-posts .post-card { display:block; width:100%; text-align:left; font-family:inherit; }
+.live-board-posts .post-card-header { min-width:0; }
+.live-board-posts .post-card-title { font-size:14px; }
+.live-board-posts .post-card-title small { font-weight:400; }
+.live-board-posts .post-card-meta { flex-wrap:wrap; gap:4px 8px; }
+.live-board-posts .post-card-meta>span { overflow-wrap:anywhere; }
+.live-board-coach { color:var(--accent-hover); font-weight:600; }
+.live-board-detail .post-detail { border:1px solid var(--hairline); border-radius:var(--r-md); }
+.live-board-detail .post-detail-meta { flex-wrap:wrap; font-size:12px; }
+.live-board-detail .post-detail-title { overflow-wrap:anywhere; }
+.live-board-detail .post-detail-images img { display:block; max-width:100%; height:auto; border-radius:var(--r-chip); }
+.live-board-counts { color:var(--text-secondary); font-size:13px; }
+.live-board-detail .comments-header { margin-top:20px; font-size:16px; }
+.live-board-detail .comment-item-header { flex-wrap:wrap; gap:4px 8px; }
+.live-board-detail .comment-content { white-space:pre-wrap; overflow-wrap:anywhere; }
+.live-board-detail .comment-date { font-size:11px; color:var(--text-muted); }
+.live-board-comment-image { display:block; max-width:100%; max-height:280px; margin-top:8px; object-fit:contain; border-radius:var(--r-chip); }
+.live-board-comment-likes,.live-board-empty-comments { color:var(--text-secondary); font-size:13px; }
+.live-board-review .board-pagination { margin-top:20px; }

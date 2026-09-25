@@ -4,6 +4,8 @@
   padding-bottom: 80px;
 }
 
+.app.student-app { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+
 .coming-soon {
   min-height: 100vh;
   display: flex;

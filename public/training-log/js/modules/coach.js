@@ -2,7 +2,7 @@ import { state, db, firebaseInitialized } from '../state.js';
 import { getKoreanInitial, getStudentColor, getStudentBadgeColor, getStudentTextColor, formatDate, debounce } from '../utils.js';
 
 const debouncedLoadAllRecords = debounce(loadAllRecords, 300);
-import { normalizeSet } from './sets.js';
+import { normalizeSet } from './sets.js?v=20260925-student-ux';
 import { groupSessionsByDate, defaultSessionDate } from './session-logic.js';
 import { resolveClassSlot, previousSlot, rosterFor, slotHasEnded, weekdayDates, PERIODS } from './class-period.js';
 import { nextStage, stageHint } from './quick-nav-stage.js';

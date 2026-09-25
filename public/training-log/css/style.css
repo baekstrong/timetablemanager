@@ -303,3 +303,111 @@ body.modal-open {
     transform: scale(0.95);
     opacity: 0.85;
 }
+
+/* Student journal: calendar browsing and the writing draft are separate views. */
+.student-workspace { color:rgba(0,0,0,.85); max-width:520px; padding-bottom:110px; }
+.student-workspace [hidden] { display:none!important; }
+.student-workspace button,.student-workspace select,.student-workspace input { min-height:44px; }
+.student-workspace button { cursor:pointer; }
+.student-workspace button:disabled { cursor:default; opacity:.45; }
+.student-workspace button:focus-visible,.student-workspace input:focus-visible,.student-workspace select:focus-visible,.student-workspace textarea:focus-visible { outline:2px solid #327AB8; outline-offset:2px; }
+.student-workspace-header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:4px 0 24px; }
+.student-workspace-header p { color:#327AB8; font-size:11px; margin-bottom:4px; }
+.student-workspace-header h2 { font-size:23px; font-weight:700; }
+.student-workspace-header span { font-size:12px; color:rgba(0,0,0,.6); }
+.student-header-tools { display:flex; flex-direction:column; align-items:flex-end; }
+.student-header-tools button { font-size:11px; background:none; padding:0 4px; color:rgba(0,0,0,.6); }
+.student-main-button { display:block; width:100%; min-height:50px!important; padding:12px 16px; border-radius:8px; background:#242428; color:#fff; font-weight:700; font-size:14px; }
+#studentStartButton { text-align:left; margin-bottom:18px; }
+#studentDraftList { margin-bottom:14px; font-size:12px; }
+#studentDraftList:empty { display:none; }
+#studentDraftList summary { min-height:44px; display:flex; align-items:center; color:#327AB8; cursor:pointer; }
+#studentDraftList button { display:flex; flex-direction:column; justify-content:center; width:100%; text-align:left; background:#fff; padding:10px; border-bottom:1px solid #EFEFF0; }
+#studentDraftList small { color:rgba(0,0,0,.6); margin-top:4px; }
+.student-calendar-card,.student-records-card,.student-record-form { background:#fff; border:1px solid #EFEFF0; border-radius:8px; }
+.student-calendar-card { padding:10px 0 0; margin-bottom:22px; }
+.student-calendar-heading { display:flex; justify-content:space-between; align-items:center; padding:0 12px; }
+.student-calendar-heading h3 { font-size:17px; font-weight:700; }
+.student-calendar-heading>div { display:flex; }
+.student-calendar-heading button { min-width:44px; padding:0; font-size:27px; color:rgba(0,0,0,.6); background:none; }
+.student-calendar-summary { display:flex; align-items:center; justify-content:space-between; padding:0 14px 9px; min-height:44px; font-size:12px; color:rgba(0,0,0,.6); }
+.student-calendar-summary strong { color:#327AB8; font-size:23px; margin-left:6px; }
+.student-calendar-summary small { font-size:12px; font-weight:400; margin-left:2px; }
+.student-calendar-summary>span { font-size:10px; color:#A7A7AA; }
+.student-calendar-summary button { color:#327AB8; font-size:12px; background:none; }
+.student-calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); padding:0 5px; }
+.student-calendar-weekday { display:flex; align-items:center; justify-content:center; min-height:32px; font-size:11px; color:#A7A7AA; }
+.student-workspace .student-calendar-day { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:0; min-height:52px; padding:5px 0; border:1px solid transparent; border-radius:8px; background:none; }
+.student-calendar-day strong { font-size:14px; font-weight:400; line-height:21px; }
+.student-calendar-day small { font-size:9px; line-height:14px; min-height:14px; }
+.student-workspace .student-calendar-day.has-record { color:#327AB8; background:#329BE71A; }
+.student-calendar-day.has-record strong { font-weight:700; }
+.student-workspace .student-calendar-day.is-today { border-color:rgba(0,0,0,.6); }
+.student-workspace .student-calendar-day.is-selected { outline:2px solid #327AB8; outline-offset:-3px; }
+.student-calendar-day>i { position:absolute; top:7px; right:7px; width:4px; height:4px; border-radius:9999px; background:rgba(0,0,0,.6); }
+.student-calendar-legend { display:flex; align-items:center; justify-content:center; gap:20px; min-height:46px; font-size:10px; color:rgba(0,0,0,.6); }
+.student-calendar-legend span { display:flex; align-items:center; gap:6px; }
+.student-calendar-legend b { color:#327AB8; background:#329BE71A; padding:1px 3px; border-radius:8px; }
+.student-calendar-legend i { width:4px; height:4px; border-radius:9999px; background:rgba(0,0,0,.6); }
+.student-records-card { padding:16px 14px; }
+.student-records-card>h3 { font-size:14px; font-weight:700; }
+.student-records-card #recordsList>div:last-child { border-bottom:0; }
+.student-records-card .text-lg { font-size:15px; }
+.student-records-card button { padding-inline:8px; }
+.student-record-feedback { padding:12px; margin-top:12px; background:#F7F7F8; border-radius:8px; font-size:12px; line-height:1.8; }
+.student-record-feedback strong { font-weight:400; color:rgba(0,0,0,.6); font-size:10px; }
+.student-record-feedback p { white-space:pre-wrap; overflow-wrap:anywhere; }
+.student-writing-heading { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:14px; scroll-margin-top:12px; }
+.student-writing-heading>button { color:#327AB8; background:none; font-size:13px; white-space:nowrap; }
+.student-writing-heading label { font-size:11px; color:rgba(0,0,0,.6); }
+.student-writing-heading input { max-width:145px; background:transparent; border:0; font-size:13px; color:rgba(0,0,0,.85); }
+.student-record-form { padding:16px 12px; }
+.student-record-form>h3 { font-size:16px; font-weight:700; margin-bottom:12px; }
+.student-help { color:rgba(0,0,0,.6); font-size:11px; line-height:1.8; margin:8px 0 12px; }
+.student-exercise-search { position:relative; margin-bottom:14px; }
+.student-exercise-search>label { display:block; margin-bottom:8px; font-size:12px; color:rgba(0,0,0,.6); }
+.student-exercise-search>input { width:100%; height:48px; padding:10px 46px 10px 12px; border:1px solid #EFEFF0; border-radius:8px; font-size:16px; color:rgba(0,0,0,.85); }
+.student-exercise-search>#exerciseClearBtn { position:absolute; right:0; top:26px; width:44px; height:44px; padding:0; border:0; background:none; color:#A7A7AA; }
+#exerciseSuggestions { position:absolute; top:100%; left:0; right:0; z-index:30; margin-top:4px; max-height:260px; overflow-y:auto; background:#fff; border:1px solid #EFEFF0; border-radius:8px; }
+#exerciseSuggestions>button { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-height:48px; padding:12px; border:0; border-bottom:1px solid #EFEFF0; font-size:13px; text-align:left; background:#fff; }
+#exerciseSuggestions>button:hover,#exerciseSuggestions>button:focus-visible { background:#329BE71A; }
+#exerciseSuggestions small { color:#327AB8; font-size:10px; white-space:nowrap; }
+.student-reference-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:16px; }
+.student-reference-heading label { display:flex; flex-direction:column; gap:2px; color:rgba(0,0,0,.6); font-size:10px; }
+.student-reference-heading select { max-width:180px; color:rgba(0,0,0,.85); font-size:12px; background:#fff; border:0; }
+.student-reference-heading button { color:#327AB8; font-size:11px; background:none; }
+.student-reference-feedback { font-size:12px; line-height:1.8; background:#F7F7F8; padding:10px; border-radius:8px; margin-bottom:12px; }
+.student-set-row { background:#F7F7F8; border:0; padding:12px 10px; border-radius:8px; margin:10px 0; }
+.student-previous-set { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 10px; font-size:11px; color:rgba(0,0,0,.6); }
+.student-previous-set strong { font-weight:400; font-size:12px; text-align:right; overflow-wrap:anywhere; }
+.student-set-inputs { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.student-set-inputs.duration-layout { grid-template-columns:1fr; }
+.student-set-inputs>div { min-width:0; }
+.student-set-inputs .intensity-input { min-width:0; width:100%; font-size:16px; padding:8px; }
+.student-set-inputs select { font-size:11px; padding:6px 3px; max-width:64px; }
+.student-set-inputs input.w-16 { width:36px; min-width:0; padding:8px 3px; font-size:14px; }
+.student-form-details { margin:14px 0; border-top:1px solid #EFEFF0; }
+.student-form-details summary { min-height:44px; padding:12px 0; color:rgba(0,0,0,.6); font-size:12px; cursor:pointer; }
+.student-form-details>label { font-size:12px; color:rgba(0,0,0,.6); }
+.student-form-details textarea { width:100%; border:1px solid #EFEFF0; border-radius:8px; padding:10px; font-size:16px; margin-top:8px; }
+.student-pain-label { display:flex; align-items:center; gap:8px; min-height:44px; }
+.student-pain-label input { min-height:0; width:18px; height:18px; }
+.student-saved-notice { font-size:12px; color:#327AB8; line-height:1.8; padding-top:14px; }
+.student-saved-notice button { margin-right:10px; background:none; font-size:12px; }
+.bottom-nav[data-role=student] { max-width:700px; margin-inline:auto; box-shadow:none; border-color:#EFEFF0; border-radius:20px; }
+.bottom-nav[data-role=student] .bottom-nav-tab { min-height:56px; color:rgba(0,0,0,.6); }
+.bottom-nav[data-role=student] .tab-label { font-size:11px; }
+.bottom-nav[data-role=student] .bottom-nav-tab:focus-visible { outline:2px solid #329BE7; outline-offset:-3px; border-radius:8px; }
+.bottom-nav[data-role=student] [data-page=schedule] { order:1; }
+.bottom-nav[data-role=student] [data-page=training-log] { order:2; }
+.bottom-nav[data-role=student] [data-page=dashboard] { order:3; }
+.bottom-nav[data-role=student] [data-page=myinfo] { order:4; }
+@media(max-width:350px) {
+ .student-workspace { padding-left:12px; padding-right:12px; }
+ .student-calendar-card { margin-inline:-8px; }
+ .student-calendar-grid { padding-inline:0; }
+ .student-set-inputs { grid-template-columns:1fr; gap:0; }
+ .student-set-inputs .intensity-input { flex:1; }
+ .student-set-inputs input.w-16 { width:64px; }
+ .student-workspace-header h2 { font-size:22px; }
+}

@@ -10,10 +10,10 @@ const render = (role, currentPage = 'dashboard') => renderToStaticMarkup(createE
 describe('역할별 하단 메뉴', () => {
     beforeEach(() => vi.stubGlobal('React', React));
     afterEach(() => vi.unstubAllGlobals());
-    it('수강생은 기존 메뉴와 게시판 알림을 유지', () => {
+    it('수강생은 내 수업 중심 네 메뉴와 하위 페이지 선택 상태를 유지', () => {
         const html = render('student', 'holding');
         expect([...html.matchAll(/class="tab-label">([^<]+)/g)].map(match => match[1]))
-            .toEqual(['게시판', '시간표', '훈련일지', '홀딩/결석', '내 정보']);
+            .toEqual(['내 수업', '훈련일지', '게시판', '내 정보']);
         expect(html.match(/aria-current="page"/g)).toHaveLength(1);
         expect(html).toContain('notification-dot');
     });

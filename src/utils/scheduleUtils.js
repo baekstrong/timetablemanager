@@ -100,12 +100,13 @@ export function formatDateISO(date) {
     return `${year}-${month}-${day}`;
 }
 
-/** Convert "M/D" weekDate string to "YYYY-MM-DD" using current year. */
-export function weekDateToISO(mmdd) {
+/** Resolve a current-week "M/D" across the December/January boundary. */
+export function weekDateToISO(mmdd, referenceDate = new Date()) {
     if (!mmdd) return '';
-    const [month, dayNum] = mmdd.split('/');
-    const year = new Date().getFullYear();
-    return `${year}-${month.padStart(2, '0')}-${dayNum.padStart(2, '0')}`;
+    const [month, dayNum] = mmdd.split('/').map(Number);
+    const candidates = [-1, 0, 1].map(offset => new Date(referenceDate.getFullYear() + offset, month - 1, dayNum));
+    candidates.sort((a, b) => Math.abs(a - referenceDate) - Math.abs(b - referenceDate));
+    return formatDateISO(candidates[0]);
 }
 
 /**
@@ -210,9 +211,8 @@ export function isDelayedReregistration({ effectiveEnd, today, schedule, hasNext
     return !!(schedule && schedule.trim());
 }
 
-/** Get Monday~Sunday date range for the current week. */
-export function getThisWeekRange() {
-    const today = new Date();
+/** Get the displayed Monday~Friday range; Sunday begins the next class week. */
+export function getThisWeekRange(today = new Date()) {
     const dayOfWeek = today.getDay();
     const monday = new Date(today);
     // 일요일(0)에는 다음 월요일 기준 (시간표 표시와 동일하게)

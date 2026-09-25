@@ -1,0 +1,65 @@
+.live-training-review { max-width:520px; margin:0 auto; padding:18px 16px 120px; color:var(--text); }
+.live-training-review button { font:inherit; min-height:44px; cursor:pointer; }
+.live-training-review button:disabled { cursor:default; opacity:.45; }
+.live-training-review button:focus-visible { outline:2px solid var(--accent-hover); outline-offset:2px; }
+.ltlr-header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:4px 0 24px; }
+.ltlr-header p { color:var(--accent-hover); font-size:11px; margin:0 0 4px; }
+.ltlr-header h1 { margin:0; font-size:23px; font-weight:700; }
+.ltlr-header span { font-size:12px; color:var(--text-secondary); }
+.ltlr-header button { padding:0 8px; background:var(--canvas); border:1px solid var(--hairline); border-radius:var(--r-chip); color:var(--text-secondary); font-size:12px; }
+.live-training-review .ltlr-start { display:block; width:100%; min-height:50px; padding:12px 16px; border:1px solid var(--hairline); border-radius:var(--r-chip); background:var(--canvas); color:var(--text-secondary); font-size:14px; font-weight:700; text-align:left; opacity:1; }
+.ltlr-readonly { margin:8px 0 18px; color:var(--text-secondary); font-size:11px; line-height:1.8; }
+.ltlr-calendar-card,.ltlr-records { background:var(--canvas); border:1px solid var(--hairline); border-radius:var(--r-chip); }
+.ltlr-calendar-card { padding:10px 0 0; margin-bottom:22px; }
+.ltlr-month-heading { display:flex; justify-content:space-between; align-items:center; padding:0 12px; }
+.ltlr-month-heading h2 { font-size:17px; font-weight:700; margin:0; }
+.ltlr-month-heading>div { display:flex; }
+.live-training-review .ltlr-month-heading button { min-width:44px; padding:0; font-size:27px; color:var(--text-secondary); background:none; border:0; }
+.ltlr-summary { display:flex; align-items:center; justify-content:space-between; padding:0 14px 9px; min-height:44px; font-size:12px; color:var(--text-secondary); }
+.ltlr-summary p { margin:0; }
+.ltlr-summary strong { color:var(--accent-hover); font-size:23px; margin-left:6px; font-variant-numeric:tabular-nums; }
+.ltlr-summary small { font-size:12px; font-weight:400; margin-left:2px; }
+.ltlr-summary>span { font-size:10px; color:var(--text-muted); }
+.live-training-review .ltlr-summary button { color:var(--accent-hover); font-size:12px; background:none; border:0; }
+.ltlr-calendar { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); padding:0 5px; }
+.ltlr-weekday { display:flex; align-items:center; justify-content:center; min-height:32px; font-size:11px; color:var(--text-muted); }
+.live-training-review .ltlr-day { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:0; min-height:52px; padding:5px 0; border:1px solid transparent; border-radius:var(--r-chip); background:none; color:var(--text); font-variant-numeric:tabular-nums; }
+.ltlr-day strong { font-size:14px; font-weight:400; line-height:21px; }
+.ltlr-day small { font-size:9px; line-height:14px; min-height:14px; }
+.live-training-review .ltlr-day.has-record { color:var(--accent-hover); background:var(--accent-10); }
+.ltlr-day.has-record strong { font-weight:700; }
+.live-training-review .ltlr-day.is-today { border-color:var(--text-secondary); }
+.live-training-review .ltlr-day.is-selected { outline:2px solid var(--accent-hover); outline-offset:-3px; }
+.ltlr-day>i { position:absolute; top:7px; right:7px; width:4px; height:4px; border-radius:var(--r-full); background:var(--text-secondary); }
+.ltlr-legend { display:flex; align-items:center; justify-content:center; gap:20px; min-height:46px; font-size:10px; color:var(--text-secondary); }
+.ltlr-legend span { display:flex; align-items:center; gap:6px; }
+.ltlr-legend b { color:var(--accent-hover); background:var(--accent-10); padding:1px 3px; border-radius:var(--r-chip); }
+.ltlr-legend i { width:4px; height:4px; border-radius:var(--r-full); background:var(--text-secondary); }
+.ltlr-records { padding:16px 14px; }
+.ltlr-records-heading { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.ltlr-records-heading h2 { font-size:14px; font-weight:700; margin:0; }
+.ltlr-records-heading>span { font-size:10px; color:var(--text-secondary); white-space:nowrap; }
+.ltlr-record { padding:18px 0; border-bottom:1px solid var(--hairline); }
+.ltlr-record:last-child { border-bottom:0; padding-bottom:0; }
+.ltlr-record-title { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+.ltlr-record-title h3 { font-size:15px; font-weight:700; margin:0; overflow-wrap:anywhere; }
+.ltlr-pain { font-size:10px; color:var(--error); border:1px solid color-mix(in srgb,var(--error) 30%,transparent); border-radius:var(--r-chip); padding:3px 7px; }
+.ltlr-sets p { display:flex; align-items:flex-start; gap:10px; font-size:13px; line-height:1.8; color:var(--text-secondary); margin:0; overflow-wrap:anywhere; }
+.ltlr-sets p>span { flex-shrink:0; font-size:11px; min-width:35px; color:var(--text-muted); }
+.ltlr-memo,.ltlr-feedback { margin-top:12px; padding:12px; background:var(--canvas-tint); border-radius:var(--r-chip); }
+.ltlr-memo>span,.ltlr-feedback>span { font-size:10px; color:var(--text-secondary); }
+.ltlr-memo>p,.ltlr-feedback>p { margin:5px 0 0; font-size:12px; line-height:1.8; white-space:pre-wrap; overflow-wrap:anywhere; }
+.ltlr-status { color:var(--text-secondary); font-size:13px; line-height:1.8; margin:14px 0; }
+.ltlr-status p { margin:0; }
+.live-training-review .ltlr-status button,.live-training-review .ltlr-memo-error button { border:0; background:none; color:var(--accent-hover); font-size:12px; padding:0; }
+.ltlr-error { color:var(--error); }
+.ltlr-memo-error { color:var(--text-secondary); font-size:11px; line-height:1.8; margin-top:12px; }
+.ltlr-memo-error p { margin:0; }
+.ltlr-empty { color:var(--text-secondary); font-size:13px; line-height:1.8; text-align:center; padding:24px 0 12px; margin:0; }
+@media(max-width:350px) {
+ .live-training-review { padding-inline:12px; }
+ .ltlr-calendar-card { margin-inline:-8px; }
+ .ltlr-calendar { padding-inline:0; }
+ .ltlr-header h1 { font-size:22px; }
+ .ltlr-records-heading { align-items:flex-start; }
+}

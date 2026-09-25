@@ -1,5 +1,6 @@
 import { state } from './state.js';
-import { formatDate, getStudentColor, getStudentBadgeColor, getStudentTextColor, loadSavedLogin, getKoreanInitial } from './utils.js';
+import { localDate, escapeHTML } from './modules/student-workspace-logic.js?v=20260925-student-ux';
+import { formatDate, loadSavedLogin } from './utils.js';
 
 // ============================================
 // 화면 렌더링 함수들 (HTML String Generation)
@@ -60,88 +61,42 @@ export function renderLoginScreen() {
 
 export function renderStudentScreen() {
     return `
-        <div class="max-w-2xl mx-auto p-4 pb-20">
-            <!-- 헤더 -->
-            <div class="bg-white rounded-lg border border-[#EFEFF0] p-4 mb-4 flex justify-between items-center">
-                <div>
-                    <h2 class="text-xl font-bold text-gray-800">${state.currentUser}님의 훈련일지</h2>
-                    <p class="text-sm text-gray-600">오늘도 화이팅! 💪</p>
-                </div>
-                <div class="flex flex-col gap-2 shrink-0">
-                    <button onclick="openMemoArchiveModal()"
-                            class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
-                        📦 메모 보관함
-                    </button>
-                    <button onclick="openOneRMModal()"
-                            class="bg-[#329BE7] hover:bg-[#327AB8] text-white px-3 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap">
-                        🧮 1RM 계산기
-                    </button>
-                </div>
-            </div>
-
-            <!-- 이번 달 도장 -->
+        <div class="student-workspace max-w-2xl mx-auto p-4 pb-20">
+            <header class="student-workspace-header">
+                <div><p>근력학교</p><h2>훈련일지</h2><span>${escapeHTML(state.currentUser)}님</span></div>
+                <div class="student-header-tools"><button type="button" onclick="openMemoArchiveModal()">메모 보관함</button><button type="button" onclick="openOneRMModal()">1RM 계산기</button></div>
+            </header>
             <div id="myStampContainer"></div>
-
-            <!-- 달력 -->
-            <div class="bg-white rounded-lg border border-[#EFEFF0] p-4 mb-4">
-                <h3 class="text-lg font-bold mb-3 text-gray-800">📅 출석 캘린더</h3>
-                <div class="mb-2 text-xs text-gray-600">
-                    <span class="inline-block w-4 h-4 bg-[#329BE7] rounded mr-1"></span> 운동한 날
-                    <span class="inline-block w-4 h-4 bg-red-600 rounded mr-1 ml-3"></span> 피드백 받은 날
-                </div>
-                <div id="calendar"></div>
-            </div>
-
-            <!-- 운동 기록 입력 폼 -->
-            <div class="bg-white rounded-lg border border-[#EFEFF0] p-6 mb-4">
-                <h3 id="recordFormTitle" class="text-lg font-bold mb-4 text-gray-800">🏋️ ${formatDate(state.selectedDate)} 운동 기록</h3>
-                <div class="space-y-3">
-                    <div class="relative">
-                        <input type="text" id="exercise" placeholder="운동 종목 검색 후 선택 (예: 벤치프레스)"
-                               autocomplete="off"
-                               oninput="autoSaveFormData(); handleExerciseSearch(this.value); renderExerciseMemo();"
-                               onfocus="handleExerciseSearch(this.value); renderExerciseMemo();"
-                               class="w-full px-4 py-3 pr-10 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7] text-gray-800 font-medium">
-                        <button type="button" id="exerciseClearBtn" onclick="clearExerciseSelection()"
-                                class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
-
-                        <!-- Custom Autocomplete Dropdown -->
-                        <div id="exerciseSuggestions" 
-                             class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-[#EFEFF0] rounded-lg z-50 max-h-60 overflow-y-auto">
-                        </div>
+            <section id="studentCalendarView">
+                <button type="button" id="studentStartButton" class="student-main-button" onclick="startStudentRecord()">오늘 운동 기록하기 ＋</button>
+                <div id="studentDraftList"></div>
+                <section class="student-calendar-card" aria-label="월간 운동 기록"><div id="calendar"></div></section>
+                <section class="student-records-card">
+                    <h3 id="recordsListTitle">${formatDate(state.selectedDate)} 기록</h3>
+                    <div id="recordsList"></div>
+                </section>
+            </section>
+            <section id="studentWriteView" hidden>
+                <div class="student-writing-heading" id="studentWriteHeading"><button type="button" onclick="showStudentCalendar()">‹ 달력으로</button><label>작성일 <input type="date" id="studentWriteDate" value="${localDate()}" max="${localDate()}" onchange="changeStudentWriteDate(this.value)"></label></div>
+                <div class="student-record-form">
+                    <h3 id="recordFormTitle">운동 기록 남기기</h3>
+                    <p id="studentDraftStatus" class="student-help" role="status"></p>
+                    <div class="relative student-exercise-search">
+                        <label for="exercise">운동 종목</label>
+                        <input type="text" id="exercise" placeholder="운동 이름을 검색하세요" autocomplete="off" aria-controls="exerciseSuggestions" aria-expanded="false"
+                            oninput="autoSaveFormData(); handleExerciseSearch(this.value); renderExerciseMemo();" onfocus="handleExerciseSearch(this.value); renderExerciseMemo();"
+                            onkeydown="handleExerciseSearchKeydown(event)">
+                        <button type="button" id="exerciseClearBtn" onclick="clearExerciseSelection()" aria-label="다른 운동 검색" class="hidden">✕</button>
+                        <div id="exerciseSuggestions" class="hidden" aria-label="운동 검색 결과" onkeydown="handleExerciseSuggestionKeydown(event)"></div>
                     </div>
-
-                    <!-- 선택한 종목의 저장된 메모 — 이름 바로 아래(이전 메모 불러올 때 스크롤 없이 보이게) -->
-                    <div id="exerciseMemoCard"></div>
-
-                    <!-- 저장한 1RM이 있는 종목이면 '%로 세트 채우기' 칩 -->
-                    <div id="oneRMQuickCard"></div>
-
-                    <textarea id="memo" placeholder="운동 메모 (여기에 입력하면 자동으로 고정됩니다)" rows="2"
-                              oninput="autoSaveFormData()"
-                              class="w-full px-4 py-2 border border-[#EFEFF0] rounded-lg focus:outline-none focus:border-[#329BE7]"></textarea>
-
-                    <!-- 세트별 입력 (세트 수 드롭다운은 setsContainer 상단에서 렌더) -->
+                    <div id="exerciseMemoCard"></div><div id="oneRMQuickCard"></div>
+                    <div id="studentReference"></div>
                     <div id="setsContainer"></div>
-
-                    <!-- 통증 체크박스 -->
-                    <div class="flex items-center space-x-2 p-3 bg-red-50 rounded-lg">
-                        <input type="checkbox" id="painCheck" class="w-5 h-5">
-                        <label for="painCheck" class="text-sm font-semibold text-red-700">⚠️ 운동 중 통증이 있었습니다</label>
-                    </div>
-                    
-                    <button id="addRecordBtn" onclick="addRecord()"
-                            class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed">
-                        ✅ 운동 완료!
-                    </button>
+                    <details class="student-form-details"><summary>메모·통증 남기기</summary><label for="memo">운동 메모</label><textarea id="memo" placeholder="이 종목의 메모로 보관돼요" rows="2" oninput="autoSaveFormData()"></textarea><label class="student-pain-label"><input type="checkbox" id="painCheck" onchange="autoSaveFormData()"> 운동 중 통증이 있었습니다</label></details>
+                    <button id="addRecordBtn" onclick="addRecord()" class="student-main-button">기록 저장</button>
+                    <div id="studentRecordSaved" class="student-saved-notice" hidden><p role="status"></p><button type="button" onclick="showStudentCalendar(document.getElementById('studentWriteDate').value)">달력에서 확인</button><button type="button" onclick="document.getElementById('exercise').focus()">다른 운동 기록</button></div>
                 </div>
-            </div>
-
-            <!-- 선택한 날짜 기록 리스트 -->
-            <div class="bg-white rounded-lg border border-[#EFEFF0] p-6">
-                <h3 id="recordsListTitle" class="text-lg font-bold mb-4 text-gray-800">📝 ${formatDate(state.selectedDate)} 기록</h3>
-                <div id="recordsList"></div>
-            </div>
+            </section>
 
             <!-- 1RM 계산기 모달 -->
             <div id="onermModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"

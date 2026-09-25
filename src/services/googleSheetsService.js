@@ -2451,13 +2451,14 @@ export const applyHolidayDeltaToEndDates = async ({ changedDates, mode, firebase
  * 홀딩 취소 (Google Sheets에서 홀딩 정보 초기화 + 종료날짜 재계산)
  * @param {string} studentName
  * @param {Array} remainingHoldings - 취소 후 남은 홀딩 목록
+ * @param {Date} referenceDate - 취소할 홀딩의 시작일. 생략하면 기존처럼 오늘 등록을 선택한다.
  * @returns {Promise<Object>}
  */
-export const cancelHoldingInSheets = async (studentName, remainingHoldings = [], firebaseHolidays = [], countedHolidayDates = []) => {
+export const cancelHoldingInSheets = async (studentName, remainingHoldings = [], firebaseHolidays = [], countedHolidayDates = [], referenceDate = new Date()) => {
   console.log(`🔄 홀딩 취소 시작 (Google Sheets): ${studentName}`);
 
   const { foundSheetName, rows, headers, studentIndex: activeIndex, nextRegistrationIndex, nextSheetName, nextRows, nextHeaders } =
-    await findStudentInSheets(studentName);
+    await findStudentInSheets(studentName, null, referenceDate);
 
   const student = buildStudentObject(headers, rows[activeIndex]);
   student._rowIndex = activeIndex - 2; // parseStudentData 호환

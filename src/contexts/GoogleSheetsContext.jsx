@@ -2,12 +2,8 @@ import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
     initializeGoogleAPI,
     initializeGIS,
-    signInToGoogle,
-    signOutFromGoogle,
-    isSignedIn,
     getAllStudents,
     getAllStudentsFromAllSheets,
-    readSheetData,
     getAllSheetNames,
     getCurrentSheetName,
     findStudentAcrossSheets,
@@ -19,6 +15,13 @@ import { getHolidays as fetchHolidaysFromFirebase } from '../services/firebaseSe
 
 const GoogleSheetsContext = createContext();
 
+// Supplies an already-loaded adapter without starting API requests (e.g. isolated local reviews).
+export const GoogleSheetsValueProvider = ({ value, children }) => (
+    <GoogleSheetsContext.Provider value={value}>{children}</GoogleSheetsContext.Provider>
+);
+
+// The context hook and providers intentionally share this module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useGoogleSheets = () => {
     const context = useContext(GoogleSheetsContext);
     if (!context) {

@@ -1,7 +1,7 @@
 // 1RM(1회 최대 중량) 계산기 — Epley 공식 + 종목별 내 1RM 저장.
 // 순수 함수(estimate1RM/trainingTable/sortMyOneRMs)는 Firebase/DOM 무관 → 브라우저·Vitest 양쪽 import 가능.
 import { state, db } from '../state.js';
-import { normalizeSet, renderSets } from './sets.js';
+import { normalizeSet, renderSets } from './sets.js?v=20260925-student-ux';
 
 const PERCENTS = [95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40];
 

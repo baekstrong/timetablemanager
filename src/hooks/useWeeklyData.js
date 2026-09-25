@@ -17,12 +17,14 @@ import {
     parseSheetDate,
     formatDateISO,
     isClassWithinMinutes,
+    getThisWeekRange,
 } from '../utils/scheduleUtils';
 
 /**
  * 주간 Firebase 데이터(보강, 홀딩, 결석, 공휴일, 대기) 로딩 + 자동 리프레시 훅
  */
-export function useWeeklyData({ students, mode }) {
+export function useWeeklyData({ students, mode, readOnly = false }) {
+    const [currentWeekStart, setCurrentWeekStart] = useState(() => getThisWeekRange().start);
     const [weekMakeupRequests, setWeekMakeupRequests] = useState([]);
     const [firebaseHoldings, setFirebaseHoldings] = useState([]);
     const [weekAbsences, setWeekAbsences] = useState([]);
@@ -33,14 +35,31 @@ export function useWeeklyData({ students, mode }) {
     // 주간 Firebase 데이터(보강/홀딩/결석 등) 최초 로드 완료 여부 — 보강대기 백스톱이 여석을
     // 잘못 계산(보강 인원 0으로)하지 않도록 게이트하는 데 사용.
     const [weeklyDataLoaded, setWeeklyDataLoaded] = useState(false);
+    const [loadedWeekStart, setLoadedWeekStart] = useState(null);
     const [weeklyDataError, setWeeklyDataError] = useState('');
     const requestId = useRef(0);
 
+    // Check only at the Sunday boundary or when returning to an open tab. This
+    // updates the week without reintroducing periodic Firestore polling.
+    useEffect(() => {
+        const updateWeek = () => setCurrentWeekStart(getThisWeekRange().start);
+        const now = new Date();
+        const nextSunday = new Date(`${currentWeekStart}T00:00:00`);
+        nextSunday.setDate(nextSunday.getDate() + 6);
+        const timer = window.setTimeout(updateWeek, Math.max(0, nextSunday.getTime() - now.getTime()));
+        const onVisible = () => { if (document.visibilityState === 'visible') updateWeek(); };
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('focus', updateWeek);
+        return () => {
+            window.clearTimeout(timer);
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', updateWeek);
+        };
+    }, [currentWeekStart]);
+
     // 시트 변경은 홀딩 계산만 갱신한다. Firebase 10여 건을 다시 읽지 않는다.
     const weekHoldings = useMemo(() => {
-        const today = new Date();
-        const monday = new Date(today);
-        monday.setDate(today.getDate() + (today.getDay() === 0 ? 1 : 1 - today.getDay()));
+        const monday = new Date(`${currentWeekStart}T00:00:00`);
         const friday = new Date(monday);
         friday.setDate(monday.getDate() + 4);
         const start = formatDateISO(monday);
@@ -58,7 +77,7 @@ export function useWeeklyData({ students, mode }) {
             const holdingDates = datesByHolding.get(`${studentName}|${startDate}|${endDate}`);
             return [{ studentName, startDate, endDate, ...(holdingDates?.length ? { holdingDates } : {}) }];
         });
-    }, [students, firebaseHoldings]);
+    }, [students, firebaseHoldings, currentWeekStart]);
 
     const loadWeeklyData = useCallback(async () => {
         const id = ++requestId.current;
@@ -67,11 +86,7 @@ export function useWeeklyData({ students, mode }) {
         setWeeklyDataLoaded(false);
         setWeeklyDataError('');
         try {
-            const today = new Date();
-            const dayOfWeek = today.getDay();
-            const monday = new Date(today);
-            const diff = dayOfWeek === 0 ? 1 : 1 - dayOfWeek;
-            monday.setDate(today.getDate() + diff);
+            const monday = new Date(`${currentWeekStart}T00:00:00`);
 
             const startDate = formatDateISO(monday);
             const nextFriday = new Date(monday);
@@ -104,7 +119,7 @@ export function useWeeklyData({ students, mode }) {
             const allAbsences = absenceArrays.flat();
 
             // Auto-complete passed active makeups (병렬 처리)
-            const passedActiveMakeups = (makeups || []).filter(m =>
+            const passedActiveMakeups = readOnly ? [] : (makeups || []).filter(m =>
                 m.status === 'active' && isClassWithinMinutes(m.makeupClass.date, m.makeupClass.period, 0)
             );
             await Promise.all(passedActiveMakeups.map(async (makeup) => {
@@ -124,6 +139,7 @@ export function useWeeklyData({ students, mode }) {
             setWeekWaitlist(waitlist || []);
             setWeekFreeWorkout(freeWorkout || []);
             setFreeWorkoutRoster(roster || []);
+            setLoadedWeekStart(currentWeekStart);
             setWeeklyDataLoaded(true);
         } catch (error) {
             if (id !== requestId.current) return;
@@ -132,7 +148,7 @@ export function useWeeklyData({ students, mode }) {
             // 마지막 정상 화면 유지. 불완전한 조회로 여석 백스톱을 열지 않는다.
             throw error;
         }
-    }, []);
+    }, [readOnly, currentWeekStart]);
 
     const cancelPending = useCallback(() => { requestId.current++; }, []);
     useEffect(() => {
@@ -142,11 +158,11 @@ export function useWeeklyData({ students, mode }) {
         return () => { window.clearTimeout(timeoutId); cancelPending(); };
     }, [mode, loadWeeklyData, cancelPending]);
 
-    // 자동 폴링 제거(Firestore 읽기 절감) — 코치는 시간표의 새로고침 버튼(handleManualRefresh)으로
-    // 필요할 때만 갱신한다. 진입 시 1회 로드(위 effect) + 수동 새로고침으로 충분.
+    // No periodic network polling: load on entry, week rollover, or manual refresh.
 
     return {
-        weeklyDataLoaded,
+        currentWeekStart,
+        weeklyDataLoaded: weeklyDataLoaded && loadedWeekStart === currentWeekStart,
         weeklyDataError,
         weekFreeWorkout,
         freeWorkoutRoster,

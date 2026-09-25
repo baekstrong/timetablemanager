@@ -1,0 +1,6 @@
+#trainingReviewToolbar { max-width:672px; margin:12px auto 0; padding:12px 16px; border:1px solid #EFEFF0; border-radius:8px; background:#fff; color:#242428; font-family:system-ui,sans-serif; display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+#trainingReviewToolbar>div { display:flex; flex:1; flex-direction:column; gap:5px; }
+#trainingReviewToolbar strong { font-size:13px; }
+#trainingReviewToolbar span,#trainingReviewStatus { font-size:11px; color:#666; line-height:1.6; }
+#trainingReviewToolbar button { min-height:44px; border:1px solid #EFEFF0; border-radius:8px; padding:8px 10px; background:#F7F7F8; color:#242428; font-size:12px; cursor:pointer; }
+#trainingReviewStatus { width:100%; margin:0; }

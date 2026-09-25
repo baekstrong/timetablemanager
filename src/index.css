@@ -130,3 +130,8 @@ code {
     transform: translateY(-10px);
   }
 }
+
+/* Shared student account actions in My classes and My info. */
+.student-account-actions { display: grid; gap: 8px; max-width: 1200px; margin: 0 auto 16px; }
+.student-account-actions button { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 12px 16px; border: 1px solid var(--accent-20); border-radius: var(--r-md); background: var(--accent-10); color: var(--text); font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.student-account-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

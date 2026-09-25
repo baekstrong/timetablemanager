@@ -5,6 +5,8 @@ import { uploadToCloudinary } from '../../services/cloudinaryService';
 import { linkifyText } from '../../utils/linkify';
 import { pushComment, pushReply } from '../../services/pushService';
 import { formatLikeNames } from '../../utils/likeDisplay';
+import { markNoticeRead } from '../../services/noticeService';
+import { getNoticeRevision } from '../../utils/noticeState';
 import CommentItem from './CommentItem';
 import TierBadge from '../TierBadge';
 import GradeBadge from '../GradeBadge';
@@ -23,7 +25,11 @@ const formatDate = (timestamp) => {
 const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {} }) => {
     const [post, setPost] = useState(null);
     const [comments, setComments] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loadedFor, setLoadedFor] = useState(null);
+    const username = user?.username || '';
+    const detailKey = JSON.stringify([username, postId]);
+    const loading = loadedFor !== detailKey;
+    const readAttemptRef = useRef(null);
     const [commentText, setCommentText] = useState('');
     const [submittingComment, setSubmittingComment] = useState(false);
 
@@ -54,24 +60,41 @@ const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {} 
         touchStartY.current = null;
     }, [onBack]);
 
-    const loadData = async () => {
-        try {
-            const [postData, commentsData] = await Promise.all([
-                getPost(postId),
-                getComments(postId),
-            ]);
-            setPost(postData);
-            setComments(commentsData);
-        } catch (err) {
-            console.error('PostDetail loadData error:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
+    useEffect(() => {
+        let cancelled = false;
+        const loadData = async () => {
+            try {
+                const [postData, commentsData] = await Promise.all([
+                    getPost(postId),
+                    getComments(postId),
+                ]);
+                if (cancelled) return;
+                const visiblePost = postData?.id === postId && !postData.deleted ? postData : null;
+                setPost(visiblePost);
+                setComments(visiblePost ? commentsData : []);
+            } catch (err) {
+                if (cancelled) return;
+                setPost(null);
+                setComments([]);
+                console.error('PostDetail loadData error:', err);
+            } finally {
+                if (!cancelled) setLoadedFor(detailKey);
+            }
+        };
+        loadData();
+        return () => { cancelled = true; };
+    }, [postId, detailKey]);
 
     useEffect(() => {
-        loadData();
-    }, [postId]);
+        if (loading || !username || !post || post.id !== postId || post.deleted || post.category !== 'notice') return;
+        const attempt = JSON.stringify([username, postId, getNoticeRevision(post)]);
+        if (readAttemptRef.current === attempt) return;
+        readAttemptRef.current = attempt;
+        markNoticeRead(username, post).catch(error => {
+            if (readAttemptRef.current === attempt) readAttemptRef.current = null;
+            console.warn('공지 확인 상태 저장 실패:', error);
+        });
+    }, [loading, username, post, postId]);
 
     const handleToggleLike = async () => {
         if (!post || !user) return;
@@ -193,7 +216,7 @@ const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {} 
         return <div style={{ padding: '24px', textAlign: 'center' }}>로딩 중...</div>;
     }
 
-    if (!post) {
+    if (!post || post.deleted || post.id !== postId) {
         return (
             <div style={{ padding: '24px', textAlign: 'center' }}>
                 <p>게시글을 찾을 수 없습니다.</p>

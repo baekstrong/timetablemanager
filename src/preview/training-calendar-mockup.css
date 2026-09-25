@@ -1,0 +1,64 @@
+.tlc { padding-top:4px; color:var(--text); }
+.tlc button { font:inherit; cursor:pointer; }
+.tlc button:disabled { cursor:default; }
+.tlc button:focus-visible { outline:2px solid var(--accent-hover); outline-offset:2px; }
+.tlc-today-line { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:28px; margin-bottom:10px; color:var(--text-secondary); font-size:12px; }
+.tlc-draft-state { color:var(--accent-hover); background:var(--accent-10); padding:4px 7px; border-radius:var(--r-chip); font-size:11px; }
+.tlc .tlc-start { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:50px; padding:12px 16px; margin-bottom:20px; background:var(--cta-dark); border:1px solid var(--cta-dark); border-radius:var(--r-chip); color:var(--canvas); font-size:14px; font-weight:700; text-align:left; }
+.tlc-start>span:last-child { font-size:22px; font-weight:400; line-height:1; }
+.tlc-calendar-card { background:var(--canvas); border:1px solid var(--hairline); border-radius:var(--r-chip); padding:10px 0 0; }
+.tlc-month-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 12px; }
+.tlc .tlc-month-heading h2 { margin:0; font-size:17px; font-weight:700; }
+.tlc-month-arrows { display:flex; }
+.tlc .tlc-month-arrows button { display:flex; align-items:center; justify-content:center; width:44px; min-height:44px; padding:0; border:0; border-radius:var(--r-chip); color:var(--text-secondary); background:none; font-size:27px; font-weight:400; }
+.tlc-month-arrows button:disabled { color:var(--text-muted); opacity:.45; }
+.tlc-month-summary { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; padding:0 14px 7px; }
+.tlc-month-summary p { color:var(--text-secondary); font-size:12px; }
+.tlc-month-summary strong { color:var(--accent-hover); font-size:22px; font-variant-numeric:tabular-nums; margin-left:6px; font-weight:700; }
+.tlc-month-summary strong>span { font-size:12px; font-weight:400; margin-left:2px; }
+.tlc-month-summary>span { font-size:10px; color:var(--text-muted); }
+.tlc .tlc-month-summary button { min-height:44px; padding:0 0 0 10px; margin-top:-7px; border:0; background:none; color:var(--accent-hover); font-size:12px; }
+.tlc-calendar { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); padding:0 6px; }
+.tlc-weekday { display:flex; align-items:center; justify-content:center; min-height:31px; margin-bottom:4px; color:var(--text-muted); font-size:11px; }
+.tlc .tlc-day { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; min-width:0; min-height:44px; padding:4px 0; border:1px solid transparent; border-radius:var(--r-chip); background:none; color:var(--text); font-size:14px; font-variant-numeric:tabular-nums; }
+.tlc-day>strong { line-height:20px; font-weight:400; }
+.tlc-day-marks { display:flex; align-items:center; justify-content:center; gap:1px; min-height:12px; line-height:12px; }
+.tlc-day-marks small { font-size:9px; font-weight:400; line-height:12px; }
+.tlc .tlc-day.has-record { background:var(--accent-10); color:var(--accent-hover); }
+.tlc-day.has-record>strong { font-weight:700; }
+.tlc .tlc-day.is-today { border-color:var(--text-secondary); }
+.tlc .tlc-day.is-selected { outline:2px solid var(--accent-hover); outline-offset:-3px; }
+.tlc .tlc-day.is-selected:not(.has-record) { background:var(--canvas-tint); }
+.tlc .tlc-day:disabled { color:var(--text-muted); opacity:.5; }
+.tlc-feedback-dot { position:absolute; right:7px; top:7px; width:4px; height:4px; border-radius:var(--r-full); background:var(--text-secondary); }
+.tlc-calendar-legend { display:flex; align-items:center; justify-content:center; gap:20px; min-height:46px; color:var(--text-secondary); font-size:10px; }
+.tlc-calendar-legend>span { display:inline-flex; align-items:center; gap:5px; }
+.tlc-record-key { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; background:var(--accent-10); color:var(--accent-hover); border-radius:var(--r-chip); }
+.tlc-feedback-key { display:inline-block; width:4px; height:4px; background:var(--text-secondary); border-radius:var(--r-full); margin:0 5px; }
+.tlc-day-detail { margin-top:22px; padding-bottom:8px; }
+.tlc-detail-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; }
+.tlc .tlc-detail-heading h2 { margin:0; font-size:14px; }
+.tlc-detail-heading>span { color:var(--text-secondary); font-size:10px; white-space:nowrap; }
+.tlc-record-list { display:flex; flex-direction:column; gap:10px; }
+.tlc-record { border:1px solid var(--hairline); border-radius:var(--r-chip); padding:16px 14px; background:var(--canvas); min-width:0; }
+.tlc-record-title { display:flex; align-items:center; gap:9px; }
+.tlc-record-number { color:var(--text-muted); font-size:11px; font-variant-numeric:tabular-nums; }
+.tlc .tlc-record-title h3 { font-size:14px; font-weight:700; margin:0; overflow-wrap:anywhere; }
+.tlc-record-summary { color:var(--text); margin:9px 0 0 25px; font-size:13px; line-height:1.7; white-space:pre-line; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.tlc-record-memo { color:var(--text-secondary); font-size:12px; line-height:1.7; padding-top:11px; margin:11px 0 0; border-top:1px solid var(--hairline); white-space:pre-line; overflow-wrap:anywhere; }
+.tlc-coach-feedback { background:var(--canvas-tint); border-radius:var(--r-chip); padding:11px 12px; margin-top:14px; }
+.tlc-coach-feedback>span { display:flex; align-items:center; gap:5px; color:var(--text-secondary); font-size:10px; }
+.tlc-coach-feedback>p { color:var(--text-secondary); font-size:12px; line-height:1.8; margin-top:6px; white-space:pre-line; overflow-wrap:anywhere; }
+.tlc-empty { display:flex; flex-direction:column; align-items:center; padding:25px 15px; text-align:center; background:var(--canvas); border:1px solid var(--hairline); border-radius:var(--r-chip); }
+.tlc-empty-icon { color:var(--text-muted); margin-bottom:10px; }
+.tlc-empty>strong { font-size:13px; font-weight:400; }
+.tlc-empty>p { margin-top:7px; max-width:245px; color:var(--text-secondary); font-size:11px; line-height:1.8; word-break:keep-all; }
+@media(max-width:350px) {
+ .tlc-calendar-card { margin-inline:-8px; }
+ .tlc-calendar { padding-inline:0; }
+ .tlc-month-heading { padding-inline:10px; }
+ .tlc-month-summary { padding-inline:12px; }
+ .tlc-month-summary>span { font-size:9px; }
+ .tlc-feedback-dot { right:5px; }
+ .tlc .tlc-detail-heading h2 { font-size:14px; }
+}
