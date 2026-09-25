@@ -1032,7 +1032,7 @@ function CurrentWeekStudentSchedule({
     function renderModernGrid() {
         return <div className="student-class-grid" aria-label="이번 주 보강 가능한 시간표">
             <span className="student-class-grid-heading-cell">시간</span>{days.map(item => <div className="student-class-grid-heading-cell" key={item.date}>{item.day}<br />{item.dateNumber}</div>)}
-            {PERIODS.map(period => <Fragment key={period.id}><div className="student-class-grid-time">{period.time.split(' ~ ')[0]}</div>{days.map(({ day, date }) => {
+            {PERIODS.map(period => <Fragment key={period.id}><div className="student-class-grid-time"><strong>{period.id}교시</strong>{period.type === 'free' && <span>(자율)</span>}<span>{period.time.split(' ~ ')[0]}</span><span>~ {period.time.split(' ~ ')[1]}</span></div>{days.map(({ day, date }) => {
                 const data = getCellData(day, period);
                 const slot = { date, day, period: period.id };
                 const existingWait = validWaits.find(item => item.date === date && Number(item.period) === period.id);
