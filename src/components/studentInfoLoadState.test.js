@@ -46,8 +46,8 @@ describe('본인 등록 조회 — 시트를 한 번만 읽는가', () => {
         expect(app).not.toContain('getStudentByName');
     });
 
-    it('로그인·빙의 두 경로 모두 폴백을 끈 조회를 쓴다', () => {
-        expect(app).toContain('const STUDENT_LOOKUP = { requireActive: false }');
+    it('로그인·빙의 두 경로 모두 활성 등록을 확인하는 조회를 쓴다', () => {
+        expect(app).toContain('const STUDENT_LOOKUP = { requireActive: true }');
         const uses = app.match(/findStudentAcrossSheets\([^)]*\)/g) || [];
         expect(uses.length).toBe(1); // 로그인·빙의가 같은 조회 함수를 공유
         expect(app).toContain('loadStudentDataInBackground(userData.username)');
@@ -57,6 +57,6 @@ describe('본인 등록 조회 — 시트를 한 번만 읽는가', () => {
 
     it('대시보드의 본인 종료일 조회도 같은 규약', () => {
         const dash = read('./Dashboard.jsx');
-        expect(dash).toMatch(/findStudentAcrossSheets\(user\.username,\s*\{\s*requireActive:\s*false\s*\}\)/);
+        expect(dash).toMatch(/findStudentAcrossSheets\(user\.username,\s*\{\s*requireActive:\s*true\s*\}\)/);
     });
 });

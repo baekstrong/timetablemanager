@@ -33,12 +33,9 @@ import './App.css';
 const IMPERSONATION_STORAGE_KEY = 'impersonation_origin';
 const NOTIFICATION_POLL_INTERVAL = 15 * 60 * 1000;
 
-// 본인 등록 조회 — ±2개월 윈도우 한 번만 읽는다.
-// requireActive 기본값(true)은 "오늘 활성인 등록이 윈도우에 없으면 전 시트를 다시 스캔"인데,
-// 실제 학생 계정 69개를 대조해보니 그게 발동하는 37명 중 25명은 윈도우에 행이 0건이라
-// 어차피 폴백을 타고(장기등록 안전장치는 그대로 살아있다), 나머지 12명은 폴백을 껐을 때
-// 선택되는 등록이 한 명도 달라지지 않았다. 즉 왕복 1회(실측 ≈790ms)를 헛쓰고 있었다.
-const STUDENT_LOOKUP = { requireActive: false };
+// 본인 등록은 오늘 활성인 행이 없으면 과거 시트까지 확인한다.
+// 정지 후 재개한 등록은 오래된 결제월에 남고, 최근 시트에는 다음 등록만 있을 수 있다.
+const STUDENT_LOOKUP = { requireActive: true };
 
 function AppContent() {
   const [user, setUser] = useState(null);

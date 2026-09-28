@@ -1215,6 +1215,8 @@ export const findStudentAcrossSheets = async (studentName, { requireActive = tru
       });
     } catch (err) {
       console.warn('전체 시트 폴백 검색 실패:', err);
+      // 불완전한 검색 결과로 미래 등록을 현재 수강 정보처럼 반환하지 않는다.
+      throw err;
     }
 
     if (allMatches.length === 0) {

@@ -200,8 +200,8 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
         const checkMyLastDay = async () => {
             if (user.role === 'coach') return;
             try {
-                // App.jsx의 STUDENT_LOOKUP과 같은 이유로 폴백을 끈다 (본인 등록 조회)
-                const result = await findStudentAcrossSheets(user.username, { requireActive: false });
+                // 오래된 결제월에 남은 재개 등록도 포함해 본인 종료일을 확인한다.
+                const result = await findStudentAcrossSheets(user.username, { requireActive: true });
                 if (result && result.student) {
                     const endDateStr = result.student['종료날짜'];
                     if (endDateStr) {
