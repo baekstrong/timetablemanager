@@ -22,6 +22,12 @@ export function currentLessonId(lessons, minutes) {
     return lessons.find(lesson => minutes >= lesson.startMinute && minutes < lesson.endMinute)?.id ?? null;
 }
 
+// 마지막으로 지난 사전 갱신 경계. 시작/종료 시각에는 다시 바뀌지 않는다.
+export function lessonRefreshId(lessons, minutes) {
+    return lessons.filter(lesson => minutes >= lesson.startMinute - 30)
+        .reduce((latest, lesson) => !latest || lesson.startMinute > latest.startMinute ? lesson : latest, null)?.id ?? null;
+}
+
 export function automaticLessonId(lessons, minutes) {
     return currentLessonId(lessons, minutes)
         ?? lessons.find(lesson => lesson.startMinute > minutes)?.id

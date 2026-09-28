@@ -3,7 +3,7 @@ import { weekDateToISO } from '../../utils/scheduleUtils';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { PERIODS, DAYS } from '../../data/mockData';
 import { readCoachNotes, saveCoachNote, confirmStudentPayment } from './todayService';
-import { attendingNames, currentLessonId, coachTaskCategory } from './todayModel';
+import { attendingNames, lessonRefreshId, coachTaskCategory } from './todayModel';
 import { CoachToday, ActionButton } from './TodayViews';
 import ReviewModal from './ReviewModal';
 
@@ -81,14 +81,14 @@ export default function CoachHome({ core, students, disabledClasses, registratio
         }));
         return { id: period.id, time: period.time.replace('~', '—'), startMinute: period.startHour * 60 + period.startMinute, endMinute: period.startHour * 60 + period.startMinute + 90, roster: [...new Map(roster.map(person => [person.name, person])).values()], attendees: attendingNames(cell), availableSeats: cell.availableSeats };
     }).filter(lesson => lesson.roster.length);
-    const actualPeriod = currentLessonId(lessons, minutes);
-    const previousPeriod = useRef(actualPeriod);
+    const refreshPeriod = `${now.toLocaleDateString('sv-SE')}:${lessonRefreshId(lessons, minutes)}`;
+    const previousPeriod = useRef(refreshPeriod);
     useEffect(() => {
-        if (actualPeriod !== previousPeriod.current) {
-            previousPeriod.current = actualPeriod;
+        if (refreshPeriod !== previousPeriod.current) {
+            previousPeriod.current = refreshPeriod;
             if (!document.hidden) void refreshRef.current();
         }
-    }, [actualPeriod]);
+    }, [refreshPeriod]);
     const periodFor = name => lessons.find(lesson => lesson.attendees.includes(name))?.id;
     const describe = (name, schedule, payment, period) => `${name}(${schedule}${payment ? `, ${payment}` : ''})${period ? ` · ${period}교시` : ''}`;
     const groups = [

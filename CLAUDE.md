@@ -854,3 +854,8 @@ Codex의 프로젝트 진입 지침은 `AGENTS.md`다. 공통 업무 규칙은 �
 - 개인 조회가 `_upcomingRegistrations`에 이후 등록 전부를 보존한다. `_nextRegistration`은 기존 신청·시간표 호환용 첫 다음 등록이며 개별 시트 행의 시작/종료일·신청 한도를 합산값으로 덮어쓰지 않는다.
 - `membershipRegistrations.js`가 합산 범위·홀딩 귀속을 정의한다. 내 정보 홀딩은 등록별 시트 사용량과 취소 제외 Firebase 사용량의 큰 값을 사용해 이중 차감을 막는다. 범위 밖 과거 기록·보강은 제외하며 출석 내역은 각 등록 종료일을 넘겨 생성하지 않는다.
 - 정본 테스트: `membershipSummary.test.js`, `studentResumedRegistration.test.js`. 운영 원본·발송 동작은 변경하지 않는다.
+
+### 코치 오늘 수업 사전 갱신 (2026-09-28)
+
+- 코치 첫 화면의 시간 경과에 따른 데이터 자동 갱신은 각 표시 수업 시작 30분 전 경계에서 실행한다. `lessonRefreshId`로 시작·종료 시각의 중복 갱신을 피하고 날짜를 함께 비교한다. 기존 15초 시계 및 화면 복귀 갱신은 유지한다.
+- 실제 수업 중 표시와 메모 수업 선택은 기존 실제 수업 시간 기준을 유지한다. 경계 회귀 검증은 `src/features/today/todayModel.test.js`.
