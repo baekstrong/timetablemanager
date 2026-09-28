@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 // isExpiringSoon, isExpired 사용하지 않음 - 추후 필요시 복원
 import { getActiveMakeupRequests, getHoldingHistory, getHolidays } from '../services/firebaseService';
+import { getMembershipRegistrations, getMembershipHoldings, registrationContainsDate } from '../utils/membershipRegistrations';
 import ContractHistory from './ContractHistory';
 import PasswordChangeCard from './PasswordChangeCard';
 import './StudentInfo.css';
@@ -57,30 +58,16 @@ const StudentInfo = ({ user, studentData, isLoading = false, isImpersonating = f
 
     // 구글 시트 데이터로부터 수강권 정보 계산
     const membershipInfo = useMemo(
-        () => (studentData ? calculateMembershipStats(studentData, firebaseHolidays) : EMPTY_MEMBERSHIP),
-        [studentData, calculateMembershipStats, firebaseHolidays]
+        () => (studentData ? calculateMembershipStats(studentData, firebaseHolidays, { holdings: holdingHistory, makeups: activeMakeups }) : EMPTY_MEMBERSHIP),
+        [studentData, calculateMembershipStats, firebaseHolidays, holdingHistory, activeMakeups]
     );
 
-    // 현재 등록 기간 내 홀딩만 필터 (시작일 7일 전부터, 보강 날짜가 시작일 직전일 수 있음)
-    const currentHoldings = useMemo(() => {
-        if (!membershipInfo.startDate) return holdingHistory;
-        const cutoff = new Date(membershipInfo.startDate);
-        cutoff.setDate(cutoff.getDate() - 7);
-        const cutoffStr = cutoff.toISOString().split('T')[0];
-        return holdingHistory.filter(h => h.endDate >= cutoffStr);
-    }, [holdingHistory, membershipInfo.startDate]);
-
-    // Firebase 기반 실제 홀딩 남은 횟수 (시트 M열 대신)
-    const actualRemainingHolding = useMemo(() => {
-        const totalHolding = membershipInfo.totalHolding || 1;
-        const usedCount = currentHoldings.length;
-        return Math.max(0, totalHolding - usedCount);
-    }, [membershipInfo.totalHolding, currentHoldings]);
-
-    // 특정 날짜가 홀딩 기간에 포함되는지 확인
-    const isDateInHolding = (dateStr) => {
-        return holdingHistory.some(h => dateStr >= h.startDate && dateStr <= h.endDate);
-    };
+    // 현재+미리 등록의 실제 기간에 속한 사용만 표시한다. 지난 등록/취소 건은 제외한다.
+    const currentHoldings = useMemo(
+        () => getMembershipHoldings(studentData, holdingHistory, activeMakeups),
+        [studentData, holdingHistory, activeMakeups]
+    );
+    const actualRemainingHolding = membershipInfo.remainingHolding;
 
     // 출석 내역 생성 (보강 + 홀딩 데이터 반영)
     const attendanceHistory = useMemo(() => {
@@ -95,6 +82,8 @@ const StudentInfo = ({ user, studentData, isLoading = false, isImpersonating = f
             today.setHours(0, 0, 0, 0);
 
             for (const makeup of activeMakeups) {
+                if (!getMembershipRegistrations(studentData).some(registration =>
+                    registrationContainsDate(registration, makeup.originalClass?.date))) continue;
                 const originalDate = makeup.originalClass.date;
                 const makeupDate = makeup.makeupClass.date;
                 const makeupPeriod = `${makeup.makeupClass.period}교시`;
@@ -126,14 +115,14 @@ const StudentInfo = ({ user, studentData, isLoading = false, isImpersonating = f
         // 홀딩 기간 + 보강변경 날짜는 출석 내역에서 제외 (출석한 것만 표시)
         history = history.filter(record => {
             if (record.status === '보강변경') return false;
-            if (isDateInHolding(record.date)) return false;
+            if (currentHoldings.some(h => record.date >= h.startDate && record.date <= h.endDate)) return false;
             return true;
         });
 
         // 날짜순 정렬 (최신순). 등록 회차 전부 표시 (주2회=8 / 주3회=12 / 주4회=16회차)
         history.sort((a, b) => new Date(b.date) - new Date(a.date));
         return history;
-    }, [studentData, generateAttendanceHistory, activeMakeups, holdingHistory, firebaseHolidays]);
+    }, [studentData, generateAttendanceHistory, activeMakeups, currentHoldings, firebaseHolidays]);
 
     const getStatusColor = (status) => {
         switch (status) {
@@ -267,7 +256,7 @@ const StudentInfo = ({ user, studentData, isLoading = false, isImpersonating = f
                             <div
                                 className="progress-fill"
                                 style={{
-                                    width: `${Math.max(0, Math.min(100, ((membershipInfo.totalSessions - membershipInfo.remainingSessions) / membershipInfo.totalSessions) * 100))}%`,
+                                    width: `${Math.max(0, Math.min(100, ((membershipInfo.totalSessions - membershipInfo.remainingSessions) / (membershipInfo.totalSessions || 1)) * 100))}%`,
                                     background: membershipInfo.remainingSessions <= 2
                                         ? 'var(--error)'
                                         : 'var(--accent)'

@@ -7,7 +7,7 @@ vi.mock('../services/firebaseService', () => ({
 }));
 vi.mock('../contexts/GoogleSheetsContext', () => ({
     useGoogleSheets: () => ({
-        calculateMembershipStats: () => ({ studentName: '검토 수강생', weeklyFrequency: 2, startDate: '2026-09-01', endDate: '2026-09-30', totalSessions: 8, remainingSessions: 7, totalHolding: 1, registrationMonths: 1, attendanceCount: 1, totalClasses: 8 }),
+        calculateMembershipStats: () => ({ studentName: '검토 수강생', weeklyFrequency: 2, startDate: '2026-09-01', endDate: '2026-09-30', totalSessions: 8, remainingSessions: 7, totalHolding: 1, remainingHolding: 1, registrationMonths: 1, attendanceCount: 1, totalClasses: 8 }),
         generateAttendanceHistory: () => [],
     }),
 }));

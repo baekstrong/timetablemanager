@@ -1,3 +1,4 @@
+import { getMembershipRegistrations, getRegistrationHoldings } from '../utils/membershipRegistrations';
 import { isPausedRegistration } from '../utils/studentList';
 import { planPausedSessionAdjustment, pausedRegistrationSnapshot } from '../utils/pausedSessions';
 import {
@@ -1107,33 +1108,18 @@ function pickActiveRegistration(registrations) {
 
   const active = { ...sorted[activeIdx] };
 
-  // 이전 등록이 있으면 첨부 (미리 등록으로 다음 계약이 선택된 경우, 이전 등록의 기간도 필요)
-  if (activeIdx > 0) {
-    const prev = sorted[activeIdx - 1];
-    active._prevRegistration = {
-      시작날짜: getStudentField(prev, '시작날짜'),
-      종료날짜: getStudentField(prev, '종료날짜'),
-      _rowIndex: prev._rowIndex,
-      _foundSheetName: prev._foundSheetName,
-      '요일 및 시간': getStudentField(prev, '요일 및 시간'),
-      주횟수: getStudentField(prev, '주횟수'),
-      '홀딩 사용여부': getStudentField(prev, '홀딩 사용여부'),
-    };
-  }
-
-  // 다음 등록(미리 등록)이 있으면 첨부
-  if (activeIdx < sorted.length - 1) {
-    const next = sorted[activeIdx + 1];
-    active._nextRegistration = {
-      시작날짜: getStudentField(next, '시작날짜'),
-      종료날짜: getStudentField(next, '종료날짜'),
-      _rowIndex: next._rowIndex,
-      _foundSheetName: next._foundSheetName,
-      '요일 및 시간': getStudentField(next, '요일 및 시간'),
-      주횟수: getStudentField(next, '주횟수'),
-      '홀딩 사용여부': getStudentField(next, '홀딩 사용여부'),
-    };
-  }
+  // 등록별 시간표·홀딩·결석 정보를 보존한다. 합산은 현재+미리 등록만 사용한다.
+  // 원본/캐시 객체를 변경하거나 메타데이터를 재귀로 붙이지 않는다.
+  const registrationCopy = row => ({
+    ...Object.fromEntries(Object.entries(row)
+      .filter(([key]) => !['_prevRegistration', '_nextRegistration', '_upcomingRegistrations'].includes(key))),
+    // 기존 next/prev 소비자는 줄바꿈 없는 키를 직접 읽으므로 정규화 계약을 유지한다.
+    ...Object.fromEntries(['시작날짜', '종료날짜', '요일 및 시간', '주횟수', '특이사항',
+      '홀딩 사용여부', '홀딩 시작일', '홀딩 종료일'].map(key => [key, getStudentField(row, key)])),
+  });
+  if (activeIdx > 0) active._prevRegistration = registrationCopy(sorted[activeIdx - 1]);
+  active._upcomingRegistrations = sorted.slice(activeIdx + 1).map(registrationCopy);
+  if (active._upcomingRegistrations.length) active._nextRegistration = active._upcomingRegistrations[0];
 
   console.log(`📅 pickActiveRegistration: ${sorted.length}개 등록 중 #${activeIdx} 선택 (시작: ${getStudentField(active, '시작날짜')})`);
   return active;
@@ -1414,7 +1400,7 @@ export const getAllStudentsFromAllSheets = async () => {
  * @param {Object} student
  * @returns {Object|null}
  */
-export const calculateMembershipStats = (student, firebaseHolidays = []) => {
+const calculateRegistrationStats = (student, firebaseHolidays = [], { holdings = [], makeups = [] } = {}) => {
   if (!student) return null;
 
   const startDateStr = getStudentField(student, '시작날짜');
@@ -1430,6 +1416,8 @@ export const calculateMembershipStats = (student, firebaseHolidays = []) => {
   // E열 결석일은 종료일을 그만큼 뒤로 민 날이므로 수업 회차로 세면 안 된다
   // (안 빼면 남은회차가 부풀어 출석 수가 깎이고, 심하면 0으로 바닥침)
   const absenceDates = parseAbsenceDatesFromNotes(getStudentField(student, '특이사항'));
+  const registrationHoldings = getRegistrationHoldings(student, holdings, makeups);
+
 
   const startDate = parseSheetDate(startDateStr);
   const today = new Date();
@@ -1439,7 +1427,8 @@ export const calculateMembershipStats = (student, firebaseHolidays = []) => {
   const totalSessions = getTotalSessions(weeklyFrequency, holdingInfo);
 
   const holdingUsed = holdingInfo.isCurrentlyUsed;
-  const remainingHolding = holdingInfo.total - holdingInfo.used;
+  const usedHolding = Math.min(holdingInfo.total, Math.max(holdingInfo.used, registrationHoldings.length));
+  const remainingHolding = Math.max(0, holdingInfo.total - usedHolding);
 
   // 홀딩 기간 정보
   let holdingRange = null;
@@ -1491,7 +1480,7 @@ export const calculateMembershipStats = (student, firebaseHolidays = []) => {
     remainingSessions,
     remainingHolding,
     totalHolding: holdingInfo.total,
-    usedHolding: holdingInfo.used,
+    usedHolding,
     registrationMonths: holdingInfo.months,
     schedule: scheduleStr,
     attendanceCount: Math.max(0, completedSessions),
@@ -1502,12 +1491,26 @@ export const calculateMembershipStats = (student, firebaseHolidays = []) => {
   };
 };
 
+// 한 행의 다개월 등록과 여러 행으로 나눈 미리 등록을 같은 기준으로 합산한다.
+export const calculateMembershipStats = (student, firebaseHolidays = [], options = {}) => {
+  if (!student) return null;
+  const stats = getMembershipRegistrations(student)
+    .map(registration => calculateRegistrationStats(registration, firebaseHolidays, options));
+  const result = { ...stats[0] };
+  for (const key of ['totalSessions', 'completedSessions', 'remainingSessions', 'remainingHolding',
+    'totalHolding', 'usedHolding', 'registrationMonths', 'attendanceCount', 'totalClasses']) {
+    result[key] = stats.reduce((sum, registration) => sum + registration[key], 0);
+  }
+  result.endDate = stats.map(registration => registration.endDate).filter(Boolean).sort().at(-1) || '';
+  return result;
+};
+
 /**
  * 출석 내역 생성
  * @param {Object} student
  * @returns {Array}
  */
-export const generateAttendanceHistory = (student, firebaseHolidays = []) => {
+const generateRegistrationAttendanceHistory = (student, firebaseHolidays = []) => {
   if (!student) return [];
 
   const startDateStr = getStudentField(student, '시작날짜');
@@ -1525,6 +1528,8 @@ export const generateAttendanceHistory = (student, firebaseHolidays = []) => {
   today.setHours(0, 0, 0, 0);
 
   const startDate = parseSheetDate(startDateStr);
+  const endDate = parseSheetDate(getStudentField(student, '종료날짜'));
+  const absenceDates = new Set(parseAbsenceDatesFromNotes(getStudentField(student, '특이사항')));
   if (startDate && scheduleStr) {
     const schedule = parseScheduleString(scheduleStr);
     const classDays = schedule.map(s => ({
@@ -1537,12 +1542,12 @@ export const generateAttendanceHistory = (student, firebaseHolidays = []) => {
     const holdingEnd = holdingInfo.isCurrentlyUsed ? parseSheetDate(holdingEndStr) : null;
 
     const current = new Date(startDate);
-    while (current <= today) {
+    while (current <= today && (!endDate || current <= endDate)) {
       const dayOfWeek = current.getDay();
       const classInfo = classDays.find(c => c.day === dayOfWeek);
 
       if (classInfo) {
-        if (isHolidayDate(current, firebaseHolidays)) {
+        if (isHolidayDate(current, firebaseHolidays) || absenceDates.has(formatDateToISO(current))) {
           current.setDate(current.getDate() + 1);
           continue;
         }
@@ -1584,6 +1589,13 @@ export const generateAttendanceHistory = (student, firebaseHolidays = []) => {
 
   // ponytail: 자르지 않고 전부 반환 — 홀딩/보강 제외는 StudentInfo에서 하므로 여기서 자르면 그만큼 줄이 사라진다
   return history;
+};
+
+export const generateAttendanceHistory = (student, firebaseHolidays = []) => {
+  const history = getMembershipRegistrations(student)
+    .flatMap(registration => generateRegistrationAttendanceHistory(registration, firebaseHolidays));
+  const unique = new Map(history.map(record => [`${record.date}/${record.period}/${record.type}`, record]));
+  return [...unique.values()].sort((a, b) => b.date.localeCompare(a.date));
 };
 
 // ─── 학생 데이터 업데이트 ───

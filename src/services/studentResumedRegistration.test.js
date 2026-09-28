@@ -58,3 +58,28 @@ it('오늘 활성 등록이 최근 시트에 있으면 과거 전체 조회를 �
     expect(result.student['시작날짜']).toBe('261028');
     expect(reads).toEqual([[`${newSheet}!A:R`]]);
 });
+
+it('미리 등록이 두 건이면 세 번째 등록과 등록별 계산 필드까지 보존한다', async () => {
+    rows[newSheet].push(['', '재개회원', '3', '월1수2금4', '26.12.2 결석', '재등록', '261125', '261223', '', '', '', '', 'O(1/2)']);
+    try {
+        const result = await service.findStudentAcrossSheets('재개회원', { requireActive: true });
+        expect(result.student._upcomingRegistrations).toHaveLength(2);
+        expect(result.student._upcomingRegistrations[1]).toMatchObject({ 시작날짜: '261125', 주횟수: '3', 특이사항: '26.12.2 결석', '홀딩 사용여부': 'O(1/2)' });
+        expect(service.calculateMembershipStats(result.student)).toMatchObject({ endDate: '2026-12-23', totalClasses: 40, totalHolding: 4 });
+    } finally {
+        rows[newSheet].pop();
+    }
+});
+
+it('줄바꿈이 있는 시트 헤더도 다음 등록의 기존 필드 계약으로 전달한다', async () => {
+    const oldHeaders = [...headers];
+    headers[3] = '요일\n및\n시간';
+    headers[12] = '홀딩\n사용여부';
+    try {
+        const result = await service.findStudentAcrossSheets('재개회원', { requireActive: true });
+        expect(result.student._nextRegistration).toMatchObject({ '요일 및 시간': '월4수5', '홀딩 사용여부': 'X' });
+        expect(service.calculateMembershipStats(result.student).totalSessions).toBe(16);
+    } finally {
+        headers.splice(0, headers.length, ...oldHeaders);
+    }
+});
