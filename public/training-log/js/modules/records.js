@@ -163,7 +163,7 @@ export async function addRecord() {
 
         // 저장 확인은 즉시. 신기록 축하는 판정이 돌아오는 대로 표시한다.
         // 예전엔 이 판정을 기다리느라 저장이 끝나도 화면이 잠겨 있었다.
-        if (!window.completeStudentRecord) alert('✅ 기록이 저장되었습니다!');
+        alert('✅ 운동 기록이 정상적으로 저장되었습니다!');
         prPromise.then(prStatus => { if (prStatus && state.currentUser === recordUser && !state.isCoach) showPRCelebration(prStatus, recordUser); });
     } catch (error) {
         console.error('Error adding record:', error);
