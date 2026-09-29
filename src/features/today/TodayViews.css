@@ -92,3 +92,11 @@
 }
 .today-student .today-header { padding: 16px; background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-card); }
 .today-student .today-header h1 { color: var(--accent); font-size: 22px; }
+
+.today-note-editor { cursor: default; }
+.today-note-editor .today-field { margin: 0 0 10px; }
+.today-note-editor textarea { box-sizing: border-box; min-height: 100px; line-height: 1.7; }
+.today-note-editor textarea:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.today-note-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.today-note-actions .today-button { flex-shrink: 0; }
+.today-note-error { color: var(--error); font-size: 12px; }

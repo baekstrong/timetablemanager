@@ -1,6 +1,6 @@
 import RefreshStatus from '../../components/RefreshStatus';
 import { StudentTag } from '../../components/schedule/ScheduleCell';
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { visibleTaskGroups, currentLessonId, automaticLessonId } from './todayModel';
 import './TodayViews.css';
 
@@ -66,8 +66,27 @@ export function StudentToday({ name, taskGroups, lessons, weekLabel, waiting, po
     </main>;
 }
 
-export function CoachToday({ onRefresh, refreshedAt, refreshing, refreshMessage, dateLabel, lessons, minutes, taskGroups, notes, onAction, onEditNote, onNavigate }) {
+export function CoachToday({ onRefresh, refreshedAt, refreshing, refreshMessage, dateLabel, lessons, minutes, taskGroups, notes, notesReady = true, onAction, onSaveNote, onNavigate }) {
     const [manualId, setManualId] = useState(null);
+    const [drafts, setDrafts] = useState({});
+    const [noteStatus, setNoteStatus] = useState({});
+    const savingNames = useRef(new Set());
+    async function saveNote(name) {
+        if (!notesReady || !onSaveNote || savingNames.current.has(name)) return;
+        const value = drafts[name] ?? notes[name] ?? '';
+        savingNames.current.add(name);
+        setNoteStatus(previous => ({ ...previous, [name]: 'saving' }));
+        try {
+            await onSaveNote(name, value);
+            setDrafts(previous => ({ ...previous, [name]: value.trim() }));
+            setNoteStatus(previous => ({ ...previous, [name]: 'saved' }));
+        } catch {
+            setNoteStatus(previous => ({ ...previous, [name]: 'error' }));
+        } finally {
+            savingNames.current.delete(name);
+        }
+    }
+
     const currentId = currentLessonId(lessons, minutes);
     const selectedId = manualId ?? automaticLessonId(lessons, minutes);
     const selected = lessons.find(lesson => lesson.id === selectedId);
@@ -87,7 +106,29 @@ export function CoachToday({ onRefresh, refreshedAt, refreshing, refreshMessage,
             <section className="today-card today-notes" aria-labelledby="today-notes-heading">
                 <div className="today-section-title"><h2 id="today-notes-heading">코치 전용 메모</h2>{manualId != null && <button className="today-link" onClick={() => setManualId(null)}>현재 수업으로</button>}</div>
                 <p className="today-muted">{selected ? `${selected.id}교시 · ${selected.time} · 참석 예정 ${selected.attendees.length}명` : '오늘 수업이 모두 끝났습니다.'}{selected && selected.id !== currentId && (manualId == null ? ' · 다음 수업' : ' · 선택한 수업')}</p>
-                <div className="today-note-list">{selected?.attendees.map(name => <button className="today-note" key={name} onClick={() => onEditNote(name)}><span><strong>{name}</strong><span className="today-link">{notes[name] ? '수정' : '메모 쓰기'}</span></span><p className={notes[name] ? '' : 'today-muted'}>{notes[name] || '등록된 메모가 없습니다.'}</p></button>)}</div>
+                <div className="today-note-list">{selected?.attendees.map(name => {
+                    const value = drafts[name] ?? notes[name] ?? '';
+                    const status = noteStatus[name];
+                    const saving = status === 'saving';
+                    const changed = value !== (notes[name] || '');
+                    return <div className="today-note today-note-editor" key={name}>
+                        <label className="today-field"><strong>{name}</strong><textarea
+                            aria-label={`${name} 코치 전용 메모`} rows={3} value={value}
+                            placeholder={notesReady ? '메모를 입력하세요.' : '메모를 불러오는 중…'}
+                            disabled={!notesReady || saving}
+                            onChange={event => {
+                                setDrafts(previous => ({ ...previous, [name]: event.target.value }));
+                                setNoteStatus(previous => ({ ...previous, [name]: '' }));
+                            }}
+                        /></label>
+                        <div className="today-note-actions">
+                            <span role={status === 'error' ? 'alert' : 'status'} className={status === 'error' ? 'today-note-error' : 'today-muted'}>
+                                {status === 'error' ? '저장하지 못했습니다. 다시 저장해주세요.' : saving ? '저장 중…' : changed ? '저장하지 않은 변경사항' : status === 'saved' ? '저장되었습니다.' : ''}
+                            </span>
+                            <ActionButton primary disabled={!notesReady || saving || !changed} onClick={() => saveNote(name)} aria-label={`${name} 메모 저장`}>{saving ? '저장 중…' : '저장'}</ActionButton>
+                        </div>
+                    </div>;
+                })}</div>
                 {selected && <button className="today-link today-log-link" onClick={() => onNavigate('training-log', selected)}>이 수업 훈련일지 열기 →</button>}
             </section>
         </div>
