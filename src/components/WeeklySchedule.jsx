@@ -32,7 +32,7 @@ import { buildUpdatedSchedule, parseSheetDate, weekDateToISO } from '../utils/sc
 import { syncMakeupWaitlists, normalizeWaitlistEntry } from '../services/makeupWaitlistService';
 import './WeeklySchedule.css';
 
-const WeeklySchedule = ({ user, studentData, studentGrowth, isStudentDataLoading = false, onStudentDataRefresh, onNavigate, hasContractNotification = false, hasWaitlistNotification = false, view = 'schedule' }) => {
+const WeeklySchedule = ({ user, studentData, studentGrowth, isStudentDataLoading = false, onStudentDataRefresh, onNavigate, hasContractNotification = false, hasWaitlistNotification = false, view = 'schedule', hasNewPostNotification = false }) => {
     const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student');
     const { students, isAuthenticated, isConnected, error: sheetsError, loading, refresh } = useGoogleSheets();
 
@@ -444,7 +444,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, isStudentDataLoading
         if (!homeLoaded.current && (weeklyDataError || sheetsError)) return <div className="today-page"><p role="alert">{weeklyDataError || sheetsError}</p><button onClick={handleManualRefresh}>다시 불러오기</button></div>;
         return <>
             {(weeklyDataError || sheetsError) && <p className="today-error" role="alert">{weeklyDataError || sheetsError} <button onClick={handleManualRefresh}>다시 불러오기</button></p>}
-             <CoachHome core={scheduleCore} students={students} disabledClasses={disabledClasses} registrations={pendingRegistrations} waitlist={newStudentWaitlist} onNavigate={onNavigate} refresh={handleManualRefresh} refreshedAt={refreshedAt} refreshing={isRefreshing} refreshMessage={refreshMsg} />
+             <CoachHome hasNewPostNotification={hasNewPostNotification} core={scheduleCore} students={students} disabledClasses={disabledClasses} registrations={pendingRegistrations} waitlist={newStudentWaitlist} onNavigate={onNavigate} refresh={handleManualRefresh} refreshedAt={refreshedAt} refreshing={isRefreshing} refreshMessage={refreshMsg} />
         </>;
     }
 

@@ -103,3 +103,6 @@
 
 .today-note-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .today-note-heading .today-link { min-height: 32px; }
+
+.today-board-label { position: relative; display: inline-block; }
+.today-board-dot { position: absolute; top: -4px; right: -8px; width: 8px; height: 8px; border-radius: 50%; background: var(--error); }

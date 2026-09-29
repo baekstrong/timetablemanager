@@ -415,7 +415,7 @@ function AppContent() {
 
       case 'today':
         if (user?.role !== 'coach') return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} hasWaitlistNotification={hasWaitlistNotification} />;
-        return <WeeklySchedule key={`${user?.username}-${calendarDay}`} user={user} studentData={studentData} onNavigate={handleNavigate} onBack={handleBackToDashboard} view="today" />;
+        return <WeeklySchedule key={`${user?.username}-${calendarDay}`} user={user} studentData={studentData} onNavigate={handleNavigate} onBack={handleBackToDashboard} view="today" hasNewPostNotification={hasNewPostNotification} />;
 
       case 'dashboard':
         return <Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} deepLinkPost={deepLinkPost} onDeepLinkDone={() => setDeepLinkPost(null)} />;
