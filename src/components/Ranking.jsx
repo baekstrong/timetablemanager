@@ -297,7 +297,7 @@ const RankingTab = ({ exerciseSuggestions, genderMap, tierMap, refreshNonce }) =
                                     ) : topNData.map((p, i) => (
                                         <li key={p.id} className="ranking-row">
                                             <span className="ranking-rank">{i + 1}</span>
-                                            <span className="ranking-name"><TierBadge tier={tierMap[p.userName]} />{p.userName}</span>
+                                            <span className="ranking-name"><TierBadge tier={tierMap[p.userName]} /><span className="ranking-person-name">{p.userName}</span></span>
                                             <span className="ranking-value">{formatPRValue(p)}</span>
                                             <span className="ranking-date">{formatDate(p.date)}</span>
                                         </li>
@@ -339,8 +339,8 @@ const MonthlyPRSection = ({ genderMap, tierMap = {}, genderFilter }) => {
     return (
         <ul className="ranking-list">
             {filtered.map(p => (
-                <li key={p.id} className="ranking-row">
-                    <span className="ranking-name"><TierBadge tier={tierMap[p.userName]} />{p.userName}</span>
+                <li key={p.id} className="ranking-row ranking-row-monthly">
+                    <span className="ranking-name"><TierBadge tier={tierMap[p.userName]} /><span className="ranking-person-name">{p.userName}</span></span>
                     <span className="ranking-exercise">{p.exercise}</span>
                     <span className="ranking-value">{formatPRValue(p)}</span>
                     <span className="ranking-date">{formatDate(p.date)}</span>
@@ -416,7 +416,7 @@ const AttendanceSection = ({ genderMap, tierMap = {}, genderFilter }) => {
                     {filtered.map((e, i) => (
                         <li key={e.userName} className="ranking-row">
                             <span className="ranking-rank">{i + 1}</span>
-                            <span className="ranking-name"><TierBadge tier={tierMap[e.userName]} />{e.userName}</span>
+                            <span className="ranking-name"><TierBadge tier={tierMap[e.userName]} /><span className="ranking-person-name">{e.userName}</span></span>
                             <span className="ranking-value">
                                 {sortBy === 'days' ? `${e.trainingDays}일` : `${e.volume.toLocaleString()}kg`}
                             </span>

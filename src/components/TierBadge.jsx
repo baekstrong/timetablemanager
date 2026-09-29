@@ -10,8 +10,8 @@ export default function TierBadge({ tier, style }) {
             title={`${t.label} 티어`}
             style={{
                 display: 'inline-flex', alignItems: 'center', gap: '2px',
-                padding: '0 5px', height: '16px', borderRadius: 'var(--r-chip, 8px)',
-                fontSize: '0.65rem', fontWeight: 700, lineHeight: 1,
+                padding: '1px 5px', minHeight: '16px', borderRadius: 'var(--r-chip, 8px)',
+                fontSize: '0.65rem', fontWeight: 700, lineHeight: 1.3, whiteSpace: 'nowrap',
                 color: t.color, background: `${t.color}1A`, border: `1px solid ${t.color}4D`,
                 verticalAlign: 'middle', flexShrink: 0, marginRight: '4px',
                 ...style,

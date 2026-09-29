@@ -422,3 +422,17 @@
 }
 
 .student-info-logout { margin-left: auto; min-height: 44px; padding: 8px 12px; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--canvas); color: var(--text-secondary); font: inherit; cursor: pointer; }
+
+/* Grid items must shrink to the phone width, including with larger system text. */
+.student-info-content { grid-template-columns: minmax(0, 1fr); }
+.student-info-content > * { min-width: 0; }
+.student-info-container .detail-row { flex-wrap: wrap; gap: 6px 12px; }
+.student-info-container .detail-value { min-width: 0; margin-left: auto; overflow-wrap: anywhere; word-break: keep-all; }
+.student-info-container .card-header { flex-wrap: wrap; gap: 10px; }
+.student-info-container .holding-period-item { flex-wrap: wrap; }
+@media (max-width: 600px) {
+    .student-info-container { padding-inline: 12px; }
+    .student-info-container .membership-card, .student-info-container .stats-card, .student-info-container .attendance-card { padding: 16px; }
+    .student-info-container .attendance-item { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .student-info-container .attendance-item > * { min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
+}

@@ -20,3 +20,5 @@
     .monthly-pr-heading h2 { font-size: 13px; }
     .monthly-pr-link { font-size: 11px !important; }
 }
+.monthly-pr-row { height: auto; min-height: 24px; line-height: 1.8; }
+.monthly-pr-heading { flex-wrap: wrap; }

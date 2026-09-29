@@ -19,7 +19,8 @@ body {
     background: #ffffff;
     border: 1px solid #e5e7eb;
     box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.1);
-    height: 64px;
+    min-height: 64px;
+    height: auto;
     border-radius: 20px;
     margin-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -425,3 +426,12 @@ body.modal-open {
  .student-set-inputs input.w-16 { width:64px; }
  .student-workspace-header h2 { font-size:22px; }
 }
+
+/* Preserve complete control labels at narrow widths and larger text sizes. */
+.student-workspace-header, .student-writing-heading, .student-calendar-heading, .student-calendar-summary, .student-calendar-legend { flex-wrap: wrap; }
+.student-writing-heading label { min-width: 0; }
+.student-writing-heading input { max-width: 100%; }
+.student-calendar-heading h3 { word-break: keep-all; }
+.student-calendar-day strong, .student-calendar-day small { line-height: 1.5; }
+.student-calendar-legend { gap: 8px 16px; padding: 8px; }
+.student-exercise-search>input { height: auto; min-height: 48px; }

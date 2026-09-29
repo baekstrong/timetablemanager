@@ -1030,7 +1030,7 @@ function CurrentWeekStudentSchedule({
     }
 
     function renderModernGrid() {
-        return <><div className="student-class-grid-legend" aria-label="시간표 색상 안내"><span className="is-lesson">수업</span><span className="is-free">자율운동</span><span className="is-empty">수업 없음</span></div><div className="student-class-grid" aria-label="이번 주 보강 가능한 시간표">
+        return <><div className="student-class-grid-legend" aria-label="시간표 색상 안내"><span className="is-lesson">수업</span><span className="is-free">자율운동</span><span className="is-empty">수업 없음</span></div><p className="student-class-grid-scroll-hint">시간표가 잘리면 좌우로 밀어보세요.</p><div className="student-class-grid" role="region" tabIndex={0} aria-label="이번 주 보강 가능한 시간표, 화면이 좁으면 좌우로 스크롤">
             <span className="student-class-grid-heading-cell">시간</span>{days.map(item => <div className="student-class-grid-heading-cell" key={item.date}>{item.day}<br />{item.dateNumber}</div>)}
             {PERIODS.map(period => <Fragment key={period.id}><div className="student-class-grid-time"><strong>{period.id}교시</strong>{period.type === 'free' && <span>(자율)</span>}<span>{period.time.split(' ~ ')[0]}</span><span>~ {period.time.split(' ~ ')[1]}</span></div>{days.map(({ day, date }) => {
                 const data = getCellData(day, period);

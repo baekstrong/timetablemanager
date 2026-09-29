@@ -14,3 +14,4 @@
  .student-class-slot.student-makeup-slot .student-makeup-slot-badge { padding-inline:1px; font-size:9px; }
  .student-class-slot.student-makeup-slot .student-makeup-slot-detail { font-size:9px; }
 }
+.student-makeup-slot-label { word-break: keep-all; }

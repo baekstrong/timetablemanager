@@ -43,7 +43,9 @@
 }
 
 .ranking-tab {
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: keep-all;
     padding: 0.6rem;
     border: none;
     background: transparent;
@@ -66,7 +68,7 @@
     display: flex;
     gap: 0.4rem;
     margin-bottom: 0.75rem;
-    overflow-x: auto;
+    flex-wrap: wrap;
 }
 
 .ranking-subtab {
@@ -78,7 +80,8 @@
     font-weight: 500;
     color: var(--text-secondary);
     cursor: pointer;
-    white-space: nowrap;
+    white-space: normal;
+    word-break: keep-all;
 }
 
 .ranking-subtab.active {
@@ -449,3 +452,32 @@
 }
 
 .graph-exercise-chip:hover { background: var(--canvas-tint); }
+
+/* Keep names and records readable when the viewport or available text space shrinks. */
+.ranking-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+.ranking-person-name { word-break: keep-all; overflow-wrap: anywhere; max-width: 100%; }
+.ranking-value, .ranking-exercise { overflow-wrap: anywhere; }
+.ranking-date, .ranking-rank { flex-shrink: 0; white-space: nowrap; }
+.ranking-gender-filter, .mypr-card-header, .mypr-card-record, .graph-exercise-search-row { flex-wrap: wrap; }
+.ranking-exercise-select, .ranking-month-select { min-width: 0; max-width: 100%; }
+.mypr-card-title { min-width: 0; overflow-wrap: anywhere; }
+.mypr-card-type, .mypr-history-btn { flex-shrink: 0; word-break: keep-all; }
+.mypr-record-value { min-width: 0; flex-basis: 8em; overflow-wrap: anywhere; }
+.graph-exercise-search-row .ranking-exercise-select { flex-basis: 100%; }
+.graph-exercise-chip { max-width: 100%; word-break: keep-all; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+    .ranking-content { padding: 12px; }
+    .ranking-row { display: grid; grid-template-columns: 1.5em minmax(0, 1fr) auto; gap: 6px 10px; padding: 14px 0; }
+    .ranking-rank { grid-column: 1; grid-row: 1 / span 3; align-self: start; }
+    .ranking-name { grid-column: 2; grid-row: 1; }
+    .ranking-date { grid-column: 3; grid-row: 1; min-width: 0; }
+    .ranking-value { grid-column: 2 / -1; grid-row: 2; }
+    .ranking-row-monthly { grid-template-columns: minmax(0, 1fr) auto; }
+    .ranking-row-monthly .ranking-name { grid-column: 1; }
+    .ranking-row-monthly .ranking-date { grid-column: 2; }
+    .ranking-row-monthly .ranking-exercise { grid-column: 1 / -1; grid-row: 2; }
+    .ranking-row-monthly .ranking-value { grid-column: 1 / -1; grid-row: 3; }
+}
+
+.ranking-header { flex-wrap: wrap; }
+.ranking-back-btn { flex-shrink: 0; white-space: nowrap; }

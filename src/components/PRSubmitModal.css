@@ -215,3 +215,11 @@
 
 .pr-btn-cancel:disabled,
 .pr-btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.pr-type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pr-type-btn { min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
+.pr-modal-title { min-width: 0; overflow-wrap: anywhere; }
+.pr-modal-close { flex-shrink: 0; }
+@media (max-width: 400px) { .pr-type-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.pr-modal-title { word-break: keep-all; }

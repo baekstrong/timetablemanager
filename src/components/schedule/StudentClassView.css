@@ -87,3 +87,15 @@
 .student-class-grid-legend .is-empty::before { background:var(--hairline); }
 
 .student-class-grid-time span { white-space:nowrap; }
+
+.student-class-day-lesson { max-width: 100%; }
+.student-class-day .student-class-status { max-width: 100%; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }
+.student-class-membership { flex-wrap: wrap; gap: 16px 24px; }
+
+/* At enlarged text sizes, scroll the timetable itself instead of crushing its columns. */
+.student-class-grid { grid-template-columns: max-content repeat(5, minmax(3.5em, 1fr)); font-size: 12px; overflow-x: auto; max-width: 100%; padding-bottom: 6px; }
+.student-class-grid:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.student-class-grid-scroll-hint { display: none; }
+@media (max-width: 600px) { .student-class-grid-scroll-hint { display: block; color: var(--text-secondary); font-size: 11px; line-height: 1.5; margin-bottom: 8px; } }
+.student-class-grid-time, .student-class-grid > .student-class-grid-heading-cell:first-child { position: sticky; left: 0; z-index: 1; background: var(--canvas); }

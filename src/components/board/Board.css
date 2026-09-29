@@ -828,3 +828,12 @@
 .board-retry-btn:hover {
     background: var(--accent-10);
 }
+
+/* Author badges and controls wrap as groups instead of squeezing Korean names. */
+.post-card-meta, .post-detail-meta, .comment-item-header, .comment-header-right { flex-wrap: wrap; gap: 6px 10px; }
+.post-card-meta > *, .post-detail-meta > *, .comment-author { min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
+.post-card-title { min-width: 0; }
+.board-tab, .post-category-badge { flex-shrink: 0; }
+.board-search-input-row { flex-wrap: wrap; }
+.board-search-input { min-width: 0; width: 100%; flex-basis: 8em; }
+.board-search-btn, .board-search-clear-btn { flex-shrink: 0; }
