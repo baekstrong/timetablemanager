@@ -100,3 +100,6 @@
 .today-note-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .today-note-actions .today-button { flex-shrink: 0; }
 .today-note-error { color: var(--error); font-size: 12px; }
+
+.today-note-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.today-note-heading .today-link { min-height: 32px; }

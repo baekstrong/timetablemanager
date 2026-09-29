@@ -69,6 +69,7 @@ export function StudentToday({ name, taskGroups, lessons, weekLabel, waiting, po
 export function CoachToday({ onRefresh, refreshedAt, refreshing, refreshMessage, dateLabel, lessons, minutes, taskGroups, notes, notesReady = true, onAction, onSaveNote, onNavigate }) {
     const [manualId, setManualId] = useState(null);
     const [drafts, setDrafts] = useState({});
+    const [editingNotes, setEditingNotes] = useState({});
     const [noteStatus, setNoteStatus] = useState({});
     const savingNames = useRef(new Set());
     async function saveNote(name) {
@@ -80,6 +81,7 @@ export function CoachToday({ onRefresh, refreshedAt, refreshing, refreshMessage,
             await onSaveNote(name, value);
             setDrafts(previous => ({ ...previous, [name]: value.trim() }));
             setNoteStatus(previous => ({ ...previous, [name]: 'saved' }));
+            setEditingNotes(previous => ({ ...previous, [name]: false }));
         } catch {
             setNoteStatus(previous => ({ ...previous, [name]: 'error' }));
         } finally {
@@ -112,7 +114,12 @@ export function CoachToday({ onRefresh, refreshedAt, refreshing, refreshMessage,
                     const saving = status === 'saving';
                     const changed = value !== (notes[name] || '');
                     return <div className="today-note today-note-editor" key={name}>
-                        <label className="today-field"><strong>{name}</strong><textarea
+                        <div className="today-note-heading"><strong>{name}</strong>{!editingNotes[name] && <button type="button" className="today-link" disabled={!notesReady} aria-label={`${name} 메모 수정`} onClick={() => {
+                            setDrafts(previous => ({ ...previous, [name]: notes[name] || '' }));
+                            setNoteStatus(previous => ({ ...previous, [name]: '' }));
+                            setEditingNotes(previous => ({ ...previous, [name]: true }));
+                        }}>{notes[name] ? '수정' : '메모 쓰기'}</button>}</div>
+                        {editingNotes[name] ? <><label className="today-field"><textarea
                             aria-label={`${name} 코치 전용 메모`} rows={3} value={value}
                             placeholder={notesReady ? '메모를 입력하세요.' : '메모를 불러오는 중…'}
                             disabled={!notesReady || saving}
@@ -125,8 +132,12 @@ export function CoachToday({ onRefresh, refreshedAt, refreshing, refreshMessage,
                             <span role={status === 'error' ? 'alert' : 'status'} className={status === 'error' ? 'today-note-error' : 'today-muted'}>
                                 {status === 'error' ? '저장하지 못했습니다. 다시 저장해주세요.' : saving ? '저장 중…' : changed ? '저장하지 않은 변경사항' : status === 'saved' ? '저장되었습니다.' : ''}
                             </span>
-                            <ActionButton primary disabled={!notesReady || saving || !changed} onClick={() => saveNote(name)} aria-label={`${name} 메모 저장`}>{saving ? '저장 중…' : '저장'}</ActionButton>
-                        </div>
+                            <div className="today-actions"><ActionButton disabled={saving} onClick={() => {
+                                setEditingNotes(previous => ({ ...previous, [name]: false }));
+                                setDrafts(previous => ({ ...previous, [name]: notes[name] || '' }));
+                                setNoteStatus(previous => ({ ...previous, [name]: '' }));
+                            }} aria-label={`${name} 메모 수정 취소`}>취소</ActionButton><ActionButton primary disabled={!notesReady || saving || !changed} onClick={() => saveNote(name)} aria-label={`${name} 메모 저장`}>{saving ? '저장 중…' : '저장'}</ActionButton></div>
+                        </div></> : <><p className={notes[name] ? '' : 'today-muted'}>{notesReady ? notes[name] || '등록된 메모가 없습니다.' : '메모를 불러오는 중…'}</p>{status === 'saved' && <span className="today-muted" role="status">저장되었습니다.</span>}</>}
                     </div>;
                 })}</div>
                 {selected && <button className="today-link today-log-link" onClick={() => onNavigate('training-log', selected)}>이 수업 훈련일지 열기 →</button>}
