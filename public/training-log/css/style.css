@@ -371,7 +371,8 @@ body.modal-open {
 .student-record-feedback strong { font-weight:400; color:rgba(0,0,0,.6); font-size:10px; }
 .student-record-feedback p { white-space:pre-wrap; overflow-wrap:anywhere; }
 .student-writing-heading { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:14px; scroll-margin-top:12px; }
-.student-writing-heading>button { color:#327AB8; background:none; font-size:13px; white-space:nowrap; }
+.student-writing-heading>button { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:10px 14px; border:1px solid #EFEFF0; border-radius:12px; color:#327AB8; background:#fff; font-size:14px; font-weight:700; white-space:nowrap; cursor:pointer; }
+.student-writing-heading>button:focus-visible { outline:2px solid #329BE7; outline-offset:2px; }
 .student-writing-heading label { font-size:11px; color:rgba(0,0,0,.6); }
 .student-writing-heading input { max-width:145px; background:transparent; border:0; font-size:13px; color:rgba(0,0,0,.85); }
 .student-record-form { padding:16px 12px; }

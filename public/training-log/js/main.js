@@ -1,12 +1,12 @@
 import * as Admin from './modules/admin.js?v=20260925-student-ux';
-import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminModalHTML, renderStampModalHTML } from './ui.js?v=20260925-student-ux';
+import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminModalHTML, renderStampModalHTML } from './ui.js?v=20260929-back-button';
 
 import { state, db, firebaseInitialized } from './state.js';
 import { loadSavedLogin } from './utils.js';
 // Import all functions to expose to window
-import * as Auth from './modules/auth.js?v=20260929-save-confirmation';
+import * as Auth from './modules/auth.js?v=20260929-back-button';
 import * as Sets from './modules/sets.js?v=20260925-student-ux';
-import * as Records from './modules/records.js?v=20260929-save-confirmation';
+import * as Records from './modules/records.js?v=20260929-back-button';
 import * as Calendar from './modules/calendar.js?v=20260925-student-ux';
 import * as Coach from './modules/coach.js?v=20260925-student-ux';
 import * as Stamp from './modules/stamp.js';

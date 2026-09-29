@@ -77,7 +77,7 @@ export function renderStudentScreen() {
                 </section>
             </section>
             <section id="studentWriteView" hidden>
-                <div class="student-writing-heading" id="studentWriteHeading"><button type="button" onclick="showStudentCalendar()">‹ 달력으로</button><label>작성일 <input type="date" id="studentWriteDate" value="${localDate()}" max="${localDate()}" onchange="changeStudentWriteDate(this.value)"></label></div>
+                <div class="student-writing-heading" id="studentWriteHeading"><button type="button" id="studentBackButton" aria-label="훈련일지 달력으로 뒤로가기" onclick="showStudentCalendar()">← 뒤로가기</button><label>작성일 <input type="date" id="studentWriteDate" value="${localDate()}" max="${localDate()}" onchange="changeStudentWriteDate(this.value)"></label></div>
                 <div class="student-record-form">
                     <h3 id="recordFormTitle">운동 기록 남기기</h3>
                     <p id="studentDraftStatus" class="student-help" role="status"></p>
