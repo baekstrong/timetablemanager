@@ -16,6 +16,7 @@
 .today-link { color: var(--accent-hover); background: transparent; border: 0; cursor: pointer; padding: 6px 0; font-size: 13px; font-weight: 600; }
 .today-button { padding: 10px 14px; border: 1px solid var(--hairline); background: var(--canvas); color: var(--accent-hover); border-radius: var(--r-md); font-size: 13px !important; font-weight: 600 !important; cursor: pointer; min-height: 44px; }
 .today-button-primary { background: var(--accent); color: var(--canvas); border-color: var(--accent); }
+.today-button-pending { background: var(--caution); border-color: var(--caution); color: var(--text); }
 .today-button:disabled { opacity: .45; cursor: not-allowed; }
 .today-actions { display: flex; gap: 8px; }
 .today-student .today-actions > * { flex: 1; }

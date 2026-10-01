@@ -4,8 +4,8 @@ import { useId, useRef, useState } from 'react';
 import { visibleTaskGroups, currentLessonId, automaticLessonId } from './todayModel';
 import './TodayViews.css';
 
-export function ActionButton({ children, primary = false, ...props }) {
-    return <button type="button" className={`today-button${primary ? ' today-button-primary' : ''}`} {...props}>{children}</button>;
+export function ActionButton({ children, primary = false, pending = false, ...props }) {
+    return <button type="button" className={`today-button${primary ? ' today-button-primary' : ''}${pending ? ' today-button-pending' : ''}`} {...props}>{children}</button>;
 }
 
 export function TaskSection({ groups, onAction, currentPeriod, coach = false }) {
@@ -20,7 +20,7 @@ export function TaskSection({ groups, onAction, currentPeriod, coach = false }) 
             {coach && <h3>{group.title}<span>{group.items.length}</span></h3>}
             {group.items.map(item => <div key={item.id} className={`today-task-row${currentPeriod != null && item.period === currentPeriod ? ' is-current' : ''}`}>
                 <div><p className="today-task-title">{item.title}</p>{item.description && <p className="today-muted">{item.description}</p>}</div>
-                <ActionButton onClick={() => onAction(item)} aria-label={`${item.title} ${item.actionLabel}`}>{item.actionLabel}</ActionButton>
+                <ActionButton pending={coach && item.type === 'new'} onClick={() => onAction(item)} aria-label={`${item.title} ${item.actionLabel}`}>{item.actionLabel}</ActionButton>
             </div>)}
         </div>)}</div>
     </section>;
