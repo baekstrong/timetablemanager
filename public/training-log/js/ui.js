@@ -68,7 +68,7 @@ export function renderStudentScreen() {
             </header>
             <div id="myStampContainer"></div>
             <section id="studentCalendarView">
-                <button type="button" id="studentStartButton" class="student-main-button" onclick="startStudentRecord()">오늘 운동 기록하기 ＋</button>
+                <button type="button" id="studentStartButton" class="student-main-button" onclick="startStudentRecord()">오늘 훈련일지 기록하기 ＋</button>
                 <div id="studentDraftList"></div>
                 <section class="student-calendar-card" aria-label="월간 운동 기록"><div id="calendar"></div></section>
                 <section class="student-records-card">

@@ -65,6 +65,7 @@ export function selectCalendarDate(date) {
     state.calendarYear = year; state.calendarMonth = month - 1;
     const title = document.getElementById('recordsListTitle');
     if (title) title.textContent = `${formatDate(date)} 기록`;
+    window.updateStudentStartButton?.();
     renderCalendar(false);
     window.loadMyRecords?.();
 }

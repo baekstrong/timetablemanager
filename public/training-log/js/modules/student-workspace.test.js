@@ -4,7 +4,7 @@ import { draftKey } from './student-workspace-logic.js';
 const fixture = vi.hoisted(() => ({ state: {} }));
 vi.mock('../state.js', () => ({ state: fixture.state, db: null }));
 vi.mock('./sets.js?v=20260925-student-ux', () => ({ renderSets: () => {} }));
-import { initializeStudentWorkspace, startStudentRecord, saveStudentDraft, prepareStudentExercise, changeStudentWriteDate, showStudentCalendar, restoreFailedStudentRecord, recoverStudentDraft } from './student-workspace.js';
+import { initializeStudentWorkspace, startStudentRecord, saveStudentDraft, prepareStudentExercise, changeStudentWriteDate, showStudentCalendar, restoreFailedStudentRecord, recoverStudentDraft, updateStudentStartButton } from './student-workspace.js';
 
 const today = '2026-09-25';
 const storageKey = user => `trainingDrafts_v1_${user}`;
@@ -18,7 +18,7 @@ const store = (user = '학생A') => JSON.parse(storage.get(storageKey(user)) || 
 beforeEach(() => {
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-25T12:00:00'));
     storage = new Map(); nodes = new Map();
-    Object.assign(fixture.state, { currentUser: '학생A', isCoach: false, currentSets: [], studentWriteDate: today, studentView: 'calendar' });
+    Object.assign(fixture.state, { currentUser: '학생A', isCoach: false, currentSets: [], selectedDate: today, studentWriteDate: today, studentView: 'calendar' });
     vi.stubGlobal('localStorage', { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) });
     vi.stubGlobal('document', { getElementById: id => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); }, querySelectorAll: () => [] });
     vi.stubGlobal('window', { renderExerciseMemo: vi.fn(), invalidateStudentCalendar: vi.fn() });
@@ -81,5 +81,47 @@ describe('student persistent draft transitions', () => {
         expect(store('학생A').recoveries['old-write'].exercise).toBe('스쿼트');
         expect(store('학생B').drafts).toEqual({});
         expect(nodes.get('studentDraftStatus').textContent).toBe('새 계정 상태');
+    });
+});
+
+
+describe('달력에서 선택한 날짜로 기록 시작', () => {
+    it('선택한 지난 날짜를 작성일로 사용하고 그 날짜의 초안을 복원한다', () => {
+        initializeStudentWorkspace();
+        startStudentRecord(); prepareStudentExercise('스쿼트');
+        fixture.state.currentSets = oneSet('40'); saveStudentDraft(); showStudentCalendar();
+        fixture.state.selectedDate = '2026-09-23';
+        updateStudentStartButton();
+        expect(nodes.get('studentStartButton').textContent).toBe('2026년 9월 23일 훈련일지 기록하기 ＋');
+        startStudentRecord(); prepareStudentExercise('스쿼트');
+        expect(fixture.state.studentWriteDate).toBe('2026-09-23');
+        expect(nodes.get('studentWriteDate').value).toBe('2026-09-23');
+        expect(fixture.state.currentSets).toEqual([]);
+        fixture.state.currentSets = oneSet('30'); nodes.get('memo').value = '지난 날짜 메모';
+        saveStudentDraft(); showStudentCalendar();
+        expect(nodes.get('studentStartButton').textContent).toBe('2026년 9월 23일 이어서 기록하기 ＋');
+        startStudentRecord();
+        expect(fixture.state.currentSets[0].intensity.value).toBe('30');
+        expect(nodes.get('memo').value).toBe('지난 날짜 메모');
+        showStudentCalendar(); fixture.state.selectedDate = today; startStudentRecord();
+        expect(fixture.state.currentSets[0].intensity.value).toBe('40');
+        expect(store().drafts[draftKey('2026-09-23', '스쿼트')].sets[0].intensity.value).toBe('30');
+    });
+    it('오늘의 초안이나 완료 기록이 다른 날짜의 버튼 문구를 바꾸지 않는다', () => {
+        initializeStudentWorkspace(); startStudentRecord(); prepareStudentExercise('스쿼트');
+        fixture.state.currentSets = oneSet('40'); saveStudentDraft(); showStudentCalendar();
+        fixture.state.studentTodayHasRecords = true;
+        fixture.state.selectedDate = '2026-08-31'; updateStudentStartButton();
+        expect(nodes.get('studentStartButton').textContent).toBe('2026년 8월 31일 훈련일지 기록하기 ＋');
+        startStudentRecord();
+        expect(fixture.state.studentWriteDate).toBe('2026-08-31');
+        expect(fixture.state.currentSets).toEqual([]);
+    });
+    it('미래 날짜로 기록을 시작하지 않는다', () => {
+        initializeStudentWorkspace(); fixture.state.selectedDate = '2026-09-26';
+        startStudentRecord();
+        expect(fixture.state.studentView).toBe('calendar');
+        expect(fixture.state.studentWriteDate).toBe(today);
+        expect(store().drafts).toEqual({});
     });
 });

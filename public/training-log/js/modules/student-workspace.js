@@ -93,9 +93,12 @@ export function initializeStudentWorkspace() {
 export function updateStudentStartButton() {
     const button = document.getElementById('studentStartButton');
     if (!button) return;
-    const today = localDate();
-    const hasDraft = Object.values(readStore().drafts).some(draft => draft.date === today && hasDraftContent(draft));
-    button.textContent = hasDraft ? '이어서 기록하기 ＋' : state.studentTodayHasRecords ? '오늘 기록 확인·추가 ＋' : '오늘 운동 기록하기 ＋';
+    const date = state.selectedDate || localDate();
+    const isToday = date === localDate();
+    const [year, month, day] = date.split('-').map(Number);
+    const label = isToday ? '오늘' : `${year}년 ${month}월 ${day}일`;
+    const hasDraft = Object.values(readStore().drafts).some(draft => draft.date === date && hasDraftContent(draft));
+    button.textContent = hasDraft ? `${label} 이어서 기록하기 ＋` : isToday && state.studentTodayHasRecords ? '오늘 기록 확인·추가 ＋' : `${label} 훈련일지 기록하기 ＋`;
 }
 function renderStudentDraftList() {
     const container = document.getElementById('studentDraftList');
@@ -105,8 +108,8 @@ function renderStudentDraftList() {
     container.innerHTML = drafts.length ? `<details><summary>보관한 초안 ${drafts.length}개</summary>${drafts.map(draft => `<button type="button" data-recovery-id="${escapeHTML(draft.recoveryId || '')}" data-draft-date="${escapeHTML(draft.date)}" data-draft-exercise="${escapeHTML(draft.exercise)}"><span>${escapeHTML(draft.date)} · ${escapeHTML(draft.exercise || '종목 선택 전')}</span>${draft.recoveryId ? '<small>저장 실패 · 입력 복구</small>' : draft.legacyDate ? '<small>이전 초안 · 작성일을 확인해주세요</small>' : ''}</button>`).join('')}</details>` : '';
     container.querySelectorAll('[data-draft-date]').forEach(button => button.addEventListener('click', () => button.dataset.recoveryId ? recoverStudentDraft(button.dataset.recoveryId) : startStudentRecord(button.dataset.draftDate, button.dataset.draftExercise)));
 }
-export function startStudentRecord(date = localDate(), exercise, { skipSave = false } = {}) {
-    if (date > localDate()) return;
+export function startStudentRecord(date = state.selectedDate || localDate(), exercise, { skipSave = false } = {}) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > localDate()) return;
     if (!skipSave) saveStudentDraft();
     state.studentWriteDate = date;
     const store = readStore();
@@ -229,7 +232,7 @@ export function renderStudentReference(message = '') {
     if (!container) return;
     if (!activeExercise) { container.innerHTML = ''; return; }
     const selected = references[selectedReference];
-    container.innerHTML = message ? `<p class="student-help" role="status">${escapeHTML(message)}</p>` : !selected ? '<p class="student-help">이 종목의 지난 기록이 없어요. 오늘 값을 직접 입력하세요.</p>' : `<div class="student-reference-heading"><label>지난 같은 운동 <select id="studentReferenceDate" onchange="selectStudentReference(this.value)">${references.map((reference, index) => `<option value="${index}" ${index === selectedReference ? 'selected' : ''}>${escapeHTML(reference.date)} · ${reference.sets.length}세트</option>`).join('')}</select></label><button type="button" onclick="fillStudentPreviousValues()">지난 값 채우기</button></div><p class="student-help">참고용이에요. 지난 값은 버튼을 눌러야 입력돼요.</p>${selected.feedback.length ? `<p class="student-reference-feedback">코치 피드백 · ${selected.feedback.map(escapeHTML).join('<br>')}</p>` : ''}`;
+    container.innerHTML = message ? `<p class="student-help" role="status">${escapeHTML(message)}</p>` : !selected ? '<p class="student-help">이 종목의 지난 기록이 없어요. 작성할 날짜의 값을 직접 입력하세요.</p>' : `<div class="student-reference-heading"><label>지난 같은 운동 <select id="studentReferenceDate" onchange="selectStudentReference(this.value)">${references.map((reference, index) => `<option value="${index}" ${index === selectedReference ? 'selected' : ''}>${escapeHTML(reference.date)} · ${reference.sets.length}세트</option>`).join('')}</select></label><button type="button" onclick="fillStudentPreviousValues()">지난 값 채우기</button></div><p class="student-help">참고용이에요. 지난 값은 버튼을 눌러야 입력돼요.</p>${selected.feedback.length ? `<p class="student-reference-feedback">코치 피드백 · ${selected.feedback.map(escapeHTML).join('<br>')}</p>` : ''}`;
 }
 export function selectStudentReference(index) {
     selectedReference = Math.min(Math.max(Number(index) || 0, 0), Math.max(0, references.length - 1));
@@ -248,6 +251,6 @@ export function fillStudentPreviousValues() {
     if (hasSetValues(state.currentSets) && !confirm('입력한 세트 값이 있어요. 선택한 지난 기록의 세트 값으로 바꿀까요?\n메모·통증·작성일은 그대로 유지돼요.')) return;
     state.currentSets = cloneSets(reference.sets);
     renderSets(); saveStudentDraft();
-    setStatus(`${reference.date} 세트 값을 채웠어요. 오늘 값에 맞게 수정하세요.`);
+    setStatus(`${reference.date} 세트 값을 채웠어요. 작성할 날짜의 값에 맞게 수정하세요.`);
 }
 if (typeof window !== 'undefined') window.addEventListener('pagehide', saveStudentDraft);
