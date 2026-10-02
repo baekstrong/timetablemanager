@@ -36,6 +36,8 @@ import { formatEntranceDate, convertToYYMMDD, calculateStartEndDates } from '../
 import { slotsOf } from '../utils/scheduleUtils';
 import { PRICING, PERIODS, DAYS, MAX_CAPACITY } from '../data/mockData';
 import StudentRegistrationModal from './StudentRegistrationModal';
+import PendingRegistrationEditor from './PendingRegistrationEditor';
+import { buildNewRegistrationPlan } from '../utils/newRegistrationPlan';
 import './CoachNewStudents.css';
 
 // 'YYYY-MM-DD' → '8/15' (헤더 칩용 짧은 표기)
@@ -65,6 +67,8 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
     const [entEcId, setEntEcId] = useState('');               // 선택한 기존 입학반 id
     const [entDate, setEntDate] = useState('');               // 새로 생성할 날짜 (YYYY-MM-DD)
     const [entSaving, setEntSaving] = useState(false);
+
+    const [pendingEditReg, setPendingEditReg] = useState(null);
 
     // === 시간표 편집 모달 ===
     const [editSlotsReg, setEditSlotsReg] = useState(null);
@@ -229,7 +233,20 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
 
     // ─── 승인 워크플로우 ─────────────────────
     const handleApprove = async (reg) => {
-        if (!confirm(`"${reg.name}" 수강생을 승인하시겠습니까?\n\nFirestore 계정 생성 + Google Sheets 행 추가가 진행됩니다.`)) return;
+        if (approving) return;
+        setApproving(reg.id);
+        let plan;
+        try {
+            const [holidays, disabled] = await Promise.all([getHolidays(), getDisabledClasses()]);
+            plan = buildNewRegistrationPlan(reg, slotsOf(reg), reg.weeklyFrequency, holidays, disabled);
+            if (!plan.startDate) throw new Error('입학반을 선택해주세요.');
+            reg = { ...reg, ...plan };
+        } catch (err) {
+            alert('승인 조건 확인 실패: ' + err.message);
+            setApproving(null);
+            return;
+        }
+        if (!confirm(`"${reg.name}" 수강생을 승인하시겠습니까?\n\n주${plan.weeklyFrequency}회 · ${plan.scheduleString}\n${formatEntranceDate(plan.startDate)} ~ ${formatEntranceDate(plan.endDate)}\n결제 금액 ${plan.totalCost.toLocaleString()}원`)) { setApproving(null); return; }
 
         setApproving(reg.id);
         try {
@@ -248,11 +265,7 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
             }
 
             // 2. Google Sheets 행 추가 (시작일 기준 시트 결정)
-            const entranceDateForCalc = reg.entranceInquiry || reg.entranceDate;
-            const { startDate: calcStartDate } = calculateStartEndDates(
-                entranceDateForCalc,
-                reg.requestedSlots
-            );
+            const calcStartDate = plan.startDate;
             const targetSheet = getCurrentSheetName(new Date(calcStartDate + 'T00:00:00'));
             const rows = await readSheetData(`${targetSheet}!A:B`);
             let lastDataRowIndex = 1;
@@ -276,20 +289,9 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
             }
             const newNumber = maxNumber + 1;
 
-            // 시작일/종료일 계산 (entranceDateForCalc, calcStartDate는 위에서 이미 계산됨)
-            const startDateYYMMDD = convertToYYMMDD(calcStartDate);
-
-            // 공휴일 반영하여 종료일 재계산
-            const firebaseHolidays = await getHolidays().catch(() => []);
-            const weeklyFreq = parseInt(reg.weeklyFrequency) || 2;
-            const totalSessions = weeklyFreq * 4; // 신규 등록은 1개월
-            const startDateObj = new Date(calcStartDate + 'T00:00:00');
-            const calcEndDateObj = calculateEndDateWithHolidays(
-                startDateObj, totalSessions, reg.scheduleString, firebaseHolidays
-            );
-            const endDateYYMMDD = calcEndDateObj
-                ? convertToYYMMDD(`${calcEndDateObj.getFullYear()}-${String(calcEndDateObj.getMonth() + 1).padStart(2, '0')}-${String(calcEndDateObj.getDate()).padStart(2, '0')}`)
-                : convertToYYMMDD(calculateStartEndDates(entranceDateForCalc, reg.requestedSlots).endDate);
+            // 편집 미리보기와 같은 기간을 시트에 기록한다.
+            const startDateYYMMDD = convertToYYMMDD(plan.startDate);
+            const endDateYYMMDD = convertToYYMMDD(plan.endDate);
 
             // 결제금액: 만원 단위 (390000 → 39)
             const paymentAmount = reg.totalCost ? String(Math.round(reg.totalCost / 10000)) : '';
@@ -337,6 +339,7 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
 
             // 3. 등록 상태 업데이트
             await updateNewStudentRegistration(reg.id, {
+                ...plan,
                 status: 'approved',
                 approvedAt: new Date().toISOString()
             });
@@ -808,7 +811,9 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
         const entranceDateForCalc = reg.entranceInquiry || reg.entranceDate;
         const slots = slotsOf(reg);
         let targetSheet;
-        if (entranceDateForCalc && slots.length) {
+        if (reg.startDate) {
+            targetSheet = getCurrentSheetName(new Date(reg.startDate + 'T00:00:00'));
+        } else if (entranceDateForCalc && slots.length) {
             const { startDate } = calculateStartEndDates(entranceDateForCalc, slots);
             targetSheet = getCurrentSheetName(new Date(startDate + 'T00:00:00'));
         } else {
@@ -1506,6 +1511,12 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                                     <span className="cns-detail-label">총 비용</span>
                                                     <span className="cns-detail-value">{reg.totalCost?.toLocaleString()}원</span>
                                                 </div>
+                                                {reg.status === 'pending' && reg.startDate && reg.endDate && (
+                                                    <div className="cns-detail-item full">
+                                                        <span className="cns-detail-label">수강 기간</span>
+                                                        <span className="cns-detail-value">{formatEntranceDate(reg.startDate)} ~ {formatEntranceDate(reg.endDate)}</span>
+                                                    </div>
+                                                )}
                                                 <div className="cns-detail-item">
                                                     <span className="cns-detail-label">입학반</span>
                                                     <span className="cns-detail-value">{reg.entranceClassDate || '-'}</span>
@@ -1564,6 +1575,10 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                             <div className="cns-action-row">
                                                 {regFilter === 'pending' && (
                                                     <>
+                                                        <button className="cns-action-btn cns-edit-registration-btn"
+                                                            onClick={() => setPendingEditReg(reg)} disabled={approving === reg.id}>
+                                                            시간표·주 횟수 변경
+                                                        </button>
                                                         <button
                                                             className="cns-action-btn approve"
                                                             onClick={() => openEntranceModal(reg, 'approve')}
@@ -2343,6 +2358,15 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {pendingEditReg && (
+                <PendingRegistrationEditor key={pendingEditReg.id} reg={pendingEditReg}
+                    onClose={() => setPendingEditReg(null)}
+                    onSaved={plan => {
+                        setRegistrations(current => current.map(r => r.id === pendingEditReg.id ? { ...r, ...plan } : r));
+                        setPendingEditReg(null);
+                    }} />
             )}
 
             {/* === 시간표 편집 모달 === */}

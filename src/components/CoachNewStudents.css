@@ -770,3 +770,55 @@
     margin-top: 0.5rem;
     opacity: 0.85;
 }
+.cns-edit-registration-btn {
+    background: var(--accent-10);
+    color: var(--accent);
+    border: 1px solid var(--accent-30);
+}
+
+.cns-modal.cns-registration-editor {
+    width: min(540px, 100%);
+    max-width: 540px;
+    border-radius: var(--r-card);
+    box-sizing: border-box;
+    max-height: 90dvh;
+    overflow-y: auto;
+}
+
+.cns-editor-description {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    margin: 10px 0;
+}
+
+.cns-editor-grid {
+    display: grid;
+    grid-template-columns: 76px repeat(5, minmax(0, 1fr));
+    gap: 3px;
+}
+
+.cns-editor-day { text-align: center; font-weight: 700; }
+.cns-editor-period { font-size: 0.75rem; align-self: center; color: var(--text-secondary); }
+.cns-editor-period small { display: block; font-size: 0.6rem; }
+.cns-editor-slot {
+    min-width: 0;
+    min-height: 44px;
+    padding: 4px 0;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-chip);
+    background: var(--canvas);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.75rem;
+}
+.cns-editor-slot span:empty { display: none; }
+.cns-editor-slot small { display: block; font-size: 0.7rem; }
+.cns-editor-slot.selected { border-color: var(--accent); background: var(--accent-10); color: var(--accent); font-weight: 700; }
+.cns-editor-slot:disabled { background: var(--canvas-tint); color: var(--text-muted); cursor: default; }
+.cns-editor-slot:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cns-editor-summary { padding: 12px; background: var(--canvas-tint); border-radius: var(--r-md); font-size: 0.8rem; }
+.cns-editor-summary > div { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; }
+.cns-editor-summary dt { color: var(--text-secondary); flex-shrink: 0; }
+.cns-editor-summary dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.cns-editor-summary > div:last-child { font-weight: 700; color: var(--accent); }
+.cns-editor-error { color: var(--error); font-size: 0.85rem; }
