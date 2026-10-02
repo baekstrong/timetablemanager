@@ -19,8 +19,11 @@ export function TaskSection({ groups, onAction, currentPeriod, coach = false }) 
         <div className="today-task-groups">{visible.map(group => <div key={group.id} className="today-task-group">
             {coach && <h3>{group.title}<span>{group.items.length}</span></h3>}
             {group.items.map(item => <div key={item.id} className={`today-task-row${currentPeriod != null && item.period === currentPeriod ? ' is-current' : ''}`}>
-                <div><p className="today-task-title">{item.title}</p>{item.description && <p className="today-muted">{item.description}</p>}</div>
-                <ActionButton pending={coach && item.type === 'new'} onClick={() => onAction(item)} aria-label={`${item.title} ${item.actionLabel}`}>{item.actionLabel}</ActionButton>
+                <div><p className="today-task-title">{item.title}{coach && item.unpaid && <span className="today-task-unpaid">미결제</span>}</p>{item.description && <p className="today-muted">{item.description}</p>}</div>
+                <div className="today-task-actions">
+                    <ActionButton pending={coach && item.type === 'new'} onClick={() => onAction(item)} aria-label={`${item.title} ${item.actionLabel}`}>{item.actionLabel}</ActionButton>
+                    {coach && item.paymentAction && <ActionButton onClick={() => onAction(item.paymentAction)} aria-label={`${item.name} 결제 확인`}>결제 확인</ActionButton>}
+                </div>
             </div>)}
         </div>)}</div>
     </section>;

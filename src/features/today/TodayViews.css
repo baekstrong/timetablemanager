@@ -107,3 +107,10 @@
 
 .today-board-label { position: relative; display: inline-block; }
 .today-board-dot { position: absolute; top: -4px; right: -8px; width: 8px; height: 8px; border-radius: 50%; background: var(--error); }
+
+.today-task-actions { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
+.today-task-unpaid { display: inline-block; margin-left: 6px; padding: 2px 5px; border-radius: var(--r-chip); color: var(--error); background: color-mix(in srgb, var(--error) 10%, transparent); font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
+@media (max-width: 480px) {
+    .today-tasks-coach .today-task-row { flex-wrap: wrap; }
+    .today-tasks-coach .today-task-actions { width: 100%; }
+}

@@ -3,13 +3,13 @@ import { weekDateToISO } from '../../utils/scheduleUtils';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { PERIODS, DAYS } from '../../data/mockData';
 import { readCoachNotes, saveCoachNote, confirmStudentPayment } from './todayService';
-import { attendingNames, lessonRefreshId, coachTaskCategory } from './todayModel';
+import { attendingNames, lessonRefreshId, buildCoachTaskGroups } from './todayModel';
 import { CoachToday, ActionButton } from './TodayViews';
 import ReviewModal from './ReviewModal';
 
 const StudentRegistrationModal = lazy(() => import('../../components/StudentRegistrationModal'));
 
-export default function CoachHome({ hasNewPostNotification = false, core, students, disabledClasses, registrations, waitlist, onNavigate, refresh, refreshedAt, refreshing, refreshMessage }) {
+export default function CoachHome({ hasNewPostNotification = false, core, students, disabledClasses, registrations, onNavigate, refresh, refreshedAt, refreshing, refreshMessage }) {
     const [now, setNow] = useState(() => new Date());
     const [notes, setNotes] = useState({});
     const [notesReady, setNotesReady] = useState(false);
@@ -52,7 +52,6 @@ export default function CoachHome({ hasNewPostNotification = false, core, studen
         ...registrations.map(item => item.name),
         ...students.filter(student => String(student['신규/재등록'] || '').trim() === '신규' && core.unpaidStudentNames.has(student['이름'])).map(student => student['이름']),
     ]);
-    const categoryFor = name => coachTaskCategory({ isNew: newNames.has(name), unpaid: core.unpaidStudentNames.has(name) });
     const unpaidRows = students.filter(student => core.unpaidStudentNames.has(student['이름']) && String(student['결제유무'] || '').trim().toUpperCase() === 'X');
 
     const lessons = !students.length || !core.weekDates[day] || core.getHolidayInfo(day) !== null ? [] : PERIODS.filter(period => period.type !== 'free' && !disabledClasses.includes(`${day}-${period.id}`)).map(period => {
@@ -71,10 +70,10 @@ export default function CoachHome({ hasNewPostNotification = false, core, studen
             ...cell.subs.map(sub => ({ name: sub.name, status: 'makeup', label: '대타' })),
         ].map(person => ({
             ...person,
-            unpaid: categoryFor(person.name) === 'unpaid',
+            unpaid: core.unpaidStudentNames.has(person.name),
             ...(newNames.has(person.name) && !person.status ? { status: 'newStudent', label: '신규' } : {}),
-            reregX: categoryFor(person.name) === 'renewal' && core.delayedReregistrationStudents.some(student => student.name === person.name),
-            lastClass: categoryFor(person.name) === 'renewal' && core.lastClassByName.get(person.name)?.dateISO === weekDateToISO(core.weekDates[day])
+            reregX: core.delayedReregistrationStudents.some(student => student.name === person.name),
+            lastClass: core.lastClassByName.get(person.name)?.dateISO === weekDateToISO(core.weekDates[day])
                 && core.lastClassByName.get(person.name)?.period === period.id,
         }));
         return { id: period.id, time: period.time.replace('~', '—'), startMinute: period.startHour * 60 + period.startMinute, endMinute: period.startHour * 60 + period.startMinute + 90, roster: [...new Map(roster.map(person => [person.name, person])).values()], attendees: attendingNames(cell), availableSeats: cell.availableSeats };
@@ -88,21 +87,15 @@ export default function CoachHome({ hasNewPostNotification = false, core, studen
         }
     }, [refreshPeriod]);
     const periodFor = name => lessons.find(lesson => lesson.attendees.includes(name))?.id;
-    const describe = (name, schedule, payment, period) => `${name}(${schedule}${payment ? `, ${payment}` : ''})${period ? ` · ${period}교시` : ''}`;
-    const groups = [
-        { id: 'renewal', title: '오늘 마지막 수업', items: core.lastDayStudents.filter(student => categoryFor(student.name) === 'renewal').map(student => ({ id: `end-${student.name}`, title: describe(student.name, student.schedule, student.payment, student.todayPeriod), period: student.todayPeriod, type: 'renewal', name: student.name, actionLabel: '재등록' })) },
-        { id: 'unpaid', title: '미결제', items: unpaidRows.filter(student => categoryFor(student['이름']) === 'unpaid').map(student => ({ id: `pay-${student._foundSheetName}-${student._rowIndex}`, title: describe(student['이름'], student['요일 및 시간'], student['결제금액'], periodFor(student['이름'])), period: periodFor(student['이름']), type: 'payment', student, actionLabel: '결제 확인' })) },
-        { id: 'new', title: '신규', items: [
-            ...[...registrations, ...waitlist.filter(item => item.hasAvailableSlots)].map(item => ({ id: item.id, title: item.name, description: item.scheduleString || '신청 내역 확인', type: 'new', entry: item, actionLabel: '신청 확인' })),
-            ...unpaidRows.filter(student => categoryFor(student['이름']) === 'new' && !registrations.some(item => item.name === student['이름'])).map(student => ({ id: `new-pay-${student._foundSheetName}-${student._rowIndex}`, title: describe(student['이름'], student['요일 및 시간'], student['결제금액'], periodFor(student['이름'])), period: periodFor(student['이름']), type: 'payment', student, actionLabel: '결제 확인' })),
-        ] },
-        { id: 'delayed', title: '재등록 지연', items: core.delayedReregistrationStudents.filter(student => categoryFor(student.name) === 'renewal').map(student => ({ id: `late-${student.name}`, title: describe(student.name, student.schedule, student.payment, periodFor(student.name)), description: `종료: ${student.endDate}`, type: 'renewal', name: student.name, actionLabel: '재등록' })) },
-    ];
+    const groups = buildCoachTaskGroups({
+        lastDayStudents: core.lastDayStudents,
+        delayedStudents: core.delayedReregistrationStudents,
+        unpaidRows, periodFor,
+    });
     const onAction = item => {
         setError('');
         if (item.type === 'renewal') setRenewal(item.name);
         else if (item.type === 'payment') setPayment(item.student);
-        else onNavigate('newstudents', item.entry.status === 'waitlist' ? 'waitlist' : 'pending');
     };
     async function saveNote(name, value) {
         await saveCoachNote(name, value);

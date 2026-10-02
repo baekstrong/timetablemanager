@@ -39,7 +39,25 @@ export function sortedWeekLessons(lessons, startISO, endISO) {
         .toSorted((a, b) => a.date.localeCompare(b.date) || a.startMinute - b.startMinute);
 }
 
-// 신규 신청/등록 > 미결제 > 재등록 순서로 중복 안내를 하나로 정리한다.
-export function coachTaskCategory({ isNew = false, unpaid = false }) {
-    return isNew ? 'new' : unpaid ? 'unpaid' : 'renewal';
+// 코치 첫 화면에는 수강 종료와 관련된 두 목록만 표시한다.
+// 신규/미결제 여부가 마지막 수업·미재등록 안내를 가리지 않게 한다.
+export function buildCoachTaskGroups({ lastDayStudents = [], delayedStudents = [], unpaidRows = [], periodFor = () => undefined }) {
+    const unpaidByName = new Map(unpaidRows.map(student => [student['이름'], student]));
+    const describe = (student, period) => `${student.name}(${student.schedule}${student.payment ? `, ${student.payment}` : ''})${period && period !== 999 ? ` · ${period}교시` : ''}`;
+    const itemFor = (student, delayed) => {
+        const period = delayed ? periodFor(student.name) : student.todayPeriod;
+        const unpaid = unpaidByName.get(student.name);
+        return {
+            id: `${delayed ? 'late' : 'end'}-${student.name}`,
+            title: describe(student, period), period, type: 'renewal', name: student.name,
+            actionLabel: '재등록',
+            ...(delayed ? { description: `종료: ${student.endDate}` } : {}),
+            ...(unpaid ? { unpaid: true, paymentAction: { type: 'payment', student: unpaid, actionLabel: '결제 확인' } } : {}),
+        };
+    };
+    const unique = rows => [...new Map(rows.map(student => [student.name, student])).values()];
+    return [
+        { id: 'renewal', title: '오늘 마지막 수업', items: unique(lastDayStudents).map(student => itemFor(student, false)) },
+        { id: 'delayed', title: '수강 종료·미재등록', items: unique(delayedStudents).map(student => itemFor(student, true)) },
+    ];
 }
