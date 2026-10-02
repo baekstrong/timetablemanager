@@ -4,6 +4,7 @@ import { CATEGORY_MAP, POST_LIMITS } from '../../data/boardConstants';
 import { uploadToCloudinary } from '../../services/cloudinaryService';
 import { linkifyText } from '../../utils/linkify';
 import { pushComment, pushReply } from '../../services/pushService';
+import { shouldNotifyBoardAuthor } from '../../utils/boardNotifications';
 import { formatLikeNames } from '../../utils/likeDisplay';
 import { markNoticeRead } from '../../services/noticeService';
 import { getNoticeRevision } from '../../utils/noticeState';
@@ -167,7 +168,7 @@ const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {} 
                 ...(image && { image }),
             });
             // 글쓴이에게 푸시 (수신자·문구는 서버가 글 문서에서 정한다). 본인 글이면 호출 생략.
-            if (post?.author && post.author !== user.username) pushComment(postId);
+            if (shouldNotifyBoardAuthor(post, user)) pushComment(postId);
             setCommentText('');
             removeCommentImage();
             const updated = await getComments(postId);
@@ -198,8 +199,8 @@ const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {} 
             ...(image && { image }),
         });
         // 답글은 부모 댓글 작성자에게. 본인 댓글이면 호출 생략.
-        const parentAuthor = comments.find(c => c.id === parentId)?.author;
-        if (parentAuthor && parentAuthor !== user.username) pushReply(postId, parentId);
+        const parent = comments.find(c => c.id === parentId);
+        if (shouldNotifyBoardAuthor(parent, user)) pushReply(postId, parentId);
         const updated = await getComments(postId);
         setComments(updated);
     };

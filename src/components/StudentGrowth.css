@@ -12,3 +12,9 @@
 .student-growth-caption { margin-top: 5px; font-size: 11px; line-height: 1.4; color: var(--text-secondary); }
 .student-growth-placeholder { display: block; margin-top: 8px; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
 @media (max-width: 359px) { .student-growth-summary { padding: 12px; } .student-growth-top strong { font-size: 17px; } }
+
+.student-growth { position: relative; }
+.student-growth > .student-growth-top { padding: 12px 16px 0; flex-wrap: wrap; gap: 6px; }
+.student-growth-name { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.student-growth-summary { padding-top: 0; }
+@media (max-width: 359px) { .student-growth > .student-growth-top { padding-inline: 12px; } .student-growth-summary { padding-top: 0; } }

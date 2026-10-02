@@ -1,3 +1,4 @@
+import PushSettings from '../../components/PushSettings';
 import RefreshStatus from '../../components/RefreshStatus';
 import { StudentTag } from '../../components/schedule/ScheduleCell';
 import { useId, useRef, useState } from 'react';
@@ -69,7 +70,7 @@ export function StudentToday({ name, taskGroups, lessons, weekLabel, waiting, po
     </main>;
 }
 
-export function CoachToday({ hasNewPostNotification = false, onRefresh, refreshedAt, refreshing, refreshMessage, dateLabel, lessons, minutes, taskGroups, notes, notesReady = true, onAction, onSaveNote, onNavigate }) {
+export function CoachToday({ user, hasNewPostNotification = false, onRefresh, refreshedAt, refreshing, refreshMessage, dateLabel, lessons, minutes, taskGroups, notes, notesReady = true, onAction, onSaveNote, onNavigate }) {
     const [manualId, setManualId] = useState(null);
     const [drafts, setDrafts] = useState({});
     const [editingNotes, setEditingNotes] = useState({});
@@ -96,7 +97,7 @@ export function CoachToday({ hasNewPostNotification = false, onRefresh, refreshe
     const selectedId = manualId ?? automaticLessonId(lessons, minutes);
     const selected = lessons.find(lesson => lesson.id === selectedId);
     return <main className="today-page today-coach">
-        <header className="today-header"><div><h1 className="today-coach-title">근력학교 · 코치</h1><span className="today-coach-date">{dateLabel}</span></div><div className="today-actions"><ActionButton onClick={() => onNavigate('dashboard')} aria-label={hasNewPostNotification ? '게시판 · 새 글 있음' : '게시판'}><span className="today-board-label">게시판{hasNewPostNotification && <span className="today-board-dot" aria-hidden="true" />}</span></ActionButton><button className="today-link" onClick={() => onNavigate('logout')}>로그아웃</button></div></header>
+        <header className="today-header"><div><div className="today-coach-identity"><h1 className="today-coach-title">근력학교 · {user?.username || '코치'}</h1><PushSettings user={user} /></div><span className="today-coach-date">{dateLabel}</span></div><div className="today-actions"><ActionButton onClick={() => onNavigate('dashboard')} aria-label={hasNewPostNotification ? '게시판 · 새 글 있음' : '게시판'}><span className="today-board-label">게시판{hasNewPostNotification && <span className="today-board-dot" aria-hidden="true" />}</span></ActionButton><button className="today-link" onClick={() => onNavigate('logout')}>로그아웃</button></div></header>
         <TaskSection coach groups={taskGroups} onAction={onAction} currentPeriod={currentId} />
         <div className="today-coach-columns">
             <section className="today-card today-daily"><div className="today-section-title"><h2>오늘 수업</h2><span className="today-muted">{lessons.length}개 수업</span>{onRefresh && <RefreshStatus refreshedAt={refreshedAt} refreshing={refreshing} message={refreshMessage} onRefresh={onRefresh} />}</div>

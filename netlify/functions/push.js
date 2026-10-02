@@ -2,7 +2,7 @@ const { initializeApp, getApps, cert } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
-const { buildMessage, verifyPathFor } = require('./_pushLib');
+const { buildMessage, verifyPathFor, filterTargets } = require('./_pushLib');
 
 // auth.js와 같은 지연 초기화 (환경변수도 그대로 재사용 — 새로 설정할 것 없음)
 function ensureAdmin() {
@@ -54,10 +54,13 @@ exports.handler = async (event) => {
     // 공지 대상은 호출자가 넘긴 이름들 — 수강중 판정은 이미 시트를 들고 있는 클라이언트가 한다.
     // ponytail: 서버에 같은 판정 로직을 두 벌 만들지 않으려는 것. 공지는 드물어 이름 수만큼(≈62) read여도 무해.
     const names = [...new Set(msg.names.filter(Boolean))].slice(0, 500);
-    const snaps = await db.getAll(...names.map((n) => db.collection('users').doc(n)));
-    const targets = snaps
+    const boardNotification = ['comment', 'reply'].includes(req.type);
+    const lookupNames = boardNotification ? [...new Set([...names, caller.name])] : names;
+    const snaps = await db.getAll(...lookupNames.map((n) => db.collection('users').doc(n)));
+    const callerToken = boardNotification ? snaps.find(s => s.id === caller.name)?.data()?.fcmToken : null;
+    const targets = filterTargets(req, snaps
       .map((s) => ({ name: s.id, token: s.exists ? s.data().fcmToken : null }))
-      .filter((t) => t.token);
+      .filter((t) => names.includes(t.name) && t.token), callerToken);
 
     if (targets.length === 0) return json(200, { success: true, sent: 0, failed: 0, noTokens: true });
 

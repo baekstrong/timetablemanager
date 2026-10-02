@@ -2,8 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getTierMap, backfillTiersForMonth, getGradeMap, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../services/firebaseService';
 import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
-import { initPush, isPushAvailable, getPushPermission, pushNotice } from '../services/pushService';
-import { resolvePushState } from '../utils/pushStatus';
+import { pushNotice } from '../services/pushService';
 import { resolveInstallState } from '../utils/installState';
 import { shouldShowInCoachStudentList } from '../utils/studentList';
 import { buildUpdatedSchedule } from '../utils/scheduleUtils';
@@ -14,25 +13,6 @@ import PostForm from './board/PostForm';
 import MonthlyPRBanner from './MonthlyPRBanner';
 import './board/Board.css';
 import './Dashboard.css';
-
-// 알림 상태 줄 문구. 예전 배너는 권한이 'default'일 때만 떠서, 차단당했거나 토큰 등록에 실패한
-// 사람에겐 아무것도 안 보였다(= "알림 켜기 버튼이 없어요"의 원인). 4상태를 전부 안내한다.
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-const PUSH_ROW = {
-    off: { color: '#329BE7', text: '공지·보강 자리 알림을 푸시로 받아보세요.', action: '알림 켜기' },
-    denied: {
-        color: '#E94E58',
-        text: isIOS
-            ? '알림이 차단돼 있어요. 아이폰 설정 → 알림 → 근력학교에서 허용으로 바꿔주세요.'
-            : '알림이 차단돼 있어요. 주소창 왼쪽 자물쇠 → 사이트 설정 → 알림 → 허용으로 바꿔주세요.',
-    },
-    unsupported: {
-        color: '#EDBC40',
-        text: isIOS
-            ? '아이폰은 홈 화면에 추가해야 알림을 받을 수 있어요. 공유 버튼 → 홈 화면에 추가.'
-            : '이 브라우저에선 알림을 켤 수 없어요. 카톡·인스타 안에서 열었다면 크롬으로 다시 열어주세요.',
-    },
-};
 
 // 홈 화면 추가 안내 줄. 홈 화면에서 열면(standalone) 저절로 사라지므로 '닫기'가 없다.
 const INSTALL_ROW = {
@@ -62,7 +42,6 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
     }, [deepLinkPost, onDeepLinkDone]);
     const [selectedPostId, setSelectedPostId] = useState(null);
     const [showPostForm, setShowPostForm] = useState(false);
-    const [pushState, setPushState] = useState(null); // null=판정 전, 'on'|'off'|'denied'|'unsupported'
     const [installState, setInstallState] = useState(null); // 'installed'|'android'|'ios-safari'|'ios-other'|null
     const deferredPromptRef = useRef(null);
     const [editingPost, setEditingPost] = useState(null);
@@ -80,21 +59,6 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
         getTierMap().then(map => { if (!cancel) setTierMap(map); });
         return () => { cancel = true; };
     }, []);
-
-    // 알림 상태 판정 + 이미 허용한 사람 토큰 갱신.
-    // 갱신 결과(token)가 곧 '진짜 켜짐' 여부다 — 권한만 보면 getToken이 실패한 사람을 놓친다.
-    // (아이폰은 requestPermission이 사용자 제스처 안에서만 통해서 자동으로 못 띄운다)
-    useEffect(() => {
-        if (!user?.username) return;
-        let cancel = false;
-        (async () => {
-            const available = await isPushAvailable();
-            const permission = getPushPermission();
-            const token = available && permission === 'granted' ? await initPush(user.username) : null;
-            if (!cancel) setPushState(resolvePushState({ available, permission, token }));
-        })();
-        return () => { cancel = true; };
-    }, [user]);
 
     // 홈 화면 추가 안내. 안드로이드는 beforeinstallprompt를 붙잡아 뒀다가 버튼으로 띄우고,
     // 아이폰은 그 이벤트가 없으므로 공유 시트 문구만 바로 보여준다.
@@ -118,12 +82,6 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
         e.prompt();
         const { outcome } = await e.userChoice;
         setInstallState(outcome === 'accepted' ? 'installed' : null);
-    };
-
-    // 이미 granted인데 off로 잡힌 사람(토큰 등록 실패)도 이 버튼으로 재시도된다.
-    const enablePush = async () => {
-        const token = await initPush(user.username, true);
-        setPushState(resolvePushState({ available: true, permission: getPushPermission(), token }));
     };
 
     // 코치 진입 시: 그 달 첫 1회만 전원 티어 백필(studentMeta/tierBackfill 잠금).
@@ -473,30 +431,6 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
                         )}
                     </div>
                 )}
-
-                {pushState === 'on' ? (
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-                        🔔 알림 켜짐
-                    </div>
-                ) : PUSH_ROW[pushState] ? (
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: '0.5rem',
-                        background: `${PUSH_ROW[pushState].color}1A`,
-                        border: `1px solid ${PUSH_ROW[pushState].color}4D`,
-                        borderRadius: 'var(--r-md)', padding: '0.6rem 0.8rem', marginBottom: '1rem',
-                        fontSize: '0.85rem', lineHeight: 1.5,
-                    }}>
-                        <span style={{ flex: 1 }}>{PUSH_ROW[pushState].text}</span>
-                        {PUSH_ROW[pushState].action && (
-                            <button
-                                style={{ flexShrink: 0, padding: '6px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--r-chip)', fontWeight: 600, cursor: 'pointer' }}
-                                onClick={enablePush}
-                            >
-                                {PUSH_ROW[pushState].action}
-                            </button>
-                        )}
-                    </div>
-                ) : null}
 
                 {/* 수강생 모드: 오늘이 종료일이면 메시지 표시 */}
                 {user.role !== 'coach' && isMyLastDay && (

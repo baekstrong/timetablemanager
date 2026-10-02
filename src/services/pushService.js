@@ -49,6 +49,10 @@ export const initPush = async (userName, ask = false) => {
     });
     if (!token) return null;
 
+    // 빙의 화면이나 다른 계정의 이름으로 현재 기기 토큰을 등록하지 않는다.
+    const identity = await auth?.currentUser?.getIdTokenResult();
+    if (identity?.claims?.name !== userName) return null;
+
     // 접속마다 write 하지 않도록 직전 토큰과 비교 (프로젝트 전반의 "내용 같으면 write 생략" 패턴)
     const cacheKey = `push_token_${userName}`;
     if (localStorage.getItem(cacheKey) === token) return token;

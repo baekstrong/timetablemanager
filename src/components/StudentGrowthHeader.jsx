@@ -1,13 +1,14 @@
+import PushSettings from './PushSettings';
 import TierBadge from './TierBadge';
 import { gradeProgress } from '../utils/grades';
 import './StudentGrowth.css';
 
-export default function StudentGrowthHeader({ user, tier, xp, loading = false, error = '', onOpen, onRetry }) {
+export default function StudentGrowthHeader({ user, tier, xp, loading = false, error = '', pushReadOnly = false, onOpen, onRetry }) {
     const progress = Number.isFinite(xp) ? gradeProgress(xp) : null;
     return <section className="student-growth" aria-label="내 성장 정보">
+        <div className="student-growth-top"><span className="student-growth-name"><strong>{user?.username}님</strong><PushSettings user={user} readOnly={pushReadOnly} /></span><TierBadge tier={tier} style={{ height: '22px', fontSize: '11px', marginRight: 0 }} /></div>
         <button type="button" className="student-growth-summary" onClick={error ? onRetry : onOpen}
             disabled={loading && !progress} aria-label={error ? '성장 정보 다시 불러오기' : `${user?.username || ''}님의 성장 자세히 보기`}>
-            <span className="student-growth-top"><strong>{user?.username}님</strong><TierBadge tier={tier} style={{ height: '22px', fontSize: '11px', marginRight: 0 }} /></span>
             {progress ? <>
                 <span className="student-growth-level"><span>🎓 {progress.grade.label}</span><span className="student-growth-link">성장 보기 <span aria-hidden="true">›</span></span></span>
                 <span className="student-growth-track" role="progressbar" aria-label="다음 학년까지 진행률"

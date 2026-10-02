@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMessage, verifyPathFor } from './_pushLib.js';
+import { buildMessage, verifyPathFor, filterTargets } from './_pushLib.js';
 
 const coach = { name: '백관장', isCoach: true };
 const student = { name: '김수강', isCoach: false };
@@ -123,5 +123,26 @@ describe('url — 알림을 누르면 어디로 가는가', () => {
   it('보강 자리는 시간표로 (거기서 보강승인중을 눌러야 하니까)', () => {
     expect(buildMessage({ type: 'makeupSeat', waitlistId: 'w1' }, student,
       { status: 'notified', studentName: '박학생', date: '2026-09-01', period: 5 }).url).toBe('./?page=schedule');
+  });
+});
+
+
+describe('본인 답글·같은 기기 알림 방지', () => {
+  it.each(['comment', 'reply'])('%s: 본인·표시 이름이 다른 코치·한글 인코딩 차이를 제외한다', type => {
+    const req = { type, postId: 'p1', parentId: 'c1' };
+    expect(buildMessage(req, student, { author: ' 김수강 ' })).toBeNull();
+    expect(buildMessage(req, student, { author: '김수강'.normalize('NFD') })).toBeNull();
+    expect(buildMessage(req, coach, { author: '예전 코치 이름', isCoach: true })).toBeNull();
+    expect(buildMessage(req, { name: '', isCoach: false }, { author: '박학생' })).toBeNull();
+  });
+  it.each(['comment', 'reply'])('%s: 다른 계정에 남은 발신 기기 토큰도 제외한다', type => {
+    expect(filterTargets({ type }, [{ name: 'A', token: 'mine' }, { name: 'B', token: 'other' }], 'mine'))
+      .toEqual([{ name: 'B', token: 'other' }]);
+  });
+  it('공지·보강 알림과 발신자 토큰이 없는 정상 수신자는 유지한다', () => {
+    const targets = [{ name: 'A', token: 'mine' }];
+    expect(filterTargets({ type: 'notice' }, targets, 'mine')).toEqual(targets);
+    expect(filterTargets({ type: 'makeupSeat' }, targets, 'mine')).toEqual(targets);
+    expect(filterTargets({ type: 'reply' }, targets, null)).toEqual(targets);
   });
 });

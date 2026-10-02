@@ -32,7 +32,7 @@ import { buildUpdatedSchedule, parseSheetDate, weekDateToISO } from '../utils/sc
 import { syncMakeupWaitlists, normalizeWaitlistEntry } from '../services/makeupWaitlistService';
 import './WeeklySchedule.css';
 
-const WeeklySchedule = ({ user, studentData, studentGrowth, isStudentDataLoading = false, onStudentDataRefresh, onNavigate, hasContractNotification = false, hasWaitlistNotification = false, view = 'schedule', hasNewPostNotification = false }) => {
+const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false, isStudentDataLoading = false, onStudentDataRefresh, onNavigate, hasContractNotification = false, hasWaitlistNotification = false, view = 'schedule', hasNewPostNotification = false }) => {
     const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student');
     const { students, isAuthenticated, isConnected, error: sheetsError, loading, refresh } = useGoogleSheets();
 
@@ -444,7 +444,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, isStudentDataLoading
         if (!homeLoaded.current && (weeklyDataError || sheetsError)) return <div className="today-page"><p role="alert">{weeklyDataError || sheetsError}</p><button onClick={handleManualRefresh}>다시 불러오기</button></div>;
         return <>
             {(weeklyDataError || sheetsError) && <p className="today-error" role="alert">{weeklyDataError || sheetsError} <button onClick={handleManualRefresh}>다시 불러오기</button></p>}
-             <CoachHome hasNewPostNotification={hasNewPostNotification} core={scheduleCore} students={students} disabledClasses={disabledClasses} registrations={pendingRegistrations} waitlist={newStudentWaitlist} onNavigate={onNavigate} refresh={handleManualRefresh} refreshedAt={refreshedAt} refreshing={isRefreshing} refreshMessage={refreshMsg} />
+             <CoachHome user={user} hasNewPostNotification={hasNewPostNotification} core={scheduleCore} students={students} disabledClasses={disabledClasses} registrations={pendingRegistrations} waitlist={newStudentWaitlist} onNavigate={onNavigate} refresh={handleManualRefresh} refreshedAt={refreshedAt} refreshing={isRefreshing} refreshMessage={refreshMsg} />
         </>;
     }
 
@@ -454,7 +454,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, isStudentDataLoading
 
     return (
         <div className={`schedule-container ${containerModeClass}${user?.role === 'student' && !isForceMode ? ' student-class-page' : ''}`}>
-            {user?.role === 'student' && !isForceMode && studentGrowth && <StudentGrowthHeader user={user} {...studentGrowth} onRetry={studentGrowth.retry} onOpen={() => onNavigate?.('ranking', 'graph')} />}
+            {user?.role === 'student' && !isForceMode && studentGrowth && <StudentGrowthHeader pushReadOnly={pushReadOnly} user={user} {...studentGrowth} onRetry={studentGrowth.retry} onOpen={() => onNavigate?.('ranking', 'graph')} />}
             {user?.role === 'student' && !isForceMode && <NoticeTicker user={user} onOpen={postId => onNavigate?.('post', postId)} refreshKey={refreshedAt} />}
             {user?.role === 'student' && !isForceMode && <MonthlyPRBanner onOpen={() => onNavigate?.('ranking')} refreshKey={refreshedAt} />}
             {weeklyDataError && <p role="alert" style={{ color: 'var(--error)' }}>{weeklyDataError}</p>}

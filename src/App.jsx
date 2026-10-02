@@ -414,14 +414,14 @@ function AppContent() {
         return <Login onLogin={handleLogin} />;
 
       case 'today':
-        if (user?.role !== 'coach') return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} hasWaitlistNotification={hasWaitlistNotification} />;
+        if (user?.role !== 'coach') return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} pushReadOnly={growthReadOnly} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} hasWaitlistNotification={hasWaitlistNotification} />;
         return <WeeklySchedule key={`${user?.username}-${calendarDay}`} user={user} studentData={studentData} onNavigate={handleNavigate} onBack={handleBackToDashboard} view="today" hasNewPostNotification={hasNewPostNotification} />;
 
       case 'dashboard':
         return <Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} deepLinkPost={deepLinkPost} onDeepLinkDone={() => setDeepLinkPost(null)} />;
 
       case 'schedule':
-        return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} hasWaitlistNotification={hasWaitlistNotification} />;
+        return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} pushReadOnly={growthReadOnly} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} hasWaitlistNotification={hasWaitlistNotification} />;
 
       case 'holding':
         return <HoldingManager onStudentDataRefresh={refreshStudentData} key={holdingInitialDate} initialDate={holdingInitialDate} user={user} studentData={studentData} isLoading={isStudentDataLoading} onBack={handleBackToDashboard} />;

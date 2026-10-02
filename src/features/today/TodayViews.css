@@ -114,3 +114,6 @@
     .today-tasks-coach .today-task-row { flex-wrap: wrap; }
     .today-tasks-coach .today-task-actions { width: 100%; }
 }
+
+.today-coach-identity { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
+.today-coach-identity .today-coach-title { margin-bottom: 0; }

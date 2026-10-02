@@ -66,7 +66,10 @@ function buildMessage(req, caller, record) {
       //           남는 위험은 "실재하는 글쓴이에게 자기 이름으로 반복 알림" — 문구가 고정이고
       //           발신자가 이름으로 드러나므로 여기서 끊는다. 악용 사례가 생기면 댓글 문서까지 대조.
       const author = record?.author;
-      if (!author || record.deleted || author === caller.name) return null;
+      const name = String(caller.name || '').normalize('NFC').trim();
+      if (!author || !name || record.deleted
+          || String(author).normalize('NFC').trim() === name
+          || (record.isCoach && caller.isCoach)) return null;
       return {
         names: [author],
         title: `${caller.name}님이 ${req.type === 'reply' ? '답글' : '댓글'}을 남겼습니다`,
@@ -96,4 +99,10 @@ function buildMessage(req, caller, record) {
   }
 }
 
-module.exports = { buildMessage, verifyPathFor };
+// 같은 기기를 다른 계정으로 쓴 흔적이 있어도 댓글 알림을 발신 기기로 되돌려 보내지 않는다.
+function filterTargets(req, targets, callerToken) {
+  if (!['comment', 'reply'].includes(req.type) || !callerToken) return targets;
+  return targets.filter(target => target.token !== callerToken);
+}
+
+module.exports = { buildMessage, verifyPathFor, filterTargets };
