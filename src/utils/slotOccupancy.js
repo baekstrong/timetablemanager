@@ -1,3 +1,11 @@
+/** 코치에게 표시할 슬롯별 신규 승인 대기 이름(중복/교시 타입 차이 제거). */
+export function getPendingNamesForSlot(pendingRegistrations = [], day, period) {
+    return [...new Set(pendingRegistrations
+        .filter(reg => (!reg.status || reg.status === 'pending') && reg.name &&
+            reg.requestedSlots?.some(slot => slot.day === day && Number(slot.period) === Number(period)))
+        .map(reg => reg.name))];
+}
+
 /**
  * 신규 등록 시간표 그리드의 슬롯별 인원수 계산 (순수 로직).
  *

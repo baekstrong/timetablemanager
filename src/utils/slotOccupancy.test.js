@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeSlotOccupancy } from './slotOccupancy';
+import { computeSlotOccupancy, getPendingNamesForSlot } from './slotOccupancy';
 
 // 테스트용 최소 파서 ("월5화5" → [{day:'월',period:5},...])
 const parse = (s) => {
@@ -50,5 +50,21 @@ describe('computeSlotOccupancy', () => {
     it('현재 시간표만 있으면 해당 슬롯에서 센다', () => {
         const occ = computeSlotOccupancy([s('가', '화5')], [], parse);
         expect(occ['화-5']).toBe(1);
+    });
+});
+
+
+describe('getPendingNamesForSlot', () => {
+    it('교시의 숫자/문자 타입과 중복 신청을 처리하고 다른 상태·슬롯은 제외한다', () => {
+        const registrations = [
+            { name: '신청자', status: 'pending', requestedSlots: [{ day: '화', period: '2' }] },
+            { name: '신청자', status: 'pending', requestedSlots: [{ day: '화', period: 2 }] },
+            { name: '승인됨', status: 'approved', requestedSlots: [{ day: '화', period: 2 }] },
+            { name: '만석대기', status: 'waitlist', requestedSlots: [{ day: '화', period: 2 }] },
+            { name: '다른칸', requestedSlots: [{ day: '수', period: 4 }] },
+            { name: '', requestedSlots: [{ day: '화', period: 2 }] },
+        ];
+        expect(getPendingNamesForSlot(registrations, '화', 2)).toEqual(['신청자']);
+        expect(getPendingNamesForSlot([], '화', 2)).toEqual([]);
     });
 });

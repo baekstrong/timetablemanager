@@ -11,7 +11,7 @@ const registration = read('./NewStudentRegistration.jsx');
 
 describe('신규 여석 — 코치 신규 전용의 현재 시간표 기준', () => {
     it('공용 점유 계산에 학생·pending·시간표 파서를 함께 전달한다', () => {
-        expect(core).toContain("import { computeSlotOccupancy } from '../../utils/slotOccupancy'");
+        expect(core).toContain("import { computeSlotOccupancy, getPendingNamesForSlot } from '../../utils/slotOccupancy'");
         expect(core).toMatch(
             /computeSlotOccupancy\(students \|\| \[\], pendingRegistrations, parseScheduleString\)/
         );

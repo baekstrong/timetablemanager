@@ -1,6 +1,8 @@
 // 시간표 컴포넌트들이 공유하는 스타일 상수.
 
 export const TAG_STYLES = {
+    // 신규 승인 대기: 아직 출석 명단에 포함하지 않는 자리 예약.
+    pendingRegistration: { backgroundColor: 'var(--caution)', color: 'var(--cta-dark)', border: '1px solid var(--caution)' },
     // 보강: 다른 시간에서 이 자리로 옴 (코발트 채움)
     makeup: { backgroundColor: '#329BE7', color: '#ffffff', border: '1px solid #327AB8' },
     // 보강이동: 원래 자리에서 다른 시간으로 이동 (caution, 출석은 함)

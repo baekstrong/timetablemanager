@@ -4,6 +4,7 @@ import { TAG_STYLES } from './scheduleStyles';
 // 이름칩을 '파스텔 배경 + 검은 굵은 글씨 + 색 뱃지'로 표기하는 상태 (보강·보강이동·홀딩·신규·결석·보강결석·합의결석)
 // 값은 각 상태 색의 연한(파스텔) 톤.
 const NAME_PASTEL = {
+    pendingRegistration: 'color-mix(in srgb, var(--caution) 14%, var(--canvas))',
     makeup: '#DBEBFB',      // 파스텔 블루 (살짝 진하게)
     newStudent: '#DCF2EF',  // 파스텔 청록
     makeupMoved: '#FDF6E3', // 파스텔 앰버

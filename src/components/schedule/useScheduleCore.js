@@ -18,7 +18,7 @@ import {
 import { MOCK_DATA, MAX_CAPACITY, KOREAN_HOLIDAYS } from '../../data/mockData';
 import { getUnpaidStudentNames } from '../../utils/studentList';
 import { secondClassDayISO, cappedEndForFirstClassMove } from '../../utils/makeupEndDate';
-import { computeSlotOccupancy } from '../../utils/slotOccupancy';
+import { computeSlotOccupancy, getPendingNamesForSlot } from '../../utils/slotOccupancy';
 
 /**
  * 코치/학생 시간표 양쪽이 쓰는 파생 데이터와 헬퍼를 한 훅으로 집중.
@@ -446,14 +446,13 @@ export function useScheduleCore({
         );
 
         let currentCount, availableSeats, isFull;
-        let pendingNames = [];
+        // 승인 전 신청은 코치에게만 표시하며 실제 출석/보강 여석 계산에 섞지 않는다.
+        const pendingNames = user?.role === 'coach'
+            ? getPendingNamesForSlot(pendingRegistrations, day, periodObj.id)
+            : [];
 
         if (mode === 'student' && user?.role === 'coach') {
             // Coach "신규 전용" mode: 현재 활성 시간표 + pending 신규 신청
-            const pendingForSlot = pendingRegistrations.filter(reg =>
-                reg.requestedSlots?.some(s => s.day === day && s.period === periodObj.id)
-            );
-            pendingNames = pendingForSlot.map(reg => reg.name);
             currentCount = newStudentSlotOccupancy[`${day}-${periodObj.id}`] || 0;
             availableSeats = Math.max(0, MAX_CAPACITY - currentCount);
             isFull = availableSeats === 0;

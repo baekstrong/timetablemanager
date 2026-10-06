@@ -194,7 +194,8 @@ export default function CoachSchedule({
             data.makeupHeldStudents.length > 0 ||
             data.agreedAbsenceStudents.length > 0 ||
             data.delayedStartStudents.length > 0 ||
-            data.newStudents.length > 0;
+            data.newStudents.length > 0 ||
+            (data.pendingNames || []).length > 0;
 
         if (!hasAnyStudents) {
             return (
@@ -294,6 +295,9 @@ export default function CoachSchedule({
 
                 {/* Student list */}
                 <div className="student-list">
+                    {(data.pendingNames || []).map(name => (
+                        <StudentTag key={`pending-${name}`} name={name} status="pendingRegistration" label="승인대기" />
+                    ))}
                     {data.regularStudentsPresent.map(name => {
                         const unpaid = unpaidStudentNames.has(name);
                         if (data.makeupMovedStudents.includes(name)) {
