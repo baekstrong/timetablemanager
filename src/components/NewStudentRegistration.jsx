@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getDisabledClasses, createNewStudentRegistration, updateNewStudentRegistration, getEntranceClasses, getFAQs, getNewStudentRegistrations } from '../services/firebaseService';
+import { getDisabledClasses, updateNewStudentRegistration, getFAQs, getNewStudentRegistrations } from '../services/firebaseService';
+import { getRecruitmentOverview, submitRecruitmentRegistration } from '../services/recruitmentService';
+import { koreanDate, monthLabel, monthEntrances, isEntranceAvailable } from '../utils/recruitment';
+import RegistrationMonthPicker from './RegistrationMonthPicker';
 import { sendRegistrationNotifications } from '../services/smsService';
 import { formatEntranceDate, calculateStartEndDates } from '../utils/dateUtils';
 import { PERIODS, DAYS, MAX_CAPACITY, PRICING, ENTRANCE_FEE } from '../data/mockData';
@@ -42,7 +45,7 @@ const parseScheduleString = (scheduleStr) => {
 
 const STEP_NAMES = ['일정', '정보', '입학반', '결제', '상담', '확인'];
 
-const NewStudentRegistration = () => {
+const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
     const [step, setStep] = useState(0);
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
@@ -68,27 +71,32 @@ const NewStudentRegistration = () => {
     const [disabledClasses, setDisabledClasses] = useState([]);
     const [pendingRegistrations, setPendingRegistrations] = useState([]);
     const [scheduleReady, setScheduleReady] = useState(false); // 시간표 데이터 3종 로드 완료 여부
+    const [scheduleError, setScheduleError] = useState('');
     const { students, refresh } = useGoogleSheets();
 
     // 마운트 시 시간표 데이터 로드 (students 점유 + 비활성 슬롯 + 대기 신청).
     // 3종이 다 로드돼야 그리드가 정확 — 그 전엔 기본값(7석) 목업 대신 '로딩중' 표시.
     useEffect(() => {
-        Promise.allSettled([
+        let active = true;
+        Promise.all([
             refresh(),
             getDisabledClasses().then(setDisabledClasses),
             getNewStudentRegistrations('pending').then(setPendingRegistrations),
-        ]).finally(() => setScheduleReady(true));
+        ]).then(() => { if (active) setScheduleReady(true); })
+            .catch(() => { if (active) setScheduleError('시간표 정보를 확인할 수 없습니다. 잠시 후 다시 신청해주세요.'); });
+        return () => { active = false; };
     }, []);
 
     // Step 4: 입학반
     const [entranceClasses, setEntranceClasses] = useState([]);
+    const [entranceError, setEntranceError] = useState('');
+    const [entranceLoading, setEntranceLoading] = useState(false);
     const [selectedEntrance, setSelectedEntrance] = useState(null);
     const [entranceInquiry, setEntranceInquiry] = useState(''); // 다른 날 문의 (YYYY-MM-DD)
     const [entranceInquiryReason, setEntranceInquiryReason] = useState(''); // 문의 사유 (필수)
     const [showInquiryCalendar, setShowInquiryCalendar] = useState(false);
     const [inquiryCalMonth, setInquiryCalMonth] = useState(() => {
-        const now = new Date();
-        return { year: now.getFullYear(), month: now.getMonth() };
+        return { year: Number(recruitmentMonth.slice(0, 4)), month: Number(recruitmentMonth.slice(5)) - 1 };
     });
     const [showEntranceExplain, setShowEntranceExplain] = useState(true);
 
@@ -108,19 +116,16 @@ const NewStudentRegistration = () => {
 
     // Load entrance classes when reaching 입학반 step (step 2, 날짜가 지난 입학반 제외)
     useEffect(() => {
+        let active = true;
         if (step >= 2) {
-            getEntranceClasses(true).then(classes => {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const activeClasses = classes.filter(ec => {
-                    if (!ec.date) return true;
-                    const ecDate = new Date(ec.date + 'T23:59:59');
-                    return ecDate >= today;
-                });
-                setEntranceClasses(activeClasses);
-            }).catch(() => {});
+            setEntranceLoading(true); setEntranceError('');
+            getRecruitmentOverview().then(({ entrances }) => {
+                if (active) setEntranceClasses(monthEntrances(entrances, recruitmentMonth));
+            }).catch(() => { if (active) setEntranceError('입학반 일정을 불러오지 못했습니다. 이전 단계로 돌아가 다시 확인해주세요.'); })
+                .finally(() => { if (active) setEntranceLoading(false); });
         }
-    }, [step]);
+        return () => { active = false; };
+    }, [step, recruitmentMonth]);
 
     // Load FAQs when reaching 확인 step (step 5)
     useEffect(() => {
@@ -150,22 +155,7 @@ const NewStudentRegistration = () => {
         return count;
     }, [slotOccupancy, disabledClasses]);
 
-    // 선택 가능한 빈 슬롯이 주횟수보다 적은지 체크
-    const availableSlotCount = useMemo(() => {
-        let count = 0;
-        PERIODS.filter(p => p.type !== 'free').forEach(period => {
-            DAYS.forEach(day => {
-                const key = `${day}-${period.id}`;
-                if (disabledClasses.includes(key)) return;
-                const occ = slotOccupancy[key] || 0;
-                if (occ < MAX_CAPACITY) count++;
-            });
-        });
-        return count;
-    }, [slotOccupancy, disabledClasses]);
-
     const handleSlotToggle = (day, period) => {
-        const key = `${day}-${period}`;
         const exists = selectedSlots.find(s => s.day === day && s.period === period);
 
         if (exists) {
@@ -178,7 +168,7 @@ const NewStudentRegistration = () => {
     };
 
     const getScheduleString = () => {
-        return selectedSlots
+        return [...selectedSlots]
             .sort((a, b) => {
                 const dayOrder = DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
                 return dayOrder !== 0 ? dayOrder : a.period - b.period;
@@ -192,9 +182,9 @@ const NewStudentRegistration = () => {
 
     const canProceed = () => {
         switch (step) {
-            case 0: return weeklyFrequency !== null && (isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency);
+            case 0: return scheduleReady && !scheduleError && weeklyFrequency !== null && (isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency);
             case 1: return name.trim() && phone1.trim() && phone2.trim() && phone3.trim() && gender && exerciseExperience.trim();
-            case 2: return selectedEntrance !== null || (entranceInquiry !== '' && entranceInquiryReason.trim() !== '');
+            case 2: return !entranceLoading && !entranceError && (isEntranceAvailable(entranceClasses.find(ec => ec.id === selectedEntrance)) || (entranceInquiry.startsWith(`${recruitmentMonth}-`) && entranceInquiry >= koreanDate() && entranceInquiryReason.trim() !== ''));
             case 3: return paymentMethod !== '';
             case 4: return true;
             case 5: return true;
@@ -210,6 +200,7 @@ const NewStudentRegistration = () => {
             const entranceClass = entranceClasses.find(c => c.id === selectedEntrance);
             const phoneStr = `${phone1.trim()}-${phone2.trim()}-${phone3.trim()}`;
             const data = {
+                recruitmentMonth,
                 name: name.trim(),
                 password: phone3.trim(),
                 phone: phoneStr,
@@ -235,7 +226,7 @@ const NewStudentRegistration = () => {
                 question: question.trim()
             };
 
-            const created = await createNewStudentRegistration(data, isWaitlistMode ? 'waitlist' : 'pending');
+            const created = await submitRecruitmentRegistration(data, isWaitlistMode ? 'waitlist' : 'pending');
             const regId = created?.id;
 
             // 안내 문자 발송 (수강생 SMS 1 + 코치 SMS 1)
@@ -287,7 +278,7 @@ const NewStudentRegistration = () => {
                 <div className="reg-wizard-inner">
                     <div className="reg-success">
                         <div className="reg-success-icon">✓</div>
-                        <h2>{isWaitlistMode ? '대기 신청이 완료되었습니다!' : '등록이 완료되었습니다!'}</h2>
+                        <h2>{monthLabel(recruitmentMonth)}<br />{isWaitlistMode ? '대기 신청이 완료되었습니다!' : '신청이 완료되었습니다!'}</h2>
                         <p>{isWaitlistMode
                             ? `선택하신 ${selectedSlots.length}개 시간 중 주${weeklyFrequency}회 자리가 나면 코치가 연락드리겠습니다.`
                             : '코치의 승인 후 안내 문자가 발송될 예정입니다.'}</p>
@@ -306,6 +297,8 @@ const NewStudentRegistration = () => {
                 {/* Header */}
                 <div className="reg-header">
                     <h1 className="reg-title">근력학교 등록</h1>
+                    <div className="recruitment-wizard-month"><strong>{monthLabel(recruitmentMonth)} 신규 수강 신청</strong><button type="button" className="recruitment-text-button" disabled={submitting}
+                        onClick={() => { if (step === 0 || confirm('모집월을 변경하면 작성중인 신청 내용이 초기화됩니다. 변경하시겠습니까?')) onChangeMonth(); }}>모집월 변경</button></div>
                     <div className="reg-steps">
                         {STEP_NAMES.map((s, i) => (
                             <div key={i} className={`reg-step-dot ${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`}>
@@ -318,6 +311,7 @@ const NewStudentRegistration = () => {
 
                 {/* Step Content */}
                 <div className="reg-body">
+                    {scheduleError && <p className="recruitment-error" role="alert">{scheduleError}</p>}
                     {/* 렌더 순서 2단계: 개인정보 (소스는 일정 블록보다 위) */}
                     {step === 1 && (
                         <div className="reg-step-content">
@@ -628,7 +622,9 @@ const NewStudentRegistration = () => {
                     {/* 렌더 순서 3단계: 입학반 */}
                     {step === 2 && (
                         <div className="reg-step-content">
-                            <p className="reg-description">입학반 일정을 선택하세요</p>
+                            <p className="reg-description">{monthLabel(recruitmentMonth)} 입학반 일정을 선택하세요</p>
+                            {entranceLoading && <p role="status">입학반 일정을 확인중입니다.</p>}
+                            {entranceError && <p className="recruitment-error" role="alert">{entranceError}</p>}
 
                             {/* 입학반 설명 토글 */}
                             <div className="reg-entrance-explain-toggle" onClick={() => setShowEntranceExplain(v => !v)}>
@@ -662,7 +658,7 @@ const NewStudentRegistration = () => {
                             ) : (
                                 <div className="reg-entrance-list">
                                     {entranceClasses.map(ec => {
-                                        const isClosed = ec.closed || ec.currentCount >= ec.maxCapacity;
+                                        const isClosed = !isEntranceAvailable(ec);
                                         return (
                                         <div
                                             key={ec.id}
@@ -726,15 +722,13 @@ const NewStudentRegistration = () => {
                                         const isExistingEntrance = entranceClasses.some(ec => ec.date === dateStr);
                                         cells.push({
                                             day: d, dateStr, isWeekend,
-                                            disabled: !isWeekend || isPast || isExistingEntrance,
+                                            disabled: !isWeekend || isPast || isExistingEntrance || !dateStr.startsWith(`${recruitmentMonth}-`),
                                             isEntrance: isExistingEntrance && isWeekend
                                         });
                                     }
 
-                                    const canPrevMonth = !(year === today.getFullYear() && month === today.getMonth());
-                                    const maxDate = new Date(today);
-                                    maxDate.setMonth(maxDate.getMonth() + 3);
-                                    const canNextMonth = new Date(year, month + 1, 1) <= maxDate;
+                                    const canPrevMonth = false;
+                                    const canNextMonth = false;
 
                                     return (
                                         <div className="reg-inquiry-calendar">
@@ -882,6 +876,7 @@ const NewStudentRegistration = () => {
                         <div className="reg-step-content">
                             <h3 className="reg-summary-title">등록 정보 확인</h3>
                             <div className="reg-summary">
+                                <div className="reg-summary-row"><span>모집월</span><span>{monthLabel(recruitmentMonth)}</span></div>
                                 <div className="reg-summary-row">
                                     <span>이름</span><span>{name}</span>
                                 </div>
@@ -1039,4 +1034,8 @@ const NewStudentRegistration = () => {
     );
 };
 
-export default NewStudentRegistration;
+export default function NewStudentRegistration() {
+    const [month, setMonth] = useState(null);
+    return month ? <RegistrationWizard key={month} recruitmentMonth={month} onChangeMonth={() => setMonth(null)} />
+        : <RegistrationMonthPicker onStart={setMonth} />;
+}

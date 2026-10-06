@@ -50,6 +50,9 @@ beforeEach(async () => {
     await setDoc(doc(db, 'entranceClasses', 'e1'), { when: '7월' });
     await setDoc(doc(db, 'registrationFAQ', 'f1'), { q: 'x' });
     await setDoc(doc(db, 'newStudentRegistrations', 'r1'), { name: '신규', status: 'pending' });
+    await setDoc(doc(db, 'recruitmentMonths', '2099-11'), { month: '2099-11', status: 'open', notice: '', inquiryPhone: '' });
+    await setDoc(doc(db, 'recruitmentMonths', '2099-10'), { month: '2099-10', status: 'closed', notice: '', inquiryPhone: '' });
+    await setDoc(doc(db, 'entranceClasses', 'nov-open'), { date: '2099-11-07', isActive: true, closed: false, maxCapacity: 6, currentCount: 1 });
     await setDoc(doc(db, 'makeupRequests', 'm1'), { userName: '홍길동', status: 'active' });
     await setDoc(doc(db, 'records', 'rec1'), { userName: '홍길동' });
     await setDoc(doc(db, 'posts', 'p1'), { authorName: '홍길동', title: 't' });
@@ -72,10 +75,10 @@ describe('비로그인(anon) — 덤프 차단 + 신규등록 funnel만 허용',
     await assertSucceeds(getDoc(doc(db, 'newStudentRegistrations', 'r1')));
   });
 
-  it('신규 신청 create/update 허용', async () => {
+  it('모집월 없는 구버전 신청은 거부하고 접수 문자 결과 갱신은 허용', async () => {
     const db = anon();
-    await assertSucceeds(setDoc(doc(db, 'newStudentRegistrations', 'r2'), { name: '새신규', status: 'pending' }));
-    await assertSucceeds(updateDoc(doc(db, 'newStudentRegistrations', 'r1'), { memo: 'x' }));
+    await assertFails(setDoc(doc(db, 'newStudentRegistrations', 'r2'), { name: '새신규', status: 'pending' }));
+    await assertSucceeds(updateDoc(doc(db, 'newStudentRegistrations', 'r1'), { 'smsLog.reception': { status: 'sent' } }));
   });
 
   it('users / userSecrets / 운영 컬렉션 read 전면 차단', async () => {
@@ -86,6 +89,52 @@ describe('비로그인(anon) — 덤프 차단 + 신규등록 funnel만 허용',
     await assertFails(getDoc(doc(db, 'makeupRequests', 'm1')));
     await assertFails(getDoc(doc(db, 'posts', 'p1')));
     await assertFails(getDoc(doc(db, 'records', 'rec1')));
+  });
+});
+
+describe('월별 모집의 서버 접수 차단', () => {
+  const registration = { name: '예시', recruitmentMonth: '2099-11', status: 'pending', entranceClassId: 'nov-open', entranceDate: '2099-11-07', entranceInquiry: '', entranceInquiryReason: '' };
+  it('비로그인도 열린 월의 입학반으로만 신청할 수 있다', async () => {
+    await assertSucceeds(setDoc(doc(anon(), 'newStudentRegistrations', 'open-month'), registration));
+  });
+  it('설정은 비로그인·학생도 조회 가능하지만 코치만 수정 가능', async () => {
+    await assertSucceeds(getDoc(doc(anon(), 'recruitmentMonths', '2099-11')));
+    await assertFails(updateDoc(doc(anon(), 'recruitmentMonths', '2099-11'), { status: 'closed' }));
+    await assertFails(updateDoc(doc(student(), 'recruitmentMonths', '2099-11'), { status: 'closed' }));
+    await assertSucceeds(updateDoc(doc(coach(), 'recruitmentMonths', '2099-11'), { status: 'closed' }));
+  });
+  it('입력 중 코치가 마감하면 최종 서버 쓰기를 거부한다', async () => {
+    await updateDoc(doc(coach(), 'recruitmentMonths', '2099-11'), { status: 'closed' });
+    await assertFails(setDoc(doc(anon(), 'newStudentRegistrations', 'late-month'), registration));
+  });
+  it.each(['inquiry', 'closed'])('%s 상태에서는 접수를 거부한다', async status => {
+    await updateDoc(doc(coach(), 'recruitmentMonths', '2099-11'), { status });
+    await assertFails(setDoc(doc(anon(), 'newStudentRegistrations', 'no-apply'), registration));
+  });
+  it('미설정 월과 다른 달의 입학반 선택을 거부한다', async () => {
+    await assertFails(setDoc(doc(anon(), 'newStudentRegistrations', 'unknown-month'), { ...registration, recruitmentMonth: '2099-12' }));
+    await assertFails(setDoc(doc(anon(), 'newStudentRegistrations', 'wrong-month'), { ...registration, entranceDate: '2099-10-07' }));
+  });
+  it.each([{ closed: true }, { currentCount: 6 }, { isActive: false }, { date: '2099-11-14' }])('입학반 마감·만석·비활성·날짜 변경을 거부한다', async change => {
+    await updateDoc(doc(coach(), 'entranceClasses', 'nov-open'), change);
+    await assertFails(setDoc(doc(anon(), 'newStudentRegistrations', 'invalid-entrance'), registration));
+  });
+  it('다른 날 문의도 열린 월 안의 날짜와 사유가 필요하다', async () => {
+    const inquiry = { ...registration, entranceClassId: null, entranceDate: '', entranceInquiry: '2099-11-14', entranceInquiryReason: '출장' };
+    await assertSucceeds(setDoc(doc(anon(), 'newStudentRegistrations', 'inquiry'), inquiry));
+    await assertFails(setDoc(doc(anon(), 'newStudentRegistrations', 'wrong-inquiry'), { ...inquiry, entranceInquiry: '2099-12-05' }));
+    await assertFails(setDoc(doc(anon(), 'newStudentRegistrations', 'empty-reason'), { ...inquiry, entranceInquiryReason: '' }));
+  });
+  it('신청 생성 이후 모집월·신청 상태를 공개 수정으로 우회할 수 없다', async () => {
+    const ref = doc(anon(), 'newStudentRegistrations', 'immutable-month');
+    await setDoc(ref, registration);
+    await assertFails(updateDoc(ref, { recruitmentMonth: '2099-10' }));
+    await assertFails(updateDoc(ref, { status: 'approved' }));
+    await assertSucceeds(updateDoc(ref, { 'smsLog.reception': { status: 'sent' } }));
+  });
+  it('코치 직접 등록과 기존 신청의 후속 처리는 유지한다', async () => {
+    await assertSucceeds(setDoc(doc(coach(), 'newStudentRegistrations', 'direct-coach'), { name: '직접', status: 'approved', registeredByCoach: true }));
+    await assertSucceeds(updateDoc(doc(coach(), 'newStudentRegistrations', 'r1'), { status: 'completed' }));
   });
 });
 

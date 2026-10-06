@@ -44,9 +44,49 @@ service cloud.firestore {
     match /disabledClasses/{id} { allow read: if true; allow write: if isCoach(); }
     match /entranceClasses/{id} { allow read: if true; allow write: if isCoach(); }
     match /registrationFAQ/{id} { allow read: if true; allow write: if isCoach(); }
-    // 신규 신청: 비로그인 read/create/update (funnel 보존). PII 공개 노출은 기존 동작과 동일 — 추후 개선 과제.
+    // 월별 모집 설정은 공개 조회, 코치만 수정. 미설정 월은 접수하지 않는다.
+    match /recruitmentMonths/{month} {
+      allow read: if true;
+      allow create, update: if isCoach() && month.matches('[0-9]{4}-(0[1-9]|1[0-2])')
+        && request.resource.data.month == month
+        && request.resource.data.status in ['open', 'inquiry', 'closed']
+        && request.resource.data.keys().hasOnly(['month', 'status', 'notice', 'inquiryPhone', 'updatedAt'])
+        && request.resource.data.notice is string && request.resource.data.notice.size() <= 300
+        && request.resource.data.inquiryPhone is string;
+      allow delete: if isCoach();
+    }
+
+    function admissionDateAllowed(date, month) {
+      let today = request.time + duration.value(9, 'h');
+      let parts = date.split('-');
+      return date.matches(month + '-(0[1-9]|[12][0-9]|3[01])')
+        && (int(parts[0]) > today.year() || (int(parts[0]) == today.year()
+          && (int(parts[1]) > today.month() || (int(parts[1]) == today.month() && int(parts[2]) >= today.day()))));
+    }
+    function selectedEntranceAllowed(data) {
+      let path = /databases/$(database)/documents/entranceClasses/$(data.entranceClassId);
+      return exists(path) && get(path).data.isActive == true && get(path).data.get('closed', false) == false
+        && get(path).data.get('currentCount', 0) < get(path).data.maxCapacity
+        && data.entranceDate == get(path).data.date
+        && admissionDateAllowed(data.entranceDate, data.recruitmentMonth);
+    }
+    function publicRecruitmentAllowed() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['recruitmentMonth', 'status', 'entranceInquiry', 'entranceClassId', 'entranceDate'])
+        && data.recruitmentMonth is string && data.recruitmentMonth.matches('[0-9]{4}-(0[1-9]|1[0-2])')
+        && data.status in ['pending', 'waitlist']
+        && exists(/databases/$(database)/documents/recruitmentMonths/$(data.recruitmentMonth))
+        && get(/databases/$(database)/documents/recruitmentMonths/$(data.recruitmentMonth)).data.status == 'open'
+        && ((data.entranceInquiry == '' && data.entranceClassId is string && selectedEntranceAllowed(data))
+          || (data.entranceClassId == null && data.entranceInquiry is string
+            && admissionDateAllowed(data.entranceInquiry, data.recruitmentMonth)
+            && data.entranceInquiryReason is string && data.entranceInquiryReason.size() > 0));
+    }
+    // 신규 신청 공개 조회는 기존 경로 유지. 생성은 열린 모집월만, 이후 공개 갱신은 접수 문자 결과만 허용.
     match /newStudentRegistrations/{id} {
-      allow read, create, update: if true;
+      allow read: if true;
+      allow create: if isCoach() || publicRecruitmentAllowed();
+      allow update: if isCoach() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['smsLog', 'updatedAt']);
       allow delete: if isCoach();
     }
 

@@ -37,6 +37,8 @@ import { slotsOf } from '../utils/scheduleUtils';
 import { PRICING, PERIODS, DAYS, MAX_CAPACITY } from '../data/mockData';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import PendingRegistrationEditor from './PendingRegistrationEditor';
+import RecruitmentManager from './RecruitmentManager';
+import { monthLabel, koreanDate, isAdmissionDate } from '../utils/recruitment';
 import { buildNewRegistrationPlan } from '../utils/newRegistrationPlan';
 import './CoachNewStudents.css';
 
@@ -82,6 +84,10 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
     const [showEntranceForm, setShowEntranceForm] = useState(false);
     const [editingEntrance, setEditingEntrance] = useState(null);
     const [entranceForm, setEntranceForm] = useState({ date: '', time: '', description: '', maxCapacity: 6 });
+    const [entranceFormMonth, setEntranceFormMonth] = useState('');
+    const [entranceSaving, setEntranceSaving] = useState(false);
+    const [entranceFormError, setEntranceFormError] = useState('');
+    useEffect(() => { if (showEntranceForm) setEntranceFormError(''); }, [showEntranceForm]);
     const [showAddStudentModal, setShowAddStudentModal] = useState(null); // 수동 추가 대상 입학반
     const [sheetNewStudents, setSheetNewStudents] = useState([]);          // 후보 신청(reg) 목록
     const [selectedNewStudents, setSelectedNewStudents] = useState(new Set()); // 선택한 reg.id 집합
@@ -1268,11 +1274,20 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
 
     // ─── 입학반 CRUD ─────────────────────
     const handleEntranceSubmit = async () => {
-        if (!entranceForm.date || !entranceForm.time) {
-            alert('날짜와 시간을 입력해주세요.');
+        if (entranceSaving) return;
+        if (!isAdmissionDate(entranceForm.date) || !entranceForm.time || (!editingEntrance && entranceForm.date < koreanDate())) {
+            setEntranceFormError('오늘 이후의 유효한 날짜와 시간을 입력해주세요.');
             return;
         }
-
+        if (entranceFormMonth && !entranceForm.date.startsWith(`${entranceFormMonth}-`)) {
+            setEntranceFormError(`${monthLabel(entranceFormMonth)} 안에서 입학반 날짜를 선택해주세요.`); return;
+        }
+        if (!Number.isInteger(Number(entranceForm.maxCapacity)) || Number(entranceForm.maxCapacity) < 1 ||
+            (entranceForm.endTime && entranceForm.time >= entranceForm.endTime)) {
+            setEntranceFormError('입학반 시간과 정원을 확인해주세요.'); return;
+        }
+        setEntranceFormError('');
+        setEntranceSaving(true);
         try {
             if (editingEntrance) {
                 await updateEntranceClass(editingEntrance.id, entranceForm);
@@ -1298,8 +1313,8 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
             setEntranceForm({ date: '', time: '', description: '', maxCapacity: 6 });
             await loadEntranceClasses();
         } catch (err) {
-            alert('저장 실패: ' + err.message);
-        }
+            setEntranceFormError('저장 실패: ' + err.message);
+        } finally { setEntranceSaving(false); }
     };
 
     const handleEntranceCloseToggle = async (ec) => {
@@ -1396,7 +1411,7 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                             className={`cns-tab ${activeTab === 'entrance' ? 'active' : ''}`}
                             onClick={() => setActiveTab('entrance')}
                         >
-                            입학반 관리
+                            모집·입학반
                         </button>
                         <button
                             className={`cns-tab ${activeTab === 'faq' ? 'active' : ''}`}
@@ -1456,6 +1471,7 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                             <span className="cns-reg-schedule">{formatScheduleDisplay(reg)}</span>
                                         </div>
                                         <div className="cns-reg-badges">
+                                            {reg.recruitmentMonth && <span className="cns-badge entrance">{monthLabel(reg.recruitmentMonth)} 모집</span>}
                                             {/* 신청한 입학반 날짜 — 승인 전에도 카드를 펼치지 않고 바로 보이게 */}
                                             {(reg.entranceDate || reg.entranceInquiry) && (
                                                 <span className={`cns-badge ${reg.entranceInquiry ? 'entrance-ask' : 'entrance'}`}>
@@ -1714,13 +1730,19 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                 {/* === 입학반 관리 탭 === */}
                 {activeTab === 'entrance' && (
                     <div className="cns-section">
+                        <RecruitmentManager entrances={entranceClasses} entrancesLoading={loading} onAddEntrance={month => {
+                            setEditingEntrance(null); setEntranceFormMonth(month);
+                            setEntranceForm({ date: '', time: '10:00', endTime: '13:00', description: '', maxCapacity: 6, currentCount: 0 });
+                            setShowEntranceForm(true);
+                        }} />
                         <div className="cns-section-header">
                             <h2>입학반 일정</h2>
                             <button
                                 className="cns-add-btn"
                                 onClick={() => {
                                     setEditingEntrance(null);
-                                    setEntranceForm({ date: new Date().toISOString().split('T')[0], time: '', endTime: '', description: '', maxCapacity: 6, currentCount: 0 });
+                                    setEntranceFormMonth('');
+                                    setEntranceForm({ date: koreanDate(), time: '', endTime: '', description: '', maxCapacity: 6, currentCount: 0 });
                                     setShowEntranceForm(true);
                                 }}
                             >
@@ -1798,6 +1820,7 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                             className="cns-icon-btn edit"
                                             onClick={() => {
                                                 setEditingEntrance(ec);
+                                                setEntranceFormMonth('');
                                                 setEntranceForm({
                                                     date: ec.date,
                                                     time: ec.time,
@@ -1938,13 +1961,15 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
 
                         {/* 입학반 폼 모달 */}
                         {showEntranceForm && (
-                            <div className="cns-modal-overlay" onClick={() => setShowEntranceForm(false)}>
+                            <div className="cns-modal-overlay" onClick={() => { if (!entranceSaving) setShowEntranceForm(false); }}>
                                 <div className="cns-modal" onClick={(e) => e.stopPropagation()}>
-                                    <h3>{editingEntrance ? '입학반 수정' : '입학반 추가'}</h3>
+                                    <h3>{entranceFormMonth ? `${monthLabel(entranceFormMonth)} ` : ''}{editingEntrance ? '입학반 수정' : '입학반 추가'}</h3>
+                                    {entranceFormError && <p className="recruitment-error" role="alert">{entranceFormError}</p>}
                                     <div className="cns-form-field">
                                         <label>날짜</label>
                                         <input
                                             type="date"
+                                            min={!editingEntrance ? (entranceFormMonth > koreanDate().slice(0, 7) ? `${entranceFormMonth}-01` : koreanDate()) : undefined}
                                             value={entranceForm.date}
                                             onChange={(e) => setEntranceForm({ ...entranceForm, date: e.target.value })}
                                             className="cns-form-input"
@@ -2047,8 +2072,8 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                         </div>
                                     )}
                                     <div className="cns-modal-actions">
-                                        <button className="cns-modal-btn cancel" onClick={() => setShowEntranceForm(false)}>취소</button>
-                                        <button className="cns-modal-btn save" onClick={handleEntranceSubmit}>저장</button>
+                                        <button className="cns-modal-btn cancel" disabled={entranceSaving} onClick={() => setShowEntranceForm(false)}>취소</button>
+                                        <button className="cns-modal-btn save" disabled={entranceSaving} onClick={handleEntranceSubmit}>{entranceSaving ? '저장중...' : '저장'}</button>
                                     </div>
                                 </div>
                             </div>

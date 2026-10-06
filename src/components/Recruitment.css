@@ -1,0 +1,42 @@
+.recruitment-brand { color: var(--accent-hover); font-size: .85rem; font-weight: 700; margin-bottom: .4rem; }
+.recruitment-picker .reg-title { margin-bottom: 0; }
+.recruitment-picker .reg-body { padding: 1.5rem; }
+.recruitment-picker p, .recruitment-management p { line-height: 1.65; }
+.recruitment-muted, .recruitment-footnote { color: var(--text-secondary); }
+.recruitment-months { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+.recruitment-month { flex: 1 1 125px; min-width: 0; padding: .85rem; background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-md); text-align: left; color: var(--text); font: inherit; cursor: pointer; }
+.recruitment-month strong { display: block; margin-bottom: .35rem; }
+.recruitment-month.selected { border-color: var(--accent); background: var(--accent-10); }
+.recruitment-status { display: inline-block; padding: .1rem .4rem; border-radius: var(--r-chip); font-size: .8rem; }
+.recruitment-status.open { color: var(--accent-hover); background: var(--accent-10); }
+.recruitment-status.closed { color: var(--text-secondary); background: var(--canvas-tint); }
+.recruitment-status.inquiry { color: var(--text-secondary); background: var(--canvas-tint); }
+.recruitment-notice { background: var(--canvas-tint); padding: 1rem; border-radius: var(--r-md); margin: 1.3rem 0; }
+.recruitment-notice h2, .recruitment-inquiry h2 { font-size: 1.15rem; margin: 0 0 .6rem; }
+.recruitment-notice p { margin: .6rem 0 0; }
+.recruitment-custom-notice { white-space: pre-wrap; }
+.recruitment-full { display: flex; justify-content: center; width: 100%; text-align: center; text-decoration: none; min-height: 48px; align-items: center; overflow-wrap: anywhere; }
+.recruitment-full:disabled { opacity: .6; cursor: not-allowed; }
+.recruitment-inquiry { border-top: 1px solid var(--hairline); padding-top: 1.25rem; margin-top: 1.5rem; }
+.recruitment-contact, .recruitment-footnote { text-align: center; font-size: .8rem; }
+.recruitment-contact a { color: var(--accent-hover); }
+.recruitment-text-button { background: transparent; border: 0; color: var(--accent-hover); font: inherit; min-height: 44px; padding: .5rem; cursor: pointer; }
+.recruitment-error { color: var(--error); background: var(--canvas); padding: .6rem 0; }
+.recruitment-success { color: var(--success); }
+.recruitment-management { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 1.25rem; margin-bottom: 1.5rem; background: var(--canvas); color: var(--text); }
+.recruitment-management-header { display: flex; gap: .5rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.recruitment-management-header h2 { margin: 0; font-size: 1.2rem; }
+.recruitment-management-form h3 { font-size: 1.1rem; }
+.recruitment-management-form fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.recruitment-management-form legend { font-weight: 700; margin-bottom: .6rem; }
+.recruitment-state-options { display: flex; flex-wrap: wrap; gap: .5rem; }
+.recruitment-state-option { display: flex; align-items: center; gap: .35rem; min-height: 48px; padding: .6rem .7rem; border: 1px solid var(--hairline); border-radius: var(--r-md); cursor: pointer; }
+.recruitment-state-option.selected { border-color: var(--accent); background: var(--accent-10); }
+.recruitment-field { display: flex; flex-direction: column; gap: .5rem; margin: 1rem 0; font-weight: 700; }
+.recruitment-field input, .recruitment-field textarea { min-width: 0; width: 100%; padding: .75rem; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--canvas); color: var(--text); font: inherit; font-size: 16px; font-weight: 400; }
+.recruitment-field textarea { resize: vertical; }
+.recruitment-dates { padding: 1rem; background: var(--canvas-tint); border-radius: var(--r-md); }
+.recruitment-dates ul { padding-left: 1.25rem; overflow-wrap: anywhere; }
+.recruitment-dates li { margin: .5rem 0; }
+.recruitment-wizard-month { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .4rem; margin: -.4rem 0 .6rem; color: var(--accent-hover); font-size: .9rem; }
+@media (max-width: 380px) { .recruitment-picker .reg-body, .recruitment-management { padding: 1rem; } }

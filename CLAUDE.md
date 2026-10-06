@@ -93,7 +93,7 @@ Channel Talk/Bezier 기반. **완전 플랫**(그라데이션·장식 그림자 
   - `netlify.toml`의 `functions = "netlify/functions"` 경로에서 서버리스 함수 배포
   - 프론트엔드 빌드는 Netlify에서 하지 않음 (`command = ""`)
 - **API 연결**: 프론트엔드에서 `VITE_FUNCTIONS_URL` 환경변수로 Netlify Functions URL 지정
-- **Firebase**: 별도 배포 없음 (Firestore는 클라이언트 SDK로 직접 접근, `src/config/firebase.js`에서 초기화)
+- **Firebase**: 규칙 변경은 실제 프로젝트 `traininglogforclients`의 운영 규칙과 비교하고 해당 변경만 별도 배포한다(`.firebaserc`의 기본 프로젝트를 그대로 사용하지 않는다). 데이터는 별도 배포 없음 (Firestore는 클라이언트 SDK로 직접 접근, `src/config/firebase.js`에서 초기화)
 
 ## 개발 명령어
 
@@ -373,6 +373,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `disabledClasses` | 비활성화된 수업 슬롯 (키: `"월-1"`) |
 | `waitlistRequests` | 시간표 대기 신청 — 영구 시간표 변경 (status: waiting/notified/accepted/cancelled) |
 | `newStudentRegistrations` | 신규 수강 신청 (pending/approved/rejected). `smsLog{reception,approval,reminder}` 필드에 자동 문자 발송 결과 기록 → 신규 페이지 SMS 상황판(상태칩+재발송)이 이를 읽음. `registeredByCoach=true`(코치 직접 등록)는 자동문자 대상 아님. `referralSource`(유입경로: 인스타그램/네이버/지인추천/직접방문/기타) 필드를 포함하며 매출·통계 대시보드 유입경로 집계에 사용 |
+| `recruitmentMonths` | 월별 신규 모집 설정. 문서 ID=YYYY-MM, 코치만 수정·공개 조회. 미설정은 문의만 가능 |
 | `entranceClasses` | 입학반 정보. `closed=true`면 코치가 수동으로 모집 마감한 상태 — 학생 신청 위자드에서 만석과 동일하게 '마감' 표시·선택 불가(코치의 승인/수동 추가는 계속 가능). 코치 입학반 카드 🔒/🔓 버튼으로 토글 |
 | `registrationFAQ` | 신규 등록 FAQ |
 | `coachPinnedMemos` | 코치가 수강생별 고정한 메모 (훈련일지) — **수강생에게 보임** |
@@ -557,7 +558,13 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 
 ### 신규 수강생 등록 → 승인
 
-**등록** (NewStudentRegistration, 7단계): 개인정보 → 주횟수 → 시간표 → 입학반 → 결제방식 → 상담여부 → 요약+제출
+**등록** (`?register=true`): 모집월 선택 → 일정(주횟수·시간표) → 개인정보 → 입학반 → 결제방식 → 상담여부 → 요약+제출
+
+- **월별 모집 (2026-10-06)**: 코치 `신규 → 모집·입학반`에서 월별 상태(`접수중 / 문의만 가능 / 마감`), 입학반 날짜·시간·정원, 문자 문의번호와 안내를 관리한다. 모집월은 입학반을 듣는 달이며 정규 수업 시작일은 기존 입학반 이후 계산을 따른다. 같은 신청 링크로 다음 달 사전 모집도 받는다.
+- `recruitmentMonths/{YYYY-MM}`에 `month,status,inquiryPhone,notice,updatedAt`을 저장한다. 미설정 월은 문의만 가능이고 자동으로 모집하지 않는다. 현재·다음 달과 설정된 향후 월을 표시하며 마감된 현재 달도 남긴다. 접수중 저장 전 그 달의 신청 가능한 입학반을 확인한다.
+- **다음 달이 접수중이면 현재 마감월의 다음 달 입학 상담을 숨기고 모집월 이동 버튼을 표시한다.** 접수중인 달에서도 문자 문의 영역을 표시하지 않는다. 문의만 가능한 달의 버튼은 해당 월의 문자 내용을 채운 `sms:` 링크이며 실제 발송은 이용자가 문자 앱에서 한다.
+- 신청에는 `recruitmentMonth`를 저장하고 입학반/다른 날짜 문의를 해당 월로 제한한다. 최종 제출은 서버 트랜잭션으로 최신 모집 상태·입학반 날짜/마감/정원을 확인하며 Firestore 규칙도 비로그인 생성에 같은 월·접수중 조건을 강제한다. 코치 직접 등록은 기존대로 가능하다.
+- 모집 설정은 코치만 수정한다. 2026-10-06 운영 규칙 배포는 월별 모집·신규 신청 제한만 추가하고 운영에 남아 있던 다른 컬렉션의 쓰기 권한은 보존했다. 저장소의 기존 권한 강화 전체를 이번 기능에 묶어 배포하지 않았다.
 
 - **신규 배정 여석은 현재 활성 시간표 기준**: 코치 `신규 전용` 화면의 기준이 정본이다. `computeSlotOccupancy`는 D열 `요일 및 시간`과 pending 신규 신청을 합산하며, 미리 등록된 다음 시간표는 아직 선반영하지 않는다. 외부 신규 신청 페이지와 신규 대기 여석 판정도 반드시 이 계산을 공유한다.
 
