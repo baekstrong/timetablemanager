@@ -35,9 +35,10 @@
 .recruitment-field { display: flex; flex-direction: column; gap: .5rem; margin: 1rem 0; font-weight: 700; }
 .recruitment-field input, .recruitment-field textarea, .recruitment-field select { min-width: 0; width: 100%; padding: .75rem; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--canvas); color: var(--text); font: inherit; font-size: 16px; font-weight: 400; }
 .recruitment-field textarea { resize: vertical; }
-.recruitment-dates { padding: 1rem; background: var(--canvas-tint); border-radius: var(--r-md); }
-.recruitment-dates ul { padding-left: 1.25rem; overflow-wrap: anywhere; }
-.recruitment-dates li { margin: .5rem 0; }
+.recruitment-entrances { border-top: 1px solid var(--hairline); margin-top: 1.25rem; padding-top: 1.25rem; }
+.recruitment-entrances h3 { margin: 0; font-size: 1.1rem; }
+.recruitment-entrances .cns-entrance-list { margin-top: 1rem; }
+.recruitment-entrances .cns-add-btn:disabled { opacity: .5; cursor: not-allowed; }
 .recruitment-wizard-month { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .4rem; margin: -.4rem 0 .6rem; color: var(--accent-hover); font-size: .9rem; }
 @media (max-width: 380px) { .recruitment-picker .reg-body, .recruitment-management { padding: 1rem; } }
 
