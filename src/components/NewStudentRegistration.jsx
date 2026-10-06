@@ -4,6 +4,7 @@ import { getDisabledClasses, updateNewStudentRegistration, getFAQs, getNewStuden
 import { getRecruitmentOverview, submitRecruitmentRegistration } from '../services/recruitmentService';
 import { koreanDate, monthLabel, monthEntrances, isEntranceAvailable } from '../utils/recruitment';
 import RegistrationMonthPicker from './RegistrationMonthPicker';
+import useKoreanMonth from '../hooks/useKoreanMonth';
 import { sendRegistrationNotifications } from '../services/smsService';
 import { formatEntranceDate, calculateStartEndDates } from '../utils/dateUtils';
 import { PERIODS, DAYS, MAX_CAPACITY, PRICING, ENTRANCE_FEE } from '../data/mockData';
@@ -1035,7 +1036,8 @@ const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
 };
 
 export default function NewStudentRegistration() {
+    const current = useKoreanMonth();
     const [month, setMonth] = useState(null);
-    return month ? <RegistrationWizard key={month} recruitmentMonth={month} onChangeMonth={() => setMonth(null)} />
+    return month && month >= current ? <RegistrationWizard key={month} recruitmentMonth={month} onChangeMonth={() => setMonth(null)} />
         : <RegistrationMonthPicker onStart={setMonth} />;
 }

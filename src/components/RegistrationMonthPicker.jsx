@@ -3,8 +3,10 @@ import { getRecruitmentOverview, assertRecruitmentOpen } from '../services/recru
 import { getSmsSettings } from '../services/smsService';
 import { recruitmentOptions, monthLabel, RECRUITMENT_STATUSES, inquirySmsLink, inquiryMessage, recruitmentInquiryRoute } from '../utils/recruitment';
 import './Recruitment.css';
+import useKoreanMonth from '../hooks/useKoreanMonth';
 
 export default function RegistrationMonthPicker({ onStart }) {
+    const current = useKoreanMonth();
     const [options, setOptions] = useState([]);
     const [selected, setSelected] = useState('');
     const [phone, setPhone] = useState('');
@@ -24,7 +26,7 @@ export default function RegistrationMonthPicker({ onStart }) {
             const next = recruitmentOptions(overview.configs, overview.entrances);
             setOptions(next);
             setSelected(previous => next.some(o => o.month === previous) ? previous
-                : (next.find(o => o.canApply) || next[0])?.month || '');
+                : next[0]?.month || '');
         } catch {
             if (id === request.current.id) setError('모집 정보를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.');
         } finally {
@@ -33,6 +35,7 @@ export default function RegistrationMonthPicker({ onStart }) {
     }, []);
 
     useEffect(() => {
+        setSelected(current);
         load();
         const requests = request.current;
         let active = true;
@@ -46,7 +49,7 @@ export default function RegistrationMonthPicker({ onStart }) {
             window.removeEventListener('focus', load);
             document.removeEventListener('visibilitychange', onVisible);
         };
-    }, [load]);
+    }, [load, current]);
 
     const choice = options.find(o => o.month === selected);
     const { inquiry, showInquiry, nextOpen } = recruitmentInquiryRoute(choice, options, phone);

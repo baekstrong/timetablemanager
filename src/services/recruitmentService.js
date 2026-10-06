@@ -13,11 +13,11 @@ function requireDb() {
 }
 const list = snapshot => snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
 
-export async function getRecruitmentMonths() {
+export async function getRecruitmentMonths({ includePast = false } = {}) {
     requireDb();
     const current = koreanDate().slice(0, 7);
     return list(await getDocsFromServer(query(collection(db, 'recruitmentMonths'),
-        where(documentId(), '>=', current), where(documentId(), '<=', shiftMonth(current, 12)))));
+        ...(!includePast ? [where(documentId(), '>=', current)] : []), where(documentId(), '<=', shiftMonth(current, 12)))));
 }
 
 export async function getRecruitmentOverview() {

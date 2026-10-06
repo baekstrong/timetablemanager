@@ -28,6 +28,12 @@ describe('월별 신규 모집', () => {
         expect(recruitmentInquiryRoute(open, [current, open])).toMatchObject({ showInquiry: false, nextOpen: false });
         expect(recruitmentInquiryRoute(current, [current, { ...open, status: 'inquiry' }])).toMatchObject({ showInquiry: true, nextOpen: false });
     });
+    it('11월이 되면 마감 여부와 관계없이 지난 10월 모집 정보를 목록에서 뺀다', () => {
+        const configs = [{ month: '2026-10', status: 'closed' }, open];
+        const options = recruitmentOptions(configs, [entrance, { ...entrance, date: '2026-10-17' }], '2026-11-01');
+        expect(options.map(o => o.month)).toEqual(['2026-11', '2026-12']);
+        expect(options.find(o => o.month === '2026-11').canApply).toBe(true);
+    });
     it('다른 달·지난 날짜·비활성 입학반을 선택지에 섞지 않는다', () => {
         expect(monthEntrances([entrance, { ...entrance, date: '2026-10-10' }, { ...entrance, date: '2026-11-03' }, { ...entrance, isActive: false }], '2026-11', '2026-11-06')).toEqual([entrance]);
     });

@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
 import { getRecruitmentMonths, saveRecruitmentMonth } from '../services/recruitmentService';
 import { getSmsSettings } from '../services/smsService';
-import { koreanDate, monthLabel, monthEntrances, shiftMonth, RECRUITMENT_STATUSES } from '../utils/recruitment';
+import { monthLabel, shiftMonth, RECRUITMENT_STATUSES } from '../utils/recruitment';
 import './Recruitment.css';
+import useKoreanMonth from '../hooks/useKoreanMonth';
 
-function MonthForm({ month, config, defaultPhone, entrances, entrancesLoading, onAddEntrance, onSaved }) {
+function MonthForm({ month, config, defaultPhone, entrances, entrancesLoading, onAddEntrance, onSaved, past }) {
     const [status, setStatus] = useState(config?.status || 'inquiry');
     const [notice, setNotice] = useState(config?.notice || '');
     const [phone, setPhone] = useState(config?.inquiryPhone || defaultPhone);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
-    const dates = monthEntrances(entrances, month);
+    const dates = entrances.filter(ec => ec.date?.startsWith(`${month}-`)).sort((a, b) => a.date.localeCompare(b.date));
 
     const save = async event => {
         event.preventDefault();
@@ -27,8 +28,9 @@ function MonthForm({ month, config, defaultPhone, entrances, entrancesLoading, o
 
     return <form className="recruitment-management-form" onSubmit={save}>
         <h3>{monthLabel(month)} 모집 설정</h3>
-        <p className="recruitment-muted">{config ? `현재 공개 상태: ${RECRUITMENT_STATUSES[config.status]}` : '아직 설정하지 않은 달은 문의만 받습니다.'}</p>
-        <fieldset disabled={saving || entrancesLoading}>
+        <p className="recruitment-muted">{config ? `현재 공개 상태: ${RECRUITMENT_STATUSES[config.status]}` : past ? '저장된 모집 설정이 없습니다.' : '아직 설정하지 않은 달은 문의만 받습니다.'}</p>
+        {past && <p className="recruitment-muted">지난달 모집 기록입니다.</p>}
+        <fieldset disabled={saving || entrancesLoading || past}>
             <legend>모집 상태</legend>
             <div className="recruitment-state-options">{Object.entries(RECRUITMENT_STATUSES).map(([value, label]) =>
                 <label key={value} className={`recruitment-state-option ${status === value ? 'selected' : ''}`}>
@@ -37,8 +39,8 @@ function MonthForm({ month, config, defaultPhone, entrances, entrancesLoading, o
             <p className="recruitment-muted">접수중이면 신청할 수 있고, 문의만 가능·마감이면 신청을 받지 않습니다. 마감된 달도 신청페이지에 표시됩니다.</p>
             <div className="recruitment-dates">
                 <strong>이 달의 입학반</strong>
-                {dates.length ? <ul>{dates.map(ec => <li key={ec.id}>{ec.date} · {ec.time}{ec.endTime ? `~${ec.endTime}` : ''} · {ec.maxCapacity}명{ec.closed ? ' · 마감' : ''}</li>)}</ul>
-                    : <p>입학반 날짜를 먼저 추가해주세요.</p>}
+                {dates.length ? <ul>{dates.map(ec => <li key={ec.id}>{ec.date} · {ec.time}{ec.endTime ? `~${ec.endTime}` : ''} · {ec.maxCapacity}명{!ec.isActive ? ' · 종료' : ec.closed ? ' · 마감' : ''}</li>)}</ul>
+                    : <p>{past ? '등록된 입학반이 없습니다.' : '입학반 날짜를 먼저 추가해주세요.'}</p>}
                 <button type="button" className="cns-add-btn" onClick={() => onAddEntrance(month)}>+ {Number(month.slice(5))}월 입학반 날짜 추가</button>
             </div>
             <label className="recruitment-field">문자 문의번호
@@ -55,8 +57,9 @@ function MonthForm({ month, config, defaultPhone, entrances, entrancesLoading, o
 }
 
 export default function RecruitmentManager({ entrances, entrancesLoading, onAddEntrance }) {
-    const current = koreanDate().slice(0, 7);
-    const [month, setMonth] = useState(current);
+    const current = useKoreanMonth();
+    const [selectedMonth, setMonth] = useState(null);
+    const month = selectedMonth || current;
     const [configs, setConfigs] = useState([]);
     const [defaultPhone, setDefaultPhone] = useState('');
     const [loading, setLoading] = useState(true);
@@ -65,33 +68,41 @@ export default function RecruitmentManager({ entrances, entrancesLoading, onAddE
     const [copyMessage, setCopyMessage] = useState('');
     useEffect(() => {
         let active = true;
-        Promise.all([getRecruitmentMonths(), getSmsSettings()]).then(([data, settings]) => {
+        Promise.all([getRecruitmentMonths({ includePast: true }), getSmsSettings()]).then(([data, settings]) => {
             if (!active) return;
             setConfigs(data); setDefaultPhone(settings?.coachPhone || ''); setError('');
         }).catch(() => { if (active) setError('모집 설정을 불러오지 못했습니다. 다시 확인해주세요.'); })
             .finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
-    }, [reload]);
+    }, [reload, current]);
     const copyLink = async () => {
         const url = new URL(import.meta.env.BASE_URL, window.location.origin);
         url.searchParams.set('register', 'true');
         try { await navigator.clipboard.writeText(url.href); setCopyMessage('신규 신청 링크를 복사했습니다.'); }
         catch { setCopyMessage(`신청 링크: ${url.href}`); }
     };
-    const months = [...new Set([current, shiftMonth(current), ...configs.map(c => c.month)])].sort();
+    const selectableMonths = [...new Set([month, ...Array.from({ length: 25 }, (_, offset) => shiftMonth(current, offset - 12)), ...configs.map(c => c.month)])].sort();
+    const months = [...new Set([current, shiftMonth(current), month, ...configs.filter(c => c.month >= current).map(c => c.month)])].sort();
     const config = configs.find(c => c.month === month);
     return <section className="recruitment-management" aria-label="월별 모집 관리">
         <div className="recruitment-management-header"><h2>월별 모집 관리</h2><button className="recruitment-text-button" onClick={copyLink}>신청 링크 복사</button></div>
         <p className="recruitment-muted">모집월은 입학반을 듣는 달입니다. 정규 수업은 입학반 이후 시작합니다.</p>
-        <label className="recruitment-field">관리할 모집월
-            <input type="month" min={current} max={shiftMonth(current, 12)} value={month} onChange={e => { if (e.target.value) setMonth(e.target.value); }} />
-        </label>
+        <div className="recruitment-field">
+            <label htmlFor="recruitment-month-select">관리할 모집월</label>
+            <div className="recruitment-month-selector">
+                <button type="button" className="recruitment-month-arrow" aria-label="이전 모집월" disabled={month === '0001-01'} onClick={() => setMonth(shiftMonth(month, -1))}>‹</button>
+                <select id="recruitment-month-select" value={month} onChange={e => setMonth(e.target.value)}>
+                    {selectableMonths.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
+                </select>
+                <button type="button" className="recruitment-month-arrow" aria-label="다음 모집월" disabled={month >= shiftMonth(current, 12)} onClick={() => setMonth(shiftMonth(month))}>›</button>
+            </div>
+        </div>
         <div className="recruitment-months">{months.map(m => <button key={m} className={`recruitment-month ${month === m ? 'selected' : ''}`} aria-pressed={month === m} onClick={() => setMonth(m)}>
             <strong>{monthLabel(m)}</strong><span className={`recruitment-status ${configs.find(c => c.month === m)?.status || 'inquiry'}`}>{RECRUITMENT_STATUSES[configs.find(c => c.month === m)?.status || 'inquiry']}</span>
         </button>)}</div>
         {copyMessage && <p role="status" className="recruitment-muted">{copyMessage}</p>}
         {loading ? <p role="status">모집 설정을 불러오고 있습니다.</p> : error ? <div role="alert" className="recruitment-error"><p>{error}</p><button onClick={() => { setLoading(true); setReload(v => v + 1); }}>다시 확인</button></div>
             : <MonthForm key={month} month={month} config={config} defaultPhone={defaultPhone} entrances={entrances} entrancesLoading={entrancesLoading} onAddEntrance={onAddEntrance}
-                onSaved={next => setConfigs(previous => [...previous.filter(c => c.month !== next.month), next])} />}
+                past={month < current} onSaved={next => setConfigs(previous => [...previous.filter(c => c.month !== next.month), next])} />}
     </section>;
 }
