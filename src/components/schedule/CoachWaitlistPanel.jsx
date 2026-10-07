@@ -77,6 +77,22 @@ export default function CoachWaitlistPanel({
                                 </span>
                             </span>
                             <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                {showWaitlistDeleteMode && (
+                                    <button
+                                        onClick={async () => {
+                                            if (!confirm(`"${w.studentName}"의 대기 신청을 삭제하시겠습니까?`)) return;
+                                            try {
+                                                await cancelWaitlistRequest(w.id);
+                                                setWeekWaitlist(prev => prev.filter(item => item.id !== w.id));
+                                            } catch (err) {
+                                                alert('삭제 실패: ' + err.message);
+                                            }
+                                        }}
+                                        style={DELETE_BTN_STYLE}
+                                    >
+                                        삭제
+                                    </button>
+                                )}
                                 {w.status === 'waiting' && (
                                     <button
                                         onClick={async () => {
@@ -126,22 +142,6 @@ export default function CoachWaitlistPanel({
                                             취소
                                         </button>
                                     </>
-                                )}
-                                {showWaitlistDeleteMode && (
-                                    <button
-                                        onClick={async () => {
-                                            if (!confirm(`"${w.studentName}"의 대기 신청을 삭제하시겠습니까?`)) return;
-                                            try {
-                                                await cancelWaitlistRequest(w.id);
-                                                setWeekWaitlist(prev => prev.filter(item => item.id !== w.id));
-                                            } catch (err) {
-                                                alert('삭제 실패: ' + err.message);
-                                            }
-                                        }}
-                                        style={DELETE_BTN_STYLE}
-                                    >
-                                        삭제
-                                    </button>
                                 )}
                             </div>
                         </div>

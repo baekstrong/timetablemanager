@@ -787,11 +787,11 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                             <td className="action-cell">
                                                 {editingStudent === index ? (
                                                     <div className="action-buttons">
-                                                        <button onClick={handleSave} className="save-btn">
-                                                            저장
-                                                        </button>
                                                         <button onClick={handleCancel} className="cancel-btn">
                                                             취소
+                                                        </button>
+                                                        <button onClick={handleSave} className="save-btn">
+                                                            저장
                                                         </button>
                                                     </div>
                                                 ) : (

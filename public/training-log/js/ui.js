@@ -307,13 +307,13 @@ export function renderEditModalContent(data, docId) {
             </div>
 
             <div class="flex gap-2">
-                <button onclick="saveEdit('${docId}')" type="button"
-                        class="flex-1 bg-[#329BE7] hover:bg-[#327AB8] text-white py-2 rounded-lg font-semibold">
-                    저장
-                </button>
                 <button onclick="closeEditModal()" type="button"
                         class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 rounded-lg font-semibold">
                     취소
+                </button>
+                <button onclick="saveEdit('${docId}')" type="button"
+                        class="flex-1 bg-[#329BE7] hover:bg-[#327AB8] text-white py-2 rounded-lg font-semibold">
+                    저장
                 </button>
             </div>
         </div>

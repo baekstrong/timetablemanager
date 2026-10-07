@@ -1,7 +1,7 @@
 import { localDate, escapeHTML } from './student-workspace-logic.js?v=20260925-student-ux';
 import { state, db, firebaseInitialized, persistenceEnabled } from '../state.js';
 import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue, moveButtons, swapSets } from './sets.js?v=20260925-student-ux';
-import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js?v=20261002-selected-date';
+import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js?v=20261007-action-order';
 import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js?v=20260925-student-ux';
 import { evaluatePR, pastSetsFrom } from './pr-logic.js';
 import { xpToGrade, gradeRank, recordVolume, GRADES } from './grades.js';

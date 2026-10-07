@@ -1,7 +1,7 @@
 import { readSessionIdentity } from '../sessionIdentity.js';
 import { state, db, firebaseInitialized } from '../state.js';
 import { saveLogin, loadSavedLogin, clearSavedLogin } from '../utils.js';
-import { loadPinnedExercisesFromStorage, loadArchivedMemosFromStorage, migrateLocalStorageToFirestore } from './records.js?v=20261002-selected-date';
+import { loadPinnedExercisesFromStorage, loadArchivedMemosFromStorage, migrateLocalStorageToFirestore } from './records.js?v=20261007-action-order';
 import { FUNCTIONS_BASE } from '../config.js';
 
 // ============================================

@@ -550,6 +550,20 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
                                         return (
                                             <>
                                                 <button
+                                                    onClick={() => handleWaitlistCancel(w.id)}
+                                                    disabled={isAnyProcessing}
+                                                    style={{
+                                                        padding: '4px 8px',
+                                                        fontSize: '0.8rem',
+                                                        backgroundColor: '#fee2e2',
+                                                        color: isAnyProcessing ? '#9ca3af' : '#dc2626',
+                                                        border: `1px solid ${isAnyProcessing ? '#d1d5db' : '#dc2626'}`,
+                                                        borderRadius: '4px',
+                                                        cursor: isAnyProcessing ? 'not-allowed' : 'pointer',
+                                                        fontWeight: 'bold'
+                                                    }}
+                                                >거절</button>
+                                                <button
                                                     onClick={() => handleWaitlistAccept(w)}
                                                     disabled={isAnyProcessing}
                                                     style={{
@@ -579,20 +593,6 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
                                                     )}
                                                     {isProcessing ? '변경 중...' : '승인'}
                                                 </button>
-                                                <button
-                                                    onClick={() => handleWaitlistCancel(w.id)}
-                                                    disabled={isAnyProcessing}
-                                                    style={{
-                                                        padding: '4px 8px',
-                                                        fontSize: '0.8rem',
-                                                        backgroundColor: '#fee2e2',
-                                                        color: isAnyProcessing ? '#9ca3af' : '#dc2626',
-                                                        border: `1px solid ${isAnyProcessing ? '#d1d5db' : '#dc2626'}`,
-                                                        borderRadius: '4px',
-                                                        cursor: isAnyProcessing ? 'not-allowed' : 'pointer',
-                                                        fontWeight: 'bold'
-                                                    }}
-                                                >거절</button>
                                             </>
                                         );
                                     })()}

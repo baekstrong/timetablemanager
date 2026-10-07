@@ -1678,6 +1678,12 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                             </div>
 
                                             <div className="cns-action-row">
+                                                <button
+                                                    className="cns-action-btn delete"
+                                                    onClick={() => regFilter === 'waitlist' ? handleWaitlistDelete(reg) : handleDelete(reg)}
+                                                >
+                                                    삭제
+                                                </button>
                                                 {regFilter === 'pending' && (
                                                     <>
                                                         <button className="cns-action-btn cns-edit-registration-btn"
@@ -1685,18 +1691,18 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                                             시간표·주 횟수 변경
                                                         </button>
                                                         <button
-                                                            className="cns-action-btn approve"
-                                                            onClick={() => openEntranceModal(reg, 'approve')}
-                                                            disabled={approving === reg.id}
-                                                        >
-                                                            {approving === reg.id ? '처리 중...' : '승인'}
-                                                        </button>
-                                                        <button
                                                             className="cns-action-btn reject"
                                                             onClick={() => handleReject(reg)}
                                                             disabled={approving === reg.id}
                                                         >
                                                             거절
+                                                        </button>
+                                                        <button
+                                                            className="cns-action-btn approve"
+                                                            onClick={() => openEntranceModal(reg, 'approve')}
+                                                            disabled={approving === reg.id}
+                                                        >
+                                                            {approving === reg.id ? '처리 중...' : '승인'}
                                                         </button>
                                                     </>
                                                 )}
@@ -1743,12 +1749,6 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                                         문자예약 변경
                                                     </button>
                                                 )}
-                                                <button
-                                                    className="cns-action-btn delete"
-                                                    onClick={() => regFilter === 'waitlist' ? handleWaitlistDelete(reg) : handleDelete(reg)}
-                                                >
-                                                    삭제
-                                                </button>
                                             </div>
                                         </div>
                                     )}

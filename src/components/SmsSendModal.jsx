@@ -86,6 +86,9 @@ export default function SmsSendModal({ recipients, onClose }) {
                         ))}
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', background: 'var(--cta-dark)', color: '#fff', fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.6 : 1 }}>
+                            닫기
+                        </button>
                         {failed.length > 0 && (
                             <button
                                 onClick={() => handleSend(failed.map(f => ({ name: f.name, phone: f.phone })))}
@@ -95,9 +98,6 @@ export default function SmsSendModal({ recipients, onClose }) {
                                 {sending ? '재발송 중...' : `실패자만 재발송 (${failed.length}명)`}
                             </button>
                         )}
-                        <button onClick={onClose} disabled={sending} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', background: 'var(--cta-dark)', color: '#fff', fontWeight: 700, cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.6 : 1 }}>
-                            닫기
-                        </button>
                     </div>
                 </div>
             </div>
