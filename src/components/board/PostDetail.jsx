@@ -168,7 +168,7 @@ const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {} 
                 ...(image && { image }),
             });
             // 글쓴이에게 푸시 (수신자·문구는 서버가 글 문서에서 정한다). 본인 글이면 호출 생략.
-            if (shouldNotifyBoardAuthor(post, user)) pushComment(postId);
+            if (shouldNotifyBoardAuthor(post, user)) pushComment(postId, post);
             setCommentText('');
             removeCommentImage();
             const updated = await getComments(postId);
@@ -200,7 +200,7 @@ const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {} 
         });
         // 답글은 부모 댓글 작성자에게. 본인 댓글이면 호출 생략.
         const parent = comments.find(c => c.id === parentId);
-        if (shouldNotifyBoardAuthor(parent, user)) pushReply(postId, parentId);
+        if (shouldNotifyBoardAuthor(parent, user)) pushReply(postId, parentId, parent);
         const updated = await getComments(postId);
         setComments(updated);
     };

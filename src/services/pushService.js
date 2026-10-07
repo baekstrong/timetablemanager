@@ -1,6 +1,7 @@
 import { getMessaging, getToken, isSupported } from 'firebase/messaging';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import app, { auth, db } from '../config/firebase';
+import { shouldNotifyBoardAuthor } from '../utils/boardNotifications';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
@@ -70,11 +71,24 @@ export const clearPushTokenCache = (userName) => {
   try { localStorage.removeItem(`push_token_${userName}`); } catch { /* noop */ }
 };
 
-const callPush = async (payload) => {
+const callPush = async (payload, boardAuthor) => {
   try {
     const current = auth?.currentUser;
     if (!current) return false;
-    const idToken = await current.getIdToken();
+    let idToken;
+    if (['comment', 'reply'].includes(payload.type)) {
+      // 빙의 화면의 표시 계정과 실제 로그인 계정은 다를 수 있다.
+      // 발송 직전에는 서버에 전달할 인증 신원으로도 본인 알림을 차단한다.
+      const identity = await current.getIdTokenResult();
+      if (!shouldNotifyBoardAuthor(boardAuthor, {
+        username: identity.claims.name,
+        role: identity.claims.isCoach === true ? 'coach' : 'student',
+      })) return false;
+      idToken = identity.token;
+    } else {
+      idToken = await current.getIdToken();
+    }
+    if (current !== auth.currentUser) return false;
     const res = await fetch(getPushUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
@@ -95,10 +109,10 @@ export const pushNotice = (names, title, content, postId) =>
 
 // 아래 둘은 대상·문구를 서버가 문서에서 직접 읽어 정한다. 여기선 어느 문서인지만 알려준다.
 /** 내 글에 댓글 — 서버가 posts/{postId}의 작성자에게 보낸다 */
-export const pushComment = (postId) => callPush({ type: 'comment', postId });
+export const pushComment = (postId, post) => callPush({ type: 'comment', postId }, post);
 
 /** 내 댓글에 답글 — 서버가 그 댓글의 작성자에게 보낸다 */
-export const pushReply = (postId, parentId) => callPush({ type: 'reply', postId, parentId });
+export const pushReply = (postId, parentId, parent) => callPush({ type: 'reply', postId, parentId }, parent);
 
 /** 보강 대기 자리 발생 — 서버가 makeupWaitlists/{id}가 notified인지 확인하고 그 문서로 문구를 만든다 */
 export const pushMakeupSeat = (waitlistId) => callPush({ type: 'makeupSeat', waitlistId });
