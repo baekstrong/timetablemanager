@@ -18,7 +18,7 @@
 .back-button {
     padding: 12px 20px;
     background: white;
-    border: 1px solid var(--control-border);
+    border: 1px solid var(--hairline);
     border-radius: 12px;
     font-size: 14px;
     font-weight: 600;
@@ -28,7 +28,6 @@
     align-items: center;
     gap: 8px;
     transition: all 0.3s ease;
-    min-height: 44px;
 }
 
 .back-button:hover {
@@ -428,14 +427,13 @@
 .month-nav-button {
     padding: 8px 16px;
     background: white;
-    border: 1px solid var(--control-border);
+    border: 1px solid var(--hairline);
     border-radius: 8px;
     font-size: 16px;
     cursor: pointer;
     transition: all 0.2s ease;
     color: var(--accent);
     font-weight: bold;
-    min-height: 44px;
 }
 
 .month-nav-button:hover {
@@ -855,7 +853,7 @@
 .holding-confirm-dates { font-weight: 700; padding: 16px; border-radius: var(--r-md); background: var(--canvas-tint); }
 .holding-confirm-description { line-height: 1.7; margin: 16px 0 24px; color: var(--text-secondary); }
 .holding-confirm-actions { display: flex; gap: 8px; }
-.holding-confirm-actions button { flex: 1; min-height: 48px; border: 1px solid var(--control-border); border-radius: var(--r-md); background: var(--canvas); color: var(--text); font: inherit; font-weight: 700; cursor: pointer; }
+.holding-confirm-actions button { flex: 1; min-height: 48px; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--canvas); color: var(--text); font: inherit; font-weight: 700; cursor: pointer; }
 .holding-confirm-actions button:last-child { background: var(--cta-dark); color: white; }
 .holding-readonly-notice { max-width: 1200px; margin: -16px auto 20px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--canvas); color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
 .holding-read-only button:disabled,

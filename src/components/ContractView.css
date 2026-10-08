@@ -20,15 +20,13 @@
     display: flex;
     align-items: center;
     gap: 0.3rem;
-    background: var(--control-bg);
-    border: 1px solid var(--control-border);
+    background: none;
+    border: none;
     color: var(--text-secondary);
     font-size: 0.9rem;
     cursor: pointer;
-    padding: 8px 12px;
+    padding: 0.3rem 0;
     flex-shrink: 0;
-    border-radius: var(--r-chip);
-    min-height: 44px;
 }
 
 .contract-back-btn svg {

@@ -20,7 +20,7 @@
 .recruitment-inquiry { border-top: 1px solid var(--hairline); padding-top: 1.25rem; margin-top: 1.5rem; }
 .recruitment-contact, .recruitment-footnote { text-align: center; font-size: .8rem; }
 .recruitment-contact a { color: var(--accent-hover); }
-.recruitment-text-button { background: var(--control-bg); border: 1px solid var(--control-border); color: var(--accent-hover); font: inherit; min-height: 44px; padding: 8px 12px; cursor: pointer; border-radius: var(--r-chip); }
+.recruitment-text-button { background: transparent; border: 0; color: var(--accent-hover); font: inherit; min-height: 44px; padding: .5rem; cursor: pointer; }
 .recruitment-error { color: var(--error); background: var(--canvas); padding: .6rem 0; }
 .recruitment-success { color: var(--success); }
 .recruitment-management { border: 1px solid var(--hairline); border-radius: var(--r-card); padding: 1.25rem; margin-bottom: 1.5rem; background: var(--canvas); color: var(--text); }

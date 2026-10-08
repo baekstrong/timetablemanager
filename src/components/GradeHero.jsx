@@ -10,8 +10,7 @@ export default function GradeHero({ xp = 0, onClick }) {
             onClick={onClick}
             style={{
                 display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer',
-                background: 'var(--control-bg)', border: '1px solid var(--control-border)',
-                borderRadius: 'var(--r-chip)', padding: '12px', minHeight: '44px', font: 'inherit',
+                background: 'transparent', border: 'none', padding: '6px 0 0', font: 'inherit',
             }}
         >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>

@@ -1,7 +1,7 @@
 .analytics-page { padding: 16px; padding-bottom: 96px; max-width: 960px; margin: 0 auto; font-family: var(--font); color: var(--text); }
 .analytics-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .analytics-header h1 { font-size: 20px; font-weight: 700; }
-.analytics-back { background: var(--control-bg); border: 1px solid var(--control-border); color: var(--accent); font-size: 14px; cursor: pointer; border-radius: var(--r-chip); min-height: 44px; padding: 8px 12px; }
+.analytics-back { background: none; border: none; color: var(--accent); font-size: 14px; cursor: pointer; }
 .analytics-refresh { border: 1px solid var(--hairline); background: var(--canvas); color: var(--text); border-radius: var(--r-chip); padding: 6px 12px; cursor: pointer; }
 .analytics-state { padding: 24px; text-align: center; color: var(--text-muted); }
 .analytics-state.error { color: var(--error); }

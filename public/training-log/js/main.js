@@ -10,7 +10,7 @@ import * as Records from './modules/records.js?v=20261007-action-order';
 import * as Calendar from './modules/calendar.js?v=20261002-selected-date';
 import * as Coach from './modules/coach.js?v=20260925-student-ux';
 import * as Stamp from './modules/stamp.js';
-import * as OneRM from './modules/onerm.js?v=20261008-button-affordance';
+import * as OneRM from './modules/onerm.js?v=20261008-button-revert';
 import * as StudentWorkspace from './modules/student-workspace.js?v=20261002-selected-date';
 
 // ============================================

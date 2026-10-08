@@ -319,16 +319,16 @@ function renderMyOneRMList(map) {
             </div>` : '';
         return `
         <div class="border-b border-[#EFEFF0] last:border-0">
-            <div class="onerm-saved-row">
-                <button type="button" class="onerm-saved-toggle" onclick="toggleOneRM(${i})" aria-expanded="${i === _expandedIndex}">
-                    <span class="min-w-0">
-                        <span class="font-semibold text-gray-800">${esc(it.exercise)}</span>
-                        <span class="text-[#329BE7] font-bold ml-2">${it.oneRM}kg</span>
-                        <span class="text-gray-300 ml-1">${i === _expandedIndex ? '▲' : '▼'}</span>
-                    </span>
+            <div class="flex items-center justify-between px-3 py-2 cursor-pointer" onclick="toggleOneRM(${i})">
+                <div class="min-w-0 truncate">
+                    <span class="font-semibold text-gray-800">${esc(it.exercise)}</span>
+                    <span class="text-[#329BE7] font-bold ml-2">${it.oneRM}kg</span>
+                    <span class="text-gray-300 ml-1">${i === _expandedIndex ? '▲' : '▼'}</span>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
                     <span class="text-xs text-gray-400">${it.weight}×${it.reps} · ${formatMD(it.date)}</span>
-                </button>
-                <button type="button" onclick="deleteOneRM(${i})" class="onerm-saved-delete text-base leading-none" title="삭제" aria-label="${esc(it.exercise)} 1RM 삭제">✕</button>
+                    <button onclick="event.stopPropagation();deleteOneRM(${i})" class="text-gray-300 hover:text-[#E94E58] text-base leading-none" title="삭제">✕</button>
+                </div>
             </div>
             ${table}
         </div>`;

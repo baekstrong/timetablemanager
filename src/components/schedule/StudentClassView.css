@@ -6,9 +6,9 @@
 .student-classes button { font:inherit; cursor:pointer; }
 .student-classes button:disabled { opacity:.45; cursor:not-allowed; }
 .student-classes button:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
-.student-class-tabs { display:flex; gap: 8px; border-bottom: 0; margin-bottom:20px; }
-.student-class-tabs button { min-height: 44px; padding: 12px 16px; border: 1px solid var(--control-border); border-bottom: 1px solid var(--control-border); background: var(--control-bg); color:var(--text-secondary); font-size:14px; border-radius: var(--r-chip); }
-.student-class-tabs button[aria-pressed=true] { color:var(--accent-hover); border-bottom-color:var(--accent); font-weight:700; border-color: var(--accent-hover); background: var(--accent-10); }
+.student-class-tabs { display:flex; gap:26px; border-bottom:1px solid var(--hairline); margin-bottom:20px; }
+.student-class-tabs button { min-height:48px; padding:12px 0; border:0; border-bottom:2px solid transparent; background:none; color:var(--text-secondary); font-size:14px; }
+.student-class-tabs button[aria-pressed=true] { color:var(--accent-hover); border-bottom-color:var(--accent); font-weight:700; }
 .student-class-week-heading,.student-class-week-heading>div { display:flex; align-items:center; }
 .student-class-week-heading { justify-content:space-between; gap:8px; margin:0 0 14px; }
 .student-class-week-heading>div { gap:10px; }
@@ -41,17 +41,17 @@
 .student-class-help { font-size:12px; color:var(--text-secondary); line-height:1.75; margin:9px 0 0; }
 .student-class-actions { display:flex; gap:8px; margin-top:20px; }
 .student-class-actions>* { flex:1; min-width:0; }
-.student-class-button { display:inline-flex; justify-content:center; align-items:center; min-height:48px; padding:11px 14px; border:1px solid var(--control-border); border-radius:var(--r-md); background:var(--canvas); color:var(--text); font-size:14px; }
+.student-class-button { display:inline-flex; justify-content:center; align-items:center; min-height:48px; padding:11px 14px; border:1px solid var(--hairline); border-radius:var(--r-md); background:var(--canvas); color:var(--text); font-size:14px; }
 .student-class-button.primary { background:var(--cta-dark); color:var(--canvas); border-color:var(--cta-dark); font-weight:700; }
-.student-class-link { border: 1px solid var(--control-border); background: var(--control-bg); color:var(--accent-hover); min-height: 44px; padding: 8px 12px; font-size:12px!important; border-radius: var(--r-chip); }
+.student-class-link { border:0; background:none; color:var(--accent-hover); min-height:44px; padding:8px 0; font-size:12px!important; }
 .student-class-membership { display:flex; align-items:center; gap:32px; padding:16px 0; border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline); }
 .student-class-membership>div { display:flex; flex-direction:column; gap:6px; }
 .student-class-membership span { font-size:11px; color:var(--text-secondary); }
 .student-class-membership strong { font-size:17px; }
 .student-class-membership small { font-size:11px; color:var(--text-secondary); margin-left:5px; }
-.student-class-membership button { margin-left:auto; min-width: 44px; min-height: 44px; border: 1px solid var(--control-border); background: var(--control-bg); font-size:24px; color:var(--text-secondary); border-radius: var(--r-chip); padding: 8px; }
-.student-class-training { display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%; padding: 16px; text-align:left; border: 1px solid var(--control-border); background: var(--control-bg); color:var(--text-secondary); border-radius: var(--r-md); margin: 12px 0; }
-.student-class-training>span:first-child { display:flex; flex-direction:column; gap:6px; min-width: 0; }
+.student-class-membership button { margin-left:auto; min-width:44px; min-height:44px; border:0; background:none; font-size:24px; color:var(--text-secondary); }
+.student-class-training { display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%; padding:20px 0; text-align:left; border:0; background:none; color:var(--text-secondary); }
+.student-class-training>span:first-child { display:flex; flex-direction:column; gap:6px; }
 .student-class-training strong { font-size:13px; color:var(--text); }
 .student-class-training small { font-size:11px; }
 .student-class-empty { padding:20px 0; font-size:14px; line-height:1.7; color:var(--text-secondary); }

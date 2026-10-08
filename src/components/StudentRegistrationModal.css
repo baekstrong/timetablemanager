@@ -57,15 +57,14 @@
 .reg-tab-btn {
     flex: 1;
     padding: 0.6rem 1rem;
-    border: 1px solid var(--control-border);
-    border-radius: var(--r-chip);
+    border: none;
+    border-radius: 8px;
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
-    background: var(--control-bg);
+    background: transparent;
     color: var(--text-secondary);
-    min-height: 44px;
 }
 
 .reg-tab-btn.active {
@@ -161,7 +160,7 @@
 
 .reg-date-clear-btn {
     padding: 0.4rem 0.6rem;
-    border: 1px solid var(--control-border);
+    border: 1px solid var(--hairline);
     border-radius: 6px;
     background: white;
     color: var(--text-secondary);
@@ -170,7 +169,6 @@
     font-weight: 600;
     transition: all 0.2s ease;
     flex-shrink: 0;
-    min-height: 44px;
 }
 
 .reg-date-clear-btn:hover {
@@ -242,14 +240,13 @@
 .reg-cancel-btn {
     padding: 0.7rem 1.5rem;
     background: white;
-    border: 1px solid var(--control-border);
+    border: 1px solid var(--hairline);
     border-radius: 10px;
     color: var(--text);
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
-    min-height: 44px;
 }
 
 .reg-cancel-btn:hover {
@@ -359,16 +356,13 @@
 }
 
 .reg-absence-tag button {
-    background: var(--control-bg);
-    border: 1px solid var(--control-border);
+    background: none;
+    border: none;
     color: #dc2626;
     font-weight: 700;
     cursor: pointer;
     font-size: 0.75rem;
-    padding: 8px;
-    border-radius: var(--r-chip);
-    min-height: 44px;
-    min-width: 44px;
+    padding: 0 0.15rem;
 }
 
 /* 예정 출석일 달력 */
@@ -578,17 +572,14 @@
 }
 
 .reg-startcal-nav button {
-    border: 1px solid var(--control-border);
-    background: var(--control-bg);
-    border-radius: var(--r-chip);
-    width: 44px;
-    height: 44px;
+    border: none;
+    background: var(--canvas-tint);
+    border-radius: 6px;
+    width: 26px;
+    height: 26px;
     cursor: pointer;
     font-size: 1rem;
     color: var(--text-secondary);
-    min-height: 44px;
-    padding: 8px;
-    min-width: 44px;
 }
 
 .reg-startcal-nav button:hover {

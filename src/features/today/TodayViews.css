@@ -13,8 +13,8 @@
 .today-section-title > .today-link, .today-section-title > .today-muted { margin-left: auto; }
 .today-muted { color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
 .today-count, .today-status { color: var(--accent-hover); background: var(--accent-10); border-radius: var(--r-chip); padding: 4px 8px; font-size: 12px; white-space: nowrap; }
-.today-link { color: var(--accent-hover); background: var(--control-bg); border: 1px solid var(--control-border); cursor: pointer; padding: 8px 12px; font-size: 13px; font-weight: 600; border-radius: var(--r-chip); min-height: 44px; }
-.today-button { padding: 10px 14px; border: 1px solid var(--control-border); background: var(--canvas); color: var(--accent-hover); border-radius: var(--r-md); font-size: 13px !important; font-weight: 600 !important; cursor: pointer; min-height: 44px; }
+.today-link { color: var(--accent-hover); background: transparent; border: 0; cursor: pointer; padding: 6px 0; font-size: 13px; font-weight: 600; }
+.today-button { padding: 10px 14px; border: 1px solid var(--hairline); background: var(--canvas); color: var(--accent-hover); border-radius: var(--r-md); font-size: 13px !important; font-weight: 600 !important; cursor: pointer; min-height: 44px; }
 .today-button-primary { background: var(--accent); color: var(--canvas); border-color: var(--accent); }
 .today-button-pending { background: var(--caution); border-color: var(--caution); color: var(--text); }
 .today-button:disabled { opacity: .45; cursor: not-allowed; }
@@ -39,7 +39,7 @@
 .today-status.is-cancelled { color: var(--text-secondary); background: var(--canvas-tint); }
 .today-waiting summary { cursor: pointer; font-size: 13px; padding: 2px 0; }
 .today-waiting summary > span { float: right; color: var(--accent-hover); }
-.today-story { display: flex; flex-direction: column; gap: 6px; background: var(--control-bg); border: 1px solid var(--control-border); border-top: 1px solid var(--hairline); width: 100%; padding: 14px; text-align: left; color: var(--text); cursor: pointer; border-radius: var(--r-md); margin-top: 8px; }
+.today-story { display: flex; flex-direction: column; gap: 6px; background: none; border: 0; border-top: 1px solid var(--hairline); width: 100%; padding: 16px 0; text-align: left; color: var(--text); cursor: pointer; }
 .today-story strong { font-size: 14px; line-height: 1.7; }
 .today-story small { color: var(--accent-hover); font-size: 10px; }
 .today-footnote { display: flex; align-items: center; justify-content: space-between; font-size: 12px; padding: 4px 12px; }
@@ -103,7 +103,7 @@
 .today-note-error { color: var(--error); font-size: 12px; }
 
 .today-note-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.today-note-heading .today-link { min-height: 44px; }
+.today-note-heading .today-link { min-height: 32px; }
 
 .today-board-label { position: relative; display: inline-block; }
 .today-board-dot { position: absolute; top: -4px; right: -8px; width: 8px; height: 8px; border-radius: 50%; background: var(--error); }

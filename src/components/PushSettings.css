@@ -1,9 +1,9 @@
 .push-settings { display: inline-flex; flex-shrink: 0; }
-.push-settings .push-settings-button { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 5px 8px; border: 1px solid var(--accent-20); border-radius: var(--r-chip); background: var(--accent-10); color: var(--accent-hover); font: inherit; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.push-settings .push-settings-button { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 5px 8px; border: 1px solid var(--accent-20); border-radius: var(--r-chip); background: var(--accent-10); color: var(--accent-hover); font: inherit; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; }
 .push-settings-button svg { width: 14px; height: 14px; flex-shrink: 0; }
 .push-settings-button.is-on { border-color: var(--hairline); background: var(--canvas-tint); color: var(--text-secondary); }
 .push-settings-button:disabled { opacity: .65; cursor: default; }
 .push-settings-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .push-settings-details { position: absolute; z-index: 5; top: 50px; left: 12px; right: 12px; display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--canvas); box-shadow: 0 4px 16px rgba(0,0,0,.1); color: var(--text-secondary); font-size: 12px; line-height: 1.6; font-weight: 400; }
 .push-settings-details > span { flex: 1; min-width: 0; }
-.push-settings-details button { border: 1px solid var(--control-border); background: var(--control-bg); color: var(--text-secondary); font-size: 20px; cursor: pointer; border-radius: var(--r-chip); min-height: 44px; padding: 8px; min-width: 44px; }
+.push-settings-details button { border: 0; background: transparent; color: var(--text-secondary); font-size: 20px; cursor: pointer; }

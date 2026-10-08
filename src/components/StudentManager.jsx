@@ -688,9 +688,8 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                                     <button
                                                         type="button"
                                                         title="성장 그래프 보기"
-                                                        className="icon-action"
                                                         onClick={() => onNavigate('ranking', 'graph', student['이름'])}
-                                                        style={{ marginLeft: '4px', fontSize: '0.85rem', verticalAlign: 'middle' }}
+                                                        style={{ marginLeft: '4px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', padding: 0, verticalAlign: 'middle' }}
                                                     >📈</button>
                                                 )}
                                             </td>

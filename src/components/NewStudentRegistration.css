@@ -443,11 +443,11 @@
 }
 
 .reg-inquiry-cal-nav {
-    background: var(--control-bg);
-    border: 1px solid var(--control-border);
-    border-radius: var(--r-chip);
-    width: 44px;
-    height: 44px;
+    background: none;
+    border: 1.5px solid var(--hairline);
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
     font-size: 0.9rem;
     font-weight: 700;
     color: var(--text);
@@ -455,9 +455,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 44px;
-    padding: 8px;
-    min-width: 44px;
 }
 
 .reg-inquiry-cal-nav:disabled {

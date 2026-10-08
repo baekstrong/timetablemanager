@@ -53,7 +53,7 @@ export default function SmsStatusChips({ reg, onResend, resendDisabledReason }) 
                                 disabled={Boolean(disabledReason)}
                                 title={disabledReason || '재발송'}
                                 style={{
-                                    fontSize: '0.7rem', minHeight: '44px', padding: '8px 10px', cursor: disabledReason ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.7rem', padding: '2px 8px', cursor: disabledReason ? 'not-allowed' : 'pointer',
                                     borderRadius: 'var(--r-chip)', border: '1px solid var(--accent-30)',
                                     background: disabledReason ? 'var(--canvas-tint)' : 'var(--accent-10)',
                                     color: disabledReason ? 'var(--text-muted)' : 'var(--accent-hover)',

@@ -560,7 +560,6 @@ const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                             {/* 대기 신청 안내: 마감 셀이 하나라도 있으면 표시 */}
                             {!isWaitlistMode && weeklyFrequency && fullSlotCount > 0 && (
                                 <button
-                                    className="secondary-action"
                                     type="button"
                                     onClick={() => {
                                         setIsWaitlistMode(true);
@@ -568,7 +567,13 @@ const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                     }}
                                     style={{
                                         marginTop: '1rem',
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#d97706',
                                         fontSize: '0.8rem',
+                                        cursor: 'pointer',
+                                        textDecoration: 'underline',
+                                        padding: '4px 0',
                                         width: '100%',
                                         textAlign: 'center'
                                     }}

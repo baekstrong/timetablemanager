@@ -11,8 +11,6 @@
   /* 텍스트 — 반투명 검정 (#000 금지) */
   --text: rgba(0,0,0,0.85);  --text-secondary: rgba(0,0,0,0.6);  --text-muted: #A7A7AA;
   --cta-dark: #242428;
-  --control-border: #CBCED4;
-  --control-bg: #F7F7F8;
 
   /* 상태색 — "상태"에만 */
   --success: #31A552;  --caution: #EDBC40;  --error: #E94E58;  --info: #5E56F0;
@@ -57,35 +55,6 @@ body {
   background: var(--canvas-tint);
   color: var(--text);
   letter-spacing: -0.1px;
-}
-
-/* 보조 동작에도 항상 보이는 경계와 터치 영역을 제공한다. */
-button { font-family: inherit; touch-action: manipulation; }
-button:focus-visible, [role="button"]:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
-.secondary-action, .icon-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 10px 12px;
-  border: 1px solid var(--control-border);
-  border-radius: var(--r-chip);
-  background: var(--control-bg);
-  color: var(--text-secondary);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.icon-action { min-width: 44px; padding: 8px; }
-.secondary-action:hover:not(:disabled), .icon-action:hover:not(:disabled) { border-color: var(--accent-hover); background: var(--accent-10); }
-.secondary-action:disabled, .icon-action:disabled { opacity: .45; cursor: not-allowed; }
-:is(.today-link, .student-class-link, .analytics-back, .contract-back-btn,
-    .recruitment-text-button, .monthly-pr-link, .post-action-btn,
-    .comment-delete-btn, .comment-like-btn, .comment-reply-btn,
-    .comment-reply-cancel-btn, .student-growth-summary):hover:not(:disabled) {
-  border-color: var(--accent-hover);
-  background: var(--accent-10);
 }
 
 code {
