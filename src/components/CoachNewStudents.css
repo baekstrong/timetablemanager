@@ -39,12 +39,15 @@
 }
 
 .cns-back-btn {
-    background: none;
-    border: none;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
     cursor: pointer;
-    padding: 0.25rem;
+    padding: 8px;
     display: flex;
     align-items: center;
+    border-radius: var(--r-chip);
+    min-height: 44px;
+    min-width: 44px;
 }
 
 .cns-back-btn svg {
@@ -63,25 +66,31 @@
 /* Sub Tabs */
 .cns-tabs {
     display: flex;
-    gap: 0;
+    gap: 6px;
 }
 
 .cns-tab {
     flex: 1;
-    padding: 0.65rem 0;
-    background: none;
-    border: none;
-    border-bottom: 2.5px solid transparent;
+    padding: 10px 8px;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
+    border-bottom: 1px solid var(--control-border);
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.2s;
+    border-radius: var(--r-chip);
+    min-height: 44px;
+    word-break: keep-all;
 }
 
 .cns-tab.active {
     color: var(--accent);
     border-bottom-color: var(--accent);
+    border-color: var(--accent-hover);
+    background: var(--accent-10);
+    font-weight: 700;
 }
 
 /* Section */
@@ -125,13 +134,14 @@
     flex: 1;
     padding: 0.5rem;
     background: var(--canvas-tint);
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
     font-size: 0.8rem;
     font-weight: 600;
     color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.2s;
+    min-height: 44px;
 }
 
 .cns-filter-btn.active {
@@ -320,6 +330,7 @@
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s;
+    min-height: 44px;
 }
 
 .cns-action-btn:disabled {
@@ -451,19 +462,20 @@
 }
 
 .cns-entrance-student-remove {
-    background: none;
-    border: none;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
     cursor: pointer;
     font-size: 0.85rem;
     line-height: 1;
-    color: inherit;
-    opacity: 0.5;
-    padding: 0 0 0 0.15rem;
-    min-width: 18px;
-    min-height: 18px;
+    color: var(--error);
+    opacity: 1;
+    padding: 8px;
+    min-width: 44px;
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    border-radius: var(--r-chip);
 }
 
 .cns-entrance-student-remove:hover {
@@ -477,12 +489,14 @@
 }
 
 .cns-icon-btn {
-    background: none;
-    border: none;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
     cursor: pointer;
-    padding: 0.4rem;
+    padding: 8px;
     font-size: 1rem;
-    border-radius: 6px;
+    border-radius: var(--r-chip);
+    min-height: 44px;
+    min-width: 44px;
 }
 
 .cns-icon-btn.add {

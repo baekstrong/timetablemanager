@@ -34,7 +34,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
 }
 
 .register-btn {
@@ -49,12 +49,13 @@
     transition: all 0.3s ease;
     white-space: nowrap;
     flex-shrink: 0;
+    min-height: 44px;
 }
 
 .view-switch-btn {
     padding: 0.5rem 0.75rem;
     background: white;
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
     color: var(--accent);
     font-size: 0.8rem;
@@ -63,6 +64,7 @@
     transition: all 0.3s ease;
     white-space: nowrap;
     flex-shrink: 0;
+    min-height: 44px;
 }
 
 .view-switch-btn:hover {
@@ -71,7 +73,7 @@
 }
 
 .analytics-entry-btn {
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     background: var(--canvas);
     color: var(--text);
     border-radius: var(--r-chip);
@@ -80,6 +82,7 @@
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s;
+    min-height: 44px;
 }
 .analytics-entry-btn:hover {
     border-color: var(--accent);
@@ -92,13 +95,14 @@
     gap: 0.5rem;
     padding: 0.75rem 1.25rem;
     background: white;
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     border-radius: 12px;
     color: var(--text);
     font-size: 0.95rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.3s ease;
+    min-height: 44px;
 }
 
 .back-button:hover {
@@ -341,11 +345,12 @@
     flex-wrap: wrap;
 }
 
-/* 작업 버튼 일괄 축소 + 크기 통일(개별 클래스는 색만 담당) */
+/* 관리 표 안에서도 버튼의 터치 영역을 유지한다. */
 .action-buttons button {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.72rem;
-    border-radius: 6px;
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 0.8rem;
+    border-radius: var(--r-chip);
     white-space: nowrap;
 }
 
@@ -359,6 +364,7 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
+    min-height: 44px;
 }
 
 .edit-btn {
@@ -398,6 +404,7 @@
     transition: all 0.2s ease;
     background: var(--accent);
     color: white;
+    min-height: 44px;
 }
 
 .holding-btn:hover {
@@ -414,6 +421,7 @@
     transition: all 0.2s ease;
     background: var(--caution);
     color: white;
+    min-height: 44px;
 }
 
 .absence-btn:hover {
@@ -423,6 +431,7 @@
 .contract-btn {
     background: var(--accent);
     color: white;
+    min-height: 44px;
 }
 
 .contract-btn:hover {
@@ -432,6 +441,7 @@
 .end-class-btn {
     background: #6b7280;
     color: white;
+    min-height: 44px;
 }
 
 .end-class-btn:hover {
@@ -448,6 +458,7 @@
     transition: all 0.2s ease;
     background: var(--cta-dark);
     color: white;
+    min-height: 44px;
 }
 
 .reset-pw-btn:hover {
@@ -469,6 +480,7 @@
     transition: all 0.2s ease;
     background: #0d9488;
     color: white;
+    min-height: 44px;
 }
 
 .pause-btn:hover {
@@ -485,6 +497,7 @@
     transition: all 0.2s ease;
     background: var(--accent);
     color: white;
+    min-height: 44px;
 }
 
 .resume-btn:hover {
@@ -579,13 +592,16 @@
 }
 
 .absence-remove-btn {
-    background: none;
-    border: none;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
     color: #dc2626;
     font-weight: 700;
     cursor: pointer;
     font-size: 0.85rem;
-    padding: 0 0.25rem;
+    padding: 8px;
+    border-radius: var(--r-chip);
+    min-height: 44px;
+    min-width: 44px;
 }
 
 .absence-info-box {
@@ -670,3 +686,7 @@
         overflow-x: scroll;
     }
 }
+
+/* Larger action targets stay inside the horizontally scrollable table. */
+.student-table th:last-child, .student-table td:last-child { min-width:220px; }
+@media (max-width:768px) { .student-content { padding:16px; } }

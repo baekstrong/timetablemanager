@@ -46,16 +46,17 @@
 }
 
 .resume-modal-close {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     padding: 0;
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     border-radius: var(--r-chip);
     background: var(--canvas-tint);
     color: var(--text-secondary);
     font-size: 1.5rem;
     line-height: 1;
     cursor: pointer;
+    min-height: 44px;
 }
 
 .resume-modal-state,
@@ -351,9 +352,10 @@
 }
 
 .resume-cancel-button {
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     background: var(--canvas);
     color: var(--text-secondary);
+    min-height: 44px;
 }
 
 .resume-submit-button {
@@ -408,7 +410,9 @@
 .adjustment-table caption { text-align: left; margin-bottom: 8px; }
 .adjustment-table th, .adjustment-table td { text-align: left; padding: 10px 6px; border-bottom: 1px solid var(--hairline); }
 .adjustment-table tbody th { font-weight: 400; }
-.adjustment-dialog button { padding: 10px 16px; border: 1px solid var(--hairline); border-radius: var(--r-chip); cursor: pointer; }
+.adjustment-dialog button { padding: 10px 16px; border: 1px solid var(--control-border); border-radius: var(--r-chip); cursor: pointer;
+    min-height: 44px;
+}
 .adjustment-dialog button[type="submit"] { color: white; background: var(--accent); }
 .adjustment-dialog button:disabled { opacity: 0.5; cursor: default; }
 .adjustment-dialog { margin: auto; width: min(620px, calc(100% - 32px)); }

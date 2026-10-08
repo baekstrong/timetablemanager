@@ -43,13 +43,16 @@
 }
 
 .pr-modal-close {
-    background: none;
-    border: none;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
     font-size: 1.5rem;
     color: var(--text-secondary);
     cursor: pointer;
-    padding: 0.25rem 0.5rem;
+    padding: 8px;
     line-height: 1;
+    border-radius: var(--r-chip);
+    min-height: 44px;
+    min-width: 44px;
 }
 
 .pr-modal-close:hover {

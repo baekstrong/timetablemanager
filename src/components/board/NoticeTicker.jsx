@@ -59,6 +59,7 @@ export default function NoticeTicker({ user, onOpen, services = DEFAULT_SERVICES
             <span className="student-notice-label">공지</span>
             <span className="student-notice-title">{notice.title}</span>
             {unread && <span className="student-notice-new" aria-hidden="true">N</span>}
+            <span className="student-notice-chevron" aria-hidden="true">›</span>
         </button>
         {notices.length > 1 && <>
             <button type="button" className="student-notice-next" aria-label={`다음 공지, 현재 ${index % notices.length + 1}/${notices.length}`} onClick={() => setIndex(value => (value + 1) % notices.length)}><span>{index % notices.length + 1}/{notices.length}</span><span aria-hidden="true">›</span></button>

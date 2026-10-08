@@ -22,6 +22,7 @@
     white-space: nowrap;
     color: var(--text-secondary);
     transition: all 0.2s var(--ease);
+    min-height: 44px;
 }
 
 .board-tab.active {
@@ -185,8 +186,8 @@
 }
 
 .post-action-btn {
-    background: none;
-    border: none;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
     cursor: pointer;
     font-size: 0.9rem;
     display: flex;
@@ -194,6 +195,9 @@
     gap: 4px;
     color: var(--text-secondary);
     transition: color 0.2s var(--ease);
+    border-radius: var(--r-chip);
+    min-height: 44px;
+    padding: 8px 12px;
 }
 
 .post-action-btn.liked {
@@ -228,6 +232,7 @@
     align-items: center;
     gap: 8px;
     margin-left: auto;
+    flex-wrap: wrap;
 }
 
 .comment-author {
@@ -254,12 +259,14 @@
 }
 
 .comment-delete-btn {
-    background: none;
-    border: none;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
     color: #dc2626;
     font-size: 0.75rem;
     cursor: pointer;
-    padding: 0;
+    padding: 8px 12px;
+    border-radius: var(--r-chip);
+    min-height: 44px;
 }
 
 .comment-like-row {
@@ -271,12 +278,14 @@
 }
 
 .comment-like-btn {
-    background: none;
-    border: none;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
     cursor: pointer;
     font-size: 0.8rem;
-    color: var(--text-muted);
-    padding: 0;
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    border-radius: var(--r-chip);
+    min-height: 44px;
 }
 
 .comment-like-btn.liked {
@@ -290,12 +299,14 @@
 }
 
 .comment-reply-btn {
-    background: none;
-    border: none;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
     color: var(--text-secondary);
     font-size: 0.75rem;
     cursor: pointer;
-    padding: 0;
+    padding: 8px 12px;
+    border-radius: var(--r-chip);
+    min-height: 44px;
 }
 
 .comment-reply-btn:hover {
@@ -323,12 +334,14 @@
 }
 
 .comment-reply-cancel-btn {
-    background: none;
-    border: none;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
     color: var(--text-secondary);
     font-size: 0.8rem;
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 8px 12px;
+    border-radius: var(--r-chip);
+    min-height: 44px;
 }
 
 .comment-input-area {
@@ -366,6 +379,7 @@
     cursor: pointer;
     white-space: nowrap;
     transition: background 0.2s var(--ease);
+    min-height: 44px;
 }
 
 .comment-submit-btn:hover {
@@ -386,7 +400,7 @@
     min-width: 72px;
     height: 32px;
     padding: 0 10px;
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
     background: var(--canvas);
     color: var(--text);
@@ -395,6 +409,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    min-height: 44px;
 }
 
 .board-page-current {
@@ -472,11 +487,12 @@
     padding: 8px 12px;
     background: var(--canvas-tint);
     color: var(--text-secondary);
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
     font-size: 0.85rem;
     cursor: pointer;
     white-space: nowrap;
+    min-height: 44px;
 }
 
 /* ===== Write Button (Fixed) ===== */
@@ -497,6 +513,7 @@
     font-weight: 600;
     cursor: pointer;
     transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+    min-height: 44px;
 }
 
 .write-btn-fixed button:hover {
@@ -621,12 +638,13 @@
     gap: 4px;
     padding: 8px 14px;
     background: var(--canvas-tint);
-    border: 1px dashed var(--hairline);
+    border: 1px dashed var(--control-border);
     border-radius: var(--r-chip);
     font-size: 0.85rem;
     color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.2s var(--ease);
+    min-height: 44px;
 }
 
 .post-form-image-btn:hover:not(:disabled) {
@@ -718,14 +736,15 @@
 }
 
 .comment-image-btn {
-    background: none;
-    border: 1px dashed var(--hairline);
-    border-radius: 8px;
-    padding: 4px 10px;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
+    border-radius: var(--r-chip);
+    padding: 8px 12px;
     font-size: 0.8rem;
     color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.2s var(--ease);
+    min-height: 44px;
 }
 
 .comment-image-btn:hover {
@@ -794,6 +813,7 @@
     font-weight: 600;
     cursor: pointer;
     transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+    min-height: 44px;
 }
 
 .back-btn-fixed button:hover {
@@ -818,11 +838,12 @@
     margin-top: 8px;
     padding: 6px 16px;
     background: var(--canvas-tint);
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
     cursor: pointer;
     font-size: 0.9rem;
     transition: background 0.2s var(--ease);
+    min-height: 44px;
 }
 
 .board-retry-btn:hover {

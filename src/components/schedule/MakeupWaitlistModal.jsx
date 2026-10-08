@@ -35,8 +35,9 @@ export default function MakeupWaitlistResponseModal({ entry, isSubmitting, onAcc
                     </button>
                 </div>
                 <button
+                    className="secondary-action"
                     onClick={onClose}
-                    style={{ width: '100%', marginTop: '8px', padding: '8px', border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.85rem' }}
+                    style={{ width: '100%', marginTop: '8px', fontSize: '0.85rem' }}
                 >
                     나중에 결정하기
                 </button>

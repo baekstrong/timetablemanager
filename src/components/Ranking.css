@@ -16,11 +16,12 @@
 .ranking-back-btn {
     padding: 0.5rem 0.75rem;
     background: white;
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
     font-size: 0.9rem;
     cursor: pointer;
     color: var(--text);
+    min-height: 44px;
 }
 
 .ranking-back-btn:hover { background: var(--canvas-tint); }
@@ -47,14 +48,15 @@
     min-width: 0;
     word-break: keep-all;
     padding: 0.6rem;
-    border: none;
-    background: transparent;
-    border-radius: 7px;
+    border: 1px solid var(--control-border);
+    background: var(--control-bg);
+    border-radius: var(--r-chip);
     font-size: 0.95rem;
     font-weight: 600;
     color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.15s;
+    min-height: 44px;
 }
 
 .ranking-tab:hover { color: var(--text); }
@@ -73,7 +75,7 @@
 
 .ranking-subtab {
     padding: 0.5rem 0.85rem;
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     background: white;
     border-radius: 18px;
     font-size: 0.85rem;
@@ -82,6 +84,7 @@
     cursor: pointer;
     white-space: normal;
     word-break: keep-all;
+    min-height: 44px;
 }
 
 .ranking-subtab.active {
@@ -98,12 +101,13 @@
 
 .ranking-gender-filter button {
     padding: 0.4rem 0.75rem;
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     background: white;
     border-radius: 6px;
     font-size: 0.85rem;
     color: var(--text-secondary);
     cursor: pointer;
+    min-height: 44px;
 }
 
 .ranking-gender-filter button.active {
@@ -310,12 +314,13 @@
 
 .mypr-history-btn {
     padding: 0.25rem 0.6rem;
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     background: white;
     border-radius: 5px;
     font-size: 0.75rem;
     color: var(--text-secondary);
     cursor: pointer;
+    min-height: 44px;
 }
 
 .mypr-history-btn:hover { background: var(--canvas-tint); }
@@ -405,13 +410,14 @@
 
 .graph-picker-btn {
     padding: 0 0.7rem;
-    border: 1px solid var(--hairline);
+    border: 1px solid var(--control-border);
     background: white;
     border-radius: 6px;
     font-size: 0.8rem;
     color: var(--text);
     cursor: pointer;
     white-space: nowrap;
+    min-height: 44px;
 }
 
 .graph-picker-btn:disabled { opacity: 0.5; cursor: not-allowed; }
