@@ -1073,6 +1073,7 @@ function CurrentWeekStudentSchedule({
         <>
             {modernStudent && <StudentClassView
                 readOnly={readOnly}
+                studentName={user?.username}
                 days={days} sessions={personalSessions} now={now} tab={studentTab} onTabChange={changeStudentTab}
                 loading={personalLoading} error={personalError} onRetry={retryStudentData}
                 membership={membership} source={changingMakeup?.originalClass || selectedOriginalClass} quotaUsed={myWeekCommitments} quotaLimit={makeupWeeklyLimit}

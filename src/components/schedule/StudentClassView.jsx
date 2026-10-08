@@ -3,6 +3,7 @@ import { classLabel, classTime, classStartMs, CLASS_LABELS, classStatusLabel, ne
 import { getNotificationDeadline } from '../../utils/makeupWaitlist';
 import { ScheduleStatusBadge } from './ScheduleCell';
 import ReviewModal from '../../features/today/ReviewModal';
+import { courseNoticeSession } from '../../utils/courseNoticeSession';
 import './StudentClassView.css';
 
 const STATUS_TAGS = { makeup: 'makeup', moved: 'makeupMoved', absence: 'absent', holding: 'holding' };
@@ -13,7 +14,7 @@ function ClassStatusChip({ session, now, detail = false }) {
 
 export default function StudentClassView({
     days, sessions = [], now, tab, onTabChange, readOnly = false,
-    loading = false, error = '', onRetry, membership, source, quotaUsed, quotaLimit,
+    loading = false, error = '', onRetry, studentName, membership, source, quotaUsed, quotaLimit,
     waits = [], onWaitlist, onSourceChoose, onMakeup, onCancelMakeup, onNavigate, children,
 }) {
     const [selection, setSelection] = useState(null);
@@ -27,8 +28,12 @@ export default function StudentClassView({
     const shortDate = date => date ? `${Number(date.slice(5, 7))}/${Number(date.slice(8))}` : '—';
     const endDate = membership?.endDate;
     const courseNoticeKey = endDate && endDate <= today ? `${endDate}/${today}` : '';
-    const showCourseNotice = !loading && !error && courseNoticeKey && dismissedCourseNotice !== courseNoticeKey;
-    const closeCourseNotice = () => setDismissedCourseNotice(courseNoticeKey);
+    const showCourseNotice = !loading && !error && courseNoticeKey && studentName
+        && dismissedCourseNotice !== studentName && !courseNoticeSession.isDismissed(studentName);
+    const closeCourseNotice = () => {
+        courseNoticeSession.dismiss(studentName);
+        setDismissedCourseNotice(studentName);
+    };
 
     return <div className="student-classes">
         {showCourseNotice && <ReviewModal title={endDate < today ? '수강 기간이 만료되었습니다' : '오늘은 마지막 수업일입니다'} onClose={closeCourseNotice}>

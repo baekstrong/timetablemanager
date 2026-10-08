@@ -36,6 +36,7 @@ import { useScheduleCore } from './useScheduleCore';
 import StudentSchedule from './StudentSchedule';
 import StudentClassView from './StudentClassView';
 import ReviewModal from '../../features/today/ReviewModal';
+import { courseNoticeSession } from '../../utils/courseNoticeSession';
 import WeeklySchedule from '../WeeklySchedule';
 
 const student = { 이름: '검토 수강생', 시작날짜: '260901', 종료날짜: '260930', '요일 및 시간': '화5목5', 주횟수: '2', '홀딩 사용여부': 'X' };
@@ -73,6 +74,7 @@ const renderCourseNotice = overrides => {
 };
 
 beforeEach(() => {
+    courseNoticeSession.start();
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-16T09:00:00'));
     vi.stubGlobal('React', React);
@@ -126,7 +128,7 @@ describe('수강생 첫 화면의 종료 안내', () => {
         expect(renderCourseNotice({ studentData: data, now: new Date('2026-11-05T12:00:00') })).toContain('오늘은 마지막 수업일입니다');
     });
 
-    it('확인한 화면에서는 탭/시각 갱신에 다시 뜨지 않고 첫 화면 재진입 시 다시 뜬다', () => {
+    it('확인 후에는 첫 화면 재진입에도 숨기고 앱을 다시 실행하면 다시 표시한다', () => {
         const { nodes } = renderStudent({ studentData: lastDayStudent, now: new Date('2026-10-08T12:00:00') });
         const props = nodes.find(node => node.type === StudentClassView).props;
         harness.states = [];
@@ -139,10 +141,13 @@ describe('수강생 첫 화면의 종료 안내', () => {
         confirm.props.onClick();
         expect(render({ tab: 'mine', now: new Date('2026-10-08T12:01:00') }).some(node => node.type === ReviewModal)).toBe(false);
         harness.states = [];
+        expect(render().some(node => node.type === ReviewModal)).toBe(false);
+        expect(render({ now: new Date('2026-10-09T00:00:00') }).some(node => node.type === ReviewModal)).toBe(false);
+        expect(render({ studentName: '다른 수강생' }).some(node => node.type === ReviewModal)).toBe(true);
+        courseNoticeSession.start();
         expect(render().some(node => node.type === ReviewModal)).toBe(true);
         render().find(node => node.type === ReviewModal).props.onClose();
         expect(render().some(node => node.type === ReviewModal)).toBe(false);
-        expect(render({ now: new Date('2026-10-09T00:00:00') }).find(node => node.type === ReviewModal).props.title).toBe('수강 기간이 만료되었습니다');
     });
 
     it('마지막 수업을 보강으로 옮기면 반영된 종료일에 맞춰 안내한다', () => {
