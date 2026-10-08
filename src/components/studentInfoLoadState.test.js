@@ -55,8 +55,11 @@ describe('본인 등록 조회 — 시트를 한 번만 읽는가', () => {
         uses.forEach((u) => expect(u).toContain('STUDENT_LOOKUP'));
     });
 
-    it('대시보드의 본인 종료일 조회도 같은 규약', () => {
+    it('게시판은 첫 화면에서 이미 읽은 본인 종료일을 중복 조회하지 않는다', () => {
         const dash = read('./Dashboard.jsx');
-        expect(dash).toMatch(/findStudentAcrossSheets\(user\.username,\s*\{\s*requireActive:\s*true\s*\}\)/);
+        expect(dash).not.toContain('findStudentAcrossSheets');
+        expect(dash).not.toContain('getMakeupRequestsByWeek');
+        expect(dash).not.toContain('오늘은 마지막 수업일입니다');
+        expect(dash).not.toContain('수강 기간이 만료되었습니다');
     });
 });

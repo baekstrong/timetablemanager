@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { classLabel, classTime, classStartMs, CLASS_LABELS, classStatusLabel, nextStudentClass, sourceUnavailableReason } from './studentClassModel';
 import { getNotificationDeadline } from '../../utils/makeupWaitlist';
 import { ScheduleStatusBadge } from './ScheduleCell';
+import ReviewModal from '../../features/today/ReviewModal';
 import './StudentClassView.css';
 
 const STATUS_TAGS = { makeup: 'makeup', moved: 'makeupMoved', absence: 'absent', holding: 'holding' };
@@ -16,6 +17,7 @@ export default function StudentClassView({
     waits = [], onWaitlist, onSourceChoose, onMakeup, onCancelMakeup, onNavigate, children,
 }) {
     const [selection, setSelection] = useState(null);
+    const [dismissedCourseNotice, setDismissedCourseNotice] = useState('');
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const next = nextStudentClass(sessions, now);
     const selectedDate = days.some(day => day.date === selection) ? selection : null;
@@ -23,8 +25,16 @@ export default function StudentClassView({
     const offers = waits.filter(item => item.status === 'notified');
     const waiting = waits.filter(item => item.status === 'waiting');
     const shortDate = date => date ? `${Number(date.slice(5, 7))}/${Number(date.slice(8))}` : '—';
+    const endDate = membership?.endDate;
+    const courseNoticeKey = endDate && endDate <= today ? `${endDate}/${today}` : '';
+    const showCourseNotice = !loading && !error && courseNoticeKey && dismissedCourseNotice !== courseNoticeKey;
+    const closeCourseNotice = () => setDismissedCourseNotice(courseNoticeKey);
 
     return <div className="student-classes">
+        {showCourseNotice && <ReviewModal title={endDate < today ? '수강 기간이 만료되었습니다' : '오늘은 마지막 수업일입니다'} onClose={closeCourseNotice}>
+            <p>재등록을 원하시면 코치에게 문의해주세요.</p>
+            <div className="today-actions student-course-notice-actions"><button type="button" className="student-class-button primary" onClick={closeCourseNotice}>확인</button></div>
+        </ReviewModal>}
         {offers.map(entry => {
             const deadline = getNotificationDeadline(entry);
             return <button type="button" className="student-class-offer" key={entry.id} disabled={readOnly} onClick={() => onWaitlist(entry)}>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getMakeupRequestsByWeek, getHolidays, getTierMap, backfillTiersForMonth, getGradeMap, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../services/firebaseService';
-import { parseSheetDate, findStudentAcrossSheets, processScheduleTransfer } from '../services/googleSheetsService';
+import { createPost, getPostsPage, updatePost, getActiveWaitlistRequests, cancelWaitlistRequest, acceptWaitlistRequest, getPendingContractForStudent, getHolidays, getTierMap, backfillTiersForMonth, getGradeMap, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../services/firebaseService';
+import { processScheduleTransfer } from '../services/googleSheetsService';
 import { pushNotice } from '../services/pushService';
 import { resolveInstallState } from '../utils/installState';
 import { shouldShowInCoachStudentList } from '../utils/studentList';
@@ -148,63 +148,6 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
             }
         };
         loadStudentData();
-    }, [user]);
-
-    // 수강생 모드: 본인의 종료날짜 확인
-    const [isMyLastDay, setIsMyLastDay] = useState(false);
-    const [isCourseExpired, setIsCourseExpired] = useState(false);
-
-    useEffect(() => {
-        const checkMyLastDay = async () => {
-            if (user.role === 'coach') return;
-            try {
-                // 오래된 결제월에 남은 재개 등록도 포함해 본인 종료일을 확인한다.
-                const result = await findStudentAcrossSheets(user.username, { requireActive: true });
-                if (result && result.student) {
-                    const endDateStr = result.student['종료날짜'];
-                    if (endDateStr) {
-                        const endDate = parseSheetDate(endDateStr);
-                        if (endDate) {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            endDate.setHours(0, 0, 0, 0);
-
-                            // 보강으로 인한 effective end date 계산
-                            let effectiveEnd = new Date(endDate);
-                            try {
-                                const endDateISO = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
-                                // 종료일 전후 1주일 범위의 보강 조회
-                                const weekBefore = new Date(endDate);
-                                weekBefore.setDate(weekBefore.getDate() - 7);
-                                const weekAfter = new Date(endDate);
-                                weekAfter.setDate(weekAfter.getDate() + 14);
-                                const wbStr = `${weekBefore.getFullYear()}-${String(weekBefore.getMonth() + 1).padStart(2, '0')}-${String(weekBefore.getDate()).padStart(2, '0')}`;
-                                const waStr = `${weekAfter.getFullYear()}-${String(weekAfter.getMonth() + 1).padStart(2, '0')}-${String(weekAfter.getDate()).padStart(2, '0')}`;
-                                const makeups = await getMakeupRequestsByWeek(wbStr, waStr);
-                                const myMakeups = makeups.filter(m =>
-                                    m.studentName === user.username &&
-                                    (m.status === 'active' || m.status === 'completed') &&
-                                    m.makeupClass.date > endDateISO
-                                );
-                                for (const m of myMakeups) {
-                                    const makeupDate = new Date(m.makeupClass.date + 'T00:00:00');
-                                    if (makeupDate > effectiveEnd) effectiveEnd = makeupDate;
-                                }
-                            } catch (makeupErr) {
-                                console.warn('보강 데이터 조회 실패:', makeupErr);
-                            }
-                            effectiveEnd.setHours(0, 0, 0, 0);
-
-                            setIsMyLastDay(effectiveEnd.getTime() === today.getTime());
-                            setIsCourseExpired(today.getTime() > effectiveEnd.getTime());
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error('Failed to check last day:', err);
-            }
-        };
-        checkMyLastDay();
     }, [user]);
 
     const loadPosts = useCallback(async (targetPage = boardPage, { reset = false } = {}) => {
@@ -429,39 +372,6 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
                                 {INSTALL_ROW[installState].action}
                             </button>
                         )}
-                    </div>
-                )}
-
-                {/* 수강생 모드: 오늘이 종료일이면 메시지 표시 */}
-                {user.role !== 'coach' && isMyLastDay && (
-                    <div style={{
-                        background: '#EDBC401A',
-                        border: '1px solid #EDBC40',
-                        borderRadius: '8px',
-                        padding: '0.75rem 1rem',
-                        marginBottom: '1rem',
-                        textAlign: 'center',
-                        fontWeight: '600',
-                        color: '#92400e',
-                        fontSize: '0.95rem'
-                    }}>
-                        오늘은 마지막 수업일입니다
-                    </div>
-                )}
-
-                {user.role !== 'coach' && isCourseExpired && (
-                    <div style={{
-                        background: '#E94E581A',
-                        border: '1px solid #E94E58',
-                        borderRadius: '8px',
-                        padding: '0.75rem 1rem',
-                        marginBottom: '1rem',
-                        textAlign: 'center',
-                        fontWeight: '600',
-                        color: '#991b1b',
-                        fontSize: '0.95rem'
-                    }}>
-                        수강 기간이 만료되었습니다. 재등록을 원하시면 코치에게 문의해주세요.
                     </div>
                 )}
 
