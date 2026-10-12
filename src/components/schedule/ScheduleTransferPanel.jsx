@@ -49,12 +49,13 @@ export default function ScheduleTransferPanel({ entries = [], coach = false, emb
             const slot = scheduleData?.regularEnrollments.find(item => item.day === entry.desiredSlot.day && Number(item.period) === Number(entry.desiredSlot.period));
             const hasSpace = ready && Boolean(scheduleData) && (slot?.names.length || 0) < MAX_CAPACITY;
             const disabled = Boolean(busyId) || !ready;
-            return <div className={embedded ? 'transfer-row today-task-row' : 'transfer-row'} key={entry.id}>
-                <div className="transfer-detail">{coach && <strong>{entry.studentName}</strong>}<p>{entry.currentSlot.day}{entry.currentSlot.period}교시 → {entry.desiredSlot.day}{entry.desiredSlot.period}교시</p>
-                    <span className={`transfer-status${entry.status === 'notified' ? ' is-approved' : ''}`}>{entry.status === 'waiting' ? '대기 중' : coach ? '수강생 승인 대기' : '코치 승인 완료'}</span>
+            const statusLabel = entry.status === 'waiting' ? '대기 중' : coach ? '수강생 승인 대기' : '코치 승인 완료';
+            return <div className={embedded ? 'today-task-row' : 'transfer-row'} key={entry.id}>
+                {embedded ? <div><p className="today-task-title">{entry.studentName}</p><p className="today-muted">{entry.currentSlot.day}{entry.currentSlot.period}교시 → {entry.desiredSlot.day}{entry.desiredSlot.period}교시 · {statusLabel}</p></div> : <div className="transfer-detail">{coach && <strong>{entry.studentName}</strong>}<p>{entry.currentSlot.day}{entry.currentSlot.period}교시 → {entry.desiredSlot.day}{entry.desiredSlot.period}교시</p>
+                    <span className={`transfer-status${entry.status === 'notified' ? ' is-approved' : ''}`}>{statusLabel}</span>
                     {!coach && <p className="today-muted">{entry.status === 'waiting' ? '코치 승인 후 여기에서 시간표 변경을 승인할 수 있어요.' : '승인하면 고정 시간표가 변경돼요.'}</p>}
-                </div>
-                <div className="today-actions transfer-actions">{coach ? entry.status === 'waiting'
+                </div>}
+                <div className={embedded ? 'today-task-actions' : 'today-actions transfer-actions'}>{coach ? entry.status === 'waiting'
                     ? <ActionButton pending disabled={disabled || !hasSpace} onClick={() => act(entry, 'approve')}>{!ready ? '확인 중' : hasSpace ? '승인' : '만석'}</ActionButton>
                     : <ActionButton disabled={disabled} onClick={() => act(entry, 'revert')}>승인 취소</ActionButton>
                     : <><ActionButton disabled={disabled} onClick={() => act(entry, 'cancel')}>{entry.status === 'notified' ? '거절' : '대기 취소'}</ActionButton>{entry.status === 'notified' && <ActionButton primary disabled={disabled} onClick={() => act(entry, 'accept')}>승인</ActionButton>}</>}
