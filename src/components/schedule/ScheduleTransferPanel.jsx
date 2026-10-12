@@ -6,7 +6,7 @@ import { ActionButton } from '../../features/today/TodayViews';
 import ReviewModal from '../../features/today/ReviewModal';
 import './ScheduleTransferPanel.css';
 
-export default function ScheduleTransferPanel({ entries = [], coach = false, studentName, studentData, scheduleData, ready = false, onUpdate, onRefresh }) {
+export default function ScheduleTransferPanel({ entries = [], coach = false, embedded = false, studentName, studentData, scheduleData, ready = false, onUpdate, onRefresh }) {
     const [busyId, setBusyId] = useState(null);
     const [error, setError] = useState('');
     const lock = useRef(false);
@@ -42,14 +42,14 @@ export default function ScheduleTransferPanel({ entries = [], coach = false, stu
     }
 
     if (!visible.length && !error) return null;
-    return <section className="today-card transfer-panel" aria-label="시간표 변경 대기">
-        <div className="today-section-title"><h2>시간표 변경 대기</h2><span className="today-count">{visible.length}</span></div>
+    return <section className={embedded ? 'today-task-group transfer-panel-embedded' : 'today-card transfer-panel'} aria-label="시간표 변경 대기">
+        {embedded ? <h3>시간표 변경 대기<span>{visible.length}</span></h3> : <div className="today-section-title"><h2>시간표 변경 대기</h2><span className="today-count">{visible.length}</span></div>}
         {error && <p className="today-error" role="alert">{error}</p>}
         {visible.map(entry => {
             const slot = scheduleData?.regularEnrollments.find(item => item.day === entry.desiredSlot.day && Number(item.period) === Number(entry.desiredSlot.period));
             const hasSpace = ready && Boolean(scheduleData) && (slot?.names.length || 0) < MAX_CAPACITY;
             const disabled = Boolean(busyId) || !ready;
-            return <div className="transfer-row" key={entry.id}>
+            return <div className={embedded ? 'transfer-row today-task-row' : 'transfer-row'} key={entry.id}>
                 <div className="transfer-detail">{coach && <strong>{entry.studentName}</strong>}<p>{entry.currentSlot.day}{entry.currentSlot.period}교시 → {entry.desiredSlot.day}{entry.desiredSlot.period}교시</p>
                     <span className={`transfer-status${entry.status === 'notified' ? ' is-approved' : ''}`}>{entry.status === 'waiting' ? '대기 중' : coach ? '수강생 승인 대기' : '코치 승인 완료'}</span>
                     {!coach && <p className="today-muted">{entry.status === 'waiting' ? '코치 승인 후 여기에서 시간표 변경을 승인할 수 있어요.' : '승인하면 고정 시간표가 변경돼요.'}</p>}

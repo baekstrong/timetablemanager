@@ -9,14 +9,14 @@ export function ActionButton({ children, primary = false, pending = false, ...pr
     return <button type="button" className={`today-button${primary ? ' today-button-primary' : ''}${pending ? ' today-button-pending' : ''}`} {...props}>{children}</button>;
 }
 
-export function TaskSection({ groups, onAction, currentPeriod, coach = false }) {
+export function TaskSection({ groups, onAction, currentPeriod, coach = false, extraGroup, extraCount = 0 }) {
     const titleId = useId();
     const visible = visibleTaskGroups(groups);
     // No title, empty card or spacing when there is nothing to act on — both roles.
-    if (!visible.length) return null;
-    const count = visible.reduce((total, group) => total + group.items.length, 0);
+    if (!visible.length && !extraCount) return null;
+    const count = visible.reduce((total, group) => total + group.items.length, extraCount);
     return <section className={`today-card today-tasks${coach ? ' today-tasks-coach' : ''}`} aria-labelledby={titleId}>
-        <div className="today-section-title"><h2 id={titleId}>{coach ? '오늘 할 일' : '확인할 일'}</h2><span className="today-count">{count}</span></div>
+        <div className="today-section-title"><h2 id={titleId}>{coach ? '할 일' : '확인할 일'}</h2><span className="today-count">{count}</span></div>
         <div className="today-task-groups">{visible.map(group => <div key={group.id} className="today-task-group">
             {coach && <h3>{group.title}<span>{group.items.length}</span></h3>}
             {group.items.map(item => <div key={item.id} className={`today-task-row${currentPeriod != null && item.period === currentPeriod ? ' is-current' : ''}`}>
@@ -26,7 +26,7 @@ export function TaskSection({ groups, onAction, currentPeriod, coach = false }) 
                     {coach && item.paymentAction && <ActionButton onClick={() => onAction(item.paymentAction)} aria-label={`${item.name} 결제 확인`}>결제 확인</ActionButton>}
                 </div>
             </div>)}
-        </div>)}</div>
+        </div>)}{extraCount > 0 && extraGroup}</div>
     </section>;
 }
 
@@ -70,7 +70,7 @@ export function StudentToday({ name, taskGroups, lessons, weekLabel, waiting, po
     </main>;
 }
 
-export function CoachToday({ scheduleTransfers, user, hasNewPostNotification = false, onRefresh, refreshedAt, refreshing, refreshMessage, dateLabel, lessons, minutes, taskGroups, notes, notesReady = true, onAction, onSaveNote, onNavigate }) {
+export function CoachToday({ scheduleTransfers, scheduleTransferCount = 0, user, hasNewPostNotification = false, onRefresh, refreshedAt, refreshing, refreshMessage, dateLabel, lessons, minutes, taskGroups, notes, notesReady = true, onAction, onSaveNote, onNavigate }) {
     const [manualId, setManualId] = useState(null);
     const [drafts, setDrafts] = useState({});
     const [editingNotes, setEditingNotes] = useState({});
@@ -98,8 +98,7 @@ export function CoachToday({ scheduleTransfers, user, hasNewPostNotification = f
     const selected = lessons.find(lesson => lesson.id === selectedId);
     return <main className="today-page today-coach">
         <header className="today-header"><div><div className="today-coach-identity"><h1 className="today-coach-title">근력학교 · {user?.username || '코치'}</h1><PushSettings user={user} /></div><span className="today-coach-date">{dateLabel}</span></div><div className="today-actions"><ActionButton onClick={() => onNavigate('dashboard')} aria-label={hasNewPostNotification ? '게시판 · 새 글 있음' : '게시판'}><span className="today-board-label">게시판{hasNewPostNotification && <span className="today-board-dot" aria-hidden="true" />}</span></ActionButton><button className="today-link" onClick={() => onNavigate('logout')}>로그아웃</button></div></header>
-        <TaskSection coach groups={taskGroups} onAction={onAction} currentPeriod={currentId} />
-        {scheduleTransfers}
+        <TaskSection coach groups={taskGroups} onAction={onAction} currentPeriod={currentId} extraGroup={scheduleTransfers} extraCount={scheduleTransferCount} />
         <div className="today-coach-columns">
             <section className="today-card today-daily"><div className="today-section-title"><h2>오늘 수업</h2><span className="today-muted">{lessons.length}개 수업</span>{onRefresh && <RefreshStatus refreshedAt={refreshedAt} refreshing={refreshing} message={refreshMessage} onRefresh={onRefresh} />}</div>
                 {lessons.length === 0 && <p className="today-empty">오늘 예정된 수업이 없습니다.</p>}

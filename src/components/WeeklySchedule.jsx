@@ -459,7 +459,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
         if (!homeLoaded.current && (weeklyDataError || sheetsError)) return <div className="today-page"><p role="alert">{weeklyDataError || sheetsError}</p><button onClick={handleManualRefresh}>다시 불러오기</button></div>;
         return <>
             {(weeklyDataError || sheetsError) && <p className="today-error" role="alert">{weeklyDataError || sheetsError} <button onClick={handleManualRefresh}>다시 불러오기</button></p>}
-             <CoachHome user={user} hasNewPostNotification={hasNewPostNotification} core={scheduleCore} students={students} disabledClasses={disabledClasses} registrations={pendingRegistrations} scheduleTransfers={<ScheduleTransferPanel coach entries={weekWaitlist} scheduleData={scheduleData} ready={weeklyDataLoaded && !sheetsError && !loading && Boolean(students.length)} onUpdate={updateTransfer} />} onNavigate={onNavigate} refresh={handleManualRefresh} refreshedAt={refreshedAt} refreshing={isRefreshing} refreshMessage={refreshMsg} />
+             <CoachHome user={user} hasNewPostNotification={hasNewPostNotification} core={scheduleCore} students={students} disabledClasses={disabledClasses} registrations={pendingRegistrations} scheduleTransfers={<ScheduleTransferPanel coach embedded entries={weekWaitlist} scheduleData={scheduleData} ready={weeklyDataLoaded && !sheetsError && !loading && Boolean(students.length)} onUpdate={updateTransfer} />} onNavigate={onNavigate} refresh={handleManualRefresh} refreshedAt={refreshedAt} refreshing={isRefreshing} refreshMessage={refreshMsg} />
         </>;
     }
 
