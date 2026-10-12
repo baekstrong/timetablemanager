@@ -1,3 +1,4 @@
+import ScheduleTransferPanel from './schedule/ScheduleTransferPanel';
 import CoachHome from '../features/today/CoachHome';
 import PageLoading from './PageLoading';
 import RefreshStatus from './RefreshStatus';
@@ -32,7 +33,7 @@ import { buildUpdatedSchedule, parseSheetDate, weekDateToISO } from '../utils/sc
 import { syncMakeupWaitlists, normalizeWaitlistEntry } from '../services/makeupWaitlistService';
 import './WeeklySchedule.css';
 
-const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false, isStudentDataLoading = false, onStudentDataRefresh, onNavigate, hasContractNotification = false, hasWaitlistNotification = false, view = 'schedule', hasNewPostNotification = false }) => {
+const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false, isStudentDataLoading = false, onStudentDataRefresh, onNavigate, hasContractNotification = false, studentTransfers = null, onStudentTransferUpdate, view = 'schedule', hasNewPostNotification = false }) => {
     const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student');
     const { students, isAuthenticated, isConnected, error: sheetsError, loading, refresh } = useGoogleSheets();
 
@@ -100,6 +101,20 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
         getCellData, getHolidayInfo,
         weekHoldings, weekHolidays, getEffectiveEndDate, unpaidStudentNames, weeklyDataLoaded, weeklyDataError, weekFreeWorkout, freeWorkoutRoster,
     } = scheduleCore;
+
+    // App의 기존 학생 알림 조회 결과를 공유한다(화면 복귀·15분 간격).
+    useEffect(() => {
+        if (user?.role !== 'coach' && studentTransfers !== null) {
+            setWeekWaitlist(studentTransfers);
+        }
+    }, [user?.role, studentTransfers, setWeekWaitlist]);
+
+    const updateTransfer = (id, status) => {
+        setWeekWaitlist(previous => ['waiting', 'notified'].includes(status)
+            ? previous.map(item => item.id === id ? { ...item, status } : item)
+            : previous.filter(item => item.id !== id));
+        if (user?.role !== 'coach') onStudentTransferUpdate?.(id, status);
+    };
 
     const homeLoaded = useRef(false);
     useEffect(() => { if (weeklyDataLoaded) homeLoaded.current = true; }, [weeklyDataLoaded]);
@@ -444,7 +459,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
         if (!homeLoaded.current && (weeklyDataError || sheetsError)) return <div className="today-page"><p role="alert">{weeklyDataError || sheetsError}</p><button onClick={handleManualRefresh}>다시 불러오기</button></div>;
         return <>
             {(weeklyDataError || sheetsError) && <p className="today-error" role="alert">{weeklyDataError || sheetsError} <button onClick={handleManualRefresh}>다시 불러오기</button></p>}
-             <CoachHome user={user} hasNewPostNotification={hasNewPostNotification} core={scheduleCore} students={students} disabledClasses={disabledClasses} registrations={pendingRegistrations} waitlist={newStudentWaitlist} onNavigate={onNavigate} refresh={handleManualRefresh} refreshedAt={refreshedAt} refreshing={isRefreshing} refreshMessage={refreshMsg} />
+             <CoachHome user={user} hasNewPostNotification={hasNewPostNotification} core={scheduleCore} students={students} disabledClasses={disabledClasses} registrations={pendingRegistrations} scheduleTransfers={<ScheduleTransferPanel coach entries={weekWaitlist} scheduleData={scheduleData} ready={weeklyDataLoaded && !sheetsError && !loading && Boolean(students.length)} onUpdate={updateTransfer} />} onNavigate={onNavigate} refresh={handleManualRefresh} refreshedAt={refreshedAt} refreshing={isRefreshing} refreshMessage={refreshMsg} />
         </>;
     }
 
@@ -514,12 +529,13 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
 
             </div>
 
-            {user?.role !== 'coach' && (hasContractNotification || hasWaitlistNotification) && (
+            {user?.role !== 'coach' && hasContractNotification && (
                 <div className="student-account-actions" aria-label="확인할 알림">
                     {hasContractNotification && <button onClick={() => onNavigate?.('contractView')}>재등록 계약서 확인 <span aria-hidden="true">→</span></button>}
-                    {hasWaitlistNotification && <button onClick={() => onNavigate?.('dashboard')}>고정 시간 변경 대기 알림 확인 <span aria-hidden="true">→</span></button>}
                 </div>
             )}
+
+            {user?.role !== 'coach' && <ScheduleTransferPanel entries={weekWaitlist} studentName={user.username} studentData={studentData} ready={weeklyDataLoaded && !isStudentDataLoading && !sheetsError && Boolean(studentData)} onUpdate={updateTransfer} onRefresh={handleManualRefresh} />}
 
             {/* Google Sheets 연동 상태 (코치 전용) — 모드 토글 위 */}
             {user?.role === 'coach' && (

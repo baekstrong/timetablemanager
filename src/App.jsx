@@ -68,7 +68,8 @@ function AppContent() {
   const [rankingInitialStudent, setRankingInitialStudent] = useState('');
   const [impersonationOrigin, setImpersonationOrigin] = useState(null); // 코치 본체 (빙의 중일 때만 채워짐)
   const [hasNewStudentNotification, setHasNewStudentNotification] = useState(false);
-  const [hasWaitlistNotification, setHasWaitlistNotification] = useState(false);
+  const [studentTransfers, setStudentTransfers] = useState({ name: '', entries: [] });
+  const hasWaitlistNotification = studentTransfers.name === user?.username && studentTransfers.entries.some(item => item.status === 'notified');
   const [hasContractNotification, setHasContractNotification] = useState(false);
   const [hasNewPostNotification, setHasNewPostNotification] = useState(false);
   const [hasStampPendingNotification, setHasStampPendingNotification] = useState(false);
@@ -142,6 +143,11 @@ function AppContent() {
     };
   }, [user]);
 
+  const updateStudentTransfer = (id, status) => {
+    setStudentTransfers(previous => ({ ...previous, entries: previous.entries.flatMap(item =>
+      item.id !== id ? [item] : ['waiting', 'notified'].includes(status) ? [{ ...item, status }] : []) }));
+  };
+
   // Poll for waitlist + contract notifications (student only)
   useEffect(() => {
     if (!user || user.role === 'coach') return;
@@ -152,7 +158,7 @@ function AppContent() {
           getActiveWaitlistRequests(user.username),
           getPendingContractForStudent(user.username)
         ]);
-        setHasWaitlistNotification(waitlist.some(w => w.status === 'notified'));
+        setStudentTransfers({ name: user.username, entries: waitlist });
         setHasContractNotification(!!contract);
       } catch {
         // ignore polling errors
@@ -414,14 +420,14 @@ function AppContent() {
         return <Login onLogin={handleLogin} />;
 
       case 'today':
-        if (user?.role !== 'coach') return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} pushReadOnly={growthReadOnly} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} hasWaitlistNotification={hasWaitlistNotification} />;
+        if (user?.role !== 'coach') return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} pushReadOnly={growthReadOnly} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} studentTransfers={studentTransfers.name === user?.username ? studentTransfers.entries : null} onStudentTransferUpdate={updateStudentTransfer} />;
         return <WeeklySchedule key={`${user?.username}-${calendarDay}`} user={user} studentData={studentData} onNavigate={handleNavigate} onBack={handleBackToDashboard} view="today" hasNewPostNotification={hasNewPostNotification} />;
 
       case 'dashboard':
         return <Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} deepLinkPost={deepLinkPost} onDeepLinkDone={() => setDeepLinkPost(null)} />;
 
       case 'schedule':
-        return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} pushReadOnly={growthReadOnly} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} hasWaitlistNotification={hasWaitlistNotification} />;
+        return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} pushReadOnly={growthReadOnly} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} studentTransfers={studentTransfers.name === user?.username ? studentTransfers.entries : null} onStudentTransferUpdate={updateStudentTransfer} />;
 
       case 'holding':
         return <HoldingManager onStudentDataRefresh={refreshStudentData} key={holdingInitialDate} initialDate={holdingInitialDate} user={user} studentData={studentData} isLoading={isStudentDataLoading} onBack={handleBackToDashboard} />;
