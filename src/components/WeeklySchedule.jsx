@@ -97,7 +97,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
         studentSchedule, scheduleData, newStudentSlotOccupancy, weekDates,
         isMyHoldingDate,
         isMakeupHeld,
-        lastDayStudents, delayedReregistrationStudents, lastClassByName,
+        delayedReregistrationStudents, lastClassByName,
         getCellData, getHolidayInfo,
         weekHoldings, weekHolidays, getEffectiveEndDate, unpaidStudentNames, weeklyDataLoaded, weeklyDataError, weekFreeWorkout, freeWorkoutRoster,
     } = scheduleCore;
@@ -177,7 +177,6 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
 
     // New student waitlist (coach only)
     const [newStudentWaitlist, setNewStudentWaitlist] = useState([]);
-    const [showWaitlistDeleteMode, setShowWaitlistDeleteMode] = useState(false);
     const [showWaitlistModal, setShowWaitlistModal] = useState(false);
     const [waitlistDesiredSlot, setWaitlistDesiredSlot] = useState(null);
     const [waitlistStudentName, setWaitlistStudentName] = useState('');
@@ -668,24 +667,17 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
             {/* Coach mode (코치 전용 뷰) */}
             {mode === 'coach' && (
                 <CoachSchedule
-                    scheduleData={scheduleData}
                     weekDates={weekDates}
                     weekWaitlist={weekWaitlist}
-                    setWeekWaitlist={setWeekWaitlist}
-                    lastDayStudents={lastDayStudents}
                     delayedReregistrationStudents={delayedReregistrationStudents}
                     lastClassByName={lastClassByName}
                     getCellData={getCellData}
                     getHolidayInfo={getHolidayInfo}
                     newStudentWaitlist={newStudentWaitlist}
-                    setNewStudentWaitlist={setNewStudentWaitlist}
-                    showWaitlistDeleteMode={showWaitlistDeleteMode}
-                    setShowWaitlistDeleteMode={setShowWaitlistDeleteMode}
                     disabledClasses={disabledClasses}
                     setDisabledClasses={setDisabledClasses}
                     lockedSlots={lockedSlots}
                     setLockedSlots={setLockedSlots}
-                    onNavigate={onNavigate}
                     unpaidStudentNames={unpaidStudentNames}
                     makeupWaitlists={coachMakeupWaitlist}
                     freeWorkoutByDate={freeWorkoutByDate}

@@ -2,51 +2,25 @@ import { useEffect, useState, useMemo } from 'react';
 import { PERIODS, DAYS } from '../../data/mockData';
 import { toggleDisabledClass, toggleLockedSlot, publishRoster, publishLastClasses, publishReregX } from '../../services/firebaseService';
 import { weekDateToISO, getWaitlistCountForSlot, isPeriodImminentOrOngoing } from '../../utils/scheduleUtils';
-import CoachWaitlistPanel from './CoachWaitlistPanel';
 import { StudentTag, UnpaidBadge } from './ScheduleCell';
-import { SECTION_STYLES } from './scheduleStyles';
-
-/** Coach info banner section (last day / delayed re-registration). */
-function CoachInfoSection({ title, items, style, titleColor, itemColor, renderItem }) {
-    if (items.length === 0) return null;
-    return (
-        <section style={style}>
-            <div style={{ fontWeight: '700', fontSize: '1rem', color: titleColor, marginBottom: '0.5rem' }}>
-                {title}
-            </div>
-            <div style={{ color: itemColor, fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {items.map(renderItem)}
-            </div>
-        </section>
-    );
-}
 
 /**
  * 코치 전용 시간표 화면.
- * - 마지막 수업/재등록 지연 배너
- * - 대기 관리 패널
  * - 코치 셀 그리드 (수강생 태그, 수업 활성/비활성 토글, 보강 잠금)
  * - 셀 클릭 시 훈련일지로 이동
  */
 export default function CoachSchedule({
-    scheduleData,
     weekDates,
     weekWaitlist,
-    setWeekWaitlist,
-    lastDayStudents,
     delayedReregistrationStudents,
     lastClassByName = new Map(),
     getCellData,
     getHolidayInfo,
     newStudentWaitlist,
-    setNewStudentWaitlist,
-    showWaitlistDeleteMode,
-    setShowWaitlistDeleteMode,
     disabledClasses,
     setDisabledClasses,
     lockedSlots,
     setLockedSlots,
-    onNavigate,
     unpaidStudentNames = new Set(),
     makeupWaitlists = [],
     freeWorkoutByDate = {},
@@ -349,70 +323,6 @@ export default function CoachSchedule({
 
     return (
         <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'stretch', marginBottom: '1rem' }}>
-            <CoachInfoSection
-                title="오늘 마지막 수업"
-                items={lastDayStudents}
-                style={{ ...SECTION_STYLES.lastDay, flex: '1 1 280px', minWidth: 0, marginBottom: 0 }}
-                titleColor="#166534"
-                itemColor="#166534"
-                renderItem={(s) => {
-                    const now = new Date();
-                    const period = PERIODS.find(p => p.id === s.todayPeriod);
-                    let isBold = false;
-                    if (period) {
-                        const classStartMin = period.startHour * 60 + period.startMinute;
-                        const classEndMin = classStartMin + 90;
-                        const nowMin = now.getHours() * 60 + now.getMinutes();
-                        isBold = nowMin >= (classStartMin - 30) && nowMin <= (classEndMin + 30);
-                    }
-                    return (
-                        <div key={s.name} style={{ fontWeight: isBold ? '700' : '400' }}>
-                            <span
-                                onClick={() => {
-                                    sessionStorage.setItem('renewalStudentName', s.name);
-                                    onNavigate?.('students');
-                                }}
-                                style={{ cursor: 'pointer' }}
-                            >{s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})</span> {period ? <span style={{ fontSize: '0.8rem', color: '#166534' }}>{period.id}교시</span> : ''}
-                        </div>
-                    );
-                }}
-            />
-
-            <CoachInfoSection
-                title="재등록 지연"
-                items={delayedReregistrationStudents}
-                style={{ ...SECTION_STYLES.delayedRereg, flex: '1 1 280px', minWidth: 0, marginBottom: 0 }}
-                titleColor="#92400e"
-                itemColor="#92400e"
-                renderItem={(s) => (
-                    <div key={s.name}>
-                        <span
-                            onClick={() => {
-                                sessionStorage.setItem('renewalStudentName', s.name);
-                                onNavigate?.('students');
-                            }}
-                            style={{ cursor: 'pointer' }}
-                        >{s.name}({s.schedule}{s.payment ? `,${s.payment}` : ''})</span> <span style={{ fontSize: '0.8rem', color: '#92400e' }}>종료: {s.endDate}</span>
-                    </div>
-                )}
-            />
-
-            {(weekWaitlist.length > 0 || newStudentWaitlist.length > 0) && (
-                <CoachWaitlistPanel
-                    weekWaitlist={weekWaitlist}
-                    setWeekWaitlist={setWeekWaitlist}
-                    newStudentWaitlist={newStudentWaitlist}
-                    setNewStudentWaitlist={setNewStudentWaitlist}
-                    showWaitlistDeleteMode={showWaitlistDeleteMode}
-                    setShowWaitlistDeleteMode={setShowWaitlistDeleteMode}
-                    scheduleData={scheduleData}
-                    style={{ flex: '1 1 280px', minWidth: 0, marginBottom: 0 }}
-                />
-            )}
-            </div>
-
             <div className="schedule-grid">
                 <div className="grid-header"></div>
                 {DAYS.map(day => (

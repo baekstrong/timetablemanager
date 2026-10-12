@@ -21,33 +21,6 @@ export const TAG_STYLES = {
     waitingSeat: { backgroundColor: '#EDBC401A', color: '#9a7a12', border: '1px solid #EDBC404D' },
 };
 
-export const SECTION_STYLES = {
-    lastDay: {
-        background: '#31A5521A',
-        border: '1px solid #31A5524D',
-        borderRadius: '12px',
-        padding: '1rem 1.25rem',
-        marginBottom: '1rem',
-        color: '#31A552',
-    },
-    delayedRereg: {
-        background: '#EDBC401A',
-        border: '1px solid #EDBC404D',
-        borderRadius: '12px',
-        padding: '1rem 1.25rem',
-        marginBottom: '1rem',
-        color: '#9a7a12',
-    },
-    waitlist: {
-        background: '#EDBC401A',
-        border: '1px solid #EDBC404D',
-        borderRadius: '12px',
-        padding: '1rem 1.25rem',
-        marginBottom: '1rem',
-        color: '#9a7a12',
-    },
-};
-
 export const DELETE_BTN_STYLE = {
     fontSize: '0.75rem',
     padding: '2px 8px',
