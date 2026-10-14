@@ -1,5 +1,7 @@
 import { state, db } from '../state.js';
-import { STAMP_GRADES, STAMP_ORDER, prevMonthRange, computeStampStats, suggestGrade } from './stamp-logic.js';
+import { STAMP_GRADES, STAMP_ORDER, prevMonthRange, suggestGrade } from './stamp-logic.js';
+import { FUNCTIONS_BASE } from '../config.js';
+import { createMonthlySummaryClient } from '../monthlySummary.js?v=20261014-analytics';
 
 export function currentMonthStr() {
     const now = new Date();
@@ -14,88 +16,162 @@ function escapeHtml(s) {
 
 // ===== 코치: 도장 모달 =====
 
-export async function openStampModal() {
+const currentSessionKey = () => window.firebase?.auth().currentUser?.uid || '';
+const loadMonthlySummary = createMonthlySummaryClient({
+    getToken: () => window.firebase.auth().currentUser.getIdToken(),
+    getSessionKey: currentSessionKey,
+    endpoint: `${FUNCTIONS_BASE}/analytics/monthly`,
+});
+const memoCache = new Map();
+const memoInflight = new Map();
+const MEMO_CACHE_MS = 30_000;
+let modalRequest = 0;
+let stampContext = null;
+
+function isCurrentContext(context) {
+    return context.request === modalRequest && context.owner === state.currentUser
+        && context.session === currentSessionKey() && state.isCoach
+        && document.getElementById('stampModal')?.classList.contains('active');
+}
+
+export async function openStampModal(refresh = false) {
     const modal = document.getElementById('stampModal');
-    if (!modal) return;
+    if (!modal || !state.currentUser || !state.isCoach || !db || !currentSessionKey()) return;
+    const month = currentMonthStr();
+    const context = { request: ++modalRequest, owner: state.currentUser, session: currentSessionKey(), month, students: [] };
+    stampContext = null;
     modal.classList.add('active');
     const body = document.getElementById('stampModalBody');
-    body.innerHTML = '<div class="text-center text-gray-500 py-8">불러오는 중...</div>';
+    const confirmButton = document.getElementById('stampConfirmBtn');
+    confirmButton.disabled = true;
+    confirmButton.textContent = '불러오는 중…';
+    body.innerHTML = '<div class="text-center text-gray-500 py-8" role="status">불러오는 중...</div>';
 
-    const month = currentMonthStr();
-    const { prevMonth, start, end } = prevMonthRange(month);
+    const { prevMonth } = prevMonthRange(month);
     document.getElementById('stampModalSubtitle').textContent = `지난달(${prevMonth}) 기준`;
 
-    // 1~3.6) 다섯 조회는 서로 독립 — 병렬 발사 (직렬 5왕복이던 것을 1왕복 시간으로)
-    const [usersSnap, recSnap, stampSnap, pmSnap, fdoc] = await Promise.all([
-        db.collection('users').get(),                                              // 학생 목록
-        db.collection('records').where('date', '>=', start).where('date', '<=', end).get(), // 지난달 기록
-        db.collection('monthlyStamps').where('month', '==', month).get(),          // 이번 달 도장 프리필
-        db.collection('pinnedMemos').get(),                                        // 고정 메모
-        db.collection('studentMeta').doc('frequencies').get().catch(() => null),   // 주횟수 맵(없으면 주3 기본)
-    ]);
+    try {
+        // 원본 기록은 서버에서 집계하고, 펼치지 않은 메모는 읽지 않는다.
+        const [usersSnap, summary, stampSnap, fdoc] = await Promise.all([
+            db.collection('users').get(),
+            loadMonthlySummary(prevMonth, { refresh }),
+            db.collection('monthlyStamps').where('month', '==', month).get(),
+            db.collection('studentMeta').doc('frequencies').get().catch(() => null),
+        ]);
+        if (!isCurrentContext(context)) return;
+        if (summary.month !== prevMonth || !Array.isArray(summary.students)) throw new Error('월간 집계를 확인할 수 없습니다.');
 
-    const students = [];
-    usersSnap.forEach(d => {
-        const u = d.data();
-        if (!u.isCoach) students.push(d.id);
-    });
-    students.sort((a, b) => a.localeCompare(b, 'ko'));
+        const students = [];
+        usersSnap.forEach(d => { if (!d.data().isCoach) students.push(d.id); });
+        students.sort((a, b) => a.localeCompare(b, 'ko'));
+        const statsByStudent = new Map();
+        for (const student of summary.students) {
+            // 도장은 자율운동 합집합이 아닌 기록 날짜 수와 문서 수를 사용한다.
+            const activeDays = student.trainingDays;
+            const totalExercises = student.totalExercises;
+            if (!Number.isInteger(activeDays) || activeDays < 0 || !Number.isInteger(totalExercises) || totalExercises < activeDays) {
+                throw new Error('월간 집계 형식을 확인할 수 없습니다.');
+            }
+            statsByStudent.set(student.userName, {
+                activeDays,
+                avgExercises: activeDays === 0 ? 0 : Math.round((totalExercises / activeDays) * 10) / 10,
+            });
+        }
+        const existing = new Map();
+        stampSnap.forEach(d => { existing.set(d.data().userName, d.data()); });
+        const freqByStudent = fdoc?.exists ? fdoc.data().map || {} : {};
 
-    const byStudent = {};
-    recSnap.forEach(d => {
-        const r = d.data();
-        (byStudent[r.userName] = byStudent[r.userName] || []).push({ date: r.date, exercise: r.exercise });
-    });
-
-    const existing = {};
-    stampSnap.forEach(d => { existing[d.data().userName] = d.data(); });
-
-    const memosByStudent = {};
-    pmSnap.forEach(d => { memosByStudent[d.id] = (d.data().memos || []); });
-
-    let freqByStudent = {};
-    if (fdoc && fdoc.exists) freqByStudent = fdoc.data().map || {};
-
-    // 4) 행 렌더
-    const rows = students.map((name, idx) => {
-        const stats = computeStampStats(byStudent[name] || []);
-        const prefGrade = existing[name]?.grade || suggestGrade(stats.activeDays, freqByStudent[name]);
-        const comment = existing[name]?.comment || '';
-        const warn = stats.activeDays >= 6 && stats.avgExercises > 0 && stats.avgExercises < 1.5;
-        const options = STAMP_ORDER.map(g =>
-            `<option value="${g}" ${g === prefGrade ? 'selected' : ''}>${STAMP_GRADES[g].label}</option>`
-        ).join('');
-        const memos = memosByStudent[name] || [];
-        const memoBtn = `<button type="button" onclick="document.getElementById('stamp-memos-${idx}').classList.toggle('hidden')" class="text-xs text-[#329BE7] underline ${memos.length ? '' : 'opacity-40 pointer-events-none'}">📝 메모 ${memos.length}개</button>`;
-        const memoList = memos.length === 0 ? '' : `
-                <div id="stamp-memos-${idx}" class="hidden mt-1 pl-2 border-l-2 border-gray-200 space-y-1">
-                    ${memos.map(m => `<div class="text-xs text-gray-600">${m.pain ? '⚠️ ' : ''}<b>${escapeHtml(m.exercise)}</b> ${escapeHtml(m.memo)}</div>`).join('')}
+        const rows = students.map((name, idx) => {
+            const stats = statsByStudent.get(name) || { activeDays: 0, avgExercises: 0 };
+            const prefGrade = existing.get(name)?.grade || suggestGrade(stats.activeDays, freqByStudent[name]);
+            const comment = existing.get(name)?.comment || '';
+            const warn = stats.activeDays >= 6 && stats.avgExercises > 0 && stats.avgExercises < 1.5;
+            const options = STAMP_ORDER.map(g =>
+                `<option value="${g}" ${g === prefGrade ? 'selected' : ''}>${STAMP_GRADES[g].label}</option>`
+            ).join('');
+            return `
+                <div class="border-b border-gray-200 py-2" data-student="${escapeHtml(name)}">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-bold text-gray-800 w-20">${escapeHtml(name)}</span>
+                        <span class="text-xs text-gray-500">활동 ${stats.activeDays}일 · 일평균 ${stats.avgExercises}종목 ${warn ? '⚠️' : ''}</span>
+                        <button type="button" id="stamp-memo-btn-${idx}" onclick="toggleStampMemos(${idx})" aria-expanded="false" aria-controls="stamp-memos-${idx}" class="text-xs text-[#329BE7] underline">📝 메모 보기</button>
+                        <select class="stamp-grade-select ml-auto px-2 py-1 border rounded-lg text-sm">${options}</select>
+                    </div>
+                    <div id="stamp-memos-${idx}" class="hidden mt-1 pl-2 border-l-2 border-gray-200 space-y-1"></div>
+                    <input type="text" class="stamp-comment-input w-full mt-1 px-2 py-1 border rounded-lg text-sm"
+                           placeholder="💬 한 줄 코멘트 (선택)" value="${escapeHtml(comment)}">
                 </div>`;
-        return `
-            <div class="border-b border-gray-200 py-2" data-student="${escapeHtml(name)}">
-                <div class="flex items-center gap-2 flex-wrap">
-                    <span class="font-bold text-gray-800 w-20">${escapeHtml(name)}</span>
-                    <span class="text-xs text-gray-500">활동 ${stats.activeDays}일 · 일평균 ${stats.avgExercises}종목 ${warn ? '⚠️' : ''}</span>
-                    ${memoBtn}
-                    <select class="stamp-grade-select ml-auto px-2 py-1 border rounded-lg text-sm">${options}</select>
-                </div>
-                ${memoList}
-                <input type="text" class="stamp-comment-input w-full mt-1 px-2 py-1 border rounded-lg text-sm"
-                       placeholder="💬 한 줄 코멘트 (선택)" value="${escapeHtml(comment)}">
-            </div>`;
-    }).join('');
+        }).join('');
 
-    body.innerHTML = rows || '<div class="text-center text-gray-500 py-8">수강생이 없습니다.</div>';
-    document.getElementById('stampConfirmBtn').textContent = `전체 확정 (${students.length}명)`;
+        context.students = students;
+        stampContext = context;
+        body.innerHTML = rows || '<div class="text-center text-gray-500 py-8">수강생이 없습니다.</div>';
+        confirmButton.disabled = students.length === 0;
+        confirmButton.textContent = `전체 확정 (${students.length}명)`;
+    } catch (error) {
+        if (!isCurrentContext(context)) return;
+        console.error('도장 집계 조회 실패:', error);
+        body.innerHTML = '<div class="text-center text-gray-500 py-8" role="alert">지난달 기록을 확인하지 못했어요. <button type="button" onclick="openStampModal(true)" class="text-xs text-[#329BE7] underline">다시 시도</button></div>';
+        confirmButton.textContent = '기록 확인 후 확정';
+    }
+}
+
+function loadStampMemos(context, student) {
+    const key = JSON.stringify([context.session, context.owner, student]);
+    const cached = memoCache.get(key);
+    if (cached && Date.now() - cached.at < MEMO_CACHE_MS) return Promise.resolve(cached.memos);
+    if (memoInflight.has(key)) return memoInflight.get(key);
+    const request = db.collection('pinnedMemos').doc(student).get().then(doc => {
+        // 이전 계정의 응답을 새 계정의 표시나 캐시에 반영하지 않는다.
+        if (context.owner !== state.currentUser || context.session !== currentSessionKey() || !state.isCoach) return null;
+        const memos = doc.exists && Array.isArray(doc.data().memos) ? doc.data().memos : [];
+        memoCache.set(key, { at: Date.now(), memos });
+        return memos;
+    }).finally(() => { if (memoInflight.get(key) === request) memoInflight.delete(key); });
+    memoInflight.set(key, request);
+    return request;
+}
+
+export async function toggleStampMemos(index) {
+    const context = stampContext;
+    if (!context || !isCurrentContext(context) || !Number.isInteger(index) || !context.students[index]) return;
+    const list = document.getElementById(`stamp-memos-${index}`);
+    const button = document.getElementById(`stamp-memo-btn-${index}`);
+    if (!list || !button) return;
+    const hidden = list.classList.toggle('hidden');
+    button.setAttribute('aria-expanded', String(!hidden));
+    if (hidden) return;
+    list.innerHTML = '<div class="text-xs text-gray-500" role="status">메모 확인 중…</div>';
+    try {
+        const memos = await loadStampMemos(context, context.students[index]);
+        if (!memos || !isCurrentContext(context) || stampContext !== context || document.getElementById(`stamp-memos-${index}`) !== list) return;
+        button.textContent = `📝 메모 ${memos.length}개`;
+        list.innerHTML = memos.length ? memos.map(m => `<div class="text-xs text-gray-600">${m.pain ? '⚠️ ' : ''}<b>${escapeHtml(m.exercise)}</b> ${escapeHtml(m.memo)}</div>`).join('')
+            : '<div class="text-xs text-gray-500">등록된 메모가 없어요.</div>';
+    } catch (error) {
+        if (!isCurrentContext(context) || stampContext !== context || document.getElementById(`stamp-memos-${index}`) !== list) return;
+        console.error('도장 메모 조회 실패:', error);
+        list.innerHTML = `<div class="text-xs text-gray-500" role="alert">메모를 확인하지 못했어요. <button type="button" onclick="retryStampMemos(${index})" class="text-xs text-[#329BE7] underline">다시 시도</button></div>`;
+    }
+}
+
+export function retryStampMemos(index) {
+    document.getElementById(`stamp-memos-${index}`)?.classList.add('hidden');
+    return toggleStampMemos(index);
 }
 
 export function closeStampModal() {
+    modalRequest++;
+    stampContext = null;
     const modal = document.getElementById('stampModal');
     if (modal) modal.classList.remove('active');
 }
 
 export async function confirmAllStamps() {
+    const context = stampContext;
+    if (!context || !isCurrentContext(context)) return;
     const month = currentMonthStr();
+    if (month !== context.month) { await openStampModal(); return; }
     const rows = document.querySelectorAll('#stampModalBody [data-student]');
     if (rows.length === 0) { closeStampModal(); return; }
 

@@ -1,4 +1,5 @@
-import { db } from '../config/firebase';
+import { db, auth } from '../config/firebase';
+import { createMonthlySummaryClient } from '../../public/training-log/js/monthlySummary.js';
 import { changeMyPassword } from './authService';
 import {
     collection,
@@ -1250,6 +1251,8 @@ export const getPosts = async (category = null, limitCount = 20) => {
 };
 
 export const getPostsPage = async (category = 'all', pageSize = 10, cursor = null) => {
+    assertFirebase();
+    const size = Math.max(1, Math.min(100, Math.floor(Number(pageSize)) || 10));
     const toSummary = (post) => {
         const images = post.images;
         const likes = post.likes;
@@ -1265,42 +1268,15 @@ export const getPostsPage = async (category = 'all', pageSize = 10, cursor = nul
     };
 
     return safeRead({ posts: [], nextCursor: null, hasNextPage: false }, async () => {
-        // 특정 카테고리: where(category)+orderBy(createdAt) 복합 인덱스가 필요해 에러가 났었음.
-        // 동등 필터로만 읽고 정렬·페이지네이션을 클라이언트에서 처리해 인덱스 의존성을 제거한다.
-        // (단일 스튜디오 게시판 규모에선 카테고리 전체를 읽어도 비용이 작다)
-        if (category && category !== 'all') {
-            const snapshot = await getDocs(query(
-                collection(db, 'posts'),
-                where('category', '==', category)
-            ));
-            const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => !p.deleted);
-            const byNewest = (a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0);
+        // 분류 탭도 전체 탭과 같은 문서 커서를 쓴다.
+        // 필요한 복합 인덱스: posts(category ASC, createdAt DESC).
+        const baseConstraints = category && category !== 'all' ? [where('category', '==', category)] : [];
 
-            // 공지 카테고리: 고정 공지는 상단(첫 페이지)에서만, 날짜순 목록에서는 제외
-            const pinned = category === 'notice' ? all.filter(p => p.pinned).sort(byNewest) : [];
-            const pinnedIds = new Set(pinned.map(p => p.id));
-            const rest = all.filter(p => !pinnedIds.has(p.id)).sort(byNewest);
-
-            const start = typeof cursor === 'number' ? cursor : 0;
-            const pageSlice = rest.slice(start, start + pageSize);
-            const hasNextPage = rest.length > start + pageSize;
-            const combined = [...(start === 0 ? pinned : []), ...pageSlice];
-            return {
-                posts: combined.map(toSummary),
-                nextCursor: hasNextPage ? start + pageSize : null,
-                hasNextPage,
-            };
-        }
-
-        const baseConstraints = [];
-
-        const includePinnedNotices = !cursor && (category === 'all' || category === 'notice');
+        const includePinnedNotices = !cursor && (!category || category === 'all' || category === 'notice');
         const pinnedSnapshotPromise = includePinnedNotices
             ? getDocs(query(
                 collection(db, 'posts'),
-                where('category', '==', 'notice'),
-                where('pinned', '==', true),
-                queryLimit(20)
+                where('pinned', '==', true)
             ))
             : Promise.resolve({ docs: [] });
 
@@ -1309,43 +1285,47 @@ export const getPostsPage = async (category = 'all', pageSize = 10, cursor = nul
         // - 고정 공지: 첫 페이지 상단에서만 노출하고 날짜순 목록에서는 제외 (페이지 중간 중복 노출 방지)
         const isDisplayable = (data) => !data.deleted && !(data.pinned && data.category === 'notice');
 
-        const displayDocs = [];      // 화면에 표시할 문서 (pageSize + 1개까지 — 마지막 1개는 다음 페이지 존재 판정용)
-        let probeDoc = cursor;       // 다음 배치 조회 시작점
-        let exhausted = false;
-        while (displayDocs.length < pageSize + 1 && !exhausted) {
-            const batchQuery = query(
-                collection(db, 'posts'),
-                ...baseConstraints,
-                orderBy('createdAt', 'desc'),
-                ...(probeDoc ? [startAfter(probeDoc)] : []),
-                queryLimit(pageSize + 1)
-            );
-            const snapshot = await getDocs(batchQuery);
-            for (const d of snapshot.docs) {
-                if (isDisplayable(d.data())) {
-                    displayDocs.push(d);
-                    if (displayDocs.length >= pageSize + 1) break;
+        const loadPageDocs = async () => {
+            const displayDocs = []; // 마지막 1개는 다음 페이지 존재 판정용
+            let probeDoc = cursor;
+            let exhausted = false;
+            while (displayDocs.length < size + 1 && !exhausted) {
+                const batchQuery = query(
+                    collection(db, 'posts'),
+                    ...baseConstraints,
+                    orderBy('createdAt', 'desc'),
+                    ...(probeDoc ? [startAfter(probeDoc)] : []),
+                    queryLimit(size + 1)
+                );
+                const snapshot = await getDocs(batchQuery);
+                for (const d of snapshot.docs) {
+                    if (isDisplayable(d.data())) {
+                        displayDocs.push(d);
+                        if (displayDocs.length >= size + 1) break;
+                    }
                 }
+                probeDoc = snapshot.docs[snapshot.docs.length - 1] || probeDoc;
+                exhausted = snapshot.docs.length < size + 1;
             }
-            probeDoc = snapshot.docs[snapshot.docs.length - 1] || probeDoc;
-            exhausted = snapshot.docs.length < pageSize + 1;
-        }
+            return displayDocs;
+        };
 
-        const hasNextPage = displayDocs.length > pageSize;
-        const pageDocs = displayDocs.slice(0, pageSize);
+        const [displayDocs, pinnedSnapshot] = await Promise.all([loadPageDocs(), pinnedSnapshotPromise]);
+
+        const hasNextPage = displayDocs.length > size;
+        const pageDocs = displayDocs.slice(0, size);
         const pagePosts = pageDocs.map(d => ({ id: d.id, ...d.data() }));
 
-        const pinnedSnapshot = await pinnedSnapshotPromise;
         const pinnedPosts = pinnedSnapshot.docs
             .map(d => ({ id: d.id, ...d.data() }))
-            .filter(p => !p.deleted)
-            .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+            .filter(p => !p.deleted && p.category === 'notice')
+            .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0) || a.id.localeCompare(b.id));
         const posts = [...pinnedPosts, ...pagePosts].map(toSummary);
 
         return {
             posts,
             // 다음 페이지는 "이번 페이지 마지막 표시 글" 이후부터 — 사이에 끼인 삭제/고정 글은 다음 호출에서 다시 건너뜀
-            nextCursor: pageDocs[pageDocs.length - 1] || null,
+            nextCursor: hasNextPage ? pageDocs[pageDocs.length - 1] : null,
             hasNextPage,
         };
     });
@@ -1711,69 +1691,51 @@ export const getAllExerciseNames = async () => {
 
 /**
  * 그래프용: 특정 학생의 일상 훈련 기록 (시계열)
- * userName + date 범위로 경계해 쿼리. 정확 일치 0건이면 sinceDate 이후 records를
- * fetch해서 trim/대소문자 무시 매칭으로 폴백.
+ * 모든 조회에 userName + date 조건을 유지한다. 입력 원문/trim과 대소문자 후보로
+ * 이름 호환을 처리하며, 기록이 없거나 조회가 실패해도 전체 기록으로 확대하지 않는다.
  * @param sinceDate 'YYYY-MM-DD'
  */
+const personalGraphInflight = new Map();
+
 export const getRecordsByUserSince = async (userName, sinceDate) => {
-    return safeRead([], async () => {
-        const trimmed = (userName || '').trim();
-        // sinceDate 이후만 읽는다 — 무경계는 재원 기간에 비례해 read 증가. 인덱스 없으면 무경계 폴백.
-        let all = await queryDocs('records', where('userName', '==', trimmed), where('date', '>=', sinceDate))
-            .catch(() => queryDocs('records', where('userName', '==', trimmed)));
-        if (all.length === 0 && trimmed) {
-            const recent = await queryDocs('records', where('date', '>=', sinceDate));
-            const lower = trimmed.toLowerCase();
-            all = recent.filter(r => (r.userName || '').trim().toLowerCase() === lower);
+    assertFirebase();
+    const raw = String(userName || '');
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(sinceDate || '')) throw new Error('훈련 기록 조회 시작일이 올바르지 않습니다.');
+    const names = [...new Set([trimmed, raw].flatMap(name => [name, name.toLowerCase(), name.toUpperCase()]))];
+    const key = JSON.stringify([names, sinceDate]);
+    if (personalGraphInflight.has(key)) return personalGraphInflight.get(key);
+    const request = (async () => {
+        const readName = name => queryDocs('records', where('userName', '==', name), where('date', '>=', sinceDate));
+        let records = await readName(trimmed);
+        if (!records.length && names.length > 1) {
+            records = dedupeDocsById((await Promise.all(names.filter(name => name !== trimmed).map(readName))).flat());
         }
-        return all
-            .filter(r => r.date && r.date >= sinceDate)
-            .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+        return records.filter(record => record.date && record.date >= sinceDate)
+            .sort((a, b) => a.date.localeCompare(b.date));
+    })().finally(() => {
+        if (personalGraphInflight.get(key) === request) personalGraphInflight.delete(key);
     });
+    personalGraphInflight.set(key, request);
+    return request;
 };
 
 /**
  * 출석/운동량 랭킹: 지정한 달(기본 = 이번 달, 1일~말일) records에서 학생별 출석일·총 운동량 집계
  * @param yearMonth 'YYYY-MM' (생략 시 이번 달)
  */
-export const getAttendanceRanking = async (yearMonth) => {
-    return safeRead([], async () => {
-        const ym = yearMonth || (() => {
-            const d = new Date();
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        })();
-        const [y, m] = ym.split('-').map(Number);
-        const monthStart = `${ym}-01`;
-        const next = new Date(y, m, 1); // m은 1-indexed; new Date의 month는 0-indexed → 다음 달 1일
-        const nextStart = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`;
-        const records = await queryDocs(
-            'records',
-            where('date', '>=', monthStart),
-            where('date', '<', nextStart)
-        );
-        const byUser = new Map();
-        for (const r of records) {
-            const u = r.userName;
-            if (!u) continue;
-            if (!byUser.has(u)) byUser.set(u, { userName: u, dates: new Set(), volume: 0 });
-            const entry = byUser.get(u);
-            entry.dates.add(r.date);
-            // 운동량: kg×reps 합 (단위가 kg & 회인 세트만). sets가 배열이 아닌 손상된 record는 무시
-            const sets = Array.isArray(r.sets) ? r.sets : [];
-            for (const set of sets) {
-                const intUnit = set?.intensity?.unit;
-                const repUnit = set?.reps?.unit;
-                if (intUnit === 'kg' && repUnit === '회') {
-                    entry.volume += numVal(set.intensity?.value) * numVal(set.reps?.value);
-                }
-            }
-        }
-        return Array.from(byUser.values()).map(e => ({
-            userName: e.userName,
-            trainingDays: e.dates.size,
-            volume: Math.round(e.volume)
-        }));
-    });
+const loadMonthlyRanking = createMonthlySummaryClient({
+    getToken: () => auth.currentUser.getIdToken(),
+    getSessionKey: () => auth?.currentUser?.uid || '',
+    endpoint: `${(import.meta.env.VITE_FUNCTIONS_URL || 'https://strengthschool.netlify.app/.netlify/functions/sheets').replace(/\/sheets\/?$/, '')}/analytics/monthly`,
+});
+export const getAttendanceRanking = async (yearMonth, options = {}) => {
+    const now = new Date();
+    const month = yearMonth || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const summary = await loadMonthlyRanking(month, options);
+    // Do not hide network/auth failures as a successful, empty ranking.
+    return summary.students.map(({ userName, trainingDays, volume }) => ({ userName, trainingDays, volume }));
 };
 
 /**
@@ -1781,47 +1743,36 @@ export const getAttendanceRanking = async (yearMonth) => {
  * 비어있는 달도 0으로 채워서 반환 → 그래프에서 끊김 없이 표시
  */
 export const getMonthlyAttendanceHistory = async (userName, monthsBack = 12) => {
-    return safeRead([], async () => {
-        const today = new Date();
-        const startMonth = new Date(today.getFullYear(), today.getMonth() - (monthsBack - 1), 1);
-        const startStr = `${startMonth.getFullYear()}-${String(startMonth.getMonth() + 1).padStart(2, '0')}-01`;
-        const trimmed = (userName || '').trim();
-        // 조회 범위(최근 N개월) 이후만 읽는다. 인덱스 없으면 무경계 폴백.
-        let all = await queryDocs('records', where('userName', '==', trimmed), where('date', '>=', startStr))
-            .catch(() => queryDocs('records', where('userName', '==', trimmed)));
-        if (all.length === 0 && trimmed) {
-            const recent = await queryDocs('records', where('date', '>=', startStr));
-            const lower = trimmed.toLowerCase();
-            all = recent.filter(r => (r.userName || '').trim().toLowerCase() === lower);
-        }
-        const records = all.filter(r => r.date && r.date >= startStr);
-        const byMonth = new Map();
-        // 빈 달도 미리 채워둠
-        for (let i = 0; i < monthsBack; i++) {
-            const d = new Date(today.getFullYear(), today.getMonth() - (monthsBack - 1) + i, 1);
-            const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            byMonth.set(ym, { month: ym, dates: new Set(), volume: 0 });
-        }
-        for (const r of records) {
-            if (!r.date) continue;
-            const ym = r.date.slice(0, 7);
-            if (!byMonth.has(ym)) continue; // 범위 밖 무시
-            const entry = byMonth.get(ym);
-            entry.dates.add(r.date);
-            // sets가 배열이 아닌 손상된 record는 무시
-            const sets = Array.isArray(r.sets) ? r.sets : [];
-            for (const set of sets) {
-                const intUnit = set?.intensity?.unit;
-                const repUnit = set?.reps?.unit;
-                if (intUnit === 'kg' && repUnit === '회') {
-                    entry.volume += numVal(set.intensity?.value) * numVal(set.reps?.value);
-                }
+    const today = new Date();
+    const startMonth = new Date(today.getFullYear(), today.getMonth() - (monthsBack - 1), 1);
+    const startStr = `${startMonth.getFullYear()}-${String(startMonth.getMonth() + 1).padStart(2, '0')}-01`;
+    const records = await getRecordsByUserSince(userName, startStr);
+    const byMonth = new Map();
+    // 빈 달도 미리 채워둠
+    for (let i = 0; i < monthsBack; i++) {
+        const d = new Date(today.getFullYear(), today.getMonth() - (monthsBack - 1) + i, 1);
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        byMonth.set(ym, { month: ym, dates: new Set(), volume: 0 });
+    }
+    for (const r of records) {
+        if (!r.date) continue;
+        const ym = r.date.slice(0, 7);
+        if (!byMonth.has(ym)) continue; // 범위 밖 무시
+        const entry = byMonth.get(ym);
+        entry.dates.add(r.date);
+        // sets가 배열이 아닌 손상된 record는 무시
+        const sets = Array.isArray(r.sets) ? r.sets : [];
+        for (const set of sets) {
+            const intUnit = set?.intensity?.unit;
+            const repUnit = set?.reps?.unit;
+            if (intUnit === 'kg' && repUnit === '회') {
+                entry.volume += numVal(set.intensity?.value) * numVal(set.reps?.value);
             }
         }
-        return Array.from(byMonth.values())
-            .map(e => ({ month: e.month, trainingDays: e.dates.size, volume: Math.round(e.volume) }))
-            .sort((a, b) => a.month.localeCompare(b.month));
-    });
+    }
+    return Array.from(byMonth.values())
+        .map(e => ({ month: e.month, trainingDays: e.dates.size, volume: Math.round(e.volume) }))
+        .sort((a, b) => a.month.localeCompare(b.month));
 };
 
 // ============================================

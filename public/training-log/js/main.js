@@ -9,7 +9,7 @@ import * as Sets from './modules/sets.js?v=20260925-student-ux';
 import * as Records from './modules/records.js?v=20261014-performance';
 import * as Calendar from './modules/calendar.js?v=20261014-performance';
 import * as Coach from './modules/coach.js?v=20261014-performance';
-import * as Stamp from './modules/stamp.js';
+import * as Stamp from './modules/stamp.js?v=20261014-analytics';
 import * as OneRM from './modules/onerm.js?v=20261014-performance';
 import * as StudentWorkspace from './modules/student-workspace.js?v=20261014-performance';
 

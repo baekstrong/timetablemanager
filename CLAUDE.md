@@ -533,7 +533,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 훈련일지를 안 쓰거나 건성으로 쓰는 수강생을 줄이기 위해, 코치가 **월 1회** 일지에 3등급 도장을 찍는다.
 
 - **순수 로직**: `public/training-log/js/modules/stamp-logic.js` (Firebase/DOM 의존 없음 — 브라우저·Vitest 양쪽 import 가능). `STAMP_GRADES`(각 등급 `{label 격려문구, headline 지난달상태, color}` — great '참 잘했어요'/'지난달 정말 꾸준히 나오셨어요' #E94E58 / good '잘하고 있어요'/'지난달 잘 나오고 있어요' #329BE7 / tryharder '더 힘내세요!'/'지난달에 부족했어요' #EDBC40. 배지·팝업은 headline 위, label 강조 2단 구성), `suggestGrade(활동일, 주횟수)`(주횟수 기반: great=주횟수×3+1, good=주횟수×2, 그 외 tryharder — 주2:7/4·주3:10/6·주4:13/8; 주횟수 없으면 주3 기본), `prevMonthRange`, `computeStampStats`. 테스트: `stamp-logic.test.js` (vitest include glob에 `public/training-log/**/*.test.js` 추가됨). 주횟수는 시트 C열에만 있어 훈련일지가 모름 → 메인 앱이 코치 진입 시 `firebaseService.syncStudentFrequencies(students)`로 `studentMeta/frequencies` 문서(이름→주횟수)를 발행하고 도장 모달이 이를 읽어 전달.
-- **Firebase/DOM**: `public/training-log/js/modules/stamp.js`. 코치 도장 모달(전원 리스트 + 지난달 활동일·일평균 종목·등급 자동추천 프리필 + 고정 메모 개수·펼쳐보기 + [전체 확정] batch write)과 학생 배지·첫 접속 팝업. `window`에 노출(main.js `Object.assign(window, Stamp)`).
+- **Firebase/DOM**: `public/training-log/js/modules/stamp.js`. 코치 도장 모달(전원 리스트 + 지난달 활동일·일평균 종목·등급 자동추천 프리필 + 고정 메모 펼쳐보기 + [전체 확정] batch write)과 학생 배지·첫 접속 팝업. 활동 통계는 인증된 월간 집계 API를 사용하고 메모는 펼친 학생만 조회한다(펼친 뒤 개수 표시). `window`에 노출(main.js `Object.assign(window, Stamp)`).
 - **코치 부담 최소화**: 활동일로 등급 자동추천, 일평균 종목 수로 '건성' 케이스(활동일 높은데 일평균 1점대) 가시화 — 코치는 이상한 것만 손보고 한 번에 확정. 일지 일일이 안 읽어도 됨.
 - **진입**: 훈련일지 코치 화면 '운동 종목 관리' 버튼 옆 `📋 이달의 도장`.
 - **빨간점**: 메인 React 앱 `BottomNav` 훈련일지 탭 — 코치 모드 + 이번 달 `monthlyStamps` 미작성 시. `firebaseService.isMonthlyStampDone(month)` 폴링, 확정하면 사라짐.
@@ -972,4 +972,13 @@ Codex의 프로젝트 진입 지침은 `AGENTS.md`다. 공통 업무 규칙은 �
 - 훈련일지 달력은 날짜를 먼저 표시하고, 인증된 계정별 마지막 날짜 요약을 갱신 중 표시와 함께 사용한다. 코치 기록/메모 병렬, 첫1RM 조회 공유, 최근3운동일 참조는 24문서씩 페이지 조회하며 세 번째 날의 모든 기록을 보존한다. 추가/수정/삭제/순서 변경 후 관련 캐시를 무효화한다.
 - 최근 기록 참조 인덱스: records `userName ASC, exercise ASC, date DESC`. `node scripts/ensure-record-reference-index.mjs --project traininglogforclients`로 확인한다. 없을 때만 명시적 `--apply`로 추가하며 기존 인덱스/규칙/문서를 교체하지 않는다. 10/14 운영 READY와 실제 소량 읽기 성공, 기존9개 인덱스 보존 확인.
 - Netlify 운영에는 소스에 있던 CORS 캐시·Sheets 단독 패키지/OAuth 재사용이 누락되어 있었다. 10/14 auth/sheets만 배포한 `6acf5c793114396684f22e5f` ready/published, 두 함수 `Access-Control-Max-Age:86400`·Sheets GET 성공 확인. 정적109파일과 calendar/push/sms digest 유지. 기존 운영 ZIP 바이트와 로컬 드롭의 완전 일치는 확인하지 못했으며, auth는 기존 로컬 번들의 헤더만 수정했다.
-- 검증 범위·남은 과제는 `docs/performance-fixes-2026-10-14.md`. 실제 기기 로그인 후 데이터 준비 시간은 별도 측정 대상이며, 전체 그래프/게시판/월별 집계 구조는 이번 수정에 포함하지 않았다.
+- 검증 범위는 `docs/performance-fixes-2026-10-14.md`. 실제 기기 로그인 후 데이터 준비 시간은 별도 측정 대상이다. 그래프/게시판/월별 집계는 아래 후속 요청으로 추가 개선했다.
+
+### 그래프·게시판·월별 집계 성능 개선 (2026-10-14 후속)
+
+- 개인 그래프는 모든 조회에 이름과 시작일을 유지한다. 기록 0건/실패 시 전원 기록이나 본인 전 기간으로 확대하지 않는다. 입력 원문·trim·lower/upper 후보만 호환하며, 운영 records 이름65종에는 공백·대소문자 변형이 없음을 확인했다. 향후 다른 별칭을 저장하면 명시적 별칭 매핑이 필요하다. 실패는 오류/재시도이며 계정·기간이 바뀐 뒤 이전 결과를 표시하지 않는다.
+- 게시판 모든 분류는 `createdAt DESC`와 문서 커서로 10건씩 읽는다. 첫 페이지 고정공지는 별도 유지하고 삭제글/고정공지를 건너뛰어 일반글 10건을 채운다. 총 페이지 수 대신 이전/현재/다음으로 이동한다. `posts(category ASC, createdAt DESC)` 인덱스는 `scripts/ensure-posts-page-index.mjs`로 존재/READY를 확인한다. 작성·수정 뒤 한 번 갱신, 상세 복귀의 좋아요·삭제 반영, 마지막 페이지 삭제 시 유효 이전 페이지 복귀를 보장한다.
+- 새 `analytics/monthly?month=YYYY-MM` Netlify 함수는 매 요청 Firebase ID 토큰을 검증하고 월 범위 records의 `userName,date,sets`만 읽어 출석/운동량/도장 통계를 반환한다. warm 함수 내 60초 캐시·동시 조회 공유, HTTP `private, no-store`, `refresh=1`은 완료 캐시를 우회한다. 캐시 miss의 서버 원본 읽기는 남으며 문서 쓰기/집계 마이그레이션은 없다. 실제 도장 평가 기준(기록의 서로 다른 날짜 수·문서 수·소수1자리 평균)은 유지하고 자율운동을 합치지 않는다.
+- 메인 랭킹과 훈련일지는 `public/training-log/js/monthlySummary.js`를 공유한다. 토큰/응답 대기20초 제한, 계정 전환 보호, 실패 재시도를 제공한다. 도장은 전체 기록·전체 고정메모를 내려받지 않으며 메모는 펼친 학생1문서만 읽고30초 재사용한다. 집계 실패 중 확정은 차단한다.
+- Netlify는 main 푸시로 배포되지 않는다. analytics 단일 `.cjs` 번들을 별도 배포하며 기존 auth/sheets/calendar/push/sms와 정적 파일을 보존한다. 자격증명 포함 번들·ZIP은 Git 밖에만 보관한다. main/stamp/monthlySummary import와 preload 버전은 `20261014-analytics`로 맞춘다.
+- 운영9월1,259문서/10월548문서의 기존 랭킹·도장 통계와 새 집계가 모두 일치했다. 직렬화 JSON 기준894KB→4.7KB/357KB→4.0KB이며 실제 모바일 전송시간 실측치는 아니다. 검증·배포 근거와 한계는 `docs/performance-followup-2026-10-14.md`.

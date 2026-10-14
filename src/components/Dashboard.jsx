@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, getPostsPage, updatePost, getPendingContractForStudent, getTierMap, backfillTiersForMonth, getGradeMap, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../services/firebaseService';
+import { createPost, updatePost, getPendingContractForStudent, getTierMap, backfillTiersForMonth, getGradeMap, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../services/firebaseService';
 import { pushNotice } from '../services/pushService';
 import { resolveInstallState } from '../utils/installState';
 import { shouldShowInCoachStudentList } from '../utils/studentList';
-import { POST_LIMITS } from '../data/boardConstants';
+import { useBoardPosts } from './board/useBoardPosts';
 import PostList from './board/PostList';
 import PostDetail from './board/PostDetail';
 import PostForm from './board/PostForm';
@@ -20,14 +20,11 @@ const INSTALL_ROW = {
 };
 
 const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone }) => {
-    const [posts, setPosts] = useState([]);
-    const [postsLoading, setPostsLoading] = useState(true);
-    const [postsError, setPostsError] = useState(null);
-    const [selectedCategory, setSelectedCategory] = useState('all');
-    const [boardPage, setBoardPage] = useState(1);
-    const [boardHasNextPage, setBoardHasNextPage] = useState(false);
-    const boardCursorsRef = useRef({ 1: null });
-    const boardRequestIdRef = useRef(0);
+    const {
+        posts, loading: postsLoading, error: postsError, category: selectedCategory,
+        page: boardPage, hasNextPage: boardHasNextPage,
+        setCategory: handleCategoryChange, setPage: setBoardPage, refresh: refreshPosts,
+    } = useBoardPosts();
     const [viewMode, setViewMode] = useState('list');
     const [selectedPostId, setSelectedPostId] = useState(null);
     // 알림 클릭으로 들어온 글 열기 — prop(앱이 떠 있던 경우) 또는 주소 ?post=(새로 열린 경우)
@@ -131,54 +128,6 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
         loadStudentData();
     }, [user]);
 
-    const loadPosts = useCallback(async (targetPage = boardPage, { reset = false } = {}) => {
-        const requestId = ++boardRequestIdRef.current;
-        setPostsLoading(true);
-        setPostsError(null);
-
-        try {
-            if (reset) {
-                boardCursorsRef.current = { 1: null };
-            }
-
-            for (let page = 1; page < targetPage; page += 1) {
-                if (boardCursorsRef.current[page + 1] !== undefined) continue;
-                const preloaded = await getPostsPage(selectedCategory, POST_LIMITS.PAGE_SIZE, boardCursorsRef.current[page] || null);
-                boardCursorsRef.current[page + 1] = preloaded.nextCursor;
-            }
-
-            const data = await getPostsPage(
-                selectedCategory,
-                POST_LIMITS.PAGE_SIZE,
-                boardCursorsRef.current[targetPage] || null
-            );
-            boardCursorsRef.current[targetPage + 1] = data.nextCursor;
-
-            if (requestId !== boardRequestIdRef.current) return;
-            setPosts(data.posts);
-            setBoardHasNextPage(data.hasNextPage);
-            setPostsLoading(false);
-        } catch (error) {
-            if (requestId !== boardRequestIdRef.current) return;
-            console.error('게시글 페이지 로드 실패:', error);
-            setPosts([]);
-            setPostsError('게시글을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
-            setPostsLoading(false);
-        }
-    }, [boardPage, selectedCategory]);
-
-    // 게시글은 현재 페이지 분량만 읽는다. 페이지 이동 시 필요한 커서만 순차 확보.
-    useEffect(() => {
-        // 페이지/분류 변경에 따른 원격 조회를 시작하며 로딩 상태도 함께 갱신한다.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        loadPosts(boardPage, { reset: boardPage === 1 });
-    }, [boardPage, selectedCategory, loadPosts]);
-
-    const handleCategoryChange = (category) => {
-        setSelectedCategory(category);
-        setBoardPage(1);
-    };
-
     const handlePostClick = (postId) => {
         setSelectedPostId(postId);
         setViewMode('detail');
@@ -187,6 +136,8 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
     const handleBackToList = () => {
         setViewMode('list');
         setSelectedPostId(null);
+        // 상세에서 달라진 좋아요/댓글/삭제도 현재 페이지에 반영한다.
+        refreshPosts();
     };
 
     const handlePostSubmit = async (formData) => {
@@ -211,9 +162,7 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
             }
             setShowPostForm(false);
             setEditingPost(null);
-            boardCursorsRef.current = { 1: null };
-            setBoardPage(1);
-            await loadPosts(1, { reset: true });
+            refreshPosts({ firstPage: true });
         } catch (error) {
             alert('저장 실패: ' + error.message);
         }
@@ -313,7 +262,7 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
                         onCategoryChange={handleCategoryChange}
                         onPostClick={handlePostClick}
                         onWriteClick={() => { setEditingPost(null); setShowPostForm(true); }}
-                        onRetry={() => loadPosts(boardPage, { reset: true })}
+                        onRetry={() => refreshPosts()}
                         currentPage={boardPage}
                         hasNextPage={boardHasNextPage}
                         onPageChange={setBoardPage}

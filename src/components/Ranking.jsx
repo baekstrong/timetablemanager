@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
+import { usePersonalGraphData } from '../hooks/usePersonalGraphData';
 import {
     getPersonalBests,
     getPersonalBestsByExercise,
@@ -367,18 +368,25 @@ const AttendanceSection = ({ genderMap, tierMap = {}, genderFilter }) => {
     const [list, setList] = useState([]);
     const [sortBy, setSortBy] = useState('days'); // 'days' | 'volume'
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [reload, setReload] = useState(0);
 
     useEffect(() => {
+        let cancelled = false;
         (async () => {
             setLoading(true);
+            setError('');
             try {
-                const data = await getAttendanceRanking(selectedYM);
-                setList(data);
+                const data = await getAttendanceRanking(selectedYM, { refresh: reload > 0 });
+                if (!cancelled) setList(data);
+            } catch (reason) {
+                if (!cancelled) { setList([]); setError(reason.message || '월별 기록을 불러오지 못했어요.'); }
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         })();
-    }, [selectedYM]);
+        return () => { cancelled = true; };
+    }, [selectedYM, reload]);
 
     const filtered = list
         .filter(e => genderFilter === 'all' || genderMap[e.userName] === genderFilter)
@@ -393,7 +401,7 @@ const AttendanceSection = ({ genderMap, tierMap = {}, genderFilter }) => {
                 <select
                     className="ranking-month-select"
                     value={selectedYM}
-                    onChange={(e) => setSelectedYM(e.target.value)}
+                    onChange={(e) => { setSelectedYM(e.target.value); setReload(0); }}
                 >
                     {monthOptions.map(o => (
                         <option key={o.ym} value={o.ym}>{o.label}</option>
@@ -403,12 +411,15 @@ const AttendanceSection = ({ genderMap, tierMap = {}, genderFilter }) => {
                     {currentLabel} {isCurrentMonth ? '기준 (매달 1일 초기화)' : '기록'}
                 </span>
             </div>
+            <p className="ranking-period-hint">집계 결과 · <button type="button" onClick={() => setReload(value => value + 1)} disabled={loading}>새로고침</button></p>
             <div className="ranking-gender-filter" style={{ marginBottom: '0.5rem' }}>
                 <button className={sortBy === 'days' ? 'active' : ''} onClick={() => setSortBy('days')}>한달 출석일 수</button>
                 <button className={sortBy === 'volume' ? 'active' : ''} onClick={() => setSortBy('volume')}>한달 총 운동량</button>
             </div>
             {loading ? (
                 <div className="ranking-loading">불러오는 중...</div>
+            ) : error ? (
+                <div className="ranking-empty" role="alert">{error} <button type="button" onClick={() => setReload(value => value + 1)}>다시 시도</button></div>
             ) : filtered.length === 0 ? (
                 <div className="ranking-empty">{currentLabel} 훈련 기록이 없습니다.</div>
             ) : (
@@ -698,6 +709,11 @@ const HistoryModal = ({ pr, onClose }) => {
 // ============================================
 
 const GRAPH_COLORS = ['#329BE7', '#47C8FF', '#31A552', '#EDBC40', '#E94E58', '#327AB8', '#06b6d4', '#84cc16'];
+const EMPTY_EXERCISE_GRAPH = [[], []];
+
+const GraphLoadError = ({ message, onRetry }) => <div className="ranking-empty" role="alert">
+    <p>{message}</p><button type="button" onClick={onRetry}>다시 불러오기</button>
+</div>;
 
 const computeSetMetric = (set) => {
     const intUnit = set.intensity?.unit;
@@ -718,35 +734,20 @@ const computePRMetric = (pr, h) => {
 };
 
 const GradeGrowthBlock = ({ effectiveTarget, gender }) => {
-    const [data, setData] = useState([]);
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (!effectiveTarget) { setData([]); return; }
-        (async () => {
-            setLoading(true);
-            try {
-                const d = await getMonthlyAttendanceHistory(effectiveTarget, 12);
-                setData(d);
-            } catch (err) {
-                console.error('성장 곡선 데이터 로드 실패:', err);
-            } finally {
-                setLoading(false);
-            }
-        })();
-    }, [effectiveTarget]);
+    const { data, loading, error, retry } = usePersonalGraphData(effectiveTarget,
+        () => getMonthlyAttendanceHistory(effectiveTarget, 12));
 
     if (loading) return <div className="ranking-loading">불러오는 중...</div>;
+    if (error) return <GraphLoadError message={error} onRetry={retry} />;
     if (!data.length || data.every(d => d.volume === 0)) {
         return <div className="ranking-empty">최근 12개월 훈련 기록이 없습니다.</div>;
     }
 
     const coef = (gender || '').trim().startsWith('여') ? FEMALE_COEF : 1;
-    let acc = 0;
-    const cumData = data.map(m => {
-        acc += m.volume * coef;
-        return { month: m.month.slice(2), xp: Math.round(acc) };
-    });
+    const cumData = data.reduce((acc, month) => {
+        const total = acc.total + month.volume * coef;
+        return { total, months: [...acc.months, { month: month.month.slice(2), xp: Math.round(total) }] };
+    }, { total: 0, months: [] }).months;
     const maxXp = cumData.length ? cumData[cumData.length - 1].xp : 0;
     const bands = GRADES.filter(g => g.min > 0 && g.min <= maxXp * 1.4);
     const curGrade = xpToGrade(maxXp);
@@ -882,35 +883,16 @@ const ExerciseTrendBlock = ({ effectiveTarget, refreshNonce }) => {
     const [periodMonths, setPeriodMonths] = useState(3);
     const [selectedExercises, setSelectedExercises] = useState([]);
     const [exerciseSearch, setExerciseSearch] = useState('');
-    const [records, setRecords] = useState([]);
-    const [personalPRs, setPersonalPRs] = useState([]);
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (!effectiveTarget) {
-            setRecords([]);
-            setPersonalPRs([]);
-            return;
-        }
-        (async () => {
-            setLoading(true);
-            try {
-                const since = new Date();
-                since.setMonth(since.getMonth() - periodMonths);
-                const sinceStr = since.toISOString().slice(0, 10);
-                const [recordData, prData] = await Promise.all([
-                    getRecordsByUserSince(effectiveTarget, sinceStr),
-                    getPersonalBests(effectiveTarget)
-                ]);
-                setRecords(recordData);
-                setPersonalPRs(prData);
-            } catch (err) {
-                console.error('records 로드 실패:', err);
-            } finally {
-                setLoading(false);
-            }
-        })();
-    }, [effectiveTarget, periodMonths, refreshNonce]);
+    const { data: [records, personalPRs], loading, error, retry } = usePersonalGraphData(
+        effectiveTarget ? JSON.stringify([effectiveTarget, periodMonths, refreshNonce]) : null,
+        () => {
+            const since = new Date();
+            since.setMonth(since.getMonth() - periodMonths);
+            return Promise.all([
+                getRecordsByUserSince(effectiveTarget, since.toISOString().slice(0, 10)),
+                getPersonalBests(effectiveTarget),
+            ]);
+        }, EMPTY_EXERCISE_GRAPH);
 
     // 학생의 모든 운동 목록 = records에서 + 해당 학생 PR에서 (PR만 있는 경우도 표시)
     const allExercises = useMemo(() => {
@@ -999,6 +981,8 @@ const ExerciseTrendBlock = ({ effectiveTarget, refreshNonce }) => {
 
             {loading ? (
                 <div className="ranking-loading">불러오는 중...</div>
+            ) : error ? (
+                <GraphLoadError message={error} onRetry={retry} />
             ) : (
                 <>
                     <div className="graph-exercise-picker">
@@ -1085,25 +1069,11 @@ const ExerciseTrendBlock = ({ effectiveTarget, refreshNonce }) => {
 };
 
 const MonthlyStatsGraph = ({ effectiveTarget }) => {
-    const [data, setData] = useState([]);
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (!effectiveTarget) { setData([]); return; }
-        (async () => {
-            setLoading(true);
-            try {
-                const d = await getMonthlyAttendanceHistory(effectiveTarget, 12);
-                setData(d);
-            } catch (err) {
-                console.error('월별 출석/운동량 로드 실패:', err);
-            } finally {
-                setLoading(false);
-            }
-        })();
-    }, [effectiveTarget]);
+    const { data, loading, error, retry } = usePersonalGraphData(effectiveTarget,
+        () => getMonthlyAttendanceHistory(effectiveTarget, 12));
 
     if (loading) return <div className="ranking-loading">불러오는 중...</div>;
+    if (error) return <GraphLoadError message={error} onRetry={retry} />;
     if (!data.length || data.every(d => d.trainingDays === 0 && d.volume === 0)) {
         return <div className="ranking-empty">최근 12개월 훈련 기록이 없습니다.</div>;
     }
