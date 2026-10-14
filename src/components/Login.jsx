@@ -1,8 +1,9 @@
-import { readSessionIdentity } from '../../public/training-log/js/sessionIdentity';
-import { useState, useEffect } from 'react';
+import { restoreSessionIdentity } from '../../public/training-log/js/sessionRecovery';
+import { useState, useEffect, useEffectEvent } from 'react';
 import { db, auth } from '../config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { serverLogin } from '../services/authService';
+import PageLoading from './PageLoading';
 import './Login.css';
 
 const Login = ({ onLogin }) => {
@@ -12,8 +13,14 @@ const Login = ({ onLogin }) => {
     const [loading, setLoading] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const [autoLogin, setAutoLogin] = useState(false);
-    // 공유 Firebase 세션 확인 중이면 폼 대신 잠깐 배경만 (앱 간 이동 시 로그인 폼 깜빡임 방지)
+    const [restoreAttempt, setRestoreAttempt] = useState(0);
+    const [canRetryRestore, setCanRetryRestore] = useState(false);
+    // 공유 세션 복원 중에는 진행 상태를 표시해 로그인 폼 깜빡임을 막는다.
     const [resolving, setResolving] = useState(!!(auth && localStorage.getItem('savedUser')));
+    const onSessionRestored = useEffectEvent(identity => onLogin({
+        username: identity.name, role: identity.isCoach ? 'coach' : 'student',
+    }));
+    const loginWithSavedCredentials = useEffectEvent((name, pass) => performLogin(name, pass, true));
 
     // 마운트 시: 공유 Firebase Auth 세션 우선 → 없으면 저장된 자격증명 자동로그인
     useEffect(() => {
@@ -49,7 +56,7 @@ const Login = ({ onLogin }) => {
                         credentials.autoLogin = false;
                         localStorage.setItem('login_credentials', JSON.stringify(credentials));
                     }
-                    performLogin(savedUsername, savedPassword, true);
+                    loginWithSavedCredentials(savedUsername, savedPassword);
                 }
             } catch (err) {
                 console.error('Auto-login failed:', err);
@@ -58,29 +65,38 @@ const Login = ({ onLogin }) => {
 
         // 공유 Firebase Auth 세션이 있으면 서버 재인증 생략하고 즉시 로그인
         if (auth && savedUserRaw) {
-            let done = false;
-            const finish = (cb) => { if (done) return; done = true; cb(); };
-            const unsub = onAuthStateChanged(auth, async (fbUser) => {
-                try {
-                    const saved = JSON.parse(savedUserRaw);
-                    const identity = await readSessionIdentity(fbUser, saved.name);
-                    finish(() => {
-                        if (!identity) { runSavedAutoLogin(); return; }
-                        sessionStorage.removeItem('quickReturn');
-                        onLogin({ username: identity.name, role: identity.isCoach ? 'coach' : 'student' });
-                    });
-                } catch {
-                    finish(runSavedAutoLogin);
-                }
+            const controller = new AbortController();
+            let saved;
+            try { saved = JSON.parse(savedUserRaw); }
+            catch { runSavedAutoLogin(); return; }
+            if (!saved?.name) { runSavedAutoLogin(); return; }
+            setResolving(true);
+            setCanRetryRestore(false);
+            setError('');
+            restoreSessionIdentity({
+                subscribe: (next, fail) => onAuthStateChanged(auth, next, fail),
+                expectedName: saved.name,
+                signal: controller.signal,
+            }).then(identity => {
+                if (controller.signal.aborted) return;
+                if (!identity) { runSavedAutoLogin(); return; }
+                sessionStorage.removeItem('quickReturn');
+                onSessionRestored(identity);
+            }).catch(reason => {
+                if (controller.signal.aborted) return;
+                // 복원 지연/통신 오류는 세션 없음이 아니다. 비밀번호 재인증을
+                // 겹쳐 시작하지 않고, 저장된 로그인을 보존한 채 재시도한다.
+                setResolving(false);
+                setCanRetryRestore(true);
+                setError(reason.code === 'auth/session-restore-timeout' ? reason.message
+                    : '로그인 정보를 확인하지 못했어요. 연결 상태를 확인하고 다시 시도해주세요.');
             });
-            // 안전장치: 2.5초 내 세션 콜백 없으면 폴백
-            const t = setTimeout(() => finish(runSavedAutoLogin), 2500);
-            return () => { done = true; clearTimeout(t); unsub(); };
+            return () => controller.abort();
         }
 
         // 공유 세션 확인 대상 아님 → 기존 동작
         runSavedAutoLogin();
-    }, []);
+    }, [restoreAttempt]);
 
     // Perform login with Firestore
     const performLogin = async (name, pass, isAutoLogin = false) => {
@@ -91,6 +107,7 @@ const Login = ({ onLogin }) => {
 
         setLoading(true);
         setError('');
+        setCanRetryRestore(false);
 
         try {
             let isCoach = false;
@@ -166,15 +183,11 @@ const Login = ({ onLogin }) => {
         performLogin(username.trim(), password.trim());
     };
 
-    // 공유 세션 확인 중에는 로그인 폼 대신 배경만 (깜빡임 방지)
+    // 공유 세션 확인 중에도 빈 화면 대신 진행 상태를 표시한다.
     if (resolving) {
         return (
             <div className="login-container">
-                <div className="login-background">
-                    <div className="gradient-orb orb-1"></div>
-                    <div className="gradient-orb orb-2"></div>
-                    <div className="gradient-orb orb-3"></div>
-                </div>
+                <PageLoading message="로그인 정보를 확인하고 있어요…" />
             </div>
         );
     }
@@ -248,6 +261,8 @@ const Login = ({ onLogin }) => {
                     </div>
 
                     {error && <div className="error-message">{error}</div>}
+                    {canRetryRestore && <button type="button" className="login-button" disabled={loading}
+                        onClick={() => setRestoreAttempt(attempt => attempt + 1)}>저장된 로그인 다시 확인</button>}
 
                     <button type="submit" className="login-button" disabled={loading}>
                         <span>{loading ? '로그인 중...' : '로그인'}</span>

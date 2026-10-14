@@ -554,8 +554,11 @@ export const cancelHoldingWithSheets = async (holdingId, studentName) => {
 // DISABLED CLASSES FUNCTIONS
 // ============================================
 
-export const getDisabledClasses = async () => {
-    if (!db) return [];
+export const getDisabledClasses = async ({ strict = false } = {}) => {
+    if (!db) {
+        if (strict) throw new Error('수업 설정에 연결하지 못했습니다.');
+        return [];
+    }
 
     try {
         const docs = await queryDocs('disabledClasses');
@@ -564,6 +567,7 @@ export const getDisabledClasses = async () => {
         return disabledKeys;
     } catch (error) {
         console.error('비활성화된 수업 조회 실패:', error);
+        if (strict) throw error;
         return [];
     }
 };
@@ -591,8 +595,11 @@ export const toggleDisabledClass = async (key) => {
 // LOCKED SLOTS FUNCTIONS (보강 차단)
 // ============================================
 
-export const getLockedSlots = async () => {
-    if (!db) return [];
+export const getLockedSlots = async ({ strict = false } = {}) => {
+    if (!db) {
+        if (strict) throw new Error('수업 설정에 연결하지 못했습니다.');
+        return [];
+    }
 
     try {
         const docs = await queryDocs('lockedSlots');
@@ -612,6 +619,7 @@ export const getLockedSlots = async () => {
         return activeKeys;
     } catch (error) {
         console.error('잠긴 슬롯 조회 실패:', error);
+        if (strict) throw error;
         return [];
     }
 };

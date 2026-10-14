@@ -1,7 +1,7 @@
 import { localDate, escapeHTML } from './student-workspace-logic.js?v=20260925-student-ux';
 import { state, db, firebaseInitialized, persistenceEnabled } from '../state.js';
 import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue, moveButtons, swapSets } from './sets.js?v=20260925-student-ux';
-import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js?v=20261007-action-order';
+import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js?v=20261014-performance';
 import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js?v=20260925-student-ux';
 import { evaluatePR, pastSetsFrom } from './pr-logic.js';
 import { xpToGrade, gradeRank, recordVolume, GRADES } from './grades.js';
@@ -130,6 +130,8 @@ export async function addRecord() {
         // 캐시가 없으면(사파리 시크릿 등) 탭을 닫는 순간 유실되므로 예전처럼 기다린다.
         if (persistenceEnabled) {
             writePromise.catch(err => {
+                window.invalidateStudentReferences?.(recordUser);
+                window.invalidateStudentCalendar?.(writingDate, recordUser);
                 window.restoreFailedStudentRecord?.(ref.id, { date: writingDate, exercise, memo, painCheck, sets: validSets }, recordUser);
                 if (state.currentUser !== recordUser || state.isCoach) return;
                 if (writingDate === localDate()) state.studentTodayHasRecords = false;
@@ -141,6 +143,7 @@ export async function addRecord() {
             await writePromise;
         }
 
+        window.invalidateStudentReferences?.(recordUser);
         window.completeStudentRecord?.(writingDate, exercise);
         clearExerciseSelection({ saved: true }); // 완료한 초안만 지우고 입력 잠금 해제
         document.getElementById('memo').value = '';
@@ -591,14 +594,18 @@ export async function deleteRecord(docId) {
     if (!confirm('정말 이 기록을 삭제하시겠습니까?')) return;
 
     showBlockingOverlay('삭제 중…');
+    const recordUser = state.currentUser;
+    let recordDate = state.selectedDate;
     try {
         // 삭제될 기록의 volume을 먼저 확보(삭제 후엔 못 읽음) → XP에서 차감.
         let oldVol = 0;
         try {
             const snap = await db.collection('records').doc(docId).get();
-            if (snap.exists) oldVol = recordVolume(snap.data());
+            if (snap.exists) { oldVol = recordVolume(snap.data()); recordDate = snap.data().date; }
         } catch (e) { console.error('삭제 전 기록 조회 실패(XP 미반영):', e); }
         await db.collection('records').doc(docId).delete();
+        window.invalidateStudentReferences?.(recordUser);
+        window.invalidateStudentCalendar?.(recordDate, recordUser);
         if (oldVol) applyXpDelta(-oldVol); // XP 반영은 기다리지 않는다
         hideBlockingOverlay();
         alert('✅ 기록이 삭제되었습니다!');
@@ -615,6 +622,7 @@ export async function deleteRecord(docId) {
 // Feature 4: 순서 변경
 export async function moveRecord(docId, direction) {
     if (!state.currentUser || !db) return;
+    const recordUser = state.currentUser;
 
     try {
         const snapshot = await db.collection('records')
@@ -670,6 +678,7 @@ export async function moveRecord(docId, direction) {
         batch.update(db.collection('records').doc(targetDoc.id), { order: targetDoc.order });
 
         await batch.commit();
+        window.invalidateStudentReferences?.(recordUser);
 
         // UI will auto-update via onSnapshot
 
@@ -697,6 +706,7 @@ export async function openEditModal(docId) {
             state.editingSets = [{ weight: data.weight + 'kg', reps: data.reps + '회' }];
         }
         state.editingOldVolume = recordVolume(data); // 수정 delta 계산용(새-옛)
+        state.editingOriginalDate = data.date;
 
         editForm.innerHTML = renderEditModalContent(data, docId);
         renderEditSets();
@@ -720,6 +730,8 @@ export function closeEditModal() {
 }
 
 export async function saveEdit(docId) {
+    const recordUser = state.currentUser;
+    const originalDate = state.editingOriginalDate || state.selectedDate;
     const exercise = document.getElementById('edit-exercise').value.trim();
     const memo = document.getElementById('edit-memo').value.trim();
     const pain = document.getElementById('edit-pain').checked;
@@ -754,6 +766,9 @@ export async function saveEdit(docId) {
             pain: pain,
             date: newDate
         });
+        window.invalidateStudentReferences?.(recordUser);
+        window.invalidateStudentCalendar?.(originalDate, recordUser);
+        window.invalidateStudentCalendar?.(newDate, recordUser);
 
         // XP 증분(레벨 오르면 applyXpDelta가 스스로 팝업) — 저장 완료를 막지 않는다.
         applyXpDelta(recordVolume({ sets: validSets }) - (state.editingOldVolume || 0));
@@ -966,9 +981,9 @@ export function updateEditSetRepsUnit(index, unit) {
 // 고정 메모 (Pinned Memos)
 // ============================================
 
-export async function updatePinnedDisplay() {
+export async function updatePinnedDisplay(refresh = true) {
     // 코치 고정 메모 불러오기 (state 갱신)
-    if (state.currentUser && firebaseInitialized && db && !state.isCoach) {
+    if (refresh && state.currentUser && firebaseInitialized && db && !state.isCoach) {
         try {
             const doc = await db.collection('coachPinnedMemos').doc(state.currentUser).get();
             state.coachPinnedMemos = doc.exists ? (doc.data().memos || []) : [];

@@ -1,4 +1,4 @@
-import { Fragment, useState, useMemo, useEffect } from 'react';
+import { Fragment, useState, useMemo, useEffect, useRef } from 'react';
 import { PERIODS, DAYS, MAX_CAPACITY, KOREAN_HOLIDAYS } from '../../data/mockData';
 import {
     getActiveMakeupRequests,
@@ -88,6 +88,10 @@ function CurrentWeekStudentSchedule({
     weekHoldings = EMPTY_LIST,
     weeklyDataLoaded = true,
     weeklyDataError = '',
+    studentDataLoading = false,
+    requestDataLoaded = weeklyDataLoaded,
+    requestDataError = weeklyDataError,
+    personalRefreshKey = 0,
     getEffectiveEndDate,
     services = DEFAULT_SERVICES,
     now: suppliedNow,
@@ -101,16 +105,20 @@ function CurrentWeekStudentSchedule({
     const [studentTab, setStudentTab] = useState(initialTab === 'all' ? 'all' : 'mine');
     const [personalReload, setPersonalReload] = useState(0);
     const [makeupDataState, setMakeupDataState] = useState('loading');
+    const personalRequestKey = `${personalRefreshKey}:${personalReload}`;
+    const loadedPersonalKey = useRef(personalRequestKey);
+    const personalDataReady = makeupDataState === 'loaded' && loadedPersonalKey.current === personalRequestKey;
     const [flowStep, setFlowStep] = useState(null);
     const [flowTarget, setFlowTarget] = useState(null);
     const [flowWaiting, setFlowWaiting] = useState(false);
     const isRealStudent = user?.role !== 'coach';
     const modernStudent = isRealStudent && !forceMode;
     const studentRequestDataError = modernStudent
-        ? weeklyDataError || (!weeklyDataLoaded || makeupDataState === 'loading'
+        ? requestDataError || weeklyDataError || (makeupDataState === 'error'
+            ? '보강 정보를 불러오지 못했어요. 새로고침 후 다시 확인해주세요.'
+            : !requestDataLoaded || !weeklyDataLoaded || studentDataLoading || !personalDataReady
             ? '최신 시간표 정보를 확인한 뒤 다시 신청해주세요.'
-            : makeupDataState === 'error' ? '보강 정보를 불러오지 못했어요. 새로고침 후 다시 확인해주세요.'
-                : !studentData ? '수강 정보를 찾을 수 없어요. 등록 상태를 코치에게 확인해주세요.' : '')
+            : !studentData ? '수강 정보를 찾을 수 없어요. 등록 상태를 코치에게 확인해주세요.' : '')
         : '';
     const days = studentWeekDays(weekDates, 0, now);
     useEffect(() => {
@@ -185,6 +193,7 @@ function CurrentWeekStudentSchedule({
     }
 
     function startStudentMakeup(session) {
+        if (!validateStudentDataReady()) return;
         chooseOriginal(session);
         setStudentTab('all');
     }
@@ -263,8 +272,9 @@ function CurrentWeekStudentSchedule({
 
     // ── 보강 데이터 로드 ──
     useEffect(() => {
-        if (user?.role === 'coach' || !weeklyDataLoaded) return;
+        if (!user?.username || user?.role === 'coach') return;
         let cancelled = false;
+        setMakeupDataState('loading');
         async function loadStudentMakeupData() {
             try {
                 // 세 조회는 서로 결과를 안 쓴다(getWeekMakeupRequests는 status 필터가 없어
@@ -278,6 +288,7 @@ function CurrentWeekStudentSchedule({
                 if (cancelled) return;
                 setMyWeekMakeupHistory(thisWeekMakeups);
                 setActiveWaitlists(waitlists.map(normalizeWaitlistEntry));
+                loadedPersonalKey.current = personalRequestKey;
                 setMakeupDataState('loaded');
 
                 // 지난 보강 자동 완료 처리 (active → completed)
@@ -293,7 +304,9 @@ function CurrentWeekStudentSchedule({
         }
         loadStudentMakeupData();
         return () => { cancelled = true; };
-    }, [user, personalReload, weeklyDataLoaded, completeMakeupRequest, getActiveMakeupRequests, getWeekMakeupRequests, getActiveMakeupWaitlists, readOnly]);
+        // 개인 조회는 공통 주간 자료/전체 명단을 기다리지 않는다. 주간 갱신 완료만으로
+        // 재조회하지 않고, 직접 새로고침이나 신청 처리 후에 필요한 자료를 갱신한다.
+    }, [user?.username, user?.role, personalRequestKey, completeMakeupRequest, getActiveMakeupRequests, getWeekMakeupRequests, getActiveMakeupWaitlists, readOnly]);
 
     // ── 헬퍼 ──
     // 보강 자리가 비었을 때(취소·시간 변경) 대기 1순위에게 알림. 취소된 보강생은 아직 주간 상태에
@@ -1066,8 +1079,9 @@ function CurrentWeekStudentSchedule({
     const flowDoubleBooking = selectedOriginalClass && flowTarget && wouldDoubleBookStudent(selectedOriginalClass, flowTarget.day, flowTarget.date);
     const sameFlowSlot = selectedOriginalClass?.date === flowTarget?.date && selectedOriginalClass?.period === flowTarget?.period;
     const flowTargetError = flowDoubleBooking ? '이날 이미 다른 수업이 있어요. 다른 시간을 선택해주세요.' : sameFlowSlot ? '원래 수업과 다른 시간을 선택해주세요.' : '';
-    const personalLoading = !weeklyDataLoaded || makeupDataState === 'loading';
-    const personalError = !studentData ? '수강 정보를 찾을 수 없어요. 등록 상태를 코치에게 확인해주세요.' : weeklyDataError || (makeupDataState === 'error' ? '보강 정보를 불러오지 못했어요.' : '');
+    const personalLoading = studentDataLoading || !weeklyDataLoaded || !personalDataReady;
+    const personalError = weeklyDataError || (makeupDataState === 'error' ? '보강 정보를 불러오지 못했어요.' : '')
+        || (!studentDataLoading && !studentData ? '수강 정보를 찾을 수 없어요. 등록 상태를 코치에게 확인해주세요.' : '');
 
     return (
         <>
@@ -1076,12 +1090,13 @@ function CurrentWeekStudentSchedule({
                 studentName={user?.username}
                 days={days} sessions={personalSessions} now={now} tab={studentTab} onTabChange={changeStudentTab}
                 loading={personalLoading} error={personalError} onRetry={retryStudentData}
+                requestUnavailableReason={studentRequestDataError} requestError={requestDataError}
                 membership={membership} source={changingMakeup?.originalClass || selectedOriginalClass} quotaUsed={myWeekCommitments} quotaLimit={makeupWeeklyLimit}
                 waits={validWaits} onWaitlist={handleWaitlistChipClick} onSourceChoose={() => { if (changingMakeup) return; setFlowTarget(null); setFlowStep('source'); }}
                 onMakeup={startStudentMakeup} onCancelMakeup={handleMakeupCancel} onNavigate={onNavigate}
             >
                 {changingMakeup && <div className="student-class-notice"><strong>보강 시간 변경 중</strong><p>원래 수업이 만석이에요. 다른 빈자리를 선택해주세요.</p><button type="button" className="student-class-link" onClick={() => setChangingMakeup(null)}>변경 그만두기</button></div>}
-                {renderModernGrid()}
+                {!studentRequestDataError && renderModernGrid()}
             </StudentClassView>}
             {!modernStudent && <>
             {/* Student usage guide */}

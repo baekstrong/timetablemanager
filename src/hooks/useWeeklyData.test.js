@@ -46,8 +46,8 @@ function harness() {
     });
     const source = readFileSync(new URL('./useWeeklyData.js', import.meta.url), 'utf8');
     vm.runInContext(source.slice(source.indexOf('export function useWeeklyData')).replace('export ', ''), ctx);
-    return { calls, emit: name => listeners.get(name)?.(), render(students = []) {
-        cursor = 0; effects = []; ctx.props = { students, mode: 'coach' };
+    return { calls, emit: name => listeners.get(name)?.(), render(students = [], studentData) {
+        cursor = 0; effects = []; ctx.props = { students, studentData, mode: 'coach' };
         const result = vm.runInContext('useWeeklyData(props)', ctx);
         effects.forEach(fn => fn());
         return result;
@@ -81,6 +81,19 @@ it('실패한 갱신은 마지막 정상 데이터를 보존하고 백스톱 게
     const after = h.render();
     expect(after.freeWorkoutRoster).toEqual([{ studentName: 'A' }]);
     expect(after.weeklyDataLoaded).toBe(false);
+});
+
+it('명단보다 본인 수강권이 먼저 도착해도 선택한 홀딩 날짜를 보존하고 명단 도착 때 재조회하지 않는다', async () => {
+    const h = harness();
+    const student = { 이름: 'A', '홀딩 사용여부': 'O', '홀딩 시작일': '260907', '홀딩 종료일': '260911' };
+    h.calls.getHoldingsByWeek.mockResolvedValue([{ studentName: 'A', startDate: '2026-09-07', endDate: '2026-09-11', holdingDates: ['2026-09-07', '2026-09-11'] }]);
+    h.render([], student); await vi.advanceTimersByTimeAsync(0);
+    const own = h.render([], student);
+    expect(own.weeklyDataLoaded).toBe(true);
+    expect(own.weekHoldings).toEqual([{ studentName: 'A', startDate: '2026-09-07', endDate: '2026-09-11', holdingDates: ['2026-09-07', '2026-09-11'] }]);
+    expect(h.render([student], student).weekHoldings).toEqual(own.weekHoldings);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.calls.getHoldingsByWeek).toHaveBeenCalledOnce();
 });
 
 it('오래된 주간 응답이 최신 결과를 덮어쓰지 않는다', async () => {

@@ -1,17 +1,17 @@
 import * as Admin from './modules/admin.js?v=20260925-student-ux';
-import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminModalHTML, renderStampModalHTML } from './ui.js?v=20261007-action-order';
+import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminModalHTML, renderStampModalHTML } from './ui.js?v=20261014-performance';
 
 import { state, db, firebaseInitialized } from './state.js';
 import { loadSavedLogin } from './utils.js';
 // Import all functions to expose to window
-import * as Auth from './modules/auth.js?v=20261007-action-order';
+import * as Auth from './modules/auth.js?v=20261014-performance';
 import * as Sets from './modules/sets.js?v=20260925-student-ux';
-import * as Records from './modules/records.js?v=20261007-action-order';
-import * as Calendar from './modules/calendar.js?v=20261002-selected-date';
-import * as Coach from './modules/coach.js?v=20260925-student-ux';
+import * as Records from './modules/records.js?v=20261014-performance';
+import * as Calendar from './modules/calendar.js?v=20261014-performance';
+import * as Coach from './modules/coach.js?v=20261014-performance';
 import * as Stamp from './modules/stamp.js';
-import * as OneRM from './modules/onerm.js?v=20261008-button-revert';
-import * as StudentWorkspace from './modules/student-workspace.js?v=20261002-selected-date';
+import * as OneRM from './modules/onerm.js?v=20261014-performance';
+import * as StudentWorkspace from './modules/student-workspace.js?v=20261014-performance';
 
 // ============================================
 // Auto Save Logic (DOM Dependent)
@@ -138,7 +138,7 @@ function setupCoachMemosListener() {
             } else {
                 state.coachPinnedMemos = [];
             }
-            Records.updatePinnedDisplay();
+            Records.updatePinnedDisplay(false);
         }, (error) => {
             console.error('❌ 코치 메모 리스너 오류:', error);
         });
@@ -173,7 +173,7 @@ function setupStudentPinnedMemosListener() {
                 // 주의: 네트워크 오류로 일시적으로 없을 수도 있으므로 신중해야 하지만,
                 // 코치/사용자가 삭제했다면 반영해야 함. 일단 유지.
             }
-            Records.updatePinnedDisplay();
+            Records.updatePinnedDisplay(false);
         }, (error) => {
             console.error('❌ 수강생 메모 리스너 오류:', error);
         });
@@ -236,7 +236,7 @@ window.render = async function () {
             Admin.loadExercisesList(), // Load exercises for Datalist
         ]);
 
-        Records.updatePinnedDisplay();
+        Records.updatePinnedDisplay(false);
         Records.loadMyXpState(); // 레벨(XP) 상태 로드/시딩 — 기록 저장 시 증분 기준
         Stamp.loadMyStamp();
         setTimeout(loadAutoSavedData, 100);

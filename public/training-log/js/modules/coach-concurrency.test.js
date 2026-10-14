@@ -95,3 +95,15 @@ it('구형 기록 보기 요청이 겹쳐도 마지막 구독만 설치한다', 
     h.state.unsubscribe();
     expect(h.active.size).toBe(0);
 });
+
+it('코치 기록과 고정 메모를 같은 단계에서 시작하며 모두 준비된 뒤 표시한다', async () => {
+    const h = harness();
+    const result = h.run('renderCoachSessionView()');
+    expect(h.pending.map(p => p.collection).sort()).toEqual(['coachPinnedMemos', 'pinnedMemos', 'records']);
+    h.pending.find(p => p.collection === 'records').resolve(empty);
+    await Promise.resolve();
+    expect(h.container.innerHTML).toContain('불러오는 중');
+    h.pending.filter(p => p.collection !== 'records').forEach(p => p.resolve({ exists: false }));
+    await result;
+    expect(h.container.innerHTML).toBe('A');
+});

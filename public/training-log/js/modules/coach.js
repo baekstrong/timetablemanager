@@ -1776,7 +1776,7 @@ export async function renderCoachSessionView() {
     if (needFetch.length > 0) {
         container.innerHTML = '<p class="text-gray-400 text-center py-8">불러오는 중…</p>';
         try {
-            await Promise.all(needFetch.map(async (name) => {
+            await Promise.all([loadPinnedMemosForSelectedStudents(), ...needFetch.map(async (name) => {
                 await fetchSessions(name, SESSION_DAYS);
                 if (request !== coachViewRequest) return;
                 const { dates, byDate } = coachSessionCache[name];
@@ -1784,10 +1784,8 @@ export async function renderCoachSessionView() {
                 coachSessionSelectedDate[name] = (coachPreferredDate && byDate[coachPreferredDate])
                     ? coachPreferredDate
                     : defaultSessionDate(dates, localToday());
-            }));
+            })]);
             if (request !== coachViewRequest) return;
-            // 학생 화면과 동일하게 종목별 고정 메모를 표시하려면 pinnedMemos도 필요.
-            await loadPinnedMemosForSelectedStudents();
         } catch (e) {
             if (request !== coachViewRequest) return;
             console.error('코치 세션 조회 실패:', e);

@@ -7,6 +7,11 @@ let referenceRequest = 0;
 let references = [];
 let selectedReference = 0;
 let initializing = false;
+const referenceCache = new Map();
+const referenceInflight = new Map();
+const referenceGenerations = new Map();
+const REFERENCE_PAGE_SIZE = 24;
+const REFERENCE_CACHE_MS = 60_000;
 const storageKey = (user = state.currentUser) => `trainingDrafts_v1_${user}`;
 const emptyStore = () => ({ drafts: {}, lastByDate: {} });
 function readStore(user = state.currentUser) {
@@ -207,6 +212,56 @@ export function recoverStudentDraft(recordId) {
     startStudentRecord(draft.date, draft.exercise, { skipSave: true });
 }
 
+// 최근 3개 운동일을 확보하되, 세 번째 날의 여러 문서를 페이지 경계에서 자르지 않는다.
+// userName/exercise/date DESC 인덱스를 사용한다. 실패를 전 기간 조회로 확대하지 않는다.
+async function fetchStudentReferences(user, exercise, writingDate) {
+    const cutoff = writingDate < localDate() ? writingDate : localDate();
+    const key = JSON.stringify([user, exercise, cutoff]);
+    const cached = referenceCache.get(key);
+    if (cached && Date.now() - cached.at < REFERENCE_CACHE_MS) return cached.days;
+    if (referenceInflight.has(key)) return referenceInflight.get(key);
+    const generation = referenceGenerations.get(user) || 0;
+    const request = (async () => {
+        const query = db.collection('records').where('userName', '==', user)
+            .where('exercise', '==', exercise).where('date', '<', cutoff)
+            .orderBy('date', 'desc').limit(REFERENCE_PAGE_SIZE);
+        const records = [];
+        const days = new Set();
+        let cursor;
+        let complete = false;
+        while (!complete) {
+            const snapshot = await (cursor ? query.startAfter(cursor) : query).get();
+            if ((referenceGenerations.get(user) || 0) !== generation) return null;
+            for (const doc of snapshot.docs) {
+                const record = doc.data();
+                // Once an older day starts, every document from the third day is present.
+                if (days.size === 3 && !days.has(record.date)) { complete = true; break; }
+                if (!Array.isArray(record.sets) || !record.sets.length) continue;
+                days.add(record.date);
+                records.push(record);
+            }
+            if (snapshot.size < REFERENCE_PAGE_SIZE) complete = true;
+            cursor = snapshot.docs[snapshot.docs.length - 1];
+        }
+        const result = recentExerciseDays(records, exercise, writingDate);
+        referenceCache.set(key, { at: Date.now(), days: result });
+        return result;
+    })().finally(() => {
+        if (referenceInflight.get(key) === request) referenceInflight.delete(key);
+    });
+    referenceInflight.set(key, request);
+    return request;
+}
+
+export function invalidateStudentReferences(user = state.currentUser) {
+    if (!user) return;
+    referenceGenerations.set(user, (referenceGenerations.get(user) || 0) + 1);
+    for (const cache of [referenceCache, referenceInflight]) {
+        for (const key of cache.keys()) if (JSON.parse(key)[0] === user) cache.delete(key);
+    }
+    if (user === state.currentUser) referenceRequest++;
+}
+
 export async function loadStudentReferences(exercise) {
     const request = ++referenceRequest;
     references = []; selectedReference = 0;
@@ -215,10 +270,9 @@ export async function loadStudentReferences(exercise) {
     const writingDate = state.studentWriteDate || localDate();
     renderStudentReference('지난 기록을 불러오는 중…');
     try {
-        const snapshot = await db.collection('records').where('userName', '==', user).where('exercise', '==', exercise).get();
-        if (request !== referenceRequest || user !== state.currentUser || writingDate !== state.studentWriteDate || exercise !== activeExercise) return;
-        const records = []; snapshot.forEach(doc => records.push(doc.data()));
-        references = recentExerciseDays(records, exercise, writingDate);
+        const days = await fetchStudentReferences(user, exercise, writingDate);
+        if (!days || request !== referenceRequest || user !== state.currentUser || writingDate !== state.studentWriteDate || exercise !== activeExercise) return;
+        references = days;
         renderStudentReference();
         refreshStudentPreviousSets();
     } catch (error) {

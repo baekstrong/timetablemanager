@@ -108,6 +108,7 @@ export async function saveOneRM() {
     const setStatus = (msg) => { if (status) status.textContent = msg; };
 
     if (!state.currentUser || !db) { setStatus('로그인이 필요해요'); return; }
+    const user = state.currentUser;
 
     const exercise = (document.getElementById('onermExercise')?.value || '').trim();
     const weight = document.getElementById('onermWeight')?.value;
@@ -118,7 +119,7 @@ export async function saveOneRM() {
     if (!exercise) { setStatus('종목을 입력하세요'); return; }
 
     try {
-        const ref = db.collection('oneRMRecords').doc(state.currentUser);
+        const ref = db.collection('oneRMRecords').doc(user);
         const snap = await ref.get();
         const map = (snap.exists && snap.data().map) ? { ...snap.data().map } : {};
         map[exercise] = { oneRM, weight: parseFloat(weight), reps: parseFloat(reps), date: today() };
@@ -126,8 +127,9 @@ export async function saveOneRM() {
         // 항상 map 전체를 read-modify-write 하므로 전체 set이 맞다.
         // ponytail: 단일 사용자 순차 클릭 전제, 동시성 락 불필요.
         await ref.set({ map, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
+        if (state.currentUser !== user) return;
         setStatus(`저장됐어요 · ${exercise} ${oneRM}kg`);
-        _oneRMMap = map; // 기록 폼 칩도 바로 최신화
+        rememberOneRMMap(user, map); // 기록 폼 칩도 바로 최신화
         renderMyOneRMList(map);
         renderOneRMChip();
     } catch (e) {
@@ -138,9 +140,10 @@ export async function saveOneRM() {
 
 export async function loadMyOneRMs() {
     if (!state.currentUser || !db) return;
+    const user = state.currentUser;
     try {
-        const snap = await db.collection('oneRMRecords').doc(state.currentUser).get();
-        renderMyOneRMList((snap.exists && snap.data().map) ? snap.data().map : {});
+        const map = await loadOneRMMap(user, true);
+        if (map && state.currentUser === user) renderMyOneRMList(map);
     } catch (e) {
         console.error('1RM 목록 로드 실패', e);
     }
@@ -154,10 +157,11 @@ export function toggleOneRM(index) {
 
 export async function deleteOneRM(index) {
     if (!state.currentUser || !db) return;
+    const user = state.currentUser;
     const target = _myOneRMs[index];
     if (!target) return;
     try {
-        const ref = db.collection('oneRMRecords').doc(state.currentUser);
+        const ref = db.collection('oneRMRecords').doc(user);
         const snap = await ref.get();
         if (!snap.exists) return;
         const map = { ...(snap.data().map || {}) };
@@ -166,7 +170,8 @@ export async function deleteOneRM(index) {
         // 항상 map 전체를 read-modify-write 하므로 전체 set이 맞다.
         // ponytail: 단일 사용자 순차 클릭 전제, 동시성 락 불필요.
         await ref.set({ map, updatedAt: window.firebase.firestore.FieldValue.serverTimestamp() });
-        _oneRMMap = map;
+        if (state.currentUser !== user) return;
+        rememberOneRMMap(user, map);
         renderMyOneRMList(map);
         renderOneRMChip();
     } catch (e) {
@@ -181,9 +186,33 @@ export async function deleteOneRM(index) {
 // 세션 캐시. Firestore 읽기 = 비용이라 종목 입력할 때마다 조회하지 않는다.
 // 저장/삭제 시 갱신되므로 stale 걱정 없음.
 let _oneRMMap = null;
+let _oneRMUser = null;
+let _oneRMRevision = 0;
+let _oneRMInflight = null;
 let _picked = [];      // 누른 순서 그대로의 % 목록
 let _pickedOneRM = 0;
 let _pickedExercise = '';
+
+function rememberOneRMMap(user, map) {
+    _oneRMUser = user;
+    _oneRMRevision++;
+    _oneRMMap = map;
+    _oneRMInflight = null;
+}
+
+function loadOneRMMap(user, refresh = false) {
+    if (_oneRMUser !== user) rememberOneRMMap(user, null);
+    if (!refresh && _oneRMMap !== null) return Promise.resolve(_oneRMMap);
+    if (_oneRMInflight) return _oneRMInflight;
+    const revision = _oneRMRevision;
+    const request = db.collection('oneRMRecords').doc(user).get().then(snap => {
+        if (_oneRMUser !== user || revision !== _oneRMRevision) return null;
+        _oneRMMap = snap.exists && snap.data().map ? snap.data().map : {};
+        return _oneRMMap;
+    }).finally(() => { if (_oneRMInflight === request) _oneRMInflight = null; });
+    _oneRMInflight = request;
+    return request;
+}
 
 // 현재 입력한 종목에 저장된 1RM이 있으면 폼에 칩 하나 띄운다 (없으면 비움)
 export async function renderOneRMChip() {
@@ -192,20 +221,14 @@ export async function renderOneRMChip() {
     const exercise = (document.getElementById('exercise')?.value || '').trim();
     if (!exercise) { el.innerHTML = ''; return; }
 
-    if (_oneRMMap === null) {
-        if (!state.currentUser || !db) { el.innerHTML = ''; return; }
-        try {
-            const snap = await db.collection('oneRMRecords').doc(state.currentUser).get();
-            _oneRMMap = (snap.exists && snap.data().map) ? snap.data().map : {};
-        } catch (e) {
-            console.error('1RM 조회 실패', e);
-            _oneRMMap = {};
-        }
-        // 조회 중에 종목이 바뀌었을 수 있음
-        if ((document.getElementById('exercise')?.value || '').trim() !== exercise) return;
-    }
+    const user = state.currentUser;
+    if (!user || !db) { el.innerHTML = ''; return; }
+    let map;
+    try { map = await loadOneRMMap(user); }
+    catch (e) { console.error('1RM 조회 실패', e); return; }
+    if (!map || state.currentUser !== user || (document.getElementById('exercise')?.value || '').trim() !== exercise) return;
 
-    const saved = _oneRMMap[exercise];
+    const saved = map[exercise];
     el.innerHTML = (saved && saved.oneRM > 0) ? `
         <button type="button" onclick="openPercentModal()"
                 class="w-full px-3 py-2 rounded-lg border border-[#329BE7] bg-[#329BE71A] text-sm font-semibold text-[#327AB8] text-left">

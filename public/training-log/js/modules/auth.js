@@ -1,8 +1,10 @@
-import { readSessionIdentity } from '../sessionIdentity.js';
+import { restoreSessionIdentity } from '../sessionRecovery.js?v=20261014-performance';
 import { state, db, firebaseInitialized } from '../state.js';
 import { saveLogin, loadSavedLogin, clearSavedLogin } from '../utils.js';
-import { loadPinnedExercisesFromStorage, loadArchivedMemosFromStorage, migrateLocalStorageToFirestore } from './records.js?v=20261007-action-order';
+import { loadPinnedExercisesFromStorage, loadArchivedMemosFromStorage, migrateLocalStorageToFirestore } from './records.js?v=20261014-performance';
 import { FUNCTIONS_BASE } from '../config.js';
+
+let autoLoginPending = false;
 
 // ============================================
 // 로그인 및 인증 관련
@@ -26,6 +28,7 @@ async function requestLogin(name, password) {
 }
 
 export async function login() {
+    if (autoLoginPending) return;
     const nameInput = document.getElementById('nameInput');
     const passwordInput = document.getElementById('passwordInput');
     const rememberMe = document.getElementById('rememberMe');
@@ -112,21 +115,20 @@ export async function login() {
 
 export async function autoLogin() {
     const saved = loadSavedLogin();
-    if (!saved || !firebaseInitialized || !db) return;
+    if (!saved || !firebaseInitialized || !db || autoLoginPending) return;
+    autoLoginPending = true;
+    state.authRestoreError = '';
+    const retryButton = document.getElementById('retrySavedLogin');
+    if (retryButton) { retryButton.disabled = true; retryButton.textContent = '로그인 확인 중…'; }
 
     try {
         // 1) 공유 Firebase Auth 세션 우선 (메인앱이 만든 세션 = 같은 origin·프로젝트라 공유됨)
         //    → 서버 재인증(네트워크+bcrypt) 생략하고 즉시 로그인. 앱 간 이동이 빨라짐.
-        const sessionUser = await new Promise((resolve) => {
-            let done = false;
-            const finish = (u) => { if (!done) { done = true; resolve(u); } };
-            try {
-                const unsub = firebase.auth().onAuthStateChanged((u) => { unsub(); clearTimeout(timer); finish(u); });
-                const timer = setTimeout(() => { unsub(); finish(null); }, 2500);
-            } catch (e) { finish(null); }
+        // 복원 지연은 '세션 없음'이 아니다. 실제 null/다른 계정일 때만 비밀번호로 로그인한다.
+        const identity = await restoreSessionIdentity({
+            expectedName: saved.name,
+            subscribe: (onUser, onError) => firebase.auth().onAuthStateChanged(onUser, onError),
         });
-
-        const identity = await readSessionIdentity(sessionUser, saved.name);
         if (identity) {
             console.log('⚡ 공유 Firebase 세션 — 즉시 자동 로그인 (서버 재인증 생략)');
             state.isCoach = identity.isCoach;
@@ -139,6 +141,8 @@ export async function autoLogin() {
             } catch (serverErr) {
                 console.warn('자동 로그인 실패:', serverErr.message);
                 // 일시적인 통신 지연으로 저장된 로그인 정보를 지우지 않는다.
+                state.authRestoreError = '로그인 연결을 확인하지 못했어요. 다시 시도해주세요.';
+                if (window.render) window.render();
                 return;
             }
         }
@@ -153,6 +157,11 @@ export async function autoLogin() {
         if (window.render) window.render();
     } catch (error) {
         console.error('자동 로그인 실패:', error);
+        state.authRestoreError = '저장된 로그인 상태를 확인하지 못했어요. 다시 확인하거나 직접 로그인해주세요.';
+        if (window.render) window.render();
+    } finally {
+        autoLoginPending = false;
+        if (retryButton) { retryButton.disabled = false; retryButton.textContent = '저장된 로그인 다시 확인'; }
     }
 }
 

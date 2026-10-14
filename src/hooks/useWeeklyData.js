@@ -23,7 +23,7 @@ import {
 /**
  * 주간 Firebase 데이터(보강, 홀딩, 결석, 공휴일, 대기) 로딩 + 자동 리프레시 훅
  */
-export function useWeeklyData({ students, mode, readOnly = false }) {
+export function useWeeklyData({ students, studentData, mode, readOnly = false }) {
     const [currentWeekStart, setCurrentWeekStart] = useState(() => getThisWeekRange().start);
     const [weekMakeupRequests, setWeekMakeupRequests] = useState([]);
     const [firebaseHoldings, setFirebaseHoldings] = useState([]);
@@ -65,7 +65,13 @@ export function useWeeklyData({ students, mode, readOnly = false }) {
         const start = formatDateISO(monday);
         const end = formatDateISO(friday);
         const datesByHolding = new Map(firebaseHoldings.map(h => [`${h.studentName}|${h.startDate}|${h.endDate}`, h.holdingDates]));
-        return (students || []).flatMap(student => {
+        // 전체 명단보다 본인 수강권이 먼저 도착해도 선택한 홀딩 날짜를 정확히 표시한다.
+        // 명단이 도착하면 기존 명단 계산을 사용하며, 이 보강은 여석 계산에는 사용하지 않는다.
+        const holdingStudents = [...(students || [])];
+        if (studentData && !holdingStudents.some(student => student['이름'] === studentData['이름'])) {
+            holdingStudents.push(...[studentData, studentData._prevRegistration, studentData._nextRegistration].filter(Boolean));
+        }
+        return holdingStudents.flatMap(student => {
             if (!parseHoldingStatus(getStudentField(student, '홀딩 사용여부')).isCurrentlyUsed) return [];
             const from = parseSheetDate(getStudentField(student, '홀딩 시작일'));
             const to = parseSheetDate(getStudentField(student, '홀딩 종료일'));
@@ -77,7 +83,7 @@ export function useWeeklyData({ students, mode, readOnly = false }) {
             const holdingDates = datesByHolding.get(`${studentName}|${startDate}|${endDate}`);
             return [{ studentName, startDate, endDate, ...(holdingDates?.length ? { holdingDates } : {}) }];
         });
-    }, [students, firebaseHoldings, currentWeekStart]);
+    }, [students, studentData, firebaseHoldings, currentWeekStart]);
 
     const loadWeeklyData = useCallback(async () => {
         const id = ++requestId.current;

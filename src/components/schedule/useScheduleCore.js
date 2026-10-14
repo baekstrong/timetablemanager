@@ -33,7 +33,7 @@ export function useScheduleCore({
     pendingRegistrations = [],
     readOnly = false,
 }) {
-    const weeklyData = useWeeklyData({ user, students, mode, refresh, readOnly });
+    const weeklyData = useWeeklyData({ user, students, studentData, mode, refresh, readOnly });
     const { weekMakeupRequests, weekHoldings, weekAbsences, weekHolidays, currentWeekStart } = weeklyData;
 
     // ── Student holding period (from Sheets N/O columns) ──

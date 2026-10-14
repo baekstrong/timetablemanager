@@ -549,6 +549,9 @@ export const batchReadSheetData = async (ranges) => {
 // 짧은 시간에 반복·동시 호출 → 캐시(30초) + in-flight dedup + batchGet 묶음으로 읽기 횟수를 줄인다.
 const _studentSheetCache = new Map();    // sheetName -> { time, students }
 const _studentSheetInflight = new Map(); // sheetName -> Promise<students>
+// 과거 정지 명단은 B:H만 읽는다. 부분 행이 본인 등록 A:R 캐시를 오염시키지 않게 분리한다.
+const _pausedSheetCache = new Map();
+const _pausedSheetInflight = new Map();
 const STUDENT_SHEET_CACHE_TTL = 30 * 1000;
 let studentSheetGeneration = 0;
 
@@ -557,20 +560,24 @@ export const invalidateStudentSheetCache = () => {
   studentSheetGeneration++;
   _studentSheetCache.clear();
   _studentSheetInflight.clear();
+  _pausedSheetCache.clear();
+  _pausedSheetInflight.clear();
 };
 
 // 실패를 월별 요청으로 증폭시키지 않는다. 빈 시트는 정상 빈 결과다.
-const _fetchStudentSheets = async (names) => {
+const _fetchStudentSheets = async (names, pausedOnly = false) => {
   const generation = studentSheetGeneration;
-  const valueRanges = await batchReadSheetData(names.map(n => `${n}!A:R`));
+  const cache = pausedOnly ? _pausedSheetCache : _studentSheetCache;
+  const valueRanges = await batchReadSheetData(names.map(n => `${n}!${pausedOnly ? 'B:H' : 'A:R'}`));
   if (valueRanges.length !== names.length) throw new Error('시트 응답이 불완전합니다. 다시 확인해주세요.');
-  if (generation !== studentSheetGeneration) return readStudentSheets(names);
+  if (generation !== studentSheetGeneration) return readStudentSheets(names, pausedOnly);
   const map = new Map();
   await Promise.all(names.map(async (name, i) => {
     const rows = valueRanges[i]?.values || [];
-    const students = parseStudentData(rows);
+    const parsed = parseStudentData(rows);
+    const students = pausedOnly ? parsed.filter(isPausedRegistration) : parsed;
     students.forEach(s => { s._foundSheetName = name; });
-    _studentSheetCache.set(name, { time: Date.now(), students });
+    cache.set(name, { time: Date.now(), students });
     map.set(name, students);
   }));
   return map;
@@ -581,9 +588,12 @@ const _fetchStudentSheets = async (names) => {
  * 캐시에 있으면 재사용, 진행 중이면 그 요청을 공유, 미스인 시트만 묶어 읽는다.
  * 반환 객체는 호출자별 얕은 복제본이라 자유롭게 변형해도 캐시가 오염되지 않는다.
  * @param {Array<string>} sheetNames
+ * @param {boolean} pausedOnly - 과거 시트는 B:H의 정지 행만 별도 캐시한다.
  * @returns {Promise<Map<string, Array>>}
  */
-const readStudentSheets = async (sheetNames) => {
+const readStudentSheets = async (sheetNames, pausedOnly = false) => {
+  const cache = pausedOnly ? _pausedSheetCache : _studentSheetCache;
+  const inflight = pausedOnly ? _pausedSheetInflight : _studentSheetInflight;
   // 미래 월 등 아직 없는 시트가 batchGet 전체를 실패시키지 않도록 필터링.
   const available = new Set(await getAllSheetNames());
   sheetNames = sheetNames.filter(name => available.has(name));
@@ -593,11 +603,11 @@ const readStudentSheets = async (sheetNames) => {
 
   for (const name of sheetNames) {
     if (promiseByName.has(name)) continue; // 중복 입력 무시
-    const cached = _studentSheetCache.get(name);
+    const cached = cache.get(name);
     if (cached && (now - cached.time) < STUDENT_SHEET_CACHE_TTL) {
       promiseByName.set(name, Promise.resolve(cached.students));
-    } else if (_studentSheetInflight.has(name)) {
-      promiseByName.set(name, _studentSheetInflight.get(name)); // 진행 중 요청 공유
+    } else if (inflight.has(name)) {
+      promiseByName.set(name, inflight.get(name)); // 진행 중 요청 공유
     } else {
       toFetch.push(name);
     }
@@ -605,13 +615,13 @@ const readStudentSheets = async (sheetNames) => {
 
   if (toFetch.length > 0) {
     const generation = studentSheetGeneration;
-    const batchPromise = _fetchStudentSheets(toFetch)
+    const batchPromise = _fetchStudentSheets(toFetch, pausedOnly)
       .finally(() => {
-        if (generation === studentSheetGeneration) toFetch.forEach(n => _studentSheetInflight.delete(n));
+        if (generation === studentSheetGeneration) toFetch.forEach(n => inflight.delete(n));
       });
     toFetch.forEach(name => {
       const p = batchPromise.then(map => map.get(name) || []);
-      _studentSheetInflight.set(name, p);
+      inflight.set(name, p);
       promiseByName.set(name, p);
     });
   }
@@ -1268,13 +1278,11 @@ export const getAllStudentsFromAllSheets = async () => {
   // 장기 정지는 결제월 창 밖에서도 잔여가 살아 있다. 오래된 시트는 B:H만
   // 현재 창 조회와 병렬로 읽고, 정지 행만 추가한다(매출/연락처 전체 로드 금지).
   const olderSheets = sheets.filter(name => name.startsWith('등록생 목록(') && !studentSheets.includes(name));
-  const [sheetMap, olderRanges] = await Promise.all([
+  const [sheetMap, olderMap] = await Promise.all([
     readStudentSheets(studentSheets),
-    olderSheets.length ? batchReadSheetData(olderSheets.map(name => `${name}!B:H`)) : [],
+    readStudentSheets(olderSheets, true),
   ]);
-  const oldPaused = olderRanges.flatMap((range, index) => parseStudentData(range.values || [])
-    .filter(isPausedRegistration)
-    .map(student => ({ ...student, _foundSheetName: olderSheets[index] })));
+  const oldPaused = olderSheets.flatMap(name => olderMap.get(name) || []);
   const allStudents = [...studentSheets.flatMap(name => sheetMap.get(name) || []), ...oldPaused];
   console.log(`✨ Total students loaded from all sheets: ${allStudents.length}`);
 

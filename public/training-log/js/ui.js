@@ -18,6 +18,7 @@ export function renderLoginScreen() {
                 </div>
                 
                 <div class="space-y-4">
+                    ${state.authRestoreError ? `<div role="alert"><p class="text-sm text-gray-600">${escapeHTML(state.authRestoreError)}</p><button type="button" id="retrySavedLogin" onclick="autoLogin()" class="w-full bg-gray-100 text-gray-800 py-3 rounded-lg">저장된 로그인 다시 확인</button></div>` : ''}
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">이름</label>
                         <input 
@@ -70,7 +71,7 @@ export function renderStudentScreen() {
             <section id="studentCalendarView">
                 <button type="button" id="studentStartButton" class="student-main-button" onclick="startStudentRecord()">오늘 훈련일지 기록하기 ＋</button>
                 <div id="studentDraftList"></div>
-                <section class="student-calendar-card" aria-label="월간 운동 기록"><div id="calendar"></div></section>
+                <section class="student-calendar-card" aria-label="월간 운동 기록"><div id="calendar"><p class="student-help" role="status">운동 기록 확인 중…</p></div></section>
                 <section class="student-records-card">
                     <h3 id="recordsListTitle">${formatDate(state.selectedDate)} 기록</h3>
                     <div id="recordsList"></div>

@@ -35,6 +35,8 @@ import './WeeklySchedule.css';
 
 const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false, isStudentDataLoading = false, onStudentDataRefresh, onNavigate, hasContractNotification = false, studentTransfers = null, onStudentTransferUpdate, view = 'schedule', hasNewPostNotification = false }) => {
     const [mode, setMode] = useState(user?.role === 'coach' ? 'coach' : 'student');
+    // 시간표 탭의 선택은 보존하되 코치 홈은 항상 코치의 출석·여석 기준으로 계산한다.
+    const activeMode = user?.role === 'coach' && view !== 'schedule' ? 'coach' : mode;
     const { students, isAuthenticated, isConnected, error: sheetsError, loading, refresh } = useGoogleSheets();
 
     // Pending new student registrations (선언 위치: useScheduleCore에 전달 필요)
@@ -60,7 +62,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
 
     // 빙의 대상 수강생의 등록행 — 오늘 날짜가 수강 기간 내인 행을 우선 선택
     const forceModeStudentData = useMemo(() => {
-        if (mode !== 'studentForce' || !forceModeStudent || !students) return null;
+        if (activeMode !== 'studentForce' || !forceModeStudent || !students) return null;
         const matches = students.filter(s => s['이름'] === forceModeStudent && (s['요일 및 시간'] || '').trim());
         if (matches.length === 0) return null;
         const now = new Date();
@@ -72,9 +74,9 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
             return start.getTime() <= now.getTime() && now.getTime() <= end.getTime();
         });
         return active || matches[0];
-    }, [mode, forceModeStudent, students]);
+    }, [activeMode, forceModeStudent, students]);
 
-    const isForceMode = mode === 'studentForce' && !!forceModeStudent && !!forceModeStudentData;
+    const isForceMode = activeMode === 'studentForce' && !!forceModeStudent && !!forceModeStudentData;
 
     // useScheduleCore에 넘길 effective user/studentData — 강제 모드일 때는 빙의 대상으로 치환
     const effectiveUser = useMemo(() => {
@@ -85,11 +87,11 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
     // 개별 수강권 조회가 성공해도 전체 명단이 없으면 보강 여석을 판단할 수 없다.
     const studentRosterError = user?.role !== 'coach'
         ? sheetsError ? '최신 수강생 명단을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.'
-            : !students?.length ? '수강생 명단을 확인할 수 없습니다. 새로고침 후 다시 확인해주세요.' : ''
+            : !loading && !students?.length ? '수강생 명단을 확인할 수 없습니다. 새로고침 후 다시 확인해주세요.' : ''
         : '';
 
     // 코치/학생 공통 파생 데이터 + useWeeklyData 래핑
-    const scheduleCore = useScheduleCore({ user: effectiveUser, students, mode, studentData: effectiveStudentData, refresh, pendingRegistrations });
+    const scheduleCore = useScheduleCore({ user: effectiveUser, students, mode: activeMode, studentData: effectiveStudentData, refresh, pendingRegistrations });
     const {
         weekAbsences,
         weekWaitlist, setWeekWaitlist,
@@ -194,6 +196,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
 
     // Manual refresh state
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [personalRefreshKey, setPersonalRefreshKey] = useState(0);
     const refreshInFlight = useRef(false);
     const [refreshedAt, setRefreshedAt] = useState(null);
     useEffect(() => {
@@ -210,6 +213,8 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
 
     // 시간표 변경(직접 이동) 처리 중 플래그 — 화면 이탈 방지 + 로딩 UI
     const [isTransferring, setIsTransferring] = useState(false);
+    const [disabledClassesError, setDisabledClassesError] = useState('');
+    const [lockedSlotsError, setLockedSlotsError] = useState('');
     useEffect(() => {
         if (!isTransferring) return;
         const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
@@ -219,23 +224,39 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
 
     // ── Data loading effects ──
 
-    useEffect(() => {
-        getDisabledClasses()
-            .then(setDisabledClasses)
-            .catch((error) => {
-                console.error('Failed to load disabled classes:', error);
-                const saved = localStorage.getItem('disabled_classes');
-                if (saved) setDisabledClasses(JSON.parse(saved));
-            })
-            .finally(() => setDisabledClassesLoading(false));
-    }, []);
+    async function loadDisabledClasses() {
+        setDisabledClassesLoading(true);
+        setDisabledClassesError('');
+        try { setDisabledClasses(await getDisabledClasses({ strict: true })); }
+        catch (error) {
+            setDisabledClassesError('휴강 정보를 불러오지 못했어요. 다시 불러온 뒤 수업을 확인해주세요.');
+            throw error;
+        } finally { setDisabledClassesLoading(false); }
+    }
+
+    async function loadLockedSlots() {
+        setLockedSlotsLoading(true);
+        setLockedSlotsError('');
+        try { setLockedSlots(await getLockedSlots({ strict: true })); setLockedSlotsError(''); }
+        catch (error) {
+            setLockedSlotsError('신청 제한 정보를 불러오지 못했어요. 다시 불러온 뒤 신청해주세요.');
+            throw error;
+        } finally { setLockedSlotsLoading(false); }
+    }
 
     useEffect(() => {
-        getLockedSlots()
-            .then(setLockedSlots)
-            .catch(error => console.error('Failed to load locked slots:', error))
-            .finally(() => setLockedSlotsLoading(false));
+        void loadDisabledClasses().catch(error => console.error('Failed to load disabled classes:', error));
+        void loadLockedSlots().catch(error => console.error('Failed to load locked slots:', error));
     }, []);
+
+    async function retryFailedSettings() {
+        const results = await Promise.allSettled([
+            disabledClassesError && !disabledClassesLoading ? loadDisabledClasses() : undefined,
+            lockedSlotsError && !lockedSlotsLoading ? loadLockedSlots() : undefined,
+        ]);
+        const failed = results.find(result => result.status === 'rejected');
+        if (failed) throw failed.reason;
+    }
 
     useEffect(() => {
         if (user?.role === 'coach') {
@@ -252,7 +273,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
     // 대기(만석) 건의 여석 자동 감지
     useEffect(() => {
         // 시트 로드 중/실패 상태에서 빈 점유율로 대기 건을 잘못 풀지 않는다.
-        if (user?.role !== 'coach' || newStudentWaitlist.length === 0 || loading || sheetsError) return;
+        if (user?.role !== 'coach' || newStudentWaitlist.length === 0 || loading || sheetsError || disabledClassesLoading || disabledClassesError) return;
 
         const updates = checkWaitlistAvailability(
             newStudentWaitlist, newStudentSlotOccupancy, disabledClasses, MAX_CAPACITY
@@ -271,12 +292,12 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
                 return reg;
             }));
         }
-    }, [user, newStudentWaitlist, newStudentSlotOccupancy, disabledClasses, loading, sheetsError]);
+    }, [user, newStudentWaitlist, newStudentSlotOccupancy, disabledClasses, loading, sheetsError, disabledClassesLoading, disabledClassesError]);
 
     // 만석 보강 대기 백스톱 — 코치 시간표 로드 시 실제 여석 기준으로 만료/승급 처리 + 표시용 로드
     useEffect(() => {
         // 주간 데이터(보강 인원 등) 로드 완료 전에는 여석을 과대 계산해 만석에도 오알림이 나가므로 대기.
-        if (user?.role !== 'coach' || mode !== 'coach' || !scheduleData || !weeklyDataLoaded) return;
+        if (user?.role !== 'coach' || activeMode !== 'coach' || !scheduleData || !weeklyDataLoaded || loading || sheetsError || !students.length || disabledClassesLoading || lockedSlotsLoading || disabledClassesError || lockedSlotsError) return;
         let cancelled = false;
         (async () => {
             await syncMakeupWaitlists((date, day, period) => {
@@ -292,7 +313,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
         })();
         return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user, mode, scheduleData, weeklyDataLoaded]);
+    }, [user, activeMode, scheduleData, weeklyDataLoaded, loading, sheetsError, students, disabledClassesLoading, lockedSlotsLoading, disabledClassesError, lockedSlotsError]);
 
     // ── Handlers ──
 
@@ -301,9 +322,13 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
         refreshInFlight.current = true;
         setIsRefreshing(true);
         setRefreshMsg('');
+        setPersonalRefreshKey(value => value + 1);
         try {
-            await Promise.all([refresh(), onStudentDataRefresh?.()]);
-            await loadWeeklyData();
+            // 서로 독립적인 조회는 함께 시작한다. 신청과 자동 처리의 준비 조건은 유지한다.
+            const results = await Promise.allSettled([refresh(), onStudentDataRefresh?.(), loadWeeklyData(), retryFailedSettings()]);
+            // 일부 조회가 먼저 실패해도 나머지가 끝날 때까지 중복 갱신을 막는다.
+            const failed = results.find(result => result.status === 'rejected');
+            if (failed) throw failed.reason;
             setRefreshedAt(Date.now());
             setRefreshMsg('✓ 최신 상태입니다');
         } catch (error) {
@@ -415,25 +440,12 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
 
     // ── Loading / not-authenticated states ──
 
-    // 최초 로드만 전체화면 스피너. 수동 새로고침(isRefreshing) 중엔 표+버튼을 유지해
-    // 새로고침 버튼이 사라져 클릭이 유실되는 문제를 막는다.
-    if (user?.role !== 'coach' && (loading || isStudentDataLoading) && !isRefreshing) {
-        return (
-            <div className="schedule-container">
-                <div className="schedule-page-header">
-                    <h1 className="schedule-page-title">
-                        {pageTitle}
-                    </h1>
-                </div>
-                <div style={{ textAlign: 'center', padding: '2rem' }}>
-                    <div className="loading-spinner"></div>
-                    <p>시간표를 불러오는 중...</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (user?.role === 'coach' && (loading || disabledClassesLoading || lockedSlotsLoading || (view !== 'schedule' && !homeLoaded.current && !weeklyDataLoaded && !weeklyDataError)) && !isRefreshing) {
+    // 학생 화면은 즉시 마운트해 본인 조회를 병렬 시작한다. 본문·신청 게이트는 각각 유지한다.
+    if (user?.role === 'coach' && (disabledClassesLoading || lockedSlotsLoading || ((loading || (view !== 'schedule' && !homeLoaded.current && !weeklyDataLoaded && !weeklyDataError)) && !isRefreshing))) {
+        if (view !== 'schedule') return <main className="today-page today-coach">
+            <header className="today-header"><h1 className="today-coach-title">근력학교 · {user.username}</h1></header>
+            <section className="today-card"><h2>오늘 수업</h2><p className="today-empty" role="status">수업 정보를 불러오고 있어요.</p></section>
+        </main>;
         return <PageLoading message="정보를 불러오는 중…" />;
     }
 
@@ -453,12 +465,16 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
         );
     }
 
+    if (user?.role === 'coach' && (disabledClassesError || lockedSlotsError)) {
+        return <div className="today-page"><p role="alert">{disabledClassesError || lockedSlotsError}</p><button onClick={handleManualRefresh} disabled={isRefreshing}>다시 불러오기</button></div>;
+    }
+
     if (view !== 'schedule' && user?.role === 'coach') {
         if (!homeLoaded.current && !weeklyDataLoaded && !weeklyDataError) return <p className="today-empty" role="status">오늘 정보를 불러오는 중…</p>;
         if (!homeLoaded.current && (weeklyDataError || sheetsError)) return <div className="today-page"><p role="alert">{weeklyDataError || sheetsError}</p><button onClick={handleManualRefresh}>다시 불러오기</button></div>;
         return <>
             {(weeklyDataError || sheetsError) && <p className="today-error" role="alert">{weeklyDataError || sheetsError} <button onClick={handleManualRefresh}>다시 불러오기</button></p>}
-             <CoachHome user={user} hasNewPostNotification={hasNewPostNotification} core={scheduleCore} students={students} disabledClasses={disabledClasses} registrations={pendingRegistrations} scheduleTransfers={<ScheduleTransferPanel coach embedded entries={weekWaitlist} scheduleData={scheduleData} ready={weeklyDataLoaded && !sheetsError && !loading && Boolean(students.length)} onUpdate={updateTransfer} />} onNavigate={onNavigate} refresh={handleManualRefresh} refreshedAt={refreshedAt} refreshing={isRefreshing} refreshMessage={refreshMsg} />
+             <CoachHome user={user} hasNewPostNotification={hasNewPostNotification} core={scheduleCore} dataReady={weeklyDataLoaded && !loading && !sheetsError && !disabledClassesLoading && !lockedSlotsLoading} students={students} disabledClasses={disabledClasses} registrations={pendingRegistrations} scheduleTransfers={<ScheduleTransferPanel coach embedded entries={weekWaitlist} scheduleData={scheduleData} ready={weeklyDataLoaded && !sheetsError && !loading && Boolean(students.length)} onUpdate={updateTransfer} />} onNavigate={onNavigate} refresh={handleManualRefresh} refreshedAt={refreshedAt} refreshing={isRefreshing} refreshMessage={refreshMsg} />
         </>;
     }
 
@@ -534,7 +550,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
                 </div>
             )}
 
-            {user?.role !== 'coach' && <ScheduleTransferPanel entries={weekWaitlist} studentName={user.username} studentData={studentData} ready={weeklyDataLoaded && !isStudentDataLoading && !sheetsError && Boolean(studentData)} onUpdate={updateTransfer} onRefresh={handleManualRefresh} />}
+            {user?.role !== 'coach' && <ScheduleTransferPanel entries={weekWaitlist} studentName={user.username} studentData={studentData} ready={weeklyDataLoaded && !loading && !isStudentDataLoading && !studentRosterError && !disabledClassesLoading && !lockedSlotsLoading && !disabledClassesError && !lockedSlotsError && Boolean(studentData)} onUpdate={updateTransfer} onRefresh={handleManualRefresh} />}
 
             {/* Google Sheets 연동 상태 (코치 전용) — 모드 토글 위 */}
             {user?.role === 'coach' && (
@@ -701,7 +717,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
                     getCellData={getCellData}
                     getHolidayInfo={getHolidayInfo}
                     loadWeeklyData={loadWeeklyData}
-                    refreshStudents={async () => { await Promise.all([refresh(), onStudentDataRefresh?.()]); }}
+                    refreshStudents={async () => { await Promise.all([refresh(), onStudentDataRefresh?.(), retryFailedSettings()]); }}
                     isClassDisabled={isClassDisabled}
                     isSlotLocked={isSlotLocked}
                     newStudentWaitlist={newStudentWaitlist}
@@ -710,8 +726,12 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
                     onNavigate={onNavigate}
                     weekHolidays={weekHolidays}
                     weekHoldings={weekHoldings}
-                    weeklyDataLoaded={weeklyDataLoaded && (user?.role === 'coach' || (!loading && !isStudentDataLoading && !studentRosterError))}
-                    weeklyDataError={studentRosterError || weeklyDataError}
+                    weeklyDataLoaded={weeklyDataLoaded && !isStudentDataLoading && !disabledClassesLoading && !disabledClassesError}
+                    weeklyDataError={weeklyDataError || disabledClassesError}
+                    studentDataLoading={isStudentDataLoading}
+                    requestDataLoaded={weeklyDataLoaded && !loading && !isStudentDataLoading && !disabledClassesLoading && !lockedSlotsLoading && !studentRosterError && !disabledClassesError && !lockedSlotsError}
+                    requestDataError={studentRosterError || weeklyDataError || disabledClassesError || lockedSlotsError}
+                    personalRefreshKey={personalRefreshKey}
                     getEffectiveEndDate={getEffectiveEndDate}
                 />
             )}
@@ -763,6 +783,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
                     isClassDisabled={isClassDisabled}
                     isSlotLocked={isSlotLocked}
                     forceMode={true}
+                    personalRefreshKey={personalRefreshKey}
                     freeWorkoutByDate={freeWorkoutByDate}
                     onNavigate={onNavigate}
                     weekHolidays={weekHolidays}

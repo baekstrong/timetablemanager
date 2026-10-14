@@ -6,10 +6,11 @@ import { readCoachNotes, saveCoachNote, confirmStudentPayment } from './todaySer
 import { attendingNames, lessonRefreshId, buildCoachTaskGroups } from './todayModel';
 import { CoachToday, ActionButton } from './TodayViews';
 import ReviewModal from './ReviewModal';
+import { createVisibleTask } from '../../utils/visibleTask';
 
 const StudentRegistrationModal = lazy(() => import('../../components/StudentRegistrationModal'));
 
-export default function CoachHome({ user, hasNewPostNotification = false, core, students, disabledClasses, registrations, scheduleTransfers, onNavigate, refresh, refreshedAt, refreshing, refreshMessage }) {
+export default function CoachHome({ user, hasNewPostNotification = false, core, students, disabledClasses, registrations, scheduleTransfers, onNavigate, refresh, refreshedAt, refreshing, refreshMessage, dataReady = core.weeklyDataLoaded }) {
     const [now, setNow] = useState(() => new Date());
     const [notes, setNotes] = useState({});
     const [notesReady, setNotesReady] = useState(false);
@@ -25,12 +26,13 @@ export default function CoachHome({ user, hasNewPostNotification = false, core, 
         let alive = true;
         readCoachNotes().then(value => { if (alive) { setNotes(value); setNotesReady(true); } }).catch(() => { if (alive) setError('코치 메모를 불러오지 못했습니다. 새로고침해주세요.'); });
         const timer = setInterval(() => setNow(new Date()), 15_000);
-        const visible = () => { if (!document.hidden) { setNow(new Date()); void refreshRef.current(); } };
+        const refreshOnVisible = createVisibleTask(() => refreshRef.current());
+        const visible = () => { if (!document.hidden) { setNow(new Date()); void refreshOnVisible(); } };
         document.addEventListener('visibilitychange', visible);
         return () => { alive = false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
     }, []);
     useEffect(() => {
-        if (!core.weeklyDataLoaded || !students.length) return;
+        if (!dataReady || !core.weeklyDataLoaded || !students.length) return;
         for (const day of DAYS) {
             if (!core.weekDates[day]) continue;
             const roster = Object.fromEntries(PERIODS.map(period => [String(period.id), core.getHolidayInfo(day) !== null || disabledClasses.includes(`${day}-${period.id}`) ? [] : attendingNames(core.getCellData(day, period))]));
@@ -38,7 +40,7 @@ export default function CoachHome({ user, hasNewPostNotification = false, core, 
         }
         void publishLastClasses(Object.fromEntries([...core.lastClassByName].map(([name, item]) => [name, { date: item.dateISO, period: item.period }])));
         void publishReregX(core.delayedReregistrationStudents.map(student => student.name).sort());
-    }, [core, students, disabledClasses]);
+    }, [core, students, disabledClasses, dataReady]);
     // 학생 목록이 바뀔 때만 발행한다. 교시 시계/메모/주간 상태 렌더에는 쓰지 않는다.
     useEffect(() => {
         if (!students.length) return;

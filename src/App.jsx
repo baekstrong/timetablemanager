@@ -420,14 +420,14 @@ function AppContent() {
         return <Login onLogin={handleLogin} />;
 
       case 'today':
-        if (user?.role !== 'coach') return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} pushReadOnly={growthReadOnly} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} studentTransfers={studentTransfers.name === user?.username ? studentTransfers.entries : null} onStudentTransferUpdate={updateStudentTransfer} />;
-        return <WeeklySchedule key={`${user?.username}-${calendarDay}`} user={user} studentData={studentData} onNavigate={handleNavigate} onBack={handleBackToDashboard} view="today" hasNewPostNotification={hasNewPostNotification} />;
+        if (user?.role !== 'coach') return <WeeklySchedule key={`${user?.role}-${user?.username}-${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} pushReadOnly={growthReadOnly} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} studentTransfers={studentTransfers.name === user?.username ? studentTransfers.entries : null} onStudentTransferUpdate={updateStudentTransfer} />;
+        return <WeeklySchedule key={`${user?.role}-${user?.username}-${calendarDay}`} user={user} studentData={studentData} onNavigate={handleNavigate} onBack={handleBackToDashboard} view="today" hasNewPostNotification={hasNewPostNotification} />;
 
       case 'dashboard':
         return <Dashboard user={user} onNavigate={handleNavigate} onLogout={handleLogout} deepLinkPost={deepLinkPost} onDeepLinkDone={() => setDeepLinkPost(null)} />;
 
       case 'schedule':
-        return <WeeklySchedule key={`${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} pushReadOnly={growthReadOnly} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} studentTransfers={studentTransfers.name === user?.username ? studentTransfers.entries : null} onStudentTransferUpdate={updateStudentTransfer} />;
+        return <WeeklySchedule key={`${user?.role}-${user?.username}-${calendarDay}`} user={user} studentData={studentData} studentGrowth={studentGrowth} pushReadOnly={growthReadOnly} isStudentDataLoading={isStudentDataLoading} onStudentDataRefresh={refreshStudentData} onBack={handleBackToDashboard} onNavigate={handleNavigate} hasContractNotification={hasContractNotification} studentTransfers={studentTransfers.name === user?.username ? studentTransfers.entries : null} onStudentTransferUpdate={updateStudentTransfer} />;
 
       case 'holding':
         return <HoldingManager onStudentDataRefresh={refreshStudentData} key={holdingInitialDate} initialDate={holdingInitialDate} user={user} studentData={studentData} isLoading={isStudentDataLoading} onBack={handleBackToDashboard} />;
