@@ -22,6 +22,7 @@ import BottomNav from './components/BottomNav';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import UpdateBanner from './components/UpdateBanner';
 import StudentGrowthModal from './components/StudentGrowthModal';
+import CoachRenewalReminder from './features/today/CoachRenewalReminder';
 import { useStudentGrowth } from './hooks/useStudentGrowth';
 import { startVersionCheck } from './utils/versionCheck';
 import { createVisibleTask } from './utils/visibleTask';
@@ -502,6 +503,9 @@ function AppContent() {
           hasNewPostNotification={hasNewPostNotification}
           hasStampPendingNotification={hasStampPendingNotification}
         />
+      )}
+      {currentPage !== 'login' && user?.role === 'coach' && (
+        <CoachRenewalReminder user={user} students={students} onNavigate={handleNavigate} />
       )}
     </div>
   );

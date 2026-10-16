@@ -12,6 +12,10 @@
 .today-section-title h2 { font-size: 16px; margin: 0; }
 .today-section-title > .today-link, .today-section-title > .today-muted { margin-left: auto; }
 .today-muted { color: var(--text-secondary); font-size: 12px; line-height: 1.7; }
+.coach-renewal-group { margin-top: 20px; }
+.coach-renewal-group h3 { font-size: 14px; margin: 0 0 8px; }
+.coach-renewal-group h3 span { margin-left: 8px; color: var(--accent-hover); font-weight: 400; }
+.coach-renewal-group p { font-size: 16px; line-height: 1.8; overflow-wrap: anywhere; }
 .today-count, .today-status { color: var(--accent-hover); background: var(--accent-10); border-radius: var(--r-chip); padding: 4px 8px; font-size: 12px; white-space: nowrap; }
 .today-link { color: var(--accent-hover); background: transparent; border: 0; cursor: pointer; padding: 6px 0; font-size: 13px; font-weight: 600; }
 .today-button { padding: 10px 14px; border: 1px solid var(--hairline); background: var(--canvas); color: var(--accent-hover); border-radius: var(--r-md); font-size: 13px !important; font-weight: 600 !important; cursor: pointer; min-height: 44px; }
