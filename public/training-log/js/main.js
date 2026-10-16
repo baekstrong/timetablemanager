@@ -4,7 +4,7 @@ import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminM
 import { state, db, firebaseInitialized } from './state.js';
 import { loadSavedLogin } from './utils.js';
 // Import all functions to expose to window
-import * as Auth from './modules/auth.js?v=20261016-renewal-reminder';
+import * as Auth from './modules/auth.js?v=20261016-renewal-today-only';
 import * as Sets from './modules/sets.js?v=20260925-student-ux';
 import * as Records from './modules/records.js?v=20261014-performance';
 import * as Calendar from './modules/calendar.js?v=20261014-performance';
@@ -12,7 +12,7 @@ import * as Coach from './modules/coach.js?v=20261014-performance';
 import * as Stamp from './modules/stamp.js?v=20261014-analytics';
 import * as OneRM from './modules/onerm.js?v=20261014-performance';
 import * as StudentWorkspace from './modules/student-workspace.js?v=20261014-performance';
-import { syncCoachRenewalReminder, stopCoachRenewalReminder } from './coachRenewalReminder.js?v=20261016-renewal-reminder';
+import { syncCoachRenewalPush, stopCoachRenewalPush } from './coachRenewalPush.js?v=20261016-renewal-today-only';
 
 // ============================================
 // Auto Save Logic (DOM Dependent)
@@ -195,7 +195,7 @@ window.render = async function () {
     const app = document.getElementById('app');
     if (!app) return;
 
-    syncCoachRenewalReminder();
+    syncCoachRenewalPush();
     updateBottomNav();
 
     if (!state.currentUser) {
@@ -260,7 +260,7 @@ async function initApp() {
     Object.assign(window, Stamp);
     Object.assign(window, OneRM);
     Object.assign(window, StudentWorkspace);
-    window.stopCoachRenewalReminder = stopCoachRenewalReminder;
+    window.stopCoachRenewalPush = stopCoachRenewalPush;
 
     window.loadAutoSavedData = loadAutoSavedData; // Explicitly assign local function
 

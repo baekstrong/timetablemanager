@@ -504,7 +504,7 @@ function AppContent() {
           hasStampPendingNotification={hasStampPendingNotification}
         />
       )}
-      {currentPage !== 'login' && user?.role === 'coach' && (
+      {currentPage === 'today' && user?.role === 'coach' && (
         <CoachRenewalReminder user={user} students={students} onNavigate={handleNavigate} />
       )}
     </div>
