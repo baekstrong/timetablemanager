@@ -11,7 +11,7 @@ const memoryStorage = () => {
 };
 const settle = async () => { for (let i = 0; i < 12; i += 1) await Promise.resolve(); };
 const controllers = [];
-function setup({ time = '09:30:00', loadSnapshot = vi.fn(async () => snapshot()), storage = memoryStorage(), blocked = false, hidden = false } = {}) {
+function setup({ time = '09:30:00', loadSnapshot = vi.fn(async () => snapshot()), storage = memoryStorage(), blocked = false, hidden = false, includeEnding } = {}) {
     vi.useFakeTimers();
     vi.setSystemTime(at(time));
     const document = new EventTarget();
@@ -22,7 +22,7 @@ function setup({ time = '09:30:00', loadSnapshot = vi.fn(async () => snapshot())
     window.clearInterval = clearInterval;
     const onReminder = vi.fn();
     const onError = vi.fn();
-    const controller = createCoachReminderController({ coachName: '검증 코치', loadSnapshot, onReminder, onError, storage, document, window });
+    const controller = createCoachReminderController({ coachName: '검증 코치', loadSnapshot, onReminder, onError, storage, document, window, includeEnding });
     controllers.push(controller);
     controller.start();
     return { controller, loadSnapshot, onReminder, onError, storage, document, window };
@@ -44,6 +44,36 @@ describe('KST 수업 전 안내 경계', () => {
     });
     it('중복 이름을 합치고 같은 사람을 두 목록에 넣지 않는다', () => {
         expect(getDueCoachReminders(snapshot([' A ', 'A'], ['A', 'B', 'B']), at('09:30:00'))[0]).toMatchObject({ lastNames: ['A'], delayedNames: ['B'] });
+    });
+});
+
+describe('KST 수업 종료 전 안내 경계', () => {
+    it('종료 10분 전부터 종료 직전까지만 별도 단계로 판정한다', () => {
+        const ending = { includeEnding: true };
+        expect(getDueCoachReminders(snapshot(), at('11:19:59'), ending)).toEqual([]);
+        expect(getDueCoachReminders(snapshot(), at('11:20:00'), ending)).toEqual([
+            expect.objectContaining({ key: '2026-10-16:1:ending', phase: 'ending', period: 1, startMinute: 600, endMinute: 690 }),
+        ]);
+        expect(getDueCoachReminders(snapshot(), at('11:29:59'), ending)).toHaveLength(1);
+        expect(getDueCoachReminders(snapshot(), at('11:30:00'), ending)).toEqual([]);
+    });
+    it('기본 판정은 기존 수업 전 단계만 반환해 서버 푸시 범위를 유지한다', () => {
+        expect(getDueCoachReminders(snapshot(), at('09:30:00'))[0]).toMatchObject({ key: '2026-10-16:1', phase: 'before', endMinute: 690 });
+        expect(getDueCoachReminders(snapshot(), at('11:20:00'))).toEqual([]);
+        expect(getDueCoachReminders(snapshot(), at('11:20:00'), { includeEnding: false })).toEqual([]);
+    });
+    it('19:20의 4교시 종료 전과 5교시 시작 전은 서로 다른 키로 반환한다', () => {
+        const overlapping = { date: '2026-10-16', lessons: [
+            { period: 4, startMinute: 1080, lastNames: ['4교시 회원'], delayedNames: [] },
+            { period: 5, startMinute: 1190, lastNames: [], delayedNames: ['5교시 회원'] },
+        ] };
+        const due = getDueCoachReminders(overlapping, at('19:20:00'), { includeEnding: true });
+        expect(due).toEqual(expect.arrayContaining([
+            expect.objectContaining({ key: '2026-10-16:4:ending', phase: 'ending', endMinute: 1170, lastNames: ['4교시 회원'] }),
+            expect.objectContaining({ key: '2026-10-16:5', phase: 'before', endMinute: 1280, delayedNames: ['5교시 회원'] }),
+        ]));
+        expect(due).toHaveLength(2);
+        expect(getDueCoachReminders(overlapping, at('19:20:00')).map(item => item.key)).toEqual(['2026-10-16:5']);
     });
 });
 
@@ -139,6 +169,93 @@ describe('팝업 수명·중복·최신 자료', () => {
         const ledger = createReminderLedger({ getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } }, '코치');
         ledger.mark('2026-10-16:1');
         expect(ledger.has('2026-10-16:1')).toBe(true);
+    });
+});
+
+describe('종료 전 팝업 수명·독립 확인 이력', () => {
+    it('시작 전 안내를 닫아도 종료 전 경계에서 최신 명단으로 한 번 더 표시한다', async () => {
+        const fixture = setup({ includeEnding: true });
+        await settle();
+        expect(fixture.onReminder).toHaveBeenCalledWith(expect.objectContaining({ key: '2026-10-16:1', phase: 'before' }));
+        fixture.controller.dismiss('2026-10-16:1');
+        await vi.advanceTimersByTimeAsync(109 * 60_000 + 45_000);
+        expect(fixture.onReminder.mock.calls.filter(([item]) => item?.phase === 'ending')).toHaveLength(0);
+        await vi.advanceTimersByTimeAsync(15_000);
+        expect(fixture.loadSnapshot).toHaveBeenCalledTimes(2);
+        expect(fixture.loadSnapshot).toHaveBeenLastCalledWith({ force: true });
+        expect(fixture.onReminder).toHaveBeenLastCalledWith(expect.objectContaining({ key: '2026-10-16:1:ending', phase: 'ending' }));
+        fixture.controller.dismiss('2026-10-16:1:ending');
+        await vi.advanceTimersByTimeAsync(45_000);
+        expect(fixture.onReminder.mock.calls.filter(([item]) => item)).toHaveLength(2);
+    });
+    it('종료 전 확인 이력은 새로고침에도 유지하고 시작 전 이력과 구분한다', async () => {
+        const first = setup({ time: '11:22:00', includeEnding: true });
+        await settle();
+        const ledger = createReminderLedger(first.storage, '검증 코치');
+        expect(ledger.has('2026-10-16:1:ending')).toBe(true);
+        expect(ledger.has('2026-10-16:1')).toBe(false);
+        first.controller.dismiss('2026-10-16:1:ending');
+        first.controller.stop();
+        const second = setup({ time: '11:23:00', storage: first.storage, includeEnding: true });
+        await settle();
+        expect(second.onReminder).not.toHaveBeenCalled();
+    });
+    it('중간에 재등록한 사람은 종료 전 강제 조회의 빈 대상에 따라 다시 표시하지 않는다', async () => {
+        const fixture = setup({ includeEnding: true });
+        await settle();
+        fixture.controller.dismiss('2026-10-16:1');
+        fixture.loadSnapshot.mockResolvedValue(snapshot([], []));
+        await vi.advanceTimersByTimeAsync(110 * 60_000);
+        expect(fixture.loadSnapshot).toHaveBeenCalledTimes(2);
+        expect(fixture.loadSnapshot).toHaveBeenLastCalledWith({ force: true });
+        expect(fixture.onReminder.mock.calls.filter(([item]) => item?.phase === 'ending')).toHaveLength(0);
+        expect(createReminderLedger(fixture.storage, '검증 코치').has('2026-10-16:1:ending')).toBe(false);
+    });
+    it('이전 명단이 비어 있어도 종료 전 시간 경계에서 새 대상을 조회한다', async () => {
+        const loadSnapshot = vi.fn().mockResolvedValueOnce(snapshot([], [])).mockResolvedValue(snapshot());
+        const fixture = setup({ time: '11:19:45', loadSnapshot, includeEnding: true });
+        await settle();
+        expect(fixture.onReminder).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(15_000);
+        expect(loadSnapshot).toHaveBeenCalledTimes(2);
+        expect(loadSnapshot).toHaveBeenLastCalledWith({ force: true });
+        expect(fixture.onReminder).toHaveBeenLastCalledWith(expect.objectContaining({ key: '2026-10-16:1:ending', phase: 'ending' }));
+    });
+    it('오늘 페이지에 종료 직전 늦게 들어와도 기본 controller가 종료 전 단계를 표시한다', async () => {
+        const fixture = setup({ time: '11:27:00' });
+        await settle();
+        expect(fixture.onReminder).toHaveBeenCalledWith(expect.objectContaining({ key: '2026-10-16:1:ending', phase: 'ending' }));
+    });
+    it('종료 전 단계 비활성화 시 기존 시작 전 안내만 사용한다', async () => {
+        const fixture = setup({ time: '11:27:00', includeEnding: false });
+        await settle();
+        expect(fixture.onReminder).not.toHaveBeenCalled();
+    });
+    it('진행 중인 조회가 느려도 수업 종료 때 열린 팝업을 닫는다', async () => {
+        const fixture = setup({ time: '11:29:45', includeEnding: true });
+        await settle();
+        expect(fixture.onReminder).toHaveBeenLastCalledWith(expect.objectContaining({ phase: 'ending' }));
+        fixture.loadSnapshot.mockImplementation(() => new Promise(() => {}));
+        void fixture.controller.refresh({ force: true });
+        await vi.advanceTimersByTimeAsync(15_000);
+        expect(fixture.onReminder).toHaveBeenLastCalledWith(null);
+    });
+    it('동시간의 종료 전·다음 수업 전 안내는 하나씩 각각 한 번 표시한다', async () => {
+        const overlapping = { date: '2026-10-16', lessons: [
+            { period: 4, startMinute: 1080, lastNames: ['4교시 회원'], delayedNames: [] },
+            { period: 5, startMinute: 1190, lastNames: [], delayedNames: ['5교시 회원'] },
+        ] };
+        const fixture = setup({ time: '19:20:00', loadSnapshot: vi.fn(async () => overlapping), includeEnding: true });
+        await settle();
+        const first = fixture.onReminder.mock.calls.find(([item]) => item)[0];
+        fixture.controller.dismiss(first.key);
+        await vi.advanceTimersByTimeAsync(15_000);
+        const displayed = fixture.onReminder.mock.calls.filter(([item]) => item).map(([item]) => item.key);
+        expect(displayed.sort()).toEqual(['2026-10-16:4:ending', '2026-10-16:5']);
+        const second = fixture.onReminder.mock.calls.filter(([item]) => item).at(-1)[0];
+        fixture.controller.dismiss(second.key);
+        await vi.advanceTimersByTimeAsync(30_000);
+        expect(fixture.onReminder.mock.calls.filter(([item]) => item)).toHaveLength(2);
     });
 });
 

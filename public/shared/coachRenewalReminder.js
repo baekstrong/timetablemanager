@@ -1,4 +1,4 @@
-// Shared by the main app, training log, and the scheduled server reminder.
+// Shared by the coach Today popup and the scheduled pre-class push.
 export const COACH_REMINDER_PERIODS = [
     { period: 1, startMinute: 600 }, { period: 2, startMinute: 720 },
     { period: 4, startMinute: 1080 }, { period: 5, startMinute: 1190 },
@@ -13,17 +13,28 @@ export function getCoachReminderClock(now = new Date()) {
 const names = values => [...new Set((Array.isArray(values) ? values : [])
     .filter(value => typeof value === 'string').map(value => value.trim()).filter(Boolean))];
 
-export function getDueCoachReminders(snapshot, now = new Date()) {
+function periodPhase(period, minutes, includeEnding) {
+    if (minutes >= period.startMinute - 30 && minutes < period.startMinute) return 'before';
+    // Regular lessons last 90 minutes. Each phase has an independent display ID.
+    if (includeEnding && minutes >= period.startMinute + 80 && minutes < period.startMinute + 90) return 'ending';
+    return null;
+}
+
+// Ending popups are opt-in here so scheduled push callers retain their original
+// pre-class behavior, including when the shared source is bundled again later.
+export function getDueCoachReminders(snapshot, now = new Date(), { includeEnding = false } = {}) {
     const clock = getCoachReminderClock(now);
     if (snapshot?.date !== clock.date || clock.weekday === 0 || clock.weekday === 6) return [];
     return (Array.isArray(snapshot.lessons) ? snapshot.lessons : []).flatMap(lesson => {
         const period = COACH_REMINDER_PERIODS.find(item => item.period === Number(lesson.period));
-        if (!period || Number(lesson.startMinute) !== period.startMinute
-            || clock.minutes < period.startMinute - 30 || clock.minutes >= period.startMinute) return [];
+        if (!period || Number(lesson.startMinute) !== period.startMinute) return [];
+        const phase = periodPhase(period, clock.minutes, includeEnding);
+        if (!phase) return [];
         const lastNames = names(lesson.lastNames);
         const delayedNames = names(lesson.delayedNames).filter(name => !lastNames.includes(name));
         return lastNames.length || delayedNames.length
-            ? [{ key: `${clock.date}:${period.period}`, date: clock.date, ...period, lastNames, delayedNames }] : [];
+            ? [{ key: `${clock.date}:${period.period}${phase === 'ending' ? ':ending' : ''}`, date: clock.date,
+                ...period, endMinute: period.startMinute + 90, phase, lastNames, delayedNames }] : [];
     });
 }
 
@@ -74,11 +85,12 @@ export function hasCoachReminderDialog(document) {
     return [...(document?.querySelectorAll?.('.modal') || [])].some(node => node.getClientRects().length > 0);
 }
 
-// One controller lives above page navigation; both apps share its ledger.
-// Requests run on entry, returning to the app, and the 30-minute boundary.
+// The controller runs only on coach Today. Requests run on entry, returning to
+// Today, 30 minutes before a lesson, and 10 minutes before its end.
 export function createCoachReminderController({ coachName, loadSnapshot, onReminder,
     storage, document = globalThis.document, window = globalThis.window,
-    now = () => new Date(), canShow = () => !hasCoachReminderDialog(document), onError = () => {} }) {
+    now = () => new Date(), includeEnding = true,
+    canShow = () => !hasCoachReminderDialog(document), onError = () => {} }) {
     const ledger = createReminderLedger(storage, coachName);
     let snapshot = null;
     let active = null;
@@ -92,7 +104,7 @@ export function createCoachReminderController({ coachName, loadSnapshot, onRemin
 
     function evaluate() {
         if (!running || document?.hidden) return;
-        const due = getDueCoachReminders(snapshot, now());
+        const due = getDueCoachReminders(snapshot, now(), { includeEnding });
         if (active) {
             const updated = due.find(item => item.key === active.key);
             if (!updated) { active = null; onReminder(null); }
@@ -137,18 +149,24 @@ export function createCoachReminderController({ coachName, loadSnapshot, onRemin
 
     function tick() {
         if (!running || document?.hidden) return;
-        // A slow refresh must not keep the popup open after class starts.
-        if (active && !getDueCoachReminders(snapshot, now()).some(item => item.key === active.key)) {
+        // A slow refresh must not extend a popup past its own phase boundary.
+        if (active && !getDueCoachReminders(snapshot, now(), { includeEnding }).some(item => item.key === active.key)) {
             active = null;
             onReminder(null);
         }
         const clock = getCoachReminderClock(now());
-        const period = COACH_REMINDER_PERIODS.find(item => clock.minutes >= item.startMinute - 30 && clock.minutes < item.startMinute);
-        const nextPhase = `${clock.date}:${period?.period ?? ''}`;
+        // All active time windows matter: one class can be ending while the
+        // following class is about to start. This does not depend on old names.
+        const windows = clock.weekday >= 1 && clock.weekday <= 5
+            ? COACH_REMINDER_PERIODS.flatMap(period => {
+                const timing = periodPhase(period, clock.minutes, includeEnding);
+                return timing ? [`${period.period}:${timing}`] : [];
+            }) : [];
+        const nextPhase = `${clock.date}:${windows.join(',')}`;
         if (phase !== nextPhase) {
             const previous = phase;
             phase = nextPhase;
-            if (period || previous.slice(0, 10) !== clock.date) { void refresh({ force: true }); return; }
+            if (windows.length || previous.slice(0, 10) !== clock.date) { void refresh({ force: true }); return; }
         }
         if (!snapshot && !pending && now().getTime() - lastFetch >= 60_000) { void refresh(); return; }
         evaluate();

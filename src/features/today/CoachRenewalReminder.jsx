@@ -52,9 +52,11 @@ export default function CoachRenewalReminder({ user, students, onNavigate }) {
 
     if (!coachName || !reminder) return null;
     const close = () => controllerRef.current?.dismiss(reminder.key);
-    const time = `${String(Math.floor(reminder.startMinute / 60)).padStart(2, '0')}:${String(reminder.startMinute % 60).padStart(2, '0')}`;
-    return <ReviewModal title={`${reminder.period}교시 · 재등록 확인`} onClose={close}>
-        <p className="today-muted">{time} 수업 전에 안내해주세요.</p>
+    const ending = reminder.phase === 'ending';
+    const targetMinute = ending ? reminder.endMinute : reminder.startMinute;
+    const time = `${String(Math.floor(targetMinute / 60)).padStart(2, '0')}:${String(targetMinute % 60).padStart(2, '0')}`;
+    return <ReviewModal title={`${reminder.period}교시 · ${ending ? '종료 전 ' : ''}재등록 확인`} onClose={close}>
+        <p className="today-muted">{ending ? `${time} 수업 종료 전에 한 번 더 확인해주세요.` : `${time} 수업 전에 안내해주세요.`}</p>
         {reminder.lastNames.length > 0 && <div className="coach-renewal-group"><h3>오늘 마지막 수업 <span>{reminder.lastNames.length}명</span></h3><p>{reminder.lastNames.join(', ')}</p></div>}
         {reminder.delayedNames.length > 0 && <div className="coach-renewal-group"><h3>수강 종료·미재등록 <span>{reminder.delayedNames.length}명</span></h3><p>{reminder.delayedNames.join(', ')}</p></div>}
         <div className="today-actions"><ActionButton onClick={close}>닫기</ActionButton><ActionButton primary onClick={() => { close(); onNavigate('today'); }}>할 일 보기</ActionButton></div>
