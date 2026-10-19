@@ -7,7 +7,14 @@ const id = 'contract-change-test-123';
 const changed = [...original]; changed[2] = '4'; changed[3] = '월4수4목4금4'; changed[4] = `[계약변경이력:${encodeURIComponent(JSON.stringify({ v: 1, id, segments: [] }))}]`; changed[5] = '계약변경'; changed[7] = '261113'; changed[8] = '14';
 const input = () => ({ name: '검토회원', targetSheet: sheetName, id, row: [...changed], retired: [{ sheetName, rowIndex: 2, expected: [...original], notes: `메모\n26.10.19에 주2회 → 주4회로 수강 변경 함\n[이전시간표:월4목1] [계약변경연결:${id}]` }] });
 const mock = (rows = [original]) => ({ spreadsheets: {
-    get: vi.fn(async () => ({ data: { sheets: [{ properties: { title: sheetName, sheetId: 7 } }] } })),
+    get: vi.fn(async args => {
+        if (!args.ranges) return { data: { sheets: [{ properties: { title: sheetName, sheetId: 7 } }] } };
+        const values = Array.from({ length: 18 }, (_, index) => ({
+            userEnteredFormat: { horizontalAlignment: 'CENTER' },
+            ...(index === 11 ? { dataValidation: { condition: { type: 'ONE_OF_LIST', values: [{ userEnteredValue: '카드' }] } } } : {}),
+        }));
+        return { data: { sheets: [{ data: [{ rowData: [{ values }] }] }] } };
+    }),
     values: { batchGet: vi.fn(async () => ({ data: { valueRanges: [{ values: [[], [], ...rows] }] } })) },
     batchUpdate: vi.fn(async () => ({ data: {} })),
 } });
@@ -32,6 +39,19 @@ describe('계약변경 Sheets 원자적 저장', () => {
         const retired = [...original]; retired[3] = ''; const sheets = mock([retired, changed]);
         expect(await save(sheets, 'test', input())).toMatchObject({ alreadySaved: true });
         expect(sheets.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+    });
+    it('Sheets가 뒤쪽 빈 셀을 생략한 응답도 동일ID로 인식한다', async () => {
+        const retired = [...original]; retired[3] = '';
+        const sheets = mock([retired, changed.slice(0, 13)]);
+        expect(await save(sheets, 'test', input())).toMatchObject({ alreadySaved: true });
+        expect(sheets.spreadsheets.batchUpdate).not.toHaveBeenCalled();
+    });
+    it('새 계약 행은 기존 셀 서식과 결제방식 드롭다운을 보존한다', async () => {
+        const sheets = mock(); await save(sheets, 'test', input());
+        const append = sheets.spreadsheets.batchUpdate.mock.calls[0][0].resource.requests.at(-1).appendCells;
+        expect(append.fields).toBe('userEnteredValue,userEnteredFormat,dataValidation');
+        expect(append.rows[0].values[11].dataValidation.condition.values).toEqual([{ userEnteredValue: '카드' }]);
+        expect(append.rows[0].values[0].userEnteredFormat.horizontalAlignment).toBe('CENTER');
     });
     it('같은 ID로 다른 금액을 저장하려 하면 거부한다', async () => {
         const sheets = mock([original, changed]), data = input(); data.row[8] = '19';

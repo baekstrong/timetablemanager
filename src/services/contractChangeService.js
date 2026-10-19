@@ -109,7 +109,8 @@ export function buildContractChangePlan({ entry, entries, frequency, schedule, h
     if (!Number.isFinite(Number(difference)) || Number(difference) < 0) throw new Error('추가 결제액은 0 이상의 만원 단위로 입력해주세요. 환불은 별도 처리해주세요.');
     const row = Array.from({ length: 18 }, (_, i) => entry.row[i] ?? '');
     row[0] = ''; row[2] = String(frequency); row[3] = schedule;
-    row[4] = contractChangeNotes(field(student, '특이사항'), metadata);
+    const changeMemo = `${isoDay(now).slice(2).replaceAll('-', '.')} 계약변경: 주${field(student, '주횟수')}회 → 주${frequency}회 (소진 ${consumed}회 · 잔여 ${remaining}회)`;
+    row[4] = contractChangeNotes(`${field(student, '특이사항') || ''}\n${changeMemo}`.trim(), metadata);
     row[5] = '계약변경'; row[6] = sheetDay(start); row[7] = sheetDay(newEnd);
     row[8] = String(difference); row[9] = paymentDate ? paymentDate.replaceAll('-', '').slice(2) : ''; row[10] = paid ? 'O' : 'X'; row[11] = paymentMethod || '카드';
     // 이전 계약을 과거 날짜에서 재구성할 수 있도록 D열을 비우기 전 원본을 E열에 보존한다.

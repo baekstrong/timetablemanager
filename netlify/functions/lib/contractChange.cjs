@@ -16,13 +16,13 @@ module.exports = async function saveContractChange(sheets, spreadsheetId, input)
   const result = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges: props.map(s => `${quote(s.title)}!A:R`) });
   if (result.data.valueRanges?.length !== props.length) fail('전체 시트 확인에 실패했습니다.');
   const tables = new Map(props.map((p, i) => [p.title, result.data.valueRanges[i].values || []]));
+  const normalized = r => Array.from({ length: 18 }, (_, i) => String(r?.[i] ?? ''));
   const marker = `[계약변경연결:${id}]`;
   const duplicate = [...tables.values()].flat().find(r => r[1] === name && r[5] === '계약변경' && String(r[4] || '').includes(encodeURIComponent(`"id":"${id}"`)));
   if (duplicate) {
-    if (JSON.stringify(duplicate.slice(1, 18).map(String)) !== JSON.stringify(row.slice(1, 18).map(String))) fail('같은 변경 ID의 저장 내용이 다릅니다. 시트를 확인해주세요.');
+    if (JSON.stringify(normalized(duplicate).slice(1)) !== JSON.stringify(normalized(row).slice(1))) fail('같은 변경 ID의 저장 내용이 다릅니다. 시트를 확인해주세요.');
     return { success: true, alreadySaved: true };
   }
-  const normalized = r => Array.from({ length: 18 }, (_, i) => String(r?.[i] ?? ''));
   const requests = [];
   const seen = new Set();
   for (const item of retired) {
@@ -42,10 +42,19 @@ module.exports = async function saveContractChange(sheets, spreadsheetId, input)
   // 현재 행 번호의 최댓값 + 1. 다른 수강생 데이터·시트 수식·서식은 덮어쓰지 않는다.
   const targetRows = tables.get(targetSheet);
   const number = Math.max(0, ...targetRows.slice(2).map(r => Number(r[0]) || 0)) + 1;
+  // 새 행도 기존 표의 글꼴·테두리·결제방식 드롭다운을 이어받는다. 값/메모는 복사하지 않는다.
+  let exemplar = targetRows.findLastIndex((r, i) => i >= 2 && r[5] === '계약변경');
+  if (exemplar < 2) exemplar = retired.find(item => item.sheetName === targetSheet)?.rowIndex;
+  if (!Number.isInteger(exemplar)) fail('새 행의 서식 원본을 찾지 못했습니다.');
+  const styleResponse = await sheets.spreadsheets.get({ spreadsheetId, ranges: [`${quote(targetSheet)}!A${exemplar + 1}:R${exemplar + 1}`],
+    includeGridData: true, fields: 'sheets(data(rowData(values(userEnteredFormat,dataValidation))))' });
+  const template = styleResponse.data.sheets?.[0]?.data?.[0]?.rowData?.[0]?.values;
+  if (!Array.isArray(template)) fail('새 행의 서식을 확인하지 못했습니다.');
   const newRow = [...row]; newRow[0] = number;
   requests.push({ appendCells: { sheetId: target.sheetId,
-    rows: [{ values: newRow.map((value, index) => ({ userEnteredValue: [0, 2, 6, 7, 8, 9].includes(index) && value !== '' && Number.isFinite(Number(value))
-      ? { numberValue: Number(value) } : { stringValue: String(value ?? '') } })) }], fields: 'userEnteredValue' } });
+    rows: [{ values: newRow.map((value, index) => ({ userEnteredFormat: template[index]?.userEnteredFormat || {},
+      ...(template[index]?.dataValidation ? { dataValidation: template[index].dataValidation } : {}), userEnteredValue: [0, 2, 6, 7, 8, 9].includes(index) && value !== '' && Number.isFinite(Number(value))
+      ? { numberValue: Number(value) } : { stringValue: String(value ?? '') } })) }], fields: 'userEnteredValue,userEnteredFormat,dataValidation' } });
   await sheets.spreadsheets.batchUpdate({ spreadsheetId, resource: { requests } });
   return { success: true };
 };
