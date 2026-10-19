@@ -2209,3 +2209,14 @@ export const ensureUserAccount = async (userName) => {
     await setDoc(ref, { isCoach: false, createdAt: serverTimestamp() });
     return true;
 };
+
+// 계약변경 계산은 조회 실패를 빈 홀딩/보강으로 처리하지 않는다.
+export const getContractChangeDependencies = async (studentName) => {
+    assertFirebase();
+    const [holdings, makeups, holidays, disabled] = await Promise.all([
+        queryDocs('holdingRequests', where('studentName', '==', studentName)),
+        queryDocs('makeupRequests', where('studentName', '==', studentName)),
+        queryDocs('holidays'), getDisabledClasses({ strict: true }),
+    ]);
+    return { holdings: holdings.filter(h => h.status !== 'cancelled'), makeups: makeups.filter(m => ['active', 'completed'].includes(m.status)), holidays, disabled };
+};

@@ -8,6 +8,7 @@ import { setStudentPassword } from '../services/authService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import ContractHistory from './ContractHistory';
+import ContractChangeModal from './ContractChangeModal';
 import SmsSendModal from './SmsSendModal';
 import GradeBadge from './GradeBadge';
 import ResumeStudentModal from './ResumeStudentModal';
@@ -51,6 +52,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     const [searchQuery, setSearchQuery] = useState(''); // 수강생 검색어
     const [actionProcessing, setActionProcessing] = useState(''); // 작업(종료/일시정지/재개) 처리 중 메시지
     const [adjustmentTarget, setAdjustmentTarget] = useState(null);
+    const [contractChangeTarget, setContractChangeTarget] = useState(null);
     const [resumeTarget, setResumeTarget] = useState(null); // 재개 모달 대상
     const [resumeRegistrations, setResumeRegistrations] = useState([]); // 정지된 등록별 남은 횟수/원래 일정
     const [resumeInfoLoading, setResumeInfoLoading] = useState(false);
@@ -805,6 +807,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                                         <button onClick={() => handleOpenAbsence(student)} className="absence-btn" title="결석 처리">
                                                             결석
                                                         </button>
+                                                        {!isPausedRegistration(student) && <button onClick={() => setContractChangeTarget(student)} className="contract-btn">계약변경</button>}
                                                         <button onClick={() => setContractHistoryTarget(student['이름'])} className="contract-btn" title="계약 이력">
                                                             계약
                                                         </button>
@@ -862,6 +865,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                 />
             )}
 
+            {contractChangeTarget && <ContractChangeModal student={contractChangeTarget} onClose={() => setContractChangeTarget(null)} onSaved={() => { setContractChangeTarget(null); refresh(); }} />}
             {adjustmentTarget && <AdjustPausedSessionsModal
                 studentName={adjustmentTarget}
                 onClose={() => setAdjustmentTarget(null)}

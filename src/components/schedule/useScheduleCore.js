@@ -1,3 +1,4 @@
+import { scheduleOnDate } from '../../utils/contractChange';
 import { useCallback, useMemo } from 'react';
 import { useWeeklyData } from '../../hooks/useWeeklyData';
 import {
@@ -324,7 +325,13 @@ export function useScheduleCore({
         const regularClass = scheduleData.regularEnrollments.find(
             e => e.day === day && e.period === periodObj.id
         );
-        const studentNames = regularClass ? [...regularClass.names] : [];
+        const cellISO = weekDates[day] ? weekDateToISO(weekDates[day]) : '';
+        const changedStudents = (students || []).filter(s => String(getStudentField(s, '특이사항') || '').includes('[계약변경이력:'));
+        const changedNames = new Set(changedStudents.map(s => s['이름']));
+        const studentNames = (regularClass ? [...regularClass.names] : []).filter(name => !changedNames.has(name));
+        if (cellISO) changedStudents.forEach(s => {
+            if (parseScheduleString(scheduleOnDate(s, cellISO, getStudentField)).some(slot => slot.day === day && slot.period === periodObj.id)) studentNames.push(s['이름']);
+        });
 
         const subs = scheduleData.substitutes.filter(
             s => s.day === day && s.period === periodObj.id

@@ -1,3 +1,4 @@
+import { scheduleOnDate } from '../../utils/contractChange';
 import { DAYS, PERIODS } from '../../data/mockData';
 
 export const CLASS_LABELS = { regular: '정규 수업', makeup: '보강', holding: '홀딩', absence: '결석', moved: '보강이동', holiday: '휴일', disabled: '수업 없음', freeWorkoutAttendance: '출석' };
@@ -94,7 +95,7 @@ export function buildStudentWeek({ days, studentData, studentName, makeups = [],
             const start = studentDateISO(field(registration, '시작날짜'));
             const end = studentDateISO(field(registration, '종료날짜') || field(registration, '종료일') || registration.endDate);
             if (!start || !end || date < start || date > end) continue;
-            const slots = [...String(field(registration, '요일 및 시간') || '').replace(/\s/g, '').matchAll(/([월화수목금])([1-6])/g)];
+            const slots = [...String(scheduleOnDate(registration, date, field) || '').replace(/\s/g, '').matchAll(/([월화수목금])([1-6])/g)];
             for (const [, slotDay, periodText] of slots) {
                 const period = Number(periodText);
                 if (slotDay !== day || PERIODS.find(item => item.id === period)?.type === 'free') continue;

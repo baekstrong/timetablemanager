@@ -199,6 +199,17 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // 이전 시간표 제거와 계약변경 행 추가를 단일 원자적 쓰기로 처리한다.
+    if (event.httpMethod === 'POST' && path === 'contractChange') {
+      const saveContractChange = require('./lib/contractChange.cjs');
+      try {
+        const result = await saveContractChange(sheets, SPREADSHEET_ID, JSON.parse(event.body));
+        return { statusCode: 200, headers, body: JSON.stringify(result) };
+      } catch (error) {
+        return { statusCode: error.status || 500, headers, body: JSON.stringify({ success: false, error: error.message }) };
+      }
+    }
+
     // POST /sheets/batchUpdate
     if (event.httpMethod === 'POST' && path === 'batchUpdate') {
       const { data } = JSON.parse(event.body);

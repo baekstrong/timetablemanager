@@ -193,6 +193,15 @@ app.get(['/getSheetInfo', '/info'], async (req, res) => {
  * POST /batchUpdateSheet
  * 여러 셀 일괄 업데이트
  */
+app.post('/contractChange', async (req, res) => {
+  try {
+    const saveContractChange = require('../netlify/functions/lib/contractChange.cjs');
+    res.json(await saveContractChange(await getGoogleSheetsClient(), SPREADSHEET_ID, req.body));
+  } catch (error) {
+    res.status(error.status || 500).json({ success: false, error: error.message });
+  }
+});
+
 app.post(['/batchUpdateSheet', '/batchUpdate'], async (req, res) => {
   try {
     const { data } = req.body;

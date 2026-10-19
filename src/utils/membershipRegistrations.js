@@ -11,7 +11,8 @@ export function getMembershipRegistrations(student) {
     const upcoming = student._upcomingRegistrations || (student._nextRegistration ? [student._nextRegistration] : []);
     const start = dateKey(field(student, '시작날짜'));
     const seen = new Set();
-    return [student, ...upcoming].filter((row, index) => {
+    const live = [student, ...upcoming].filter(row => row && String(field(row, '요일 및 시간') || '').trim());
+    return (live.length ? live : [student, ...upcoming]).filter((row, index) => {
         if (!row) return false;
         const rowStart = dateKey(field(row, '시작날짜'));
         const rowEnd = dateKey(field(row, '종료날짜'));

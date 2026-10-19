@@ -1,3 +1,4 @@
+import { preferScheduledRegistrations, scheduleOnDate, contractCalculationBase, readContractChange } from '../utils/contractChange';
 import { getMembershipRegistrations, getRegistrationHoldings } from '../utils/membershipRegistrations';
 import { isPausedRegistration } from '../utils/studentList';
 import { planPausedSessionAdjustment, pausedRegistrationSnapshot } from '../utils/pausedSessions';
@@ -348,6 +349,10 @@ async function findStudentInSheets(studentName, primarySheetName = null, referen
   if (allCandidates.length === 0) {
     throw new Error(`학생 정보를 찾을 수 없습니다: ${studentName}`);
   }
+
+  // 이전 계약은 D열만 비워도 결제·기간 이력으로 남는다. 쓰기는 살아 있는 계약을 선택한다.
+  const liveCandidates = allCandidates.filter(c => String(getStudentField(buildStudentObject(c.headers, c.rows[c.rowIndex]), '요일 및 시간') || '').trim());
+  if (liveCandidates.length) allCandidates.splice(0, allCandidates.length, ...liveCandidates);
 
   // 시작날짜 기준 정렬
   allCandidates.sort((a, b) => {
@@ -1075,6 +1080,7 @@ export const getStudentByName = async (studentName, year = null, month = null) =
  * @returns {Object} - 현재 활성 등록 (+ _nextRegistration)
  */
 function pickActiveRegistration(registrations) {
+  registrations = preferScheduledRegistrations(registrations, getStudentField);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -1320,6 +1326,7 @@ export const getAllStudentsFromAllSheets = async () => {
       };
       return;
     }
+    registrations = preferScheduledRegistrations(registrations, getStudentField);
     // 0회 정지 행이 정상 등록을 대표하여 가리지 않도록 제외한다.
     registrations = registrations.filter(row => !(String(getStudentField(row, '종료날짜')).trim() === '0회'
       && !String(getStudentField(row, '요일 및 시간')).trim()));
@@ -1408,7 +1415,7 @@ export const getAllStudentsFromAllSheets = async () => {
  * @param {Object} student
  * @returns {Object|null}
  */
-const calculateRegistrationStats = (student, firebaseHolidays = [], { holdings = [], makeups = [] } = {}) => {
+const calculateRegistrationStats = (student, firebaseHolidays = [], { holdings = [], makeups } = {}) => {
   if (!student) return null;
 
   const startDateStr = getStudentField(student, '시작날짜');
@@ -1424,7 +1431,9 @@ const calculateRegistrationStats = (student, firebaseHolidays = [], { holdings =
   // E열 결석일은 종료일을 그만큼 뒤로 민 날이므로 수업 회차로 세면 안 된다
   // (안 빼면 남은회차가 부풀어 출석 수가 깎이고, 심하면 0으로 바닥침)
   const absenceDates = parseAbsenceDatesFromNotes(getStudentField(student, '특이사항'));
-  const registrationHoldings = getRegistrationHoldings(student, holdings, makeups);
+  const contractChange = readContractChange(getStudentField(student, '특이사항'));
+  const effectiveMakeups = makeups ?? contractChange?.reservations ?? [];
+  const registrationHoldings = getRegistrationHoldings(student, holdings, effectiveMakeups);
 
 
   const startDate = parseSheetDate(startDateStr);
@@ -1476,6 +1485,36 @@ const calculateRegistrationStats = (student, firebaseHolidays = [], { holdings =
       calculateCompletedSessions(startDate, today, scheduleStr, holdingRange, firebaseHolidays, absenceDates)
     );
     remainingSessions = Math.max(0, totalSessions - completedSessions);
+  }
+
+  if (contractChange && startDate && endDate && today >= startDate) {
+    // 계약변경은 변경 전 시간표·선택 홀딩·기예약 보강을 같이 사용한다.
+    const tomorrow = new Date(today);
+    if (todaySessionDone(scheduleOnDate(student, formatDateToISO(today), getStudentField), new Date())) tomorrow.setDate(tomorrow.getDate() + 1);
+    const excluded = new Set(absenceDates);
+    const heldOn = iso => (holdingRange && iso >= formatDateToISO(holdingRange.start) && iso <= formatDateToISO(holdingRange.end)) ||
+      registrationHoldings.some(h => h.holdingDates?.length ? h.holdingDates.includes(iso) : iso >= h.startDate && iso <= h.endDate);
+    const regularOn = (date, period) => {
+      const iso = formatDateToISO(date);
+      return date >= tomorrow && date <= endDate && !excluded.has(iso) && !heldOn(iso) && !isHolidayDate(date, firebaseHolidays) &&
+        parseScheduleString(scheduleOnDate(student, iso, getStudentField)).some(s => DAY_MAP[s.day] === date.getDay() && (!period || s.period === Number(period)));
+    };
+    remainingSessions = 0;
+    for (let day = new Date(tomorrow), guard = 0; day <= endDate && guard++ < 1500; day.setDate(day.getDate() + 1)) {
+      if (regularOn(day)) remainingSessions++;
+    }
+    const seenMakeups = new Set();
+    for (const makeup of effectiveMakeups) {
+      const original = parseSheetDate(makeup.originalClass?.date), moved = parseSheetDate(makeup.makeupClass?.date);
+      const key = `${makeup.originalClass?.date}/${makeup.originalClass?.period}`;
+      if (seenMakeups.has(key) || !['active', 'completed'].includes(makeup.status) || !original || !moved ||
+          original < startDate || original > endDate || heldOn(formatDateToISO(moved))) continue;
+      seenMakeups.add(key);
+      if (regularOn(original, makeup.originalClass.period)) remainingSessions--;
+      if (moved > today || (moved.getTime() === today.getTime() && !todaySessionDone(`${Object.keys(DAY_MAP).find(day => DAY_MAP[day] === moved.getDay())}${makeup.makeupClass.period}`, new Date()))) remainingSessions++;
+    }
+    remainingSessions = Math.max(0, Math.min(totalSessions, remainingSessions));
+    completedSessions = totalSessions - remainingSessions;
   }
 
   return {
@@ -1539,8 +1578,7 @@ const generateRegistrationAttendanceHistory = (student, firebaseHolidays = []) =
   const endDate = parseSheetDate(getStudentField(student, '종료날짜'));
   const absenceDates = new Set(parseAbsenceDatesFromNotes(getStudentField(student, '특이사항')));
   if (startDate && scheduleStr) {
-    const schedule = parseScheduleString(scheduleStr);
-    const classDays = schedule.map(s => ({
+    const classDaysFor = (date) => parseScheduleString(scheduleOnDate(student, date, getStudentField)).map(s => ({
       day: DAY_MAP[s.day],
       dayName: s.day,
       period: s.period
@@ -1552,7 +1590,7 @@ const generateRegistrationAttendanceHistory = (student, firebaseHolidays = []) =
     const current = new Date(startDate);
     while (current <= today && (!endDate || current <= endDate)) {
       const dayOfWeek = current.getDay();
-      const classInfo = classDays.find(c => c.day === dayOfWeek);
+      const classInfo = classDaysFor(formatDateToISO(current)).find(c => c.day === dayOfWeek);
 
       if (classInfo) {
         if (isHolidayDate(current, firebaseHolidays) || absenceDates.has(formatDateToISO(current))) {
@@ -2525,7 +2563,9 @@ export const cancelHoldingInSheets = async (studentName, remainingHoldings = [],
     // ponytail: 홀딩 취소는 아직 시작일부터 전체 재계산. 취소된 홀딩 날짜를 넘겨받지 못해
     // delta(-N)로 못 줄임 → 시간표 중간 변경 등록은 취소 시 baseline이 어긋날 수 있음.
     // 취소된 홀딩 dates를 파라미터로 받아 shiftEndDateBySessions(-N)로 바꾸면 통일됨(별도 작업).
-    const newEndDate = calculateEndDate(membershipStartDate, totalSessions, scheduleStr, holdingRanges, firebaseHolidays, countedHolidayDates);
+    const contractBase = contractCalculationBase(student, getStudentField);
+    const newEndDate = calculateEndDate(contractBase ? parseSheetDate(contractBase.from) : membershipStartDate,
+      totalSessions - (contractBase?.consumed || 0) - (contractBase?.reserved || 0), scheduleStr, holdingRanges, firebaseHolidays, countedHolidayDates);
     if (newEndDate) {
       newEndDateStr = formatDateToYYMMDD(newEndDate);
     }
@@ -3138,7 +3178,9 @@ export const processScheduleTransfer = async (studentName, newScheduleStr, fireb
     throw new Error('시작날짜를 확인할 수 없습니다.');
   }
 
-  const newEndDate = calculateEndDate(activeStart, totalSessions, newScheduleStr, holdingRanges, firebaseHolidays);
+  const contractBase = contractCalculationBase(studentData, getStudentField);
+  const newEndDate = calculateEndDate(contractBase ? parseSheetDate(contractBase.from) : activeStart,
+    totalSessions - (contractBase?.consumed || 0) - (contractBase?.reserved || 0), newScheduleStr, holdingRanges, firebaseHolidays);
   if (!newEndDate) {
     throw new Error('종료일 계산에 실패했습니다.');
   }

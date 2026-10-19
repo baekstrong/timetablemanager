@@ -1,0 +1,13 @@
+.contract-change-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.contract-change-payment { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+.contract-change-payment > *, .contract-change-fields input, .contract-change-fields select { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.contract-change-fields select { width: 100%; padding: 10px; color: var(--text); border: 1px solid var(--hairline); border-radius: var(--r-chip); background: var(--canvas); }
+.contract-change-help, .contract-change-payment small { font-size: .8rem; color: var(--text-secondary); line-height: 1.6; }
+@media (max-width: 400px) { .contract-change-dialog { padding: 16px; } .contract-change-payment { grid-template-columns: 1fr; } }
+.contract-change-dialog .resume-schedule-grid { min-width: 0; }
+.contract-change-dialog .resume-schedule-header, .contract-change-dialog .resume-schedule-row { grid-template-columns: 64px repeat(5, minmax(0, 1fr)); }
+.contract-change-dialog .resume-schedule-header { text-align: center; }
+.contract-change-dialog .resume-schedule-row > span { display: flex; flex-direction: column; justify-content: center; font-size: .76rem; }
+.contract-change-dialog .resume-schedule-row small { font-size: .6rem; color: var(--text-secondary); }
+.contract-change-dialog .resume-schedule-row > button { padding: 8px 0; }
+.contract-change-dialog .resume-calculation-note p { color: var(--text-secondary); }
