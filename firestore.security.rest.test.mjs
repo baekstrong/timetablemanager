@@ -20,10 +20,14 @@ async function request(role, method, path, fields) {
 }
 const value = { value: { integerValue: '1' } };
 
-const fieldsOf = data => Object.fromEntries(Object.entries(data).map(([key, v]) => [key,
-    typeof v === 'boolean' ? { booleanValue: v } : typeof v === 'number' ? { integerValue: String(v) } : v === null ? { nullValue: null } : { stringValue: v }]));
+const fieldOf = v => Array.isArray(v) ? { arrayValue: { values: v.map(fieldOf) } }
+    : v !== null && typeof v === 'object' ? { mapValue: { fields: fieldsOf(v) } }
+    : typeof v === 'boolean' ? { booleanValue: v } : typeof v === 'number' ? (Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v })
+    : v === null ? { nullValue: null } : { stringValue: v };
+const fieldsOf = data => Object.fromEntries(Object.entries(data).map(([key, v]) => [key, fieldOf(v)]));
+const consultationSlots = ['월', '화', '수', '목'].map(day => ({ day, period: 1 }));
 async function createConsultation(id, changes = {}) {
-    const data = { recruitmentMonth: '2099-11', name: '로컬검증', phone: '01000000000', message: '', wantsFourTimes: true, status: 'pending', ...changes };
+    const data = { requestedSlots: consultationSlots, recruitmentMonth: '2099-11', name: '로컬검증', phone: '01000000000', message: '', wantsFourTimes: true, status: 'pending', ...changes };
     return fetch(`${root}:commit`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ writes: [{ update: { name: `projects/${project}/databases/(default)/documents/recruitmentConsultations/${id}`, fields: fieldsOf(data) },
@@ -34,6 +38,11 @@ async function createConsultation(id, changes = {}) {
 const publicSettings = ['holidays', 'disabledClasses', 'entranceClasses', 'registrationFAQ'];
 const protectedSettings = ['lockedSlots', 'studentMeta', 'studentCountSnapshots'];
 beforeAll(async () => {
+    for (const path of ['newStudentRegistrations/weekly-2', 'newStudentRegistrations/weekly-3',
+        'newStudentRegistrations/four-pending', 'newStudentRegistrations/four-waitlist',
+        'recruitmentConsultations/private-consultation', 'recruitmentConsultations/invalid-consultation']) {
+        expect((await request('coach', 'DELETE', path)).status).toBe(200);
+    }
     expect((await request('coach', 'PATCH', 'recruitmentMonths/2099-11', fieldsOf({ month: '2099-11', status: 'open', notice: '', inquiryPhone: '' }))).status).toBe(200);
     expect((await request('coach', 'PATCH', 'recruitmentMonths/2099-10', fieldsOf({ month: '2099-10', status: 'closed', notice: '', inquiryPhone: '' }))).status).toBe(200);
     expect((await request('coach', 'PATCH', 'entranceClasses/test-open', fieldsOf({ date: '2099-11-07', isActive: true, closed: false, currentCount: 0, maxCapacity: 6 }))).status).toBe(200);
@@ -61,7 +70,7 @@ describe('신규 주4회 차단과 비공개 상담 접수', () => {
         expect((await request('coach', 'PATCH', 'recruitmentConsultations/private-consultation', fieldsOf({ status: 'completed' }))).status).toBe(200);
         expect((await request('coach', 'DELETE', 'recruitmentConsultations/private-consultation')).status).toBe(200);
     });
-    it.each([{ recruitmentMonth: '2099-10' }, { recruitmentMonth: '2099-12' }, { recruitmentMonth: '2000-01' }, { phone: '123' }, { name: '' }, { message: 'x'.repeat(1001) }, { status: 'completed' }, { wantsFourTimes: 'true' }, { weeklyFrequency: 4 }])('잘못된 상담 데이터·마감월을 차단한다: %j', async change => {
+    it.each([{ requestedSlots: [] }, { requestedSlots: consultationSlots.slice(0, 3) }, { requestedSlots: [consultationSlots[0], consultationSlots[0], ...consultationSlots.slice(2)] }, { requestedSlots: consultationSlots.map(s => ({ ...s, period: 3 })) }, { requestedSlots: consultationSlots.map(s => ({ ...s, period: 1.5 })) }, { recruitmentMonth: '2099-10' }, { recruitmentMonth: '2099-12' }, { recruitmentMonth: '2000-01' }, { phone: '123' }, { name: '' }, { message: 'x'.repeat(1001) }, { status: 'completed' }, { wantsFourTimes: 'true' }, { weeklyFrequency: 4 }])('잘못된 상담 데이터·마감월을 차단한다: %j', async change => {
         expect((await createConsultation('invalid-consultation', change)).status).toBe(403);
     });
 });

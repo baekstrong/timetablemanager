@@ -1,8 +1,22 @@
 import { collection, doc, getDocsFromServer, runTransaction, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { isRecruitmentMonth, koreanDate, normalizeInquiryPhone } from '../utils/recruitment';
+import { DAYS, PERIODS } from '../data/mockData';
+
+const regularPeriods = PERIODS.filter(p => p.type !== 'free').map(p => p.id);
+
+export function validateConsultationSlots(data) {
+    const slots = data.requestedSlots || [];
+    if (!Array.isArray(slots) || (data.wantsFourTimes === true
+        ? slots.length !== 4 || new Set(slots.map(s => s?.day)).size !== 4 ||
+            slots.some(s => !s || !DAYS.includes(s.day) || !regularPeriods.includes(s.period))
+        : slots.length !== 0)) {
+        throw new Error('주4회 희망 시간을 서로 다른 요일로 4개 선택해주세요.');
+    }
+}
 
 export function validateConsultation(data) {
+    validateConsultationSlots(data);
     if (!isRecruitmentMonth(data.recruitmentMonth) || data.recruitmentMonth < koreanDate().slice(0, 7)) {
         throw new Error('모집월을 다시 확인해주세요.');
     }
@@ -24,6 +38,8 @@ export async function submitConsultation(data, requestId) {
         transaction.set(ref, {
             recruitmentMonth: data.recruitmentMonth, name: data.name.trim(), phone: normalizeInquiryPhone(data.phone),
             message: String(data.message || '').trim(), wantsFourTimes: data.wantsFourTimes === true,
+            requestedSlots: (data.requestedSlots || []).map(({ day, period }) => ({ day, period }))
+                .sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day)),
             status: 'pending', createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
         });
     });

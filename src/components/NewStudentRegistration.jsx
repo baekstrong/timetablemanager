@@ -165,6 +165,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
         if (exists) {
             setSelectedSlots(selectedSlots.filter(s => !(s.day === day && s.period === period)));
         } else {
+            if (consultationOnly && selectedSlots.some(s => s.day === day)) return;
             // 대기 모드에서는 슬롯 개수 제한 없음 (가능한 시간 전부 선택)
             if (!isWaitlistMode && selectedSlots.length >= weeklyFrequency) return;
             setSelectedSlots([...selectedSlots, { day, period }]);
@@ -186,7 +187,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
 
     const canProceed = () => {
         switch (step) {
-            case 0: return scheduleReady && !scheduleError && [2, 3].includes(weeklyFrequency) && (isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency);
+            case 0: return scheduleReady && !scheduleError && (consultationOnly ? weeklyFrequency === 4 : [2, 3].includes(weeklyFrequency)) && (isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency);
             case 1: return name.trim() && phone1.trim() && phone2.trim() && phone3.trim() && gender && exerciseExperience.trim();
             case 2: return !entranceLoading && !entranceError && (isEntranceAvailable(entranceClasses.find(ec => ec.id === selectedEntrance)) || (entranceInquiry.startsWith(`${recruitmentMonth}-`) && entranceInquiry >= koreanDate() && entranceInquiryReason.trim() !== ''));
             case 3: return paymentMethod !== '';
@@ -307,21 +308,24 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                     <h1 className="reg-title">근력학교 등록</h1>
                     <div className="recruitment-wizard-month"><strong>{monthLabel(recruitmentMonth)} 신규 수강 신청</strong><button type="button" className="recruitment-text-button" disabled={submitting}
                         onClick={() => { if (step === 0 || confirm('모집월을 변경하면 작성중인 신청 내용이 초기화됩니다. 변경하시겠습니까?')) onChangeMonth(); }}>모집월 변경</button></div>
-                    {!consultationOnly && <div className="reg-steps">
-                        {STEP_NAMES.map((s, i) => (
+                    <div className="reg-steps">
+                        {(consultationOnly ? ['희망 시간', '상담 정보'] : STEP_NAMES).map((s, i) => (
                             <div key={i} className={`reg-step-dot ${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`}>
                                 <span>{i < step ? '✓' : i + 1}</span>
                             </div>
                         ))}
-                    </div>}
-                    <p className="reg-step-label">{consultationOnly ? '상담 신청' : STEP_NAMES[step]}</p>
+                    </div>
+                    <p className="reg-step-label">{consultationOnly ? ['희망 시간', '상담 정보'][step] : STEP_NAMES[step]}</p>
                 </div>
 
                 {/* Step Content */}
                 <div className="reg-body">
-                    {!consultationOnly && scheduleError && <p className="recruitment-error" role="alert">{scheduleError}</p>}
+                    {scheduleError && step === 0 && <p className="recruitment-error" role="alert">{scheduleError}</p>}
                     {/* 렌더 순서 2단계: 개인정보 (소스는 일정 블록보다 위) */}
-                    {step === 1 && (
+                    {consultationOnly && <div hidden={step !== 1}><ConsultationRequestForm recruitmentMonth={recruitmentMonth}
+                        requestedSlots={selectedSlots} scheduleString={getScheduleString()} onBack={() => setStep(0)}
+                        onBusyChange={setSubmitting} onSubmitted={() => setConsultationSubmitted(true)} /></div>}
+                    {step === 1 && !consultationOnly && (
                         <div className="reg-step-content">
                             <p className="reg-description" style={{ backgroundColor: 'var(--accent-10)', color: 'var(--accent-hover)', padding: '10px 12px', borderRadius: '8px', fontSize: '0.85rem', lineHeight: '1.5' }}>
                                 수강 신청에 필요한 기본 정보를 입력해주세요
@@ -469,31 +473,40 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                         <div className="reg-step-content">
                             <p className="reg-description">주 몇 회 수업을 원하시나요?</p>
                             <div className="reg-freq-cards compact">
-                                {PRICING.map((p) => (
-                                    <button
-                                        type="button"
-                                        disabled={p.frequency === 4 || consultationOnly}
+                                {PRICING.map((p) => p.frequency === 4 ? (
+                                    <div key={p.frequency} className={`reg-freq-card reg-freq-card-four ${consultationOnly ? 'selected' : ''}`}>
+                                        <div className="reg-freq-label">주4회</div>
+                                        <div className="reg-freq-consult-note">상담 후 신청 가능</div>
+                                        <label className="reg-card-consult-check">
+                                            <input type="checkbox" checked={consultationOnly} disabled={submitting}
+                                                onChange={e => {
+                                                    setConsultationOnly(e.target.checked);
+                                                    setWeeklyFrequency(e.target.checked ? 4 : null);
+                                                    setBaseCost(e.target.checked ? p.baseCost : 0);
+                                                    setSelectedSlots([]);
+                                                    setIsWaitlistMode(false);
+                                                }} />
+                                            <span>상담 신청하기</span>
+                                        </label>
+                                    </div>
+                                ) : (
+                                    <button type="button" key={p.frequency} disabled={submitting}
                                         aria-pressed={weeklyFrequency === p.frequency && !consultationOnly}
-                                        key={p.frequency}
                                         className={`reg-freq-card ${weeklyFrequency === p.frequency ? 'selected' : ''}`}
                                         onClick={() => {
+                                            setConsultationOnly(false);
                                             setWeeklyFrequency(p.frequency);
                                             setBaseCost(p.baseCost);
                                             setSelectedSlots([]);
-                                        }}
-                                    >
+                                            setIsWaitlistMode(false);
+                                        }}>
                                         <div className="reg-freq-label">{p.label}</div>
-                                        {p.frequency === 4 ? <div className="reg-freq-consult-note">상담 후<br />신청 가능</div> : <>
-                                            <div className="reg-freq-cost">{p.baseCost.toLocaleString()}원</div>
-                                            <div className="reg-freq-total">입학반 비용 포함 {p.totalWithEntrance.toLocaleString()}원</div>
-                                        </>}
+                                        <div className="reg-freq-cost">{p.baseCost.toLocaleString()}원</div>
+                                        <div className="reg-freq-total">입학반 비용 포함 {p.totalWithEntrance.toLocaleString()}원</div>
                                     </button>
                                 ))}
                             </div>
-                            <p className="reg-four-times-notice">주4회 수강은 코치와 상담 후 신청할 수 있습니다.<br />상담을 원하시면 아래 항목을 체크해주세요.</p>
-                            <ConsultationRequestForm recruitmentMonth={recruitmentMonth} selected={consultationOnly}
-                                onSelectionChange={setConsultationOnly} onBusyChange={setSubmitting} onSubmitted={() => setConsultationSubmitted(true)} />
-                            {!consultationOnly && <>
+                            {consultationOnly && <p className="reg-four-times-notice">주4회 희망 시간을 4개 선택해주세요.<br />선택한 시간은 상담용이며, 자리와 수강은 상담 후 확정됩니다.</p>}
                             <p className="reg-description">
                                 {!weeklyFrequency ? (
                                     '위에서 주 횟수를 먼저 선택해주세요'
@@ -542,15 +555,17 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                                 s => s.day === day && s.period === period.id
                                             );
                                             // 대기 모드에서는 만석 셀도 선택 가능 + 개수 제한 없음
-                                            const canSelect = isWaitlistMode
+                                            const duplicateDay = consultationOnly && !isSelected && selectedSlots.some(s => s.day === day);
+                                            const canSelect = !duplicateDay && (isWaitlistMode
                                                 ? !isDisabled && (isSelected || true)
-                                                : !isDisabled && !isFull && (isSelected || selectedSlots.length < weeklyFrequency);
+                                                : !isDisabled && !isFull && (isSelected || selectedSlots.length < weeklyFrequency));
 
                                             return (
                                                 <div
                                                     key={key}
                                                     className={`reg-grid-cell ${isDisabled ? 'disabled' : ''} ${isFull && !isWaitlistMode ? 'full' : ''} ${isFull && isWaitlistMode ? 'full-waitlist' : ''} ${isSelected ? 'selected' : ''} ${!canSelect && !isSelected ? 'locked' : ''}`}
                                                     onClick={() => {
+                                                        if (!canSelect) return;
                                                         if (isDisabled) return;
                                                         if (isFull && !isWaitlistMode) return;
                                                         handleSlotToggle(day, period.id);
@@ -572,7 +587,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                             )}
 
                             {/* 대기 신청 안내: 마감 셀이 하나라도 있으면 표시 */}
-                            {!isWaitlistMode && weeklyFrequency && fullSlotCount > 0 && (
+                            {!consultationOnly && !isWaitlistMode && weeklyFrequency && fullSlotCount > 0 && (
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -631,7 +646,6 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                     </button>
                                 </div>
                             )}
-                            </>}
                         </div>
                     )}
 
@@ -1018,7 +1032,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                 </div>
 
                 {/* Footer */}
-                {!consultationOnly && <div className="reg-footer">
+                {(!consultationOnly || step === 0) && <div className="reg-footer">
                     {step > 0 && (
                         <button
                             className="reg-btn reg-btn-secondary"

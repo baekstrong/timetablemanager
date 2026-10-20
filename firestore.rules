@@ -91,14 +91,28 @@ service cloud.firestore {
       allow delete: if isCoach();
     }
 
-    // 상담은 좌석/결제 없는 별도 접수. 신청자 연락처·상담 내용은 코치만 조회한다.
+    function validConsultationSlot(slot) {
+      return slot is map && slot.keys().hasOnly(['day', 'period'])
+        && slot.day in ['월', '화', '수', '목', '금'] && slot.period in [1, 2, 4, 5, 6];
+    }
+    function validConsultationSchedule(data) {
+      let slots = data.requestedSlots;
+      return slots is list && ((!data.wantsFourTimes && slots.size() == 0)
+        || (data.wantsFourTimes && slots.size() == 4
+          && validConsultationSlot(slots[0]) && validConsultationSlot(slots[1])
+          && validConsultationSlot(slots[2]) && validConsultationSlot(slots[3])
+          && slots[0].day != slots[1].day && slots[0].day != slots[2].day && slots[0].day != slots[3].day
+          && slots[1].day != slots[2].day && slots[1].day != slots[3].day && slots[2].day != slots[3].day));
+    }
+    // 상담 희망 시간은 좌석 예약이 아니다. 신청자 연락처·상담 내용은 코치만 조회한다.
     match /recruitmentConsultations/{id} {
       allow read, update, delete: if isCoach();
-      allow create: if request.resource.data.keys().hasOnly(['recruitmentMonth', 'name', 'phone', 'message', 'wantsFourTimes', 'status', 'createdAt', 'updatedAt'])
+      allow create: if request.resource.data.keys().hasOnly(['recruitmentMonth', 'name', 'phone', 'message', 'wantsFourTimes', 'requestedSlots', 'status', 'createdAt', 'updatedAt'])
         && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 50
         && request.resource.data.phone is string && request.resource.data.phone.matches('010[0-9]{8}')
         && request.resource.data.message is string && request.resource.data.message.size() <= 1000
         && request.resource.data.wantsFourTimes is bool && request.resource.data.status == 'pending'
+        && validConsultationSchedule(request.resource.data)
         && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
         && request.resource.data.recruitmentMonth is string
         && request.resource.data.recruitmentMonth.matches('[0-9]{4}-(0[1-9]|1[0-2])')

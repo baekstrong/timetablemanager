@@ -21,6 +21,7 @@ export default function CoachConsultationCard({ request, onUpdated }) {
         <div className="cns-reg-detail">
             {request.wantsFourTimes && <p className="cns-four-times-request">주4회 등록 원함</p>}
             <div className="cns-detail-grid"><div className="cns-detail-item"><span className="cns-detail-label">연락처</span><a className="cns-detail-value" href={`tel:${request.phone}`}>{request.phone}</a></div>
+                {request.requestedSlots?.length > 0 && <div className="cns-detail-item full"><span className="cns-detail-label">희망 시간 (상담용)</span><span className="cns-detail-value">{request.requestedSlots.map(s => `${s.day} ${s.period}교시`).join(' · ')}</span></div>}
                 {request.message && <div className="cns-detail-item full"><span className="cns-detail-label">상담 내용</span><span className="cns-detail-value cns-consult-message">{request.message}</span></div>}
             </div>
             {error && <p role="alert">{error}</p>}

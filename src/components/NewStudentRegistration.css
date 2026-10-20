@@ -902,17 +902,22 @@
 .reg-freq-card:disabled:hover { transform: none; border-color: var(--hairline); }
 .reg-freq-consult-note { font-size: 0.8rem; line-height: 1.6; }
 .reg-four-times-notice { color: var(--text-secondary); font-size: 0.8rem; line-height: 1.7; margin: 12px 0 18px; }
-.reg-consult-request { border: 1px solid var(--hairline); border-radius: var(--r-md); padding: 14px; margin-bottom: 18px; }
-.reg-consult-request.selected { border-color: var(--accent); background: var(--accent-10); }
-.reg-consult-check { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; cursor: pointer; }
-.reg-consult-check input { accent-color: var(--accent); width: 20px; height: 20px; margin: 2px 0 0; flex-shrink: 0; }
-.reg-consult-check strong { display: block; font-size: 0.95rem; }
-.reg-consult-check small { display: block; color: var(--text-secondary); font-size: 0.75rem; line-height: 1.6; margin-top: 4px; }
 .reg-consult-fields { margin-top: 18px; }
 .reg-consult-fields fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .reg-consult-fields .reg-btn { width: 100%; }
-.reg-four-times-check { font-size: 0.85rem; margin-bottom: 12px; }
 .reg-freq-cards.compact .reg-freq-card { flex: 1 1 0; min-width: 0; }
 @media (max-width: 360px) {
     .reg-freq-cards.compact .reg-freq-cost { font-size: 0.8rem; white-space: nowrap; }
+}
+
+.reg-freq-card-four { cursor: default; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.reg-freq-card-four .reg-freq-consult-note { color: var(--text-secondary); }
+.reg-card-consult-check { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; min-height: 44px; width: 100%; cursor: pointer; font-size: 0.75rem; line-height: 1.5; }
+.reg-card-consult-check input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.reg-card-consult-check span { word-break: keep-all; }
+.reg-consult-actions { display: flex; gap: 10px; }
+.reg-consult-selected-times { color: var(--text-secondary); font-size: 0.85rem; line-height: 1.7; margin: 0 0 20px; }
+@media (max-width: 420px) {
+    .reg-card-consult-check { flex-direction: column; gap: 4px; }
+    .reg-freq-card-four .reg-freq-consult-note { font-size: 0.75rem; word-break: keep-all; }
 }
