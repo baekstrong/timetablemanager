@@ -1053,7 +1053,7 @@ function CurrentWeekStudentSchedule({
                 const source = changingMakeup?.originalClass || selectedOriginalClass;
                 const otherMakeups = changingMakeup ? activeMakeupRequests.filter(item => item.id !== changingMakeup.id) : activeMakeupRequests;
                 let reason = '';
-                let label = data.isFull ? '대기' : `${data.availableSeats}자리`;
+                let label = data.isFull ? '대기 가능' : `${data.availableSeats}자리`;
                 if (period.type === 'free') reason = label = '자율 운동';
                 else if (getHolidayInfo(day) !== null) reason = label = '휴일';
                 else if (isClassDisabled(day, period.id)) reason = label = '수업 없음';
