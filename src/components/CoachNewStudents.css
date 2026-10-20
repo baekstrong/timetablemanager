@@ -825,3 +825,7 @@
 
 .cns-four-times-request { color: var(--error); background: color-mix(in srgb, var(--error) 10%, var(--canvas)); border: 1px solid color-mix(in srgb, var(--error) 30%, var(--canvas)); border-radius: var(--r-chip); padding: 10px 12px; margin: 0 0 14px; font-weight: 700; font-size: 0.95rem; }
 .cns-consult-message { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+    .cns-filter-row { flex-wrap: wrap; }
+    .cns-filter-btn { flex: 1 1 72px; }
+}
