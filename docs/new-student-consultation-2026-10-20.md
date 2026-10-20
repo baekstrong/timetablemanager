@@ -2,7 +2,7 @@
 
 ## 현재 상태
 
-- 사용자 시안 승인으로 로컬 구현·검증 완료. 후속 요청으로 **웹 미리보기 확인 전 main 푸시/Pages 및 Firestore 운영 규칙 배포 보류**.
+- 사용자 미리보기 확인 후 **“좋네 배포해줘”로 운영 배포 승인**(2026-10-20). 이전 미리보기/배포 보류 요청은 이 승인으로 해제했다.
 - 사용자 최종 수정: 별도 상담 영역과 추가 주4회 체크를 제거하고 **주4회 카드 안에 `상담 신청하기` 체크 하나**만 둔다. 체크 후 희망 시간4개를 고르고 상담 정보를 입력한다. 코치에는 **`주4회 등록 원함`**과 희망 시간을 표시한다.
 - 운영 데이터 변경·실제 문자/푸시 발송 없음. 미리보기는 `demo-strength` 로컬 에뮬레이터와 기존 UI를 사용한다.
 
@@ -19,7 +19,7 @@
 - `recruitmentConsultations/{id}`: `recruitmentMonth`, `name`, `phone`(숫자11자리), `message`, `wantsFourTimes`(boolean), `requestedSlots`(요일/교시 목록), `status`(pending/completed), `createdAt`, `updatedAt`.
 - 실제 `consultationService`가 트랜잭션으로 최신 모집 설정을 읽고 open인 현재/미래 모집월에서만 생성한다. 명시한 필드와 상담용 희망 시간만 저장하고 수강 등록·비용·비밀번호를 저장하지 않는다. 주4회 희망 시간은 서로 다른 평일4개와 정규 교시만 허용한다.
 - Firestore 규칙: 상담 생성 스키마·모집월·서버 시간 확인, 상담 조회/완료/삭제는 코치만 허용. 기존 신규 신청 공개 생성은 주2/3회만 허용하고 코치의 직접 등록·기존 후속 수정 권한은 유지한다.
-- 배포 재개 시 실제 `traininglogforclients` 운영 규칙을 다시 읽고 변경분만 병합/검증한 뒤 규칙을 먼저 배포하고 프론트 main을 푸시한다. `.firebaserc` 기본 프로젝트를 사용하지 않는다. 기존 운영 규칙/새 규칙의 차이와 Pages 배포 결과를 확인한다.
+- 실제 `traininglogforclients` 운영 규칙을 읽고 기존 운영 설정/명단 권한 차이는 보존했다. 이번 공개 주4회 신청 제한/상담 규칙만 3-way 병합한 결과를 원격 컴파일·배포하고 readback 바이트 일치를 확인했다. 배포 릴리즈: `projects/traininglogforclients/rulesets/611cfb68-91e1-4542-bbad-8b3854a9de77`. `.firebaserc` 기본 프로젝트는 사용하지 않았다. 프론트는 main 푸시로 GitHub Pages 자동 배포하며 실행 결과는 GitHub Actions와 공유 위키에 기록한다.
 
 ## 검증
 
@@ -34,4 +34,4 @@
 - 로컬 서버: `npx vite --config outputs/consultation-review-2026-10-20/browser/vite.config.mjs`.
 - 에뮬레이터: Java21로 `npx --yes firebase-tools emulators:start --only firestore --project demo-strength` (8080).
 - 테스트/빌드/lint 로그, 코치 캡처 및 미리보기 설정은 `outputs/consultation-review-2026-10-20/`에 보존하며 커밋/배포에서 제외한다. 다른 작업의 기존 outputs 자료를 수정하지 않았다.
-- 다음 행동: 사용자의 웹 화면 확인/수정 의견을 받은 뒤 배포 여부를 결정한다.
+- 운영 페이지: `https://baekstrong.github.io/timetablemanager/`. 실제 운영 데이터 쓰기나 문자 발송 대신 배포 산출물/공개 신청 화면과 권한 차단을 확인한다. 배포 전 비교/규칙 스냅샷과 검증 로그는 `outputs/consultation-review-2026-10-20/deployment/`에 보관한다.
