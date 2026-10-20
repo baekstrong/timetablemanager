@@ -15,3 +15,8 @@
  .student-class-slot.student-makeup-slot .student-makeup-slot-detail { font-size:9px; }
 }
 .student-makeup-slot-label { word-break: keep-all; }
+/* 여석/마감/대기 색상 구분 */
+.student-class-slot.student-makeup-slot[data-availability="open"] .student-makeup-slot-label { color:var(--accent); font-weight:700; }
+.student-class-slot.student-makeup-slot[data-availability="closed"] .student-makeup-slot-label { color:var(--text-muted); }
+.student-class-slot.student-makeup-slot[data-availability="full"] .student-makeup-slot-label { color:var(--error); font-weight:600; }
+.student-class-slot.student-makeup-slot[data-availability="wait"] .student-makeup-slot-label { color:var(--accent-hover); font-weight:600; }

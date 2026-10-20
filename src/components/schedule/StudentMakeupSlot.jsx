@@ -46,10 +46,13 @@ export default function StudentMakeupSlot({
     const visibleLabels = hasPersonalStatus ? [primaryLabel, regularDetail, isAttendance ? statusLabel : '', secondaryLabel] : [availableLabel];
     const accessibleLabel = [ariaLabel, ...visibleLabels.filter(item => item && !ariaLabel?.includes(item)), reason && !ariaLabel?.includes(reason) && !visibleLabels.includes(reason) ? reason : ''].filter(Boolean).join(' · ');
     const badgeStatus = statusLabel === '보강결석' ? 'makeupAbsent' : STATUS_TAGS[type];
+    // ponytail: 여석/마감/대기 색상 구분용
+    const availabilityKind = hasPersonalStatus ? undefined : existingWait ? 'wait' : isFull ? 'full' : availableLabel === '마감' ? 'closed' : availableLabel.endsWith('자리') ? 'open' : undefined;
 
     return <button type="button"
         className={`student-class-slot student-makeup-slot${hasPersonalStatus ? ' has-personal-status' : isFull ? ' full' : ''}${type ? ` status-${type}` : ''}${className ? ` ${className}` : ''}`}
         data-personal-status={type || undefined}
+        data-availability={availabilityKind}
         disabled={disabled}
         onClick={onClick}
         title={reason || undefined}
