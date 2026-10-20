@@ -11,7 +11,7 @@ vi.mock('firebase/firestore', () => ({
 import { assertRecruitmentOpen, getRecruitmentOverview, saveRecruitmentMonth, submitRecruitmentRegistration } from './recruitmentService';
 
 const ec = { date: '2026-11-07', time: '10:00', isActive: true, maxCapacity: 6, currentCount: 1 };
-const data = { name: '예시', recruitmentMonth: '2026-11', entranceClassId: 'ec1', entranceDate: ec.date, entranceInquiry: '' };
+const data = { weeklyFrequency: 2, name: '예시', recruitmentMonth: '2026-11', entranceClassId: 'ec1', entranceDate: ec.date, entranceInquiry: '' };
 const snapshot = value => ({ exists: () => Boolean(value), data: () => value });
 beforeEach(() => {
     vi.clearAllMocks();
@@ -22,6 +22,10 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('월별 모집 서비스의 실제 저장 경로', () => {
+    it('주4회는 상담 희망을 체크해도 직접 신청을 저장하지 않는다', async () => {
+        await expect(submitRecruitmentRegistration({ ...data, weeklyFrequency: 4, wantsConsultation: true })).rejects.toThrow('상담 후');
+        expect(io.set).not.toHaveBeenCalled();
+    });
     it('모집월·입학반 확인이 끝나야 신청 문서가 저장된다', async () => {
         await submitRecruitmentRegistration(data);
         expect(io.get.mock.calls.map(([ref]) => ref.path)).toEqual(['recruitmentMonths/2026-11', 'entranceClasses/ec1']);

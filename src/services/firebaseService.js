@@ -686,8 +686,8 @@ export const getPendingRegistrationCount = async () => {
             collection(db, 'newStudentRegistrations'),
             where('status', 'in', ['pending', 'waitlist'])
         );
-        const snapshot = await getDocs(q);
-        return snapshot.size;
+        const [snapshot, consultations] = await Promise.all([getDocs(q), getDocs(query(collection(db, 'recruitmentConsultations'), where('status', '==', 'pending')))]);
+        return snapshot.size + consultations.size;
     } catch (error) {
         console.error('대기 등록 수 조회 실패:', error);
         return 0;

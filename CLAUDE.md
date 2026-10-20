@@ -449,6 +449,13 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 
 ## 핵심 비즈니스 로직
 
+### 신규 주4회 상담 필수·상담만 신청 (2026-10-20 로컬 구현, 배포 보류)
+
+- 신규 신청 주4회 카드는 `상담 후 신청 가능`으로 비활성화하며 공개 저장도 주2/3회만 허용한다. 기존 코치 직접 주4회 등록은 유지한다.
+- 첫 일정 화면 `상담 신청하기` 체크 시 이름·연락처·선택 상담 내용만으로 신청한다. 추가 `주4회 등록을 원합니다` 체크를 저장하고 코치 `상담 요청` 목록 카드에서 `주4회 등록 원함`을 빨갛게 강조한다.
+- 별도 `recruitmentConsultations`에 pending/completed로 보관한다. 상담 조회/완료/삭제는 코치만, 공개 생성은 열린 현재/미래 모집월과 입력 스키마를 확인한다. 좌석·입학반·결제·비밀번호/일반 신청 문자와 분리하고 대기 상담을 신규 관리 알림에 포함한다.
+- 사용자 후속 요청으로 웹 미리보기 확인 전 main 푸시·Pages/Firestore 운영 배포를 보류한다. 상세 검증과 미리보기: `docs/new-student-consultation-2026-10-20.md`.
+
 ### 종료일 계산
 
 `calculateEndDate(startDate, totalSessions, scheduleStr, holdingRanges, firebaseHolidays)`

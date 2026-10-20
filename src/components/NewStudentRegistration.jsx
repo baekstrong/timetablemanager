@@ -4,6 +4,7 @@ import { getDisabledClasses, updateNewStudentRegistration, getFAQs, getNewStuden
 import { getRecruitmentOverview, submitRecruitmentRegistration } from '../services/recruitmentService';
 import { koreanDate, monthLabel, monthEntrances, isEntranceAvailable } from '../utils/recruitment';
 import RegistrationMonthPicker from './RegistrationMonthPicker';
+import ConsultationRequestForm from './ConsultationRequestForm';
 import useKoreanMonth from '../hooks/useKoreanMonth';
 import { sendRegistrationNotifications } from '../services/smsService';
 import { formatEntranceDate, calculateStartEndDates } from '../utils/dateUtils';
@@ -46,8 +47,10 @@ const parseScheduleString = (scheduleStr) => {
 
 const STEP_NAMES = ['일정', '정보', '입학반', '결제', '상담', '확인'];
 
-const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
+export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
     const [step, setStep] = useState(0);
+    const [consultationOnly, setConsultationOnly] = useState(false);
+    const [consultationSubmitted, setConsultationSubmitted] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
 
@@ -183,7 +186,7 @@ const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
 
     const canProceed = () => {
         switch (step) {
-            case 0: return scheduleReady && !scheduleError && weeklyFrequency !== null && (isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency);
+            case 0: return scheduleReady && !scheduleError && [2, 3].includes(weeklyFrequency) && (isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency);
             case 1: return name.trim() && phone1.trim() && phone2.trim() && phone3.trim() && gender && exerciseExperience.trim();
             case 2: return !entranceLoading && !entranceError && (isEntranceAvailable(entranceClasses.find(ec => ec.id === selectedEntrance)) || (entranceInquiry.startsWith(`${recruitmentMonth}-`) && entranceInquiry >= koreanDate() && entranceInquiryReason.trim() !== ''));
             case 3: return paymentMethod !== '';
@@ -273,6 +276,10 @@ const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
         }
     };
 
+    if (consultationSubmitted) {
+        return <div className="reg-wizard"><div className="reg-wizard-inner"><div className="reg-success"><div className="reg-success-icon">✓</div><h2>상담 신청이 완료되었습니다!</h2><p>{monthLabel(recruitmentMonth)} 상담 요청이 코치에게 전달되었습니다.<br />남겨주신 연락처로 코치가 연락드리겠습니다.</p></div></div></div>;
+    }
+
     if (submitted) {
         return (
             <div className="reg-wizard">
@@ -300,19 +307,19 @@ const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                     <h1 className="reg-title">근력학교 등록</h1>
                     <div className="recruitment-wizard-month"><strong>{monthLabel(recruitmentMonth)} 신규 수강 신청</strong><button type="button" className="recruitment-text-button" disabled={submitting}
                         onClick={() => { if (step === 0 || confirm('모집월을 변경하면 작성중인 신청 내용이 초기화됩니다. 변경하시겠습니까?')) onChangeMonth(); }}>모집월 변경</button></div>
-                    <div className="reg-steps">
+                    {!consultationOnly && <div className="reg-steps">
                         {STEP_NAMES.map((s, i) => (
                             <div key={i} className={`reg-step-dot ${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`}>
                                 <span>{i < step ? '✓' : i + 1}</span>
                             </div>
                         ))}
-                    </div>
-                    <p className="reg-step-label">{STEP_NAMES[step]}</p>
+                    </div>}
+                    <p className="reg-step-label">{consultationOnly ? '상담 신청' : STEP_NAMES[step]}</p>
                 </div>
 
                 {/* Step Content */}
                 <div className="reg-body">
-                    {scheduleError && <p className="recruitment-error" role="alert">{scheduleError}</p>}
+                    {!consultationOnly && scheduleError && <p className="recruitment-error" role="alert">{scheduleError}</p>}
                     {/* 렌더 순서 2단계: 개인정보 (소스는 일정 블록보다 위) */}
                     {step === 1 && (
                         <div className="reg-step-content">
@@ -463,7 +470,10 @@ const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                             <p className="reg-description">주 몇 회 수업을 원하시나요?</p>
                             <div className="reg-freq-cards compact">
                                 {PRICING.map((p) => (
-                                    <div
+                                    <button
+                                        type="button"
+                                        disabled={p.frequency === 4 || consultationOnly}
+                                        aria-pressed={weeklyFrequency === p.frequency && !consultationOnly}
                                         key={p.frequency}
                                         className={`reg-freq-card ${weeklyFrequency === p.frequency ? 'selected' : ''}`}
                                         onClick={() => {
@@ -473,13 +483,17 @@ const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                         }}
                                     >
                                         <div className="reg-freq-label">{p.label}</div>
-                                        <div className="reg-freq-cost">{p.baseCost.toLocaleString()}원</div>
-                                        <div className="reg-freq-total">
-                                            입학반 비용 포함 {p.totalWithEntrance.toLocaleString()}원
-                                        </div>
-                                    </div>
+                                        {p.frequency === 4 ? <div className="reg-freq-consult-note">상담 후<br />신청 가능</div> : <>
+                                            <div className="reg-freq-cost">{p.baseCost.toLocaleString()}원</div>
+                                            <div className="reg-freq-total">입학반 비용 포함 {p.totalWithEntrance.toLocaleString()}원</div>
+                                        </>}
+                                    </button>
                                 ))}
                             </div>
+                            <p className="reg-four-times-notice">주4회 수강은 코치와 상담 후 신청할 수 있습니다.<br />상담을 원하시면 아래 항목을 체크해주세요.</p>
+                            <ConsultationRequestForm recruitmentMonth={recruitmentMonth} selected={consultationOnly}
+                                onSelectionChange={setConsultationOnly} onBusyChange={setSubmitting} onSubmitted={() => setConsultationSubmitted(true)} />
+                            {!consultationOnly && <>
                             <p className="reg-description">
                                 {!weeklyFrequency ? (
                                     '위에서 주 횟수를 먼저 선택해주세요'
@@ -617,6 +631,7 @@ const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                     </button>
                                 </div>
                             )}
+                            </>}
                         </div>
                     )}
 
@@ -1003,7 +1018,7 @@ const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                 </div>
 
                 {/* Footer */}
-                <div className="reg-footer">
+                {!consultationOnly && <div className="reg-footer">
                     {step > 0 && (
                         <button
                             className="reg-btn reg-btn-secondary"
@@ -1029,7 +1044,7 @@ const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                             {submitting ? '등록 중...' : isWaitlistMode ? '대기 신청하기' : '등록하기'}
                         </button>
                     )}
-                </div>
+                </div>}
             </div>
         </div>
     );

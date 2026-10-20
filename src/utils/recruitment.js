@@ -66,6 +66,9 @@ export function isAdmissionDate(value) {
 }
 
 export function validateRecruitmentSubmission(config, data, entrance, today = koreanDate()) {
+    if (![2, 3].includes(data.weeklyFrequency)) {
+        throw new Error('주4회 수강은 코치와 상담 후 신청할 수 있습니다. 주2회 또는 주3회를 선택해주세요.');
+    }
     if (!isRecruitmentMonth(data.recruitmentMonth) || data.recruitmentMonth < today.slice(0, 7) ||
         !config || config.month !== data.recruitmentMonth || config.status !== 'open') {
         throw new Error('선택한 월의 신규 모집이 마감되었거나 아직 열리지 않았습니다. 모집 안내를 다시 확인해주세요.');

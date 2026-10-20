@@ -822,3 +822,6 @@
 .cns-editor-summary dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .cns-editor-summary > div:last-child { font-weight: 700; color: var(--accent); }
 .cns-editor-error { color: var(--error); font-size: 0.85rem; }
+
+.cns-four-times-request { color: var(--error); background: color-mix(in srgb, var(--error) 10%, var(--canvas)); border: 1px solid color-mix(in srgb, var(--error) 30%, var(--canvas)); border-radius: var(--r-chip); padding: 10px 12px; margin: 0 0 14px; font-weight: 700; font-size: 0.95rem; }
+.cns-consult-message { white-space: pre-wrap; overflow-wrap: anywhere; }

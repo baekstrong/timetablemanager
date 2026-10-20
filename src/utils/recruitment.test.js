@@ -5,7 +5,7 @@ import {
 } from './recruitment';
 
 const entrance = { id: 'nov', date: '2026-11-07', time: '10:00', isActive: true, maxCapacity: 6, currentCount: 2 };
-const data = { recruitmentMonth: '2026-11', entranceClassId: 'nov', entranceDate: entrance.date, entranceInquiry: '' };
+const data = { weeklyFrequency: 2, recruitmentMonth: '2026-11', entranceClassId: 'nov', entranceDate: entrance.date, entranceInquiry: '' };
 const open = { month: '2026-11', status: 'open' };
 
 describe('월별 신규 모집', () => {

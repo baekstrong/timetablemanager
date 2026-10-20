@@ -93,7 +93,7 @@ describe('비로그인(anon) — 덤프 차단 + 신규등록 funnel만 허용',
 });
 
 describe('월별 모집의 서버 접수 차단', () => {
-  const registration = { name: '예시', recruitmentMonth: '2099-11', status: 'pending', entranceClassId: 'nov-open', entranceDate: '2099-11-07', entranceInquiry: '', entranceInquiryReason: '' };
+  const registration = { weeklyFrequency: 2, name: '예시', recruitmentMonth: '2099-11', status: 'pending', entranceClassId: 'nov-open', entranceDate: '2099-11-07', entranceInquiry: '', entranceInquiryReason: '' };
   it('비로그인도 열린 월의 입학반으로만 신청할 수 있다', async () => {
     await assertSucceeds(setDoc(doc(anon(), 'newStudentRegistrations', 'open-month'), registration));
   });

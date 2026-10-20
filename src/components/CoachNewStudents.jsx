@@ -38,6 +38,8 @@ import { PRICING, PERIODS, DAYS, MAX_CAPACITY } from '../data/mockData';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import PendingRegistrationEditor from './PendingRegistrationEditor';
 import RecruitmentManager from './RecruitmentManager';
+import CoachConsultationCard from './CoachConsultationCard';
+import { getConsultations } from '../services/consultationService';
 import { monthLabel, koreanDate, isAdmissionDate } from '../utils/recruitment';
 import { buildNewRegistrationPlan } from '../utils/newRegistrationPlan';
 import './CoachNewStudents.css';
@@ -55,6 +57,8 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
 
     // === 등록 목록 ===
     const [registrations, setRegistrations] = useState([]);
+    const [consultations, setConsultations] = useState([]);
+    const [consultationError, setConsultationError] = useState('');
     const [regFilter, setRegFilter] = useState(initialFilter);
     const [collapsedRegs, setCollapsedRegs] = useState(new Set());
     const [approving, setApproving] = useState(null);
@@ -148,11 +152,12 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
     // ─── Data loading ─────────────────────
     const loadRegCounts = async () => {
         try {
-            const all = await getNewStudentRegistrations(null);
+            const [all, consultationRequests] = await Promise.all([getNewStudentRegistrations(null), getConsultations()]);
             const counts = {};
             all.forEach(r => {
                 counts[r.status] = (counts[r.status] || 0) + 1;
             });
+            counts.consultation = consultationRequests.filter(r => r.status === 'pending').length;
             setRegCounts(counts);
         } catch (err) {
             console.error('등록 건수 조회 실패:', err);
@@ -161,6 +166,14 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
 
     const loadRegistrations = async () => {
         setLoading(true);
+        if (regFilter === 'consultation') {
+            setConsultationError('');
+            try { setConsultations(await getConsultations()); }
+            catch (err) { setConsultationError('상담 요청을 불러오지 못했습니다: ' + err.message); }
+            finally { setLoading(false); }
+            await loadRegCounts();
+            return;
+        }
         try {
             const data = await getNewStudentRegistrations(regFilter || null);
 
@@ -1511,13 +1524,13 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                     </div>
                     {activeTab === 'registrations' && (
                         <div className="cns-filter-row">
-                            {['pending', 'waitlist', 'approved', 'rejected'].map(f => (
+                            {['pending', 'consultation', 'waitlist', 'approved', 'rejected'].map(f => (
                                 <button
                                     key={f}
                                     className={`cns-filter-btn ${regFilter === f ? 'active' : ''}`}
                                     onClick={() => setRegFilter(f)}
                                 >
-                                    {f === 'pending' ? '대기중' : f === 'waitlist' ? '대기(만석)' : f === 'approved' ? '승인됨' : '거절됨'}
+                                    {f === 'consultation' ? '상담 요청' : f === 'pending' ? '대기중' : f === 'waitlist' ? '대기(만석)' : f === 'approved' ? '승인됨' : '거절됨'}
                                     {(regCounts[f] || 0) > 0 && f !== 'rejected' && (
                                         <span className="cns-filter-dot" />
                                     )}
@@ -1533,6 +1546,10 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
 
                         {loading ? (
                             <div className="cns-loading">불러오는 중...</div>
+                        ) : regFilter === 'consultation' ? (
+                            consultationError ? <div className="cns-empty" role="alert">{consultationError}<button className="cns-action-btn" onClick={loadRegistrations}>다시 불러오기</button></div>
+                            : consultations.length === 0 ? <div className="cns-empty">상담 요청이 없습니다.</div>
+                            : <div className="cns-reg-list">{consultations.map(request => <CoachConsultationCard key={request.id} request={request} onUpdated={loadRegistrations} />)}</div>
                         ) : registrations.length === 0 ? (
                             <div className="cns-empty">
                                 {regFilter === 'pending' ? '대기 중인 등록이 없습니다.'
