@@ -628,7 +628,7 @@ function CurrentWeekStudentSchedule({
         try {
             const phone = String(getStudentField(studentData, '핸드폰') || '').trim();
             await createMakeupWaitlist(user.username, phone, waitlistSlot, waitlistOriginalClass);
-            alert(`보강 대기 신청 완료!\n자리가 나면 문자로 안내드립니다 (선착순).`);
+            alert(`보강 대기 신청 완료!\n자리가 나면 알림으로 안내드립니다 (선착순).\n\n💡 알림을 켜두시면 자리 소식을 빠르게 받을 수 있어요.\n(내 수업 화면 상단의 🔔 버튼)`);
             setShowWaitlistRequest(false);
             setWaitlistSlot(null);
             setWaitlistOriginalClass(null);
