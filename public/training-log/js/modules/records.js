@@ -590,6 +590,22 @@ function renderRecordsList(docs) {
             recordsList.innerHTML = html;
 }
 
+// 오프라인 캐시가 켜져 있으면 쓰기는 이미 IndexedDB에 커밋됐다 → 서버 ACK를 기다리지 않는다
+// (addRecord와 같은 이유: 유휴 60초 뒤 스트림 재연결로 '삭제 중…'이 수 초 멈추던 원인).
+// 캐시가 없으면 탭을 닫는 순간 유실되므로 기다린다.
+async function commitWrite(writePromise, onLateError) {
+    if (!persistenceEnabled) return writePromise;
+    writePromise.catch(onLateError);
+}
+
+// 화면에 떠 있는 기록(onSnapshot 캐시)에서 먼저 찾는다 — 없을 때만 조회.
+async function cachedRecord(docId) {
+    const hit = lastRecordDocs?.find(d => d.id === docId);
+    if (hit) return hit.data;
+    const snap = await db.collection('records').doc(docId).get();
+    return snap.exists ? snap.data() : null;
+}
+
 export async function deleteRecord(docId) {
     if (!confirm('정말 이 기록을 삭제하시겠습니까?')) return;
 
@@ -600,10 +616,14 @@ export async function deleteRecord(docId) {
         // 삭제될 기록의 volume을 먼저 확보(삭제 후엔 못 읽음) → XP에서 차감.
         let oldVol = 0;
         try {
-            const snap = await db.collection('records').doc(docId).get();
-            if (snap.exists) { oldVol = recordVolume(snap.data()); recordDate = snap.data().date; }
+            const data = await cachedRecord(docId);
+            if (data) { oldVol = recordVolume(data); recordDate = data.date; }
         } catch (e) { console.error('삭제 전 기록 조회 실패(XP 미반영):', e); }
-        await db.collection('records').doc(docId).delete();
+        await commitWrite(db.collection('records').doc(docId).delete(), err => {
+            if (oldVol) applyXpDelta(oldVol); // 실패하면 차감분 되돌림
+            console.error('Error deleting record:', err);
+            alert('삭제 실패: ' + err.message);
+        });
         window.invalidateStudentReferences?.(recordUser);
         window.invalidateStudentCalendar?.(recordDate, recordUser);
         if (oldVol) applyXpDelta(-oldVol); // XP 반영은 기다리지 않는다
@@ -625,13 +645,17 @@ export async function moveRecord(docId, direction) {
     const recordUser = state.currentUser;
 
     try {
-        const snapshot = await db.collection('records')
-            .where('userName', '==', state.currentUser)
-            .where('date', '==', state.selectedDate)
-            .get();
-
+        // 화면 목록이 같은 사용자·날짜를 구독 중이면 그 캐시를 쓴다(왕복 0).
         let docs = [];
-        snapshot.forEach(doc => docs.push({ id: doc.id, ...doc.data() }));
+        if (lastRecordDocs && state.recordsSubKey === `${recordUser}__${state.selectedDate}`) {
+            docs = lastRecordDocs.map(d => ({ id: d.id, ...d.data }));
+        } else {
+            const snapshot = await db.collection('records')
+                .where('userName', '==', recordUser)
+                .where('date', '==', state.selectedDate)
+                .get();
+            snapshot.forEach(doc => docs.push({ id: doc.id, ...doc.data() }));
+        }
 
         // Sort by current display order
         docs.sort((a, b) => {
@@ -677,7 +701,10 @@ export async function moveRecord(docId, direction) {
         batch.update(db.collection('records').doc(currentDoc.id), { order: currentDoc.order });
         batch.update(db.collection('records').doc(targetDoc.id), { order: targetDoc.order });
 
-        await batch.commit();
+        await commitWrite(batch.commit(), err => {
+            console.error('Error moving record:', err);
+            alert('순서 변경 실패');
+        });
         window.invalidateStudentReferences?.(recordUser);
 
         // UI will auto-update via onSnapshot
@@ -697,8 +724,8 @@ export async function openEditModal(docId) {
     const editForm = document.getElementById('editForm');
 
     try {
-        const doc = await db.collection('records').doc(docId).get();
-        const data = doc.data();
+        const data = await cachedRecord(docId);
+        if (!data) throw new Error('기록을 찾을 수 없습니다.');
 
         if (data.sets && Array.isArray(data.sets)) {
             state.editingSets = JSON.parse(JSON.stringify(data.sets));
@@ -759,19 +786,24 @@ export async function saveEdit(docId) {
         }
 
         // Always save EMPTY string to record history as per new requirement
-        await db.collection('records').doc(docId).update({
+        const xpDelta = recordVolume({ sets: validSets }) - (state.editingOldVolume || 0);
+        await commitWrite(db.collection('records').doc(docId).update({
             exercise: exercise,
             sets: validSets,
             memo: '', // Clear record memo (moved to Workout Memo)
             pain: pain,
             date: newDate
+        }), err => {
+            if (xpDelta) applyXpDelta(-xpDelta);
+            console.error('Error saving edit:', err);
+            alert('수정 실패: ' + err.message);
         });
         window.invalidateStudentReferences?.(recordUser);
         window.invalidateStudentCalendar?.(originalDate, recordUser);
         window.invalidateStudentCalendar?.(newDate, recordUser);
 
         // XP 증분(레벨 오르면 applyXpDelta가 스스로 팝업) — 저장 완료를 막지 않는다.
-        applyXpDelta(recordVolume({ sets: validSets }) - (state.editingOldVolume || 0));
+        applyXpDelta(xpDelta);
         state.editingOldVolume = 0;
 
         hideBlockingOverlay();
@@ -1277,7 +1309,10 @@ export async function saveFeedback(docId) {
 
     try {
         // 1. Update Record
-        await db.collection('records').doc(docId).update({ feedback: feedback });
+        await commitWrite(db.collection('records').doc(docId).update({ feedback: feedback }), err => {
+            console.error('피드백 저장 실패:', err);
+            alert('피드백 저장 실패: ' + err.message);
+        });
 
         // 2. Fetch Record Details for Auto-Pinning
         const recordDoc = await db.collection('records').doc(docId).get();
