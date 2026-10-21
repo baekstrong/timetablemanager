@@ -402,6 +402,8 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 
 ### `personalBests` 상세
 
+**이달의 PR 조회 (2026-10-21)**: 랭킹 진입 시 `getMonthlyPRUpdaters(30)`을 미리 던지고 60초 메모리 캐시를 공유한다(탭 왕복 재조회 0). `submit/update/deletePersonalBest`가 캐시를 비우며, 등록 후 `refreshNonce`로 목록을 다시 읽는다. 운영 실측: 전체 115문서 51KB, 최근30일 34문서 15KB — 느림의 원인은 데이터 양이 아니라 왕복이다.
+
 **저장 시점**: `Ranking` 페이지 → `PRSubmitModal` → `submitPersonalBest()` (firebaseService.js)
 
 **문서 ID 규칙**:

@@ -144,7 +144,10 @@ const Ranking = ({ user, onBack, initialTab = 'ranking', initialStudent = '' }) 
 
     const refreshCurrentPRData = () => setRefreshNonce(n => n + 1);
 
-    useEffect(() => { loadExerciseNames(); }, []);
+    useEffect(() => {
+        loadExerciseNames();
+        getMonthlyPRUpdaters(30).catch(() => {}); // 이달의 PR 탭을 누르기 전에 미리 받아 둔다
+    }, []);
 
     // 운동명 드롭다운 옵션: 코치가 관리하는 공식 운동 종목 목록 (이미 가나다 정렬)
     const exerciseSuggestions = trainingLogExercises;
@@ -310,13 +313,13 @@ const RankingTab = ({ exerciseSuggestions, genderMap, tierMap, refreshNonce }) =
                 </>
             )}
 
-            {subTab === 'monthly' && <MonthlyPRSection genderMap={genderMap} tierMap={tierMap} genderFilter={genderFilter} />}
+            {subTab === 'monthly' && <MonthlyPRSection genderMap={genderMap} tierMap={tierMap} genderFilter={genderFilter} refreshNonce={refreshNonce} />}
             {subTab === 'attendance' && <AttendanceSection genderMap={genderMap} tierMap={tierMap} genderFilter={genderFilter} />}
         </div>
     );
 };
 
-const MonthlyPRSection = ({ genderMap, tierMap = {}, genderFilter }) => {
+const MonthlyPRSection = ({ genderMap, tierMap = {}, genderFilter, refreshNonce }) => {
     const [list, setList] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -326,11 +329,13 @@ const MonthlyPRSection = ({ genderMap, tierMap = {}, genderFilter }) => {
             try {
                 const data = await getMonthlyPRUpdaters(30);
                 setList(data);
+            } catch (err) {
+                console.error('이달의 PR 로드 실패:', err);
             } finally {
                 setLoading(false);
             }
         })();
-    }, []);
+    }, [refreshNonce]);
 
     const filtered = list.filter(p => genderFilter === 'all' || genderMap[p.userName] === genderFilter);
 

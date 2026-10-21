@@ -1565,6 +1565,7 @@ export const submitPersonalBest = async ({ userName, exercise, prType, intensity
                 updatedAt: serverTimestamp()
             });
         }
+        clearMonthlyPRCache();
         const threshold = PR_REP_THRESHOLDS[exercise];
         const milestone = prType === 'weightThenReps' && threshold != null && Number(reps?.value) >= threshold;
         return { docId, updated, milestone };
@@ -1605,6 +1606,7 @@ export const deletePersonalBest = async (docId) => {
     return safeWrite(async () => {
         if (!docId) throw new Error('docId가 필요합니다.');
         await firestoreDeleteDoc(doc(db, 'personalBests', docId));
+        clearMonthlyPRCache();
         return { success: true };
     });
 };
@@ -1624,6 +1626,7 @@ export const updatePersonalBest = async (docId, fields) => {
         if (Object.keys(allowed).length === 0) return { success: true };
         allowed.updatedAt = serverTimestamp();
         await updateDoc(doc(db, 'personalBests', docId), allowed);
+        clearMonthlyPRCache();
         return { success: true };
     });
 };
@@ -1660,8 +1663,13 @@ export const getPersonalBestsByExercise = async (exercise) => {
 /**
  * 최근 N일 내 PR 갱신/추가된 학생 목록 (이달의 PR 갱신자)
  */
+// 랭킹 진입 시 미리 받아 두고 탭 왕복·재진입엔 다시 묻지 않는다(60초). PR 쓰기 뒤엔 비운다.
+// ponytail: 탭 하나만의 메모리 캐시, 다른 기기의 등록은 최대 60초 늦게 보인다.
+let monthlyPRCache = null;
+const clearMonthlyPRCache = () => { monthlyPRCache = null; };
 export const getMonthlyPRUpdaters = async (daysAgo = 30) => {
-    return safeRead([], async () => {
+    if (monthlyPRCache?.daysAgo === daysAgo && Date.now() - monthlyPRCache.at < 60_000) return monthlyPRCache.promise;
+    const promise = safeRead([], async () => {
         const cutoff = new Date();
         cutoff.setDate(cutoff.getDate() - daysAgo);
         const cutoffTs = Timestamp.fromDate(cutoff);
@@ -1671,6 +1679,10 @@ export const getMonthlyPRUpdaters = async (daysAgo = 30) => {
             orderBy('updatedAt', 'desc')
         );
     });
+    const entry = { daysAgo, at: Date.now(), promise };
+    monthlyPRCache = entry;
+    promise.catch(() => { if (monthlyPRCache === entry) monthlyPRCache = null; });
+    return promise;
 };
 
 /**
