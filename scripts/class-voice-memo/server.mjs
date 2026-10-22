@@ -83,6 +83,8 @@ const send = (res, code, body, type = 'application/json; charset=utf-8') => {
 
 const server = http.createServer(async (req, res) => {
     touch();
+    // DNS 리바인딩 방지: 외부 도메인이 127.0.0.1로 풀려도 Host가 다르면 거부(같은 출처 판정을 우회하지 못하게)
+    if (![`127.0.0.1:${PORT}`, `localhost:${PORT}`].includes(req.headers.host)) return send(res, 421, { error: 'bad host' });
     try {
         if (req.method === 'GET' && (req.url === '/' || req.url.startsWith('/?'))) {
             return send(res, 200, readFileSync(path.join(import.meta.dirname, 'review.html'), 'utf8'), 'text/html; charset=utf-8');
