@@ -151,6 +151,7 @@ node scripts/post-update-notice.js "제목" "본문" --unpin-old
 
 - 확인·저장은 Claude 앱에서 `/class-voice-memo`(`.claude/skills/class-voice-memo`). 저장은 `save-note.mjs`만, **코치 전용 메모 한 수강생 키만** 조건부 갱신. 운동 메모(`coachPinnedMemos`)·수강생 본인 메모(`pinnedMemos`)는 절대 쓰지 않는다. 테스트 계정 `김기안` 제외.
 - launchd `kr.geunryeok.class-voice-memo`가 전용 앱 `~/Applications/ClassVoiceMemo.app`(전체 디스크 접근 권한 필요)으로 `pipeline.mjs` 실행. 설치·해제: `zsh scripts/class-voice-memo/install.sh [--remove]`.
+- 처리 대상: 평일 수업 시간(시작 15분 전~종료)에 시작한 **1시간 넘는** 녹음만. 그 밖은 건너뛰고 `pipeline.log`에 사유를 남긴다.
 - ⚠️ 음성 메모 폴더에는 개인 녹음이 수년치 있다. `processed.json` 없이 돌리거나 수업 시간 필터를 빼지 말 것(첫 시험에서 과거 녹음 152개를 받아쓰기 시작한 사고). 받아쓰기·메모 내용은 Git·위키에 옮기지 않는다.
 
 ## 뉴스레터(칼럼) 게시 규칙
