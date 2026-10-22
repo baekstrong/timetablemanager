@@ -18,10 +18,12 @@ it('코치홈 실제 복귀 이벤트는 60초·진행 중 중복을 막고 최�
     const refresh = vi.fn(() => new Promise(resolve => { finish = resolve; }));
     const refreshRef = { current: refresh };
     let cleanup;
+    const readCoachNotes = vi.fn().mockResolvedValue({ 정찬화: '새 메모' });
+    const setNotes = vi.fn();
     const context = vm.createContext({
-        useEffect: effect => { cleanup = effect(); }, document, Date, setInterval, clearInterval,
-        createVisibleTask, refreshRef, readCoachNotes: vi.fn().mockResolvedValue({}),
-        setNotes: vi.fn(), setNotesReady: vi.fn(), setError: vi.fn(), setNow: vi.fn(),
+        useEffect: effect => { cleanup = effect(); }, document, Date, setInterval, clearInterval, Promise,
+        createVisibleTask, refreshRef, readCoachNotes,
+        setNotes, setNotesReady: vi.fn(), setError: vi.fn(), setNow: vi.fn(),
     });
     // 실제 컴포넌트의 mount effect를 실행한다. 읽기/쓰기 서비스 및 DOM은 대체한다.
     const source = readFileSync(new URL('./CoachHome.jsx', import.meta.url), 'utf8');
@@ -32,6 +34,10 @@ it('코치홈 실제 복귀 이벤트는 60초·진행 중 중복을 막고 최�
 
     visible(); visible();
     expect(refresh).toHaveBeenCalledOnce();
+    // 복귀 때 코치 메모도 다시 읽어 다른 화면·자동화가 바꾼 내용을 반영한다 (마운트 1 + 복귀 1)
+    expect(readCoachNotes).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(setNotes).toHaveBeenLastCalledWith({ 정찬화: '새 메모' });
     await vi.advanceTimersByTimeAsync(61_000);
     visible();
     expect(refresh).toHaveBeenCalledOnce(); // 60초가 지나도 이전 요청이 진행 중이면 합친다.

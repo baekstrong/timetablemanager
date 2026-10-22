@@ -26,7 +26,12 @@ export default function CoachHome({ user, hasNewPostNotification = false, core, 
         let alive = true;
         readCoachNotes().then(value => { if (alive) { setNotes(value); setNotesReady(true); } }).catch(() => { if (alive) setError('코치 메모를 불러오지 못했습니다. 새로고침해주세요.'); });
         const timer = setInterval(() => setNow(new Date()), 15_000);
-        const refreshOnVisible = createVisibleTask(() => refreshRef.current());
+        // 훈련일지·다른 기기·수업 음성 메모 자동화가 바꾼 코치 메모도 복귀 때 다시 읽는다. 실패하면 보던 메모 유지.
+        // 수정 중인 입력은 drafts에 따로 있어 지워지지 않는다.
+        const refreshOnVisible = createVisibleTask(() => Promise.all([
+            refreshRef.current(),
+            readCoachNotes().then(value => { if (alive) setNotes(value); }).catch(() => {}),
+        ]));
         const visible = () => { if (!document.hidden) { setNow(new Date()); void refreshOnVisible(); } };
         document.addEventListener('visibilitychange', visible);
         return () => { alive = false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
