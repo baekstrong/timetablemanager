@@ -126,13 +126,16 @@ async function propose(transcriptFile) {
 }
 
 const PAGE = 'http://127.0.0.1:5179';
-// 확인 페이지 서버를 (안 떠 있으면) 띄우고 브라우저로 연다. 이 앱(전체 디스크 접근 권한) 아래에서 띄워야 Desktop의 프로젝트를 읽을 수 있다.
-async function openReviewPage() {
+// 확인 페이지 서버를 (안 떠 있으면) 띄운다. 이 앱(전체 디스크 접근 권한) 아래에서 띄워야 Desktop의 프로젝트를 읽을 수 있다.
+async function ensureServer() {
     const alive = await fetch(`${PAGE}/`).then(r => r.ok).catch(() => false);
     if (!alive) {
         spawn(process.execPath, [path.join(import.meta.dirname, 'server.mjs')], { detached: true, stdio: 'ignore' }).unref();
         await new Promise(r => setTimeout(r, 800));
     }
+}
+async function openReviewPage() {
+    await ensureServer();
     try { run('open', [PAGE]); } catch { /* 브라우저 열기 실패는 알림으로 대신 */ }
 }
 
@@ -186,4 +189,7 @@ if (ready.length) {
     const lines = ready.map(r => `${r.date.slice(5)} ${r.label}${r.none ? '(변경 없음)' : ''}`);
     notify(`제안 ${ready.length}건: ${lines.join(', ')} — 브라우저에서 체크해 저장`);
     await openReviewPage();
+} else if (readdirSync(dirs.proposals).some(f => /\.(json|md)$/.test(f))) {
+    // 확인 안 한 제안이 남아 있으면 서버가 2시간 무요청으로 꺼졌어도 15분마다 다시 띄워 둔다(브라우저는 열지 않음)
+    await ensureServer();
 }
