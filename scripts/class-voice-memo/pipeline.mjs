@@ -8,7 +8,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { dropRepeats, parseRecordingStart, periodFor, ymd } from './lib.mjs';
+import { decideNames, tagSpeakers, matchVoiceprints, parseRecordingStart, parseSrt, periodFor, renderLabeled, updateVoiceprints, voteNames, ymd } from './lib.mjs';
 import { loadClassContext, readCoachExerciseMemos, readExerciseNames } from './firestore.mjs';
 
 const HOME = os.homedir();
@@ -51,7 +51,14 @@ if (seeding) {
     process.exit(0);
 }
 
-function transcribe(file, names) {
+const VENV_PY = path.join(HOME, '.local/share/class-voice-memo/venv/bin/python');
+const VOICEPRINTS = path.join(STATE, 'voiceprints.json'); // 생체정보 — 이 Mac에만, 600. Firestore·Git에 올리지 않는다.
+// 화자 구분은 기본 꺼짐: 10/22 4교시 시험에서 코치/수강생 구분이 70~88%, 수강생끼리는 섞여서 틀린 이름이 분석을 오도할 위험이 더 컸다.
+// 켜려면 `touch ~/Library/Application\ Support/ClassVoiceMemo/diarize.on` (끄려면 그 파일 삭제).
+const DIARIZE = existsSync(path.join(STATE, 'diarize.on')) && existsSync(VENV_PY);
+
+// 받아쓰기(+켜져 있으면 화자 구분) → 줄마다 [코치]/[이름]/[이름?]/[다른 사람N]. 화자 구분 실패 시 받아쓰기만.
+function transcribe(file, names, date) {
     const id = path.basename(file, '.m4a');
     const wav = path.join(dirs.tmp, `${id}.wav`);
     const out = path.join(dirs.tmp, id);
@@ -60,11 +67,31 @@ function transcribe(file, names) {
         // VAD + 문맥 끊기(-mc 0)로 조용한 구간의 반복 환각을 막는다 (1차 테스트 52% → 0%)
         run('whisper-cli', ['-m', path.join(MODELS, 'ggml-large-v3-turbo.bin'), '-l', 'ko', '-t', '8',
             '--vad', '-vm', path.join(MODELS, 'ggml-silero-v5.1.2.bin'), '-mc', '0', '-sns',
-            '--prompt', `근력학교 수업. ${names.join(', ')}`, '-otxt', '-of', out, '-f', wav]);
-        return dropRepeats(readFileSync(`${out}.txt`, 'utf8'));
+            '--prompt', `근력학교 수업. ${names.join(', ')}`, '-osrt', '-of', out, '-f', wav]);
+        const lines = parseSrt(readFileSync(`${out}.srt`, 'utf8'))
+            .filter((l, i, a) => i === 0 || l.text !== a[i - 1].text); // 반복 환각 잔여 제거
+        const plain = lines.map(l => l.text).join('\n');
+        if (!DIARIZE) return { text: plain, speakers: null };
+        try {
+            const t0 = Date.now();
+            writePrivate(`${out}.lines.json`, JSON.stringify(lines.map(l => ({ start: l.start, end: l.end }))));
+            const dz = JSON.parse(run(VENV_PY, [path.join(import.meta.dirname, 'diarize.py'), wav, `${out}.lines.json`, '0.8'], { timeout: 30 * 60_000 }).toString());
+            const { coach, lines: tagged } = tagSpeakers(lines, dz.speakers);
+            const voted = decideNames(voteNames(tagged, coach, names));
+            const voiceprints = existsSync(VOICEPRINTS) ? JSON.parse(readFileSync(VOICEPRINTS)) : {};
+            const byVoice = matchVoiceprints(dz.embeddings, voiceprints, voted, names);
+            const all = new Map([...voted, ...byVoice]);
+            writePrivate(VOICEPRINTS, JSON.stringify(updateVoiceprints(voiceprints, dz.embeddings, voted, date)));
+            log(`화자 구분 ${Math.round((Date.now() - t0) / 1000)}초: 이름 매칭 ${[...all.values()].map(v => v.name + (v.sure ? '' : '?')).join(', ') || '없음'}`);
+            return { text: renderLabeled(tagged, coach, all), speakers: [...all].map(([spk, v]) => ({ speaker: spk, ...v })) };
+        } catch (e) {
+            log(`화자 구분 실패(받아쓰기만 사용): ${String(e.stderr || e.message).slice(0, 200)}`);
+            return { text: plain, speakers: null };
+        }
     } finally {
         rmSync(wav, { force: true });
-        rmSync(`${out}.txt`, { force: true });
+        rmSync(`${out}.srt`, { force: true });
+        rmSync(`${out}.lines.json`, { force: true });
     }
 }
 
@@ -137,10 +164,10 @@ for (const f of recordings().filter(f => !processed.has(f)).sort()) {
     }
     const context = await loadClassContext(ymd(start), period);
     const t0 = Date.now();
-    const text = transcribe(file, context.names);
+    const { text, speakers } = transcribe(file, context.names, ymd(start));
     const base = path.join(dirs.transcripts, `${context.date}_${context.period ?? 'x'}교시_${path.basename(f, '.m4a').replace(/\s+/g, '_')}`);
     writePrivate(`${base}.txt`, text);
-    writePrivate(`${base}.txt.json`, JSON.stringify({ recording: f, minutes: Math.round(seconds / 60), context }, null, 1));
+    writePrivate(`${base}.txt.json`, JSON.stringify({ recording: f, minutes: Math.round(seconds / 60), context, speakers }, null, 1));
     processed.add(f); saveProcessed();
     log(`받아쓰기 ${f} ${Math.round(seconds / 60)}분 → ${Math.round((Date.now() - t0) / 1000)}초`);
 }

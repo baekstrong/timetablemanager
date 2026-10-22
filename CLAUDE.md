@@ -152,6 +152,7 @@ node scripts/post-update-notice.js "제목" "본문" --unpin-old
 - 확인·저장: 제안이 나오면 브라우저로 이 Mac 전용 페이지 `http://127.0.0.1:5179`(`server.mjs`+`review.html`)가 열린다. **체크한 항목만** 저장 — 코치 전용 메모는 그 수강생 키만 조건부 교체(백업·재조회 확인), 체크리스트는 `coachPinnedMemos` 항목 추가(기존 원형 보존). 서버는 127.0.0.1만, `X-CVM` 헤더·같은 출처만 허용, 2시간 무요청 시 종료. `/class-voice-memo` 스킬은 페이지를 다시 띄울 때. 수강생 본인 메모(`pinnedMemos`)는 절대 쓰지 않는다. 테스트 계정 `김기안` 제외.
 - launchd `kr.geunryeok.class-voice-memo`가 전용 앱 `~/Applications/ClassVoiceMemo.app`(전체 디스크 접근 권한 필요)으로 `pipeline.mjs` 실행. 설치·해제: `zsh scripts/class-voice-memo/install.sh [--remove]`.
 - 처리 대상: 평일 수업 시간(시작 15분 전~종료)에 시작한 **1시간 넘는** 녹음만. 그 밖은 건너뛰고 `pipeline.log`에 사유를 남긴다.
+- 코치 전용 메모 제안은 **문제 하나 = 한 줄 `문제 -> 해결책`**(2026-10-22 사용자 결정). 화자 구분·이름 매칭·성문(`diarize.py`, venv `~/.local/share/class-voice-memo`)은 구현됐지만 4교시 시험 정확도가 낮아 **기본 꺼짐**(`ClassVoiceMemo/diarize.on` 파일로 켬). 성문 `voiceprints.json`은 생체정보라 이 Mac에만(600), 켜려면 수강생 동의 필요.
 - ⚠️ 음성 메모 폴더에는 개인 녹음이 수년치 있다. `processed.json` 없이 돌리거나 수업 시간 필터를 빼지 말 것(첫 시험에서 과거 녹음 152개를 받아쓰기 시작한 사고). 받아쓰기·메모 내용은 Git·위키에 옮기지 않는다.
 
 ## 뉴스레터(칼럼) 게시 규칙
