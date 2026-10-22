@@ -1,7 +1,7 @@
 import { localDate, escapeHTML } from './student-workspace-logic.js?v=20260925-student-ux';
 import { state, db, firebaseInitialized, persistenceEnabled } from '../state.js';
 import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue, moveButtons, swapSets } from './sets.js?v=20260925-student-ux';
-import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js?v=20261014-performance';
+import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js?v=20261022-coach-checklist';
 import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js?v=20260925-student-ux';
 import { evaluatePR, pastSetsFrom } from './pr-logic.js';
 import { xpToGrade, gradeRank, recordVolume, GRADES } from './grades.js';
@@ -1706,6 +1706,30 @@ export function confirmMemoEdit() {
 window.editStudentMemo = editStudentMemo;
 window.closeMemoEditModal = closeMemoEditModal;
 window.confirmMemoEdit = confirmMemoEdit;
+
+// 코치 체크리스트 항목 완료 (수강생 화면) — 지우지 않고 done으로 남겨 코치 화면에서 완료로 보이게 한다.
+// 체크 표시가 잠깐 보이도록 0.6초 뒤 목록에서 뺀다. 저장 실패 시 되돌린다.
+export async function completeCoachMemo(id, index) {
+    // 예전 메모는 id가 없어 목록 위치로 찾는다
+    const target = id ? state.coachPinnedMemos.find(m => String(m.id) === String(id)) : state.coachPinnedMemos[index];
+    if (!target || target.done) return;
+    target.done = true;
+    target.doneAt = new Date().toISOString();
+    const write = db.collection('coachPinnedMemos').doc(state.currentUser).set({
+        userName: state.currentUser,
+        memos: state.coachPinnedMemos,
+        updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    setTimeout(renderExerciseMemo, 600);
+    const undo = () => {
+        target.done = false;
+        delete target.doneAt;
+        renderExerciseMemo();
+        alert('체크 저장에 실패했습니다. 네트워크를 확인해주세요.');
+    };
+    try { await commitWrite(write, undo); } catch { undo(); } // 캐시 꺼진 환경은 commitWrite가 그대로 await → 실패가 throw로 온다
+}
+window.completeCoachMemo = completeCoachMemo;
 
 // 코치 고정 메모 해제 (수강생 화면에서)
 export async function removeCoachPinnedMemo(index) {

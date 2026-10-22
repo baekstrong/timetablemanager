@@ -330,41 +330,40 @@ const jsArg = s => String(s ?? '')
     .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, filterExercise = null) {
-    const coachList = (coachPinnedMemos || []).filter(m => m.exercise === filterExercise);
+    const coachAll = (coachPinnedMemos || []).filter(m => m.exercise === filterExercise);
+    const coachList = coachAll.filter(m => !m.done);
+    const doneCount = coachAll.length - coachList.length;
     const idx = studentPinnedMemos.findIndex(p => p.exercise === filterExercise);
     const pinned = idx !== -1 ? studentPinnedMemos[idx] : null;
 
-    if (coachList.length === 0 && !pinned) return '';
+    if (coachList.length === 0 && doneCount === 0 && !pinned) return '';
 
-    let html = '<div class="space-y-6">';
+    let html = '<div class="space-y-3">';
 
-    // 1. 코치 운동 메모
+    // 1. 코치 체크리스트 (2026-10-22) — 수강생이 체크하면 done:true로 남기고 목록에서 사라진다(삭제 아님, 코치 화면엔 완료로 보임).
+    // completeCoachMemo는 같은 배포의 records.js에 있다. 한쪽만 캐시 갱신된 조합에서도 오류가 나지 않게 존재 확인 후 호출.
     if (coachList.length > 0) {
         html += `
             <div class="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-bold text-yellow-800 flex items-center gap-2">
-                        <span>👨‍🏫 코치 운동 메모</span>
-                    </h3>
+                <div class="flex items-center justify-between mb-1">
+                    <h3 class="text-sm font-bold text-yellow-800">✅ 코치 체크리스트</h3>
+                    <span class="text-xs text-yellow-800">${coachList.length}개 남음</span>
                 </div>
-                <div class="space-y-4">
-                     ${coachList.map(memo => `
-                        <div class="bg-white rounded-lg p-4 border border-yellow-200 relative group">
-                            <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <span class="text-base font-bold text-gray-800">${esc(memo.exercise)}</span>
-                                    <span class="text-xs text-gray-400 ml-2">${new Date(memo.createdAt || Date.now()).toLocaleDateString()}</span>
-                                </div>
-                                <button onclick="deleteCoachMessage('${jsArg(memo.id || '')}')" class="text-red-500 hover:bg-red-50 p-1 rounded transition text-xs font-bold border border-red-200">
-                                    삭제
-                                </button>
-                            </div>
-                            <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed bg-yellow-50 p-3 rounded border border-yellow-100">${esc(memo.memo)}</div>
-                        </div>
-                    `).join('')}
-                </div>
+                ${coachList.map((memo, i) => `
+                    <label data-coach-item class="flex items-start gap-3 py-3 ${i ? 'border-t border-yellow-200' : ''} cursor-pointer transition-opacity duration-300">
+                        <input type="checkbox" class="mt-1 w-5 h-5 flex-shrink-0 accent-yellow-500"
+                            onchange="if (window.completeCoachMemo) { this.disabled = true; this.closest('[data-coach-item]').classList.add('line-through', 'opacity-40'); completeCoachMemo('${jsArg(memo.id || '')}', ${coachPinnedMemos.indexOf(memo)}); }">
+                        <span class="flex-1 min-w-0">
+                            <span class="block text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">${esc(memo.memo)}</span>
+                            <span class="block text-xs text-gray-400 mt-1">${new Date(memo.createdAt || Date.now()).toLocaleDateString()} 코치</span>
+                        </span>
+                    </label>
+                `).join('')}
             </div>
         `;
+    }
+    if (doneCount > 0) {
+        html += `<div class="text-xs text-gray-400 px-1">✓ 완료한 코치 체크리스트 ${doneCount}개는 숨겼어요</div>`;
     }
 
     // 2. 수강생 메모 (단일 종목) — 버튼은 헤더줄, 메모는 전체 폭

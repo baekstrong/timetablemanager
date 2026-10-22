@@ -1057,11 +1057,12 @@ export async function renderPinnedMemosForCoach(refresh) {
                 <h4 class="text-xs font-bold text-[#327AB8] mb-2 uppercase tracking-wider opacity-70">Coach Messages</h4>
                 <div class="space-y-2">`;
 
-            filteredCoachMemos.forEach((memo, idx) => {
+            // 수강생이 체크리스트에서 완료한 항목(done)은 아래로 보내고 흐리게 + 완료 배지 (2026-10-22)
+            [...filteredCoachMemos].sort((a, b) => !!a.done - !!b.done).forEach((memo, idx) => {
                 html += `
-                    <div class="bg-[#329BE71A] rounded-lg p-3 border border-[#329BE7]/20 relative">
+                    <div class="bg-[#329BE71A] rounded-lg p-3 border border-[#329BE7]/20 relative ${memo.done ? 'opacity-50' : ''}">
                         <div class="flex justify-between items-start mb-1">
-                            <span class="font-bold text-[#327AB8] text-sm">${memo.exercise}</span>
+                            <span class="font-bold text-[#327AB8] text-sm">${memo.exercise}${memo.done ? ` <span class="ml-1 text-xs font-semibold text-green-700 bg-green-100 px-1.5 py-0.5 rounded">✓ 수강생 완료 ${formatDate(memo.doneAt)}</span>` : ''}</span>
                             <div class="flex gap-2">
                                 <button onclick="editCoachMemo('${studentName}', '${memo.id || ''}', \`${(memo.memo || '').replace(/`/g, '\\`')}\`)" class="px-2 py-1 text-xs bg-[#329BE71A] text-[#327AB8] rounded border border-[#329BE7]/30 font-semibold">수정</button>
                                 <button onclick="deleteCoachMemo('${studentName}', '${memo.id || ''}')" class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded border border-red-300 font-semibold">삭제</button>

@@ -11,7 +11,11 @@ export function createTrainingReviewFixtures(now = new Date()) {
     const documents = {
         [`users/${REVIEW_USER}`]: { isCoach: false, xpVolume: 510000, xpCoef: 1, xp: 510000, grade: 'u4', gradeSeen: 'u4' },
         [`pinnedMemos/${REVIEW_USER}`]: { userName: REVIEW_USER, memos: [{ exercise: '스쿼트', memo: '발바닥 전체로 바닥을 밀기', pain: false }] },
-        [`coachPinnedMemos/${REVIEW_USER}`]: { memos: [{ exercise: '스쿼트', memo: '무릎과 발끝 방향을 맞춰주세요.' }] },
+        [`coachPinnedMemos/${REVIEW_USER}`]: { memos: [
+            { exercise: '스쿼트', memo: '무릎과 발끝 방향을 맞춰주세요.' },
+            { id: 'review-2', exercise: '스쿼트', memo: '무릎 안쪽 당기면 박스 스쿼트로 깊이 줄이기', createdAt: '2026-10-22T03:00:00.000Z' },
+            { id: 'review-3', exercise: '스쿼트', memo: '내려갈 때 숨 들이마시기', createdAt: '2026-10-15T03:00:00.000Z', done: true, doneAt: '2026-10-20T03:00:00.000Z' },
+        ] },
         [`archivedMemos/${REVIEW_USER}`]: { userName: REVIEW_USER, memos: [] },
         [`oneRMRecords/${REVIEW_USER}`]: { map: {} },
     };
