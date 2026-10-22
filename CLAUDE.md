@@ -145,6 +145,14 @@ node scripts/post-update-notice.js "제목" "본문" --unpin-old
    - 클라이언트 SDK는 규칙 잠금(`signedIn()` 필수) 이후 permission-denied, Admin SDK는 스트리밍 RPC(runQuery)가 gRPC라 일부 네트워크에서 무한 대기 → 둘 다 쓰지 않는다.
 6. 이 절차 전체는 `/deploy-notice` 슬래시 커맨드(`.claude/commands/deploy-notice.md`)로 실행할 수 있다.
 
+## 수업 음성 메모 자동화 (2026-10-22, 이 Mac 전용)
+
+수업 녹음(음성 메모) → 받아쓰기(whisper, Mac 로컬) → Claude가 **코치 전용 메모(`coachNotes/notes`) 변경안** 제안 → 백관장 승인 후에만 저장. 정본·결정 이력: `docs/class-voice-memo-review-2026-10-22.md`, 분석 규칙: `scripts/class-voice-memo/RULES.md`.
+
+- 확인·저장은 Claude 앱에서 `/class-voice-memo`(`.claude/skills/class-voice-memo`). 저장은 `save-note.mjs`만, **코치 전용 메모 한 수강생 키만** 조건부 갱신. 운동 메모(`coachPinnedMemos`)·수강생 본인 메모(`pinnedMemos`)는 절대 쓰지 않는다. 테스트 계정 `김기안` 제외.
+- launchd `kr.geunryeok.class-voice-memo`가 전용 앱 `~/Applications/ClassVoiceMemo.app`(전체 디스크 접근 권한 필요)으로 `pipeline.mjs` 실행. 설치·해제: `zsh scripts/class-voice-memo/install.sh [--remove]`.
+- ⚠️ 음성 메모 폴더에는 개인 녹음이 수년치 있다. `processed.json` 없이 돌리거나 수업 시간 필터를 빼지 말 것(첫 시험에서 과거 녹음 152개를 받아쓰기 시작한 사고). 받아쓰기·메모 내용은 Git·위키에 옮기지 않는다.
+
 ## 뉴스레터(칼럼) 게시 규칙
 
 노션 `✉️ 뉴스레터 출력` 페이지(하위 페이지 = 회차별 원고)의 뉴스레터를 **주 1회** 게시판 `칼럼` 카테고리에 올린다.
