@@ -338,24 +338,26 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, fi
 
     if (coachList.length === 0 && doneCount === 0 && !pinned) return '';
 
-    let html = '<div class="space-y-3">';
+    // 2026-10-22 사용자 선택 디자인(목업): 얇은 1px 테두리 + 옅은 틴트 + 12px 라운드, 카드 안 흰 상자·굵은 테두리 없음.
+    const md = (iso) => { const d = new Date(iso || Date.now()); return `${d.getMonth() + 1}/${d.getDate()}`; };
+    let html = '<div class="space-y-2.5">';
 
-    // 1. 코치 체크리스트 (2026-10-22) — 수강생이 체크하면 done:true로 남기고 목록에서 사라진다(삭제 아님, 코치 화면엔 완료로 보임).
+    // 1. 코치 체크리스트 — 수강생이 체크하면 done:true로 남기고 목록에서 사라진다(삭제 아님, 코치 화면엔 완료로 보임).
     // completeCoachMemo는 같은 배포의 records.js에 있다. 한쪽만 캐시 갱신된 조합에서도 오류가 나지 않게 존재 확인 후 호출.
     if (coachList.length > 0) {
         html += `
-            <div class="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4">
-                <div class="flex items-center justify-between mb-1">
-                    <h3 class="text-sm font-bold text-yellow-800">✅ 코치 체크리스트</h3>
-                    <span class="text-xs text-yellow-800">${coachList.length}개 남음</span>
+            <div class="bg-[#FAEEDA] border border-[#FAC775] rounded-xl px-3.5 py-3">
+                <div class="flex items-center justify-between mb-0.5">
+                    <h3 class="text-[13px] font-semibold text-[#854F0B]">✅ 코치 체크리스트</h3>
+                    <span class="text-xs text-[#854F0B]">${coachList.length}개 남음</span>
                 </div>
                 ${coachList.map((memo, i) => `
-                    <label data-coach-item class="flex items-start gap-3 py-3 ${i ? 'border-t border-yellow-200' : ''} cursor-pointer transition-opacity duration-300">
-                        <input type="checkbox" class="mt-1 w-5 h-5 flex-shrink-0 accent-yellow-500"
+                    <label data-coach-item class="flex items-start gap-2.5 py-2.5 ${i ? 'border-t border-[#FAC775]/60' : ''} cursor-pointer transition-opacity duration-300">
+                        <input type="checkbox" class="mt-0.5 w-[18px] h-[18px] flex-shrink-0 accent-[#BA7517]"
                             onchange="if (window.completeCoachMemo) { this.disabled = true; this.closest('[data-coach-item]').classList.add('line-through', 'opacity-40'); completeCoachMemo('${jsArg(memo.id || '')}', ${coachPinnedMemos.indexOf(memo)}); }">
                         <span class="flex-1 min-w-0">
                             <span class="block text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">${esc(memo.memo)}</span>
-                            <span class="block text-xs text-gray-400 mt-1">${new Date(memo.createdAt || Date.now()).toLocaleDateString()} 코치</span>
+                            <span class="block text-xs text-gray-500 mt-0.5">${md(memo.createdAt)} 코치</span>
                         </span>
                     </label>
                 `).join('')}
@@ -363,43 +365,37 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, fi
         `;
     }
     if (doneCount > 0) {
-        html += `<div class="text-xs text-gray-400 px-1">✓ 완료한 코치 체크리스트 ${doneCount}개는 숨겼어요</div>`;
+        html += `<div class="text-xs text-gray-400 pl-1">✓ 완료한 코치 체크리스트 ${doneCount}개는 숨겼어요</div>`;
     }
 
-    // 2. 수강생 메모 (단일 종목) — 버튼은 헤더줄, 메모는 전체 폭
+    // 2. 내 운동 메모 (단일 종목) — 종목명은 이미 입력칸에 있으니 생략, 버튼은 헤더줄의 작은 글자 버튼
     if (pinned) {
         const isHighlighted = pinned.highlighted === true;
-        const starBtn = isHighlighted
-            ? `<button onclick="toggleStudentMemoHighlight(${idx})" class="text-yellow-400 hover:text-yellow-500 text-lg leading-none" title="중요 해제">★</button>`
-            : `<button onclick="toggleStudentMemoHighlight(${idx})" class="text-gray-300 hover:text-yellow-400 text-lg leading-none" title="중요 표시">☆</button>`;
+        const starBtn = `<button onclick="toggleStudentMemoHighlight(${idx})" class="${isHighlighted ? 'text-[#EDBC40]' : 'text-gray-300 hover:text-[#EDBC40]'} text-base leading-none" title="${isHighlighted ? '중요 해제' : '중요 표시'}">${isHighlighted ? '★' : '☆'}</button>`;
         html += `
-            <div class="bg-[#329BE71A] border-2 border-[#329BE7] rounded-lg p-4">
-                <div class="flex items-center justify-between mb-3 gap-2">
-                    <h3 class="text-sm font-bold text-[#327AB8] whitespace-nowrap">📌 운동 메모</h3>
-                    <div class="flex gap-1 flex-shrink-0">
-                        <button onclick="editStudentMemo('${jsArg(pinned.exercise)}', '${jsArg(pinned.memo)}')" class="text-xs px-2 py-1 bg-[#329BE71A] text-[#327AB8] rounded hover:bg-[#329BE7]/20 transition">수정</button>
-                        <button onclick="archiveWorkoutMemo(${idx})" class="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition">보관</button>
-                        <button onclick="removePinnedExercise(${idx});" class="text-xs px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 transition">삭제</button>
-                    </div>
-                </div>
-                <div class="bg-white rounded-lg p-4 ${isHighlighted ? 'border-yellow-400 bg-yellow-50 ring-1 ring-yellow-200' : 'border border-[#EFEFF0]'}">
-                    <div class="flex items-center gap-2 mb-1">
+            <div class="bg-[#329BE71A] border ${isHighlighted ? 'border-[#EDBC40]' : 'border-[#329BE74D]'} rounded-xl px-3.5 py-3">
+                <div class="flex items-center justify-between gap-2 mb-1.5">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <h3 class="text-[13px] font-semibold text-[#327AB8] whitespace-nowrap">📌 내 운동 메모</h3>
                         ${starBtn}
-                        <div class="text-base font-bold text-gray-800">${esc(pinned.exercise)}</div>
-                        ${pinned.pain ? '<span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-semibold">⚠️ 통증</span>' : ''}
-                        ${isHighlighted ? '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-semibold">중요</span>' : ''}
+                        ${pinned.pain ? '<span class="text-[11px] bg-[#E94E581A] text-[#E94E58] border border-[#E94E584D] px-1.5 py-0.5 rounded-md font-semibold">통증</span>' : ''}
                     </div>
-                    ${pinned.memo ? `<div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">${esc(pinned.memo)}</div>` : '<div class="text-sm text-gray-400 italic">메모 없음</div>'}
-                    ${pinned.coachComment && pinned.coachComment.trim() !== '' ? `
-                        <div class="mt-3 bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded-r-md group relative">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-xs font-bold text-yellow-800 bg-yellow-200 px-2 py-0.5 rounded">👨‍🏫 코치 코멘트</span>
-                                <button onclick="removeCoachComment('${jsArg(pinned.exercise)}')" class="text-xs text-red-400 hover:text-red-600 font-bold px-2 py-1 opacity-50 group-hover:opacity-100 transition">삭제</button>
-                            </div>
-                            <div class="text-sm text-yellow-900 whitespace-pre-wrap font-medium">${esc(pinned.coachComment)}</div>
-                        </div>
-                    ` : ''}
+                    <div class="flex gap-2.5 flex-shrink-0 text-xs">
+                        <button onclick="editStudentMemo('${jsArg(pinned.exercise)}', '${jsArg(pinned.memo)}')" class="text-[#327AB8]">수정</button>
+                        <button onclick="archiveWorkoutMemo(${idx})" class="text-gray-500">보관</button>
+                        <button onclick="removePinnedExercise(${idx});" class="text-[#E94E58]">삭제</button>
+                    </div>
                 </div>
+                ${pinned.memo ? `<div class="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">${esc(pinned.memo)}</div>` : '<div class="text-sm text-gray-400">메모 없음</div>'}
+                ${pinned.coachComment && pinned.coachComment.trim() !== '' ? `
+                    <div class="mt-2.5 pt-2.5 border-t border-[#329BE74D]">
+                        <div class="flex items-center justify-between mb-0.5">
+                            <span class="text-xs font-semibold text-[#854F0B]">코치 코멘트</span>
+                            <button onclick="removeCoachComment('${jsArg(pinned.exercise)}')" class="text-xs text-gray-400 hover:text-[#E94E58]">삭제</button>
+                        </div>
+                        <div class="text-sm text-gray-800 whitespace-pre-wrap">${esc(pinned.coachComment)}</div>
+                    </div>
+                ` : ''}
             </div>
         `;
     }
