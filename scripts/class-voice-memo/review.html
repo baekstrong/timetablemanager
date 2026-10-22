@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>수업 메모 확인</title>
+<style>
+:root { --accent:#329BE7; --accent-d:#327AB8; --text:rgba(0,0,0,.85); --sub:rgba(0,0,0,.55); --muted:#A7A7AA; --line:#EFEFF0; --tint:#F7F7F8;
+  --amber-bg:#FAEEDA; --amber-line:#FAC775; --amber-text:#854F0B; --ok:#31A552; --err:#E94E58; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--tint); color:var(--text); font:15px/1.6 -apple-system, "Noto Sans KR", sans-serif; }
+main { max-width:760px; margin:0 auto; padding:20px 16px 80px; }
+h1 { font-size:22px; margin:0; } h2 { font-size:17px; margin:0; } h3 { font-size:14px; margin:0; }
+.top { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.card { background:#fff; border:1px solid var(--line); border-radius:20px; padding:18px; margin-bottom:16px; }
+.student { border:1px solid var(--line); border-radius:12px; padding:14px; margin-top:12px; }
+.badge { display:inline-block; font-size:12px; padding:2px 8px; border-radius:8px; margin-left:6px; vertical-align:2px; }
+.b-guess { background:#EDBC401A; color:#9A7414; border:1px solid #EDBC404D; }
+.b-self { background:#E94E581A; color:var(--err); border:1px solid #E94E584D; }
+.sec { margin-top:12px; border-radius:12px; padding:12px 14px; }
+.sec-coach { background:#fff; border:1px solid var(--line); }
+.sec-check { background:var(--amber-bg); border:1px solid var(--amber-line); }
+.sec-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.hint { font-size:12px; color:var(--sub); }
+label.confirm { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; cursor:pointer; }
+input[type=checkbox] { width:20px; height:20px; accent-color:var(--accent); flex:none; }
+.sec-check input[type=checkbox] { accent-color:#BA7517; }
+.diff { font-size:14px; white-space:pre-wrap; word-break:keep-all; border-radius:8px; overflow:hidden; border:1px solid var(--line); }
+.diff div { padding:3px 10px; }
+.d-same { color:var(--sub); }
+.d-add { background:#31A5521A; }
+.d-del { background:#E94E581A; color:var(--err); text-decoration:line-through; }
+mark { background:#31A55240; color:inherit; border-radius:3px; padding:0 1px; }
+textarea { width:100%; min-height:150px; font:14px/1.6 inherit; border:1px solid var(--line); border-radius:8px; padding:10px; }
+.row { display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-top:1px solid #FAC77599; }
+.row:first-of-type { border-top:none; }
+.row .fields { flex:1; min-width:0; display:grid; gap:6px; }
+.row input[type=text] { width:100%; font:14px inherit; padding:7px 9px; border:1px solid var(--amber-line); border-radius:8px; background:#fff; }
+.row input.ex { font-weight:600; }
+.warn { color:#9A7414; font-size:12px; }
+.existing { font-size:12px; color:var(--amber-text); margin-top:6px; opacity:.8; }
+details { margin-top:8px; font-size:13px; color:var(--sub); } summary { cursor:pointer; }
+ul { margin:6px 0 0; padding-left:18px; }
+button { font:600 14px inherit; border-radius:12px; padding:10px 16px; cursor:pointer; border:1px solid var(--line); background:#fff; color:var(--text); }
+button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+button.link { border:none; background:none; color:var(--accent-d); padding:4px 0; font-size:13px; }
+button:disabled { opacity:.5; cursor:default; }
+.actions { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; flex-wrap:wrap; }
+.status { font-size:13px; margin-top:8px; }
+.ok { color:var(--ok); } .err { color:var(--err); }
+.saved { opacity:.55; pointer-events:none; }
+.empty { text-align:center; color:var(--sub); padding:60px 0; }
+pre { white-space:pre-wrap; font-size:13px; background:var(--tint); padding:12px; border-radius:8px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><h1>수업 메모 확인</h1><button id="reload">새로고침</button></div>
+  <p class="hint" style="margin-top:-8px">체크한 항목만 저장돼요. 코치 전용 메모는 수강생에게 안 보이고, 체크리스트는 훈련일지에서 그 운동을 고르면 수강생에게 보여요.</p>
+  <div id="root"><p class="empty">불러오는 중…</p></div>
+</main>
+<datalist id="exercises"></datalist>
+<script>
+const api = (url, body) => fetch(url, body ? { method: 'POST', headers: { 'X-CVM': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { headers: { 'X-CVM': '1' } })
+  .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j; });
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// 줄 단위 비교(LCS) → 같은 줄 / 지워지는 줄 / 새 줄. 새 줄 안에서 원래 없던 말은 형광 표시.
+function diffLines(a, b) {
+  const A = a ? a.split('\n') : [], B = b ? b.split('\n') : [];
+  const dp = Array.from({ length: A.length + 1 }, () => new Array(B.length + 1).fill(0));
+  for (let i = A.length - 1; i >= 0; i--) for (let j = B.length - 1; j >= 0; j--)
+    dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out = []; let i = 0, j = 0;
+  while (i < A.length || j < B.length) {
+    if (i < A.length && j < B.length && A[i] === B[j]) { out.push(['same', A[i]]); i++; j++; }
+    else if (j < B.length && (i >= A.length || dp[i][j + 1] >= dp[i + 1][j])) out.push(['add', B[j++]]);
+    else out.push(['del', A[i++]]);
+  }
+  // 고쳐진 줄(지워지는 줄과 단어가 30% 이상 겹침)만 바뀐 단어를 형광 표시. 통째로 새 줄은 초록 배경만.
+  const dels = out.filter(([t]) => t === 'del').map(([, l]) => new Set(l.split(/\s+/)));
+  const marked = (line) => {
+    const words = line.split(/\s+/).filter(Boolean);
+    let best = null, score = 0;
+    for (const d of dels) { const s = words.filter(w => d.has(w)).length / (words.length || 1); if (s > score) { score = s; best = d; } }
+    if (score < 0.3) return esc(line);
+    return line.split(/(\s+)/).map(w => /\S/.test(w) && !best.has(w) ? `<mark>${esc(w)}</mark>` : esc(w)).join('');
+  };
+  return out.map(([t, line]) => `<div class="d-${t}">${t === 'add' ? marked(line) : esc(line) || '&nbsp;'}</div>`).join('');
+}
+
+const label = f => { const m = /^(\d{4})-(\d{2})-(\d{2})_(\w+)교시/.exec(f); if (!m) return f;
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`); return `${+m[2]}/${+m[3]} (${'일월화수목금토'[d.getDay()]}) ${m[4] === 'x' ? '교시 확인 필요' : m[4] + '교시'}`; };
+
+function studentHTML(p, s, si) {
+  const id = `${p.file}::${si}`;
+  const cn = s.coachNote;
+  const items = s.checklist || [];
+  return `<div class="student" data-id="${esc(id)}" data-name="${esc(s.name)}">
+    <h2>${esc(s.name)}${s.guessed ? `<span class="badge b-guess">이름 추정</span>` : ''}${s.maybeCoachSelf ? `<span class="badge b-self">코치 본인 얘기일 수 있음</span>` : ''}</h2>
+    ${s.guessed && s.guessNote ? `<div class="hint">${esc(s.guessNote)}</div>` : ''}
+    ${(s.evidence || []).length ? `<details><summary>녹음 근거 보기</summary><ul>${s.evidence.map(e => `<li>${esc(e)}</li>`).join('')}</ul></details>` : ''}
+    ${cn ? `<div class="sec sec-coach" data-kind="coach">
+      <div class="sec-head"><label class="confirm"><input type="checkbox" class="c-coach"> 코치 전용 메모 이대로 저장</label><span class="hint">수강생에게 안 보임</span></div>
+      <div class="diff">${diffLines(s.currentCoachNote || '', cn.proposed)}</div>
+      ${(cn.removed || []).length ? `<div class="hint" style="margin-top:6px">빠지는 내용: ${cn.removed.map(esc).join(' / ')}</div>` : ''}
+      <button class="link edit">직접 고치기</button>
+      <textarea class="coach-text" hidden>${esc(cn.proposed)}</textarea>
+    </div>` : ''}
+    ${items.length ? `<div class="sec sec-check" data-kind="check">
+      <div class="sec-head"><h3 style="color:var(--amber-text)">✅ 수강생 체크리스트</h3><span class="hint" style="color:var(--amber-text)">훈련일지에서 보임</span></div>
+      ${items.map(it => `<div class="row">
+        <input type="checkbox" class="c-item" style="margin-top:8px">
+        <div class="fields">
+          <input type="text" class="ex" list="exercises" value="${esc(it.exercise)}" aria-label="운동 이름">
+          <input type="text" class="tx" value="${esc(it.text)}" aria-label="체크리스트 문장">
+          ${it.exerciseUnknown ? `<span class="warn">앱 운동 목록에 없는 이름이에요. 맞는 이름으로 고쳐주세요.</span>` : ''}
+        </div></div>`).join('')}
+      ${(s.currentExerciseMemos || []).length ? `<div class="existing">이미 있는 항목: ${s.currentExerciseMemos.map(m => `${esc(m.exercise)} — ${esc(m.memo)}`).join(' / ')}</div>` : ''}
+    </div>` : ''}
+    <div class="status"></div>
+  </div>`;
+}
+
+function render({ proposals, exerciseNames }) {
+  document.getElementById('exercises').innerHTML = exerciseNames.map(n => `<option value="${esc(n)}">`).join('');
+  const root = document.getElementById('root');
+  if (!proposals.length) { root.innerHTML = '<p class="empty">확인할 제안이 없어요. 수업 녹음이 처리되면 여기에 떠요.</p>'; return; }
+  root.innerHTML = proposals.map(p => p.legacy
+    ? `<section class="card" data-file="${esc(p.file)}"><h2>${label(p.file)} <span class="hint">(예전 형식)</span></h2><pre>${esc(p.raw)}</pre>
+       <div class="actions"><button class="finish">이 제안 닫기</button></div><div class="status"></div></section>`
+    : `<section class="card" data-file="${esc(p.file)}">
+       <h2>${label(p.file)}</h2>
+       <div class="hint">녹음 ${p.minutes ? p.minutes + '분' : ''} · 후보 명단 ${esc((p.names || []).join(', ') || '없음')}</div>
+       ${(p.students || []).length ? p.students.map((s, i) => studentHTML(p, s, i)).join('') : '<p class="hint">이 수업은 메모 변경 제안이 없어요.</p>'}
+       ${(p.uncertain || []).length ? `<details open><summary>누구 얘기인지 불확실해서 뺀 것</summary><ul>${p.uncertain.map(u => `<li>${esc(u)}</li>`).join('')}</ul></details>` : ''}
+       <div class="actions"><button class="finish">이 제안 닫기</button><button class="primary save">체크한 것 저장</button></div>
+       <div class="status"></div>
+     </section>`).join('');
+}
+
+async function load() {
+  try { render(await api('/api/proposals')); }
+  catch (e) { document.getElementById('root').innerHTML = `<p class="empty err">불러오지 못했어요: ${esc(e.message)}</p>`; }
+}
+
+document.addEventListener('click', async (e) => {
+  const t = e.target;
+  if (t.id === 'reload') return load();
+  if (t.classList.contains('edit')) { const ta = t.nextElementSibling; ta.hidden = !ta.hidden; t.textContent = ta.hidden ? '직접 고치기' : '고친 내용 숨기기'; return; }
+  const card = t.closest('section.card');
+  if (!card) return;
+  const status = card.querySelector(':scope > .status');
+  if (t.classList.contains('save')) {
+    const proposals = (await api('/api/proposals')).proposals; // 최신 메모 기준으로 저장(다른 기기에서 바뀌었으면 서버가 막는다)
+    const p = proposals.find(x => x.file === card.dataset.file);
+    let count = 0; t.disabled = true;
+    for (const el of card.querySelectorAll('.student:not(.saved)')) {
+      const s = p.students[+el.dataset.id.split('::')[1]];
+      const coach = el.querySelector('.c-coach:checked') ? { text: el.querySelector('.coach-text').value, expect: s.currentCoachNote } : null;
+      const items = [...el.querySelectorAll('.row')].filter(r => r.querySelector('.c-item').checked)
+        .map(r => ({ exercise: r.querySelector('.ex').value, text: r.querySelector('.tx').value }));
+      if (!coach && !items.length) continue;
+      const st = el.querySelector('.status');
+      try {
+        const r = await api('/api/save', { name: el.dataset.name, coachNote: coach, exerciseItems: items });
+        st.innerHTML = `<span class="ok">저장됨 — ${[r.coachNote && '코치 전용 메모', r.exerciseItems && '체크리스트 ' + r.exerciseItems].filter(Boolean).join(', ')}</span>`;
+        el.querySelectorAll('input:checked').forEach(c => c.closest('.sec, .row').classList.add('saved'));
+        count++;
+      } catch (err) { st.innerHTML = `<span class="err">저장 실패: ${esc(err.message)}</span>`; }
+    }
+    t.disabled = false;
+    status.innerHTML = count ? `<span class="ok">${count}명 저장했어요. 다 끝났으면 '이 제안 닫기'를 눌러주세요.</span>` : '<span class="err">체크한 항목이 없어요.</span>';
+  }
+  if (t.classList.contains('finish')) {
+    if (!confirm('이 제안을 닫을까요? 저장하지 않은 항목은 버려지고, 받아쓴 글도 지워져요.')) return;
+    try { await api('/api/finish', { file: card.dataset.file }); card.remove(); if (!document.querySelector('section.card')) load(); }
+    catch (err) { status.innerHTML = `<span class="err">${esc(err.message)}</span>`; }
+  }
+});
+load();
+</script>
+</body>
+</html>

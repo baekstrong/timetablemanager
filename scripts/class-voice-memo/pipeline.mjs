@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-// 수업 음성 메모 자동화: 새 음성 메모 → 받아쓰기 → 교시별 코치 전용 메모 변경안 → Mac 알림.
+// 수업 음성 메모 자동화: 새 음성 메모 → 받아쓰기 → 교시별 메모 변경안(코치 전용 메모 + 수강생 체크리스트) → 알림 + 확인 페이지.
 // launchd가 음성 메모 폴더 변화·주기·로그인 시 실행한다. Mac이 잠자던 동안 쌓인 녹음은 다음 실행에 한꺼번에 처리.
-// 저장은 하지 않는다 — 코치가 Claude 앱에서 /class-voice-memo 로 승인해야 save-note.mjs가 저장한다.
+// 저장은 하지 않는다 — 코치가 확인 페이지(http://127.0.0.1:5179)에서 체크한 것만 server.mjs가 저장한다.
 //   node scripts/class-voice-memo/pipeline.mjs          새 녹음 처리
 //   node scripts/class-voice-memo/pipeline.mjs --seed   지금 있는 녹음은 전부 처리한 것으로 표시(설치 직후 1회)
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { dropRepeats, parseRecordingStart, periodFor, ymd } from './lib.mjs';
-import { loadClassContext } from './firestore.mjs';
+import { loadClassContext, readCoachExerciseMemos, readExerciseNames } from './firestore.mjs';
 
 const HOME = os.homedir();
 const REC = path.join(HOME, 'Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings');
@@ -68,28 +68,63 @@ function transcribe(file, names) {
     }
 }
 
-function propose(transcriptFile) {
+// 분석은 JSON(코치 전용 메모 + 수강생 체크리스트)으로 받아 확인 페이지(server.mjs + review.html)가 보여준다.
+async function propose(transcriptFile) {
     const meta = JSON.parse(readFileSync(`${transcriptFile}.json`));
-    const input = JSON.stringify({ ...meta.context, transcript: readFileSync(transcriptFile, 'utf8') });
-    const md = run('claude', ['-p', '--tools', '', '--no-session-persistence',
+    const { names } = meta.context;
+    const [exercises, ...memoLists] = await Promise.all([
+        readExerciseNames().catch(() => []),
+        ...names.map(n => readCoachExerciseMemos(n).then(r => r.memos.filter(m => !m.done)).catch(() => [])),
+    ]);
+    const exerciseMemos = Object.fromEntries(names.map((n, i) => [n, memoLists[i].map(m => ({ exercise: m.exercise, memo: m.memo }))]));
+    const input = JSON.stringify({ ...meta.context, exerciseMemos, exercises, transcript: readFileSync(transcriptFile, 'utf8') });
+    const out = run('claude', ['-p', '--tools', '', '--no-session-persistence',
         '--system-prompt-file', path.join(import.meta.dirname, 'RULES.md'),
-        '위 규칙대로 이 수업의 코치 전용 메모 변경안을 작성해줘.'], { input, timeout: 15 * 60_000 }).toString();
+        '위 규칙대로 이 수업의 메모 변경안을 JSON으로 작성해줘.'], { input, timeout: 15 * 60_000 }).toString();
+    const base = path.join(dirs.proposals, path.basename(transcriptFile, '.txt'));
     const label = meta.context.period ? `${meta.context.period}교시` : '교시 확인 필요';
-    const file = path.join(dirs.proposals, `${path.basename(transcriptFile, '.txt')}.md`);
-    writePrivate(file, `# ${meta.context.date} ${label} 수업 메모 제안\n\n녹음: ${meta.recording}\n명단(${meta.context.source}): ${meta.context.names.join(', ') || '없음'}\n\n${md}`);
-    return { label, date: meta.context.date, none: /변경 제안 없음/.test(md) };
+    let parsed;
+    try { parsed = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1)); }
+    catch {
+        // JSON이 깨져도 버리지 않고 원문을 예전 형식으로 남겨 페이지에서 볼 수 있게 한다
+        writePrivate(`${base}.md`, `# ${meta.context.date} ${label} (분석 결과 형식 오류 — 원문)\n\n${out}`);
+        return { label, date: meta.context.date, none: false };
+    }
+    writePrivate(`${base}.json`, JSON.stringify({
+        date: meta.context.date, period: meta.context.period, names, source: meta.context.source,
+        recording: meta.recording, minutes: meta.minutes,
+        students: (parsed.students || []).filter(s => names.includes(s.name) || s.guessed), uncertain: parsed.uncertain || [],
+    }, null, 1));
+    return { label, date: meta.context.date, none: !(parsed.students || []).length };
+}
+
+const PAGE = 'http://127.0.0.1:5179';
+// 확인 페이지 서버를 (안 떠 있으면) 띄우고 브라우저로 연다. 이 앱(전체 디스크 접근 권한) 아래에서 띄워야 Desktop의 프로젝트를 읽을 수 있다.
+async function openReviewPage() {
+    const alive = await fetch(`${PAGE}/`).then(r => r.ok).catch(() => false);
+    if (!alive) {
+        spawn(process.execPath, [path.join(import.meta.dirname, 'server.mjs')], { detached: true, stdio: 'ignore' }).unref();
+        await new Promise(r => setTimeout(r, 800));
+    }
+    try { run('open', [PAGE]); } catch { /* 브라우저 열기 실패는 알림으로 대신 */ }
 }
 
 const notify = (msg) => { try { run('osascript', ['-e', `display notification ${JSON.stringify(msg)} with title "수업 메모"`]); } catch { /* 알림 실패는 무시 */ } };
 
 // 1) 새 녹음 받아쓰기
 // 방금 들어온 녹음은 아직 내려받는 중일 수 있다. 다 내려온 뒤엔 폴더 변화 트리거가 다시 안 오므로 이번 실행에서 기다린다.
+// 실행 도중 파일이 계속 써지면(긴 녹음 내려받기) 대기 후에도 다시 '방금 바뀜'이 되므로, 잠잠해질 때까지 최대 10분 반복해서 기다린다.
 const ageOf = (f) => Date.now() - statSync(path.join(REC, f)).mtimeMs;
-const youngest = Math.min(Infinity, ...recordings().filter(f => !processed.has(f)).map(ageOf));
-if (youngest < SETTLE_MS) await new Promise(r => setTimeout(r, SETTLE_MS - youngest + 1000));
+for (let waited = 0; waited < 10 * 60_000;) {
+    const youngest = Math.min(Infinity, ...recordings().filter(f => !processed.has(f)).map(ageOf));
+    if (youngest >= SETTLE_MS) break;
+    const ms = SETTLE_MS - youngest + 1000;
+    await new Promise(r => setTimeout(r, ms));
+    waited += ms;
+}
 for (const f of recordings().filter(f => !processed.has(f)).sort()) {
     const file = path.join(REC, f);
-    if (Date.now() - statSync(file).mtimeMs < SETTLE_MS) continue;
+    if (Date.now() - statSync(file).mtimeMs < SETTLE_MS) { log(`대기 ${f}: 아직 내려받는 중 — 다음 실행에 처리`); continue; }
     const start = parseRecordingStart(f) ?? new Date(statSync(file).mtimeMs);
     const period = periodFor(start);
     // 수업 시간(평일 시작 15분 전~종료) 밖에서 시작했거나 오래된 녹음은 개인 녹음일 수 있어 받아쓰지 않는다
@@ -113,13 +148,15 @@ for (const f of recordings().filter(f => !processed.has(f)).sort()) {
 // 2) 제안이 아직 없는 받아쓰기 → 제안 (claude 실패분은 다음 실행에 재시도)
 const ready = [];
 for (const t of readdirSync(dirs.transcripts).filter(f => f.endsWith('.txt')).sort()) {
-    if (existsSync(path.join(dirs.proposals, t.replace(/\.txt$/, '.md')))) continue;
-    try { ready.push(propose(path.join(dirs.transcripts, t))); log(`제안 ${t}`); }
+    const stem = path.join(dirs.proposals, t.replace(/\.txt$/, ''));
+    if (existsSync(`${stem}.json`) || existsSync(`${stem}.md`)) continue;
+    try { ready.push(await propose(path.join(dirs.transcripts, t))); log(`제안 ${t}`); }
     catch (e) { log(`제안 실패 ${t}: ${String(e.stderr || e.message).slice(0, 300)}`); }
 }
 
-// 3) 알림
+// 3) 알림 + 확인 페이지 열기
 if (ready.length) {
     const lines = ready.map(r => `${r.date.slice(5)} ${r.label}${r.none ? '(변경 없음)' : ''}`);
-    notify(`제안 ${ready.length}건: ${lines.join(', ')} — Claude에서 /class-voice-memo`);
+    notify(`제안 ${ready.length}건: ${lines.join(', ')} — 브라우저에서 체크해 저장`);
+    await openReviewPage();
 }

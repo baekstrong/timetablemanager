@@ -147,9 +147,9 @@ node scripts/post-update-notice.js "제목" "본문" --unpin-old
 
 ## 수업 음성 메모 자동화 (2026-10-22, 이 Mac 전용)
 
-수업 녹음(음성 메모) → 받아쓰기(whisper, Mac 로컬) → Claude가 **코치 전용 메모(`coachNotes/notes`) 변경안** 제안 → 백관장 승인 후에만 저장. 정본·결정 이력: `docs/class-voice-memo-review-2026-10-22.md`, 분석 규칙: `scripts/class-voice-memo/RULES.md`.
+수업 녹음(음성 메모) → 받아쓰기(whisper, Mac 로컬) → Claude가 수강생별 **코치 전용 메모(`coachNotes/notes`) 변경안 + 수강생 체크리스트(`coachPinnedMemos`, 훈련일지 운동별 표시)** 제안 → 확인 페이지에서 백관장이 체크한 것만 저장. 정본·결정 이력: `docs/class-voice-memo-review-2026-10-22.md`, 분석 규칙: `scripts/class-voice-memo/RULES.md`.
 
-- 확인·저장은 Claude 앱에서 `/class-voice-memo`(`.claude/skills/class-voice-memo`). 저장은 `save-note.mjs`만, **코치 전용 메모 한 수강생 키만** 조건부 갱신. 운동 메모(`coachPinnedMemos`)·수강생 본인 메모(`pinnedMemos`)는 절대 쓰지 않는다. 테스트 계정 `김기안` 제외.
+- 확인·저장: 제안이 나오면 브라우저로 이 Mac 전용 페이지 `http://127.0.0.1:5179`(`server.mjs`+`review.html`)가 열린다. **체크한 항목만** 저장 — 코치 전용 메모는 그 수강생 키만 조건부 교체(백업·재조회 확인), 체크리스트는 `coachPinnedMemos` 항목 추가(기존 원형 보존). 서버는 127.0.0.1만, `X-CVM` 헤더·같은 출처만 허용, 2시간 무요청 시 종료. `/class-voice-memo` 스킬은 페이지를 다시 띄울 때. 수강생 본인 메모(`pinnedMemos`)는 절대 쓰지 않는다. 테스트 계정 `김기안` 제외.
 - launchd `kr.geunryeok.class-voice-memo`가 전용 앱 `~/Applications/ClassVoiceMemo.app`(전체 디스크 접근 권한 필요)으로 `pipeline.mjs` 실행. 설치·해제: `zsh scripts/class-voice-memo/install.sh [--remove]`.
 - 처리 대상: 평일 수업 시간(시작 15분 전~종료)에 시작한 **1시간 넘는** 녹음만. 그 밖은 건너뛰고 `pipeline.log`에 사유를 남긴다.
 - ⚠️ 음성 메모 폴더에는 개인 녹음이 수년치 있다. `processed.json` 없이 돌리거나 수업 시간 필터를 빼지 말 것(첫 시험에서 과거 녹음 152개를 받아쓰기 시작한 사고). 받아쓰기·메모 내용은 Git·위키에 옮기지 않는다.

@@ -46,7 +46,9 @@
 5. **선택(코치)**: 수업마다 바로 골라도 되고, 쌓인 제안을 나중에 한꺼번에 골라도 된다. 문구 수정과 저장 위치 변경도 가능하다. 답하기 전에는 저장하지 않는다.
 6. **저장(Claude Code, 자동)**: 고른 항목만 구분에 따라 기존 저장 위치에 덧붙인다. 저장 후 해당 녹음·받아쓰기 파일은 삭제한다.
 
-> **최종 결정 (2026-10-22): 저장 대상은 코치 전용 메모(`coachNotes/notes`) 하나뿐이다.** 코치는 수업 중 이 메모만 본다. 운동별 내용도 별도 운동 메모(`coachPinnedMemos`)에 쓰지 않고, 코치 전용 메모의 해당 부위 덩어리 안에 운동 이름과 함께 적는다. 아래의 운동 메모 저장 위치·예시는 검토 이력이다.
+> **최종 결정 갱신 (2026-10-22 저녁): 저장 대상은 코치 전용 메모 + 수강생 체크리스트(`coachPinnedMemos`) 두 가지.** 훈련일지의 코치 운동 메모를 운동별 체크리스트(수강생이 체크하면 done으로 숨김)로 바꾼 뒤 포함하기로 했다. 제안은 확인 페이지(127.0.0.1:5179)에서 **체크로 컨펌**한 것만 저장한다. 아래 '코치 전용 메모 하나뿐' 결정은 이력이다.
+>
+> 이전 결정 (2026-10-22): 저장 대상은 코치 전용 메모(`coachNotes/notes`) 하나뿐이다. 코치는 수업 중 이 메모만 본다. 운동별 내용도 별도 운동 메모(`coachPinnedMemos`)에 쓰지 않고, 코치 전용 메모의 해당 부위 덩어리 안에 운동 이름과 함께 적는다. 아래의 운동 메모 저장 위치·예시는 검토 이력이다.
 
 ### 메모 구분 (2026-10-22 사용자 요구: 수강생별·운동별)
 제안은 **수강생별로 묶고**, 항목마다 **운동별/전반**을 구분한다. (저장 위치는 위 최종 결정을 따른다.)
@@ -125,12 +127,13 @@
 ## 구현 (2026-10-22, 이 Mac에 설치·동작 확인)
 | 파일 | 역할 |
 |---|---|
-| `scripts/class-voice-memo/pipeline.mjs` | 새 녹음 → 받아쓰기 → `claude -p`(도구 없음, `RULES.md`를 시스템 프롬프트) 제안 → Mac 알림. 저장하지 않음 |
+| `scripts/class-voice-memo/pipeline.mjs` | 새 녹음 → 받아쓰기 → `claude -p`(도구 없음, `RULES.md`를 시스템 프롬프트) JSON 제안 → 알림 + 확인 페이지 열기. 저장하지 않음 |
+| `scripts/class-voice-memo/server.mjs` + `review.html` | 확인 페이지(127.0.0.1:5179). 체크한 코치 전용 메모·체크리스트만 저장, 제안 닫기 시 받아쓰기 삭제 |
 | `scripts/class-voice-memo/RULES.md` | 분석 규칙(이 문서의 결정 전부) |
 | `scripts/class-voice-memo/firestore.mjs` | REST 읽기(명단·코치 메모)와 코치 전용 메모 한 키 조건부 쓰기, 테스트 계정 목록 |
-| `scripts/class-voice-memo/save-note.mjs` | 승인된 메모 저장(백업·`--expect` 대조·재조회 검증), `--finish`로 제안 보관+받아쓰기 삭제 |
+| `scripts/class-voice-memo/save-note.mjs` | (수동용) 코치 전용 메모 저장, `--finish`로 제안 보관+받아쓰기 삭제 |
 | `scripts/class-voice-memo/install.sh` | launchd 등록(`--remove` 해제), 첫 설치 시 `--seed`, 전용 앱 생성 |
-| `.claude/skills/class-voice-memo/SKILL.md` | Claude 앱에서 `/class-voice-memo`로 제안 확인·승인·저장 |
+| `.claude/skills/class-voice-memo/SKILL.md` | 확인 페이지 다시 띄우기·상태 확인 |
 | `scripts/class-voice-memo/lib.mjs` + `lib.test.js` | 파일명→시각, 시각→교시, 반복 줄 제거 |
 
 - 상태·개인정보 파일은 Git 밖 `~/Library/Application Support/ClassVoiceMemo/`(700/600): `processed.json`, `transcripts/`, `proposals/`(`done/`), `backups/`, `pipeline.log`, `launchd.log`.

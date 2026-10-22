@@ -53,6 +53,50 @@ export async function loadClassContext(date, period) {
     return { date, period, source, names, coachNotes: Object.fromEntries(names.map(n => [n, notes[n] || ''])) };
 }
 
+// 운동별 코치 메모(coachPinnedMemos/{이름}.memos) — 훈련일지에서 그 종목을 고르면 수강생에게 보인다.
+export async function readCoachExerciseMemos(name) {
+    const doc = await getDoc(`coachPinnedMemos/${encodeURIComponent(name)}`);
+    const raw = doc?.fields?.memos?.arrayValue?.values || []; // 기존 항목은 타입 태그 그대로 보존해 다시 쓴다
+    return { exists: !!doc, updateTime: doc?.updateTime, raw, memos: raw.map(plain) };
+}
+
+export async function readExerciseNames() {
+    const res = await fetch(`${BASE}/exercises?pageSize=500`, { headers: await headers() });
+    if (!res.ok) throw new Error(`GET exercises ${res.status}`);
+    return ((await res.json()).documents || []).map(d => plain(d.fields?.name)).filter(Boolean);
+}
+
+// 운동별 코치 메모에 항목 추가. 훈련일지의 기존 형식({exercise, memo, pinnedBy, createdAt, id})을 그대로 쓴다.
+// 읽은 뒤 수강생이 지우는 등 문서가 바뀌었으면 조건부 쓰기로 실패한다.
+export async function addCoachExerciseMemos(name, items) {
+    const cur = await readCoachExerciseMemos(name);
+    const now = new Date().toISOString();
+    const added = items.map((it, i) => ({
+        exercise: it.exercise, memo: it.text, pinnedBy: '백관장', createdAt: now,
+        id: `${Date.now()}${i}`, source: 'voice-memo',
+    }));
+    const toValue = (m) => ({ mapValue: { fields: Object.fromEntries(Object.entries(m).map(([k, v]) => [k, { stringValue: v }])) } });
+    const memos = [...cur.raw, ...added.map(toValue)];
+    const res = await fetch(`https://firestore.googleapis.com/v1/${DB}/documents:commit`, {
+        method: 'POST', headers: await headers(),
+        body: JSON.stringify({ writes: [{
+            update: { name: `${DB}/documents/coachPinnedMemos/${name}`, fields: {
+                userName: { stringValue: name },
+                memos: { arrayValue: { values: memos } },
+            } },
+            updateMask: { fieldPaths: ['userName', 'memos'] },
+            updateTransforms: [{ fieldPath: 'updatedAt', setToServerValue: 'REQUEST_TIME' }],
+            currentDocument: cur.exists ? { updateTime: cur.updateTime } : { exists: false },
+        }] }),
+    });
+    if (!res.ok) throw new Error(`운동 메모 저장 실패 ${res.status}: ${await res.text()}`);
+    const after = await readCoachExerciseMemos(name);
+    const ok = added.every(a => after.memos.some(m => m.id === a.id && m.memo === a.memo && m.exercise === a.exercise))
+        && cur.memos.every(m => after.memos.some(x => x.id === m.id));
+    if (!ok) throw new Error('운동 메모 저장 확인 실패');
+    return added.length;
+}
+
 export async function readCoachNotesDoc() {
     const doc = await getDoc('coachNotes/notes');
     return { updateTime: doc.updateTime, map: plain(doc.fields.map) || {} };
