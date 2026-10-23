@@ -104,7 +104,9 @@ export function returnToCurrentMonth() {
 }
 export function selectCalendarDate(date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > localDate()) return;
-    state.selectedDate = date; // View date only: never changes studentWriteDate or the draft.
+    state.selectedDate = date;
+    // 2026-10-23 한 화면 레이아웃: 수강생은 고른 날짜가 곧 작성일(초안은 날짜별로 보관·복원).
+    if (!state.isCoach && date !== state.studentWriteDate) window.changeStudentWriteDate?.(date);
     const [year, month] = date.split('-').map(Number);
     state.calendarYear = year; state.calendarMonth = month - 1;
     const title = document.getElementById('recordsListTitle');

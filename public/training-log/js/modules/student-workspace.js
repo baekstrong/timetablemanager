@@ -75,7 +75,8 @@ function restoreDraft(date, exercise) {
 }
 export function initializeStudentWorkspace() {
     state.studentWriteDate = localDate();
-    state.studentView = 'calendar';
+    // 2026-10-23: 달력·입력·기록이 한 화면이라 학생 화면은 항상 작성 상태다(초안 자동 보관이 이 값에 의존).
+    state.studentView = 'write';
     state.studentTodayHasRecords = false;
     blankForm();
     activeExercise = '';
@@ -92,6 +93,8 @@ export function initializeStudentWorkspace() {
             writeStore(store);
         }
     } catch { /* Keep the old stored value if migration is not possible. */ }
+    restoreDraft(state.studentWriteDate, store.lastByDate[state.studentWriteDate] || '');
+    updateWriteHeading(state.studentWriteDate);
     updateStudentStartButton();
     renderStudentDraftList();
 }
@@ -104,6 +107,12 @@ export function updateStudentStartButton() {
     const label = isToday ? '오늘' : `${year}년 ${month}월 ${day}일`;
     const hasDraft = Object.values(readStore().drafts).some(draft => draft.date === date && hasDraftContent(draft));
     button.textContent = hasDraft ? `${label} 이어서 기록하기 ＋` : isToday && state.studentTodayHasRecords ? '오늘 기록 확인·추가 ＋' : `${label} 훈련일지 기록하기 ＋`;
+}
+function updateWriteHeading(date) {
+    const heading = document.getElementById('recordFormTitle');
+    if (!heading || !date) return;
+    const [, month, day] = date.split('-').map(Number);
+    heading.textContent = date === localDate() ? '오늘 기록 남기기' : `${month}월 ${day}일 기록 남기기`;
 }
 function renderStudentDraftList() {
     const container = document.getElementById('studentDraftList');
@@ -121,20 +130,19 @@ export function startStudentRecord(date = state.selectedDate || localDate(), exe
     restoreDraft(date, exercise === undefined ? store.lastByDate[date] || '' : exercise);
     document.getElementById('studentWriteDate').value = date;
     state.studentView = 'write';
-    document.getElementById('studentCalendarView').hidden = true;
-    document.getElementById('studentWriteView').hidden = false;
     document.getElementById('studentRecordSaved').hidden = true;
-    document.getElementById('studentWriteHeading')?.scrollIntoView({ block: 'start' });
+    updateWriteHeading(date);
+    // 달력 선택도 같은 날짜로 맞춘다. 작성일이 이미 date라 selectCalendarDate가 초안을 다시 열지 않는다.
+    if (state.selectedDate !== date) window.selectCalendarDate?.(date);
+    document.getElementById('studentWriteView')?.scrollIntoView({ block: 'start' });
 }
+// 예전 '달력으로 돌아가기'. 이제 한 화면이라 초안만 보관하고 달력으로 스크롤한다.
 export function showStudentCalendar(date) {
     saveStudentDraft();
-    state.studentView = 'calendar';
-    document.getElementById('studentWriteView').hidden = true;
-    document.getElementById('studentCalendarView').hidden = false;
     if (date) window.selectCalendarDate?.(date);
     updateStudentStartButton();
     renderStudentDraftList();
-    document.getElementById('studentStartButton')?.focus();
+    document.getElementById('studentCalendarView')?.scrollIntoView?.({ block: 'start' });
 }
 export function changeStudentWriteDate(date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > localDate()) {
@@ -143,7 +151,11 @@ export function changeStudentWriteDate(date) {
     }
     saveStudentDraft();
     state.studentWriteDate = date;
+    document.getElementById('studentWriteDate').value = date;
+    document.getElementById('studentRecordSaved').hidden = true;
     restoreDraft(date, readStore().lastByDate[date] || '');
+    updateWriteHeading(date);
+    renderStudentDraftList();
 }
 export function prepareStudentExercise(name) {
     saveStudentDraft();

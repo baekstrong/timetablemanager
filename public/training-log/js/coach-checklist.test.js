@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generatePinnedMemosHTML } from './ui.js';
+import { generatePinnedMemosHTML, memoItems, memoText } from './ui.js';
 
 describe('코치 체크리스트 (운동 선택 시 카드)', () => {
     const coach = [
@@ -28,12 +28,27 @@ describe('코치 체크리스트 (운동 선택 시 카드)', () => {
 
     it('전부 완료하고 수강생 메모도 없으면 숨김 안내만, 아무것도 없으면 빈 문자열', () => {
         expect(generatePinnedMemosHTML([{ ...coach[1] }], [], '벤치프레스')).toContain('1개는 숨겼어요');
-        expect(generatePinnedMemosHTML(coach, [], '데드리프트')).toBe('');
+        // 메모가 하나도 없는 종목엔 '메모 한 줄 추가' 칸만 (2026-10-23 체크리스트)
+        const empty = generatePinnedMemosHTML(coach, [], '데드리프트');
+        expect(empty).toContain('메모 한 줄 추가');
+        expect(empty).not.toContain('내 운동 메모');
     });
 
     it('메모 내용은 이스케이프된다', () => {
         const html = generatePinnedMemosHTML([{ id: "x'y", exercise: 'A', memo: '<img src=x onerror=alert(1)>' }], [], 'A');
         expect(html).not.toContain('<img');
         expect(html).toContain("completeCoachMemo('x\\'y', 0)");
+    });
+});
+
+describe('내 운동 메모 체크리스트', () => {
+    it('items마다 체크박스와 월/일, 예전 한 덩어리 메모는 한 항목(날짜 없음)', () => {
+        const html = generatePinnedMemosHTML([], [{ exercise: '스쿼트', items: [{ text: '무릎 바깥으로', at: '2026-10-21T03:00:00Z' }, { text: '호흡 먼저', at: '2026-10-23T03:00:00Z' }] }], '스쿼트');
+        expect(html.match(/<label data-memo-item/g)).toHaveLength(2);
+        expect(html).toContain('10/21');
+        expect(html).toContain('2개');
+        expect(memoItems({ memo: '옛 메모' })).toEqual([{ text: '옛 메모', at: '' }]);
+        expect(memoItems({})).toEqual([]);
+        expect(memoText([{ text: 'a' }, { text: 'b' }])).toBe('a\nb');
     });
 });

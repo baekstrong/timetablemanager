@@ -68,17 +68,13 @@ export function renderStudentScreen() {
                 <div class="student-header-tools"><button type="button" onclick="openMemoArchiveModal()">메모 보관함</button><button type="button" onclick="openOneRMModal()">1RM 계산기</button></div>
             </header>
             <div id="myStampContainer"></div>
+            <!-- 2026-10-23: 달력 → 입력칸 → 기록 내역을 한 화면에 (화면 전환 없음). 달력에서 고른 날짜가 작성일. -->
             <section id="studentCalendarView">
-                <button type="button" id="studentStartButton" class="student-main-button" onclick="startStudentRecord()">오늘 훈련일지 기록하기 ＋</button>
-                <div id="studentDraftList"></div>
                 <section class="student-calendar-card" aria-label="월간 운동 기록"><div id="calendar"><p class="student-help" role="status">운동 기록 확인 중…</p></div></section>
-                <section class="student-records-card">
-                    <h3 id="recordsListTitle">${formatDate(state.selectedDate)} 기록</h3>
-                    <div id="recordsList"></div>
-                </section>
+                <div id="studentDraftList"></div>
             </section>
-            <section id="studentWriteView" hidden>
-                <div class="student-writing-heading" id="studentWriteHeading"><button type="button" id="studentBackButton" aria-label="훈련일지 달력으로 뒤로가기" onclick="showStudentCalendar()">← 뒤로가기</button><label>작성일 <input type="date" id="studentWriteDate" value="${localDate()}" max="${localDate()}" onchange="changeStudentWriteDate(this.value)"></label></div>
+            <section id="studentWriteView">
+                <input type="hidden" id="studentWriteDate" value="${localDate()}">
                 <div class="student-record-form">
                     <h3 id="recordFormTitle">운동 기록 남기기</h3>
                     <p id="studentDraftStatus" class="student-help" role="status"></p>
@@ -93,10 +89,14 @@ export function renderStudentScreen() {
                     <div id="exerciseMemoCard"></div><div id="oneRMQuickCard"></div>
                     <div id="studentReference"></div>
                     <div id="setsContainer"></div>
-                    <details class="student-form-details"><summary>메모·통증 남기기</summary><label for="memo">운동 메모</label><textarea id="memo" placeholder="이 종목의 메모로 보관돼요" rows="2" oninput="autoSaveFormData()"></textarea><label class="student-pain-label"><input type="checkbox" id="painCheck" onchange="autoSaveFormData()"> 운동 중 통증이 있었습니다</label></details>
+                    <details class="student-form-details"><summary>메모·통증 남기기</summary><label for="memo">운동 메모</label><textarea id="memo" placeholder="기록 저장 시 이 종목 메모에 한 줄 추가돼요" rows="2" oninput="autoSaveFormData()"></textarea><label class="student-pain-label"><input type="checkbox" id="painCheck" onchange="autoSaveFormData()"> 운동 중 통증이 있었습니다</label></details>
                     <button id="addRecordBtn" onclick="addRecord()" class="student-main-button">기록 저장</button>
-                    <div id="studentRecordSaved" class="student-saved-notice" hidden><p role="status"></p><button type="button" onclick="showStudentCalendar(document.getElementById('studentWriteDate').value)">달력에서 확인</button><button type="button" onclick="document.getElementById('exercise').focus()">다른 운동 기록</button></div>
+                    <div id="studentRecordSaved" class="student-saved-notice" hidden><p role="status"></p><button type="button" onclick="document.getElementById('exercise').focus()">다른 운동 기록</button></div>
                 </div>
+            </section>
+            <section class="student-records-card">
+                <h3 id="recordsListTitle">${formatDate(state.selectedDate)} 기록</h3>
+                <div id="recordsList"></div>
             </section>
 
             <!-- 1RM 계산기 모달 -->
@@ -329,6 +329,12 @@ const jsArg = s => String(s ?? '')
     .replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, '\\n')
     .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+// 내 운동 메모 체크리스트 (2026-10-23): 종목별 메모 한 덩어리 → items:[{text, at(ISO)}].
+// memo 필드는 남은 항목을 줄바꿈으로 이어 계속 저장한다 — 코치 화면·기록 카드·구버전 모듈이 그대로 읽는다.
+// items가 없는 예전 메모는 통째로 한 항목(날짜 없음)으로 본다.
+export const memoItems = p => Array.isArray(p?.items) ? p.items : p?.memo ? [{ text: p.memo, at: '' }] : [];
+export const memoText = items => items.map(i => i.text).join('\n');
+
 export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, filterExercise = null) {
     const coachAll = (coachPinnedMemos || []).filter(m => m.exercise === filterExercise);
     const coachList = coachAll.filter(m => !m.done);
@@ -336,7 +342,16 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, fi
     const idx = studentPinnedMemos.findIndex(p => p.exercise === filterExercise);
     const pinned = idx !== -1 ? studentPinnedMemos[idx] : null;
 
-    if (coachList.length === 0 && doneCount === 0 && !pinned) return '';
+    // 메모 한 줄 추가 칸 — 메모가 아직 없는 종목에도 보여서 바로 쌓을 수 있게 한다.
+    const addRow = filterExercise ? `
+        <div class="flex gap-1.5 mt-2">
+            <input type="text" data-exercise="${esc(filterExercise)}" placeholder="메모 한 줄 추가" maxlength="200"
+                class="flex-1 min-w-0 px-2.5 py-1.5 text-sm border border-[#329BE74D] rounded-lg bg-white focus:outline-none focus:border-[#329BE7]"
+                onkeydown="if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); window.addStudentMemoItemFrom?.(this); }">
+            <button type="button" onclick="window.addStudentMemoItemFrom?.(this.previousElementSibling)" class="text-xs px-3 rounded-lg bg-[#329BE7] text-white whitespace-nowrap">추가</button>
+        </div>` : '';
+
+    if (coachList.length === 0 && doneCount === 0 && !pinned) return addRow;
 
     // 2026-10-22 사용자 선택 디자인(목업): 얇은 1px 테두리 + 옅은 틴트 + 12px 라운드, 카드 안 흰 상자·굵은 테두리 없음.
     const md = (iso) => { const d = new Date(iso || Date.now()); return `${d.getMonth() + 1}/${d.getDate()}`; };
@@ -368,25 +383,36 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, fi
         html += `<div class="text-xs text-gray-400 pl-1">✓ 완료한 코치 체크리스트 ${doneCount}개는 숨겼어요</div>`;
     }
 
-    // 2. 내 운동 메모 (단일 종목) — 종목명은 이미 입력칸에 있으니 생략, 버튼은 헤더줄의 작은 글자 버튼
+    // 2. 내 운동 메모 체크리스트 — 체크하면 줄이 그어지고 0.6초 뒤 메모 보관함으로 옮겨진다(삭제 아님).
     if (pinned) {
         const isHighlighted = pinned.highlighted === true;
+        const items = memoItems(pinned);
         const starBtn = `<button onclick="toggleStudentMemoHighlight(${idx})" class="${isHighlighted ? 'text-[#EDBC40]' : 'text-gray-300 hover:text-[#EDBC40]'} text-base leading-none" title="${isHighlighted ? '중요 해제' : '중요 표시'}">${isHighlighted ? '★' : '☆'}</button>`;
         html += `
             <div class="bg-[#329BE71A] border ${isHighlighted ? 'border-[#EDBC40]' : 'border-[#329BE74D]'} rounded-xl px-3.5 py-3">
-                <div class="flex items-center justify-between gap-2 mb-1.5">
+                <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-1.5 min-w-0">
                         <h3 class="text-[13px] font-semibold text-[#327AB8] whitespace-nowrap">📌 내 운동 메모</h3>
+                        ${items.length ? `<span class="text-xs text-[#327AB8]">${items.length}개</span>` : ''}
                         ${starBtn}
                         ${pinned.pain ? '<span class="text-[11px] bg-[#E94E581A] text-[#E94E58] border border-[#E94E584D] px-1.5 py-0.5 rounded-md font-semibold">통증</span>' : ''}
                     </div>
                     <div class="flex gap-2.5 flex-shrink-0 text-xs">
-                        <button onclick="editStudentMemo('${jsArg(pinned.exercise)}', '${jsArg(pinned.memo)}')" class="text-[#327AB8]">수정</button>
                         <button onclick="archiveWorkoutMemo(${idx})" class="text-gray-500">보관</button>
                         <button onclick="removePinnedExercise(${idx});" class="text-[#E94E58]">삭제</button>
                     </div>
                 </div>
-                ${pinned.memo ? `<div class="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">${esc(pinned.memo)}</div>` : '<div class="text-sm text-gray-400">메모 없음</div>'}
+                ${items.length ? items.map((item, i) => `
+                    <div class="flex items-start gap-2 ${i ? 'border-t border-[#329BE733]' : ''}">
+                    <label data-memo-item class="flex flex-1 min-w-0 items-start gap-2.5 py-2 cursor-pointer transition-opacity duration-300">
+                        <input type="checkbox" class="mt-0.5 w-[18px] h-[18px] flex-shrink-0 accent-[#329BE7]" aria-label="완료 처리"
+                            onchange="if (window.completeStudentMemoItem) { this.disabled = true; this.closest('[data-memo-item]').classList.add('line-through', 'opacity-40'); completeStudentMemoItem('${jsArg(pinned.exercise)}', ${i}); }">
+                        <span class="flex-1 min-w-0 text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">${esc(item.text)}${item.at ? `<span class="text-[11px] text-gray-400 ml-1.5 whitespace-nowrap">${md(item.at)}</span>` : ''}</span>
+                    </label>
+                    <button type="button" onclick="window.editStudentMemoItem?.('${jsArg(pinned.exercise)}', ${i})" class="text-xs text-[#327AB8] py-2 flex-shrink-0">수정</button>
+                    </div>
+                `).join('') : '<div class="text-sm text-gray-400 py-1">메모 없음</div>'}
+                ${addRow}
                 ${pinned.coachComment && pinned.coachComment.trim() !== '' ? `
                     <div class="mt-2.5 pt-2.5 border-t border-[#329BE74D]">
                         <div class="flex items-center justify-between mb-0.5">
@@ -398,6 +424,8 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, fi
                 ` : ''}
             </div>
         `;
+    } else {
+        html += addRow;
     }
 
     html += '</div>';

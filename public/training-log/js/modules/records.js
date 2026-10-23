@@ -1,7 +1,7 @@
 import { localDate, escapeHTML } from './student-workspace-logic.js?v=20260925-student-ux';
 import { state, db, firebaseInitialized, persistenceEnabled } from '../state.js';
 import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue, moveButtons, swapSets } from './sets.js?v=20260925-student-ux';
-import { renderEditModalContent, generatePinnedMemosHTML } from '../ui.js?v=20261022-memo-design';
+import { renderEditModalContent, generatePinnedMemosHTML, memoItems, memoText } from '../ui.js?v=20261023-memo-checklist';
 import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js?v=20260925-student-ux';
 import { evaluatePR, pastSetsFrom } from './pr-logic.js';
 import { xpToGrade, gradeRank, recordVolume, GRADES } from './grades.js';
@@ -118,9 +118,7 @@ export async function addRecord() {
 
         // Feature: Workout Memo Integration
         // If memo is provided, save it as "Workout Memo" (Pinned Memo) instead of record memo
-        if (memo) {
-            saveWorkoutMemo(exercise, memo, false, painCheck); // false = silent mode (no alert), pass pain
-        }
+        if (memo) addMemoItem(exercise, memo, painCheck); // 메모 체크리스트에 한 줄 추가
 
         const writePromise = ref.set({
             userName: recordUser,
@@ -797,9 +795,7 @@ export async function saveEdit(docId) {
     try {
         // v5.2 Refinement: Redirect Edit Memo to Workout Memo Update
         // If user edits memo here, update the GLOBAL Workout Memo for this exercise
-        if (memo) {
-            saveWorkoutMemo(exercise, memo, true, pain);
-        }
+        if (memo) addMemoItem(exercise, memo, pain);
 
         // Always save EMPTY string to record history as per new requirement
         const xpDelta = recordVolume({ sets: validSets }) - (state.editingOldVolume || 0);
@@ -1059,24 +1055,90 @@ export function renderExerciseMemo() {
 }
 window.renderExerciseMemo = renderExerciseMemo;
 
-export function saveWorkoutMemo(exercise, memo, showMessage = true, pain = false) {
+// 메모 전체 교체(수정 모달). 줄마다 한 항목 — 내용이 그대로인 줄은 원래 날짜를 유지한다.
+export function saveWorkoutMemo(exercise, memo, showMessage = true, pain) {
     if (!exercise) return;
+    const now = new Date().toISOString();
+    const existing = state.pinnedExercises.find(p => p.exercise === exercise);
+    const oldItems = memoItems(existing);
+    const items = String(memo || '').split('\n').map(t => t.trim()).filter(Boolean)
+        .map(text => ({ text, at: oldItems.find(i => i.text === text)?.at || now }));
 
-    // Feature 6 Update: Overwrite memo (Latest Only)
-    const existingIndex = state.pinnedExercises.findIndex(p => p.exercise === exercise);
-
-    if (existingIndex !== -1) {
-        state.pinnedExercises[existingIndex].memo = memo;
-        state.pinnedExercises[existingIndex].pain = pain;
+    if (existing) {
+        existing.items = items;
+        existing.memo = memoText(items);
+        if (pain !== undefined) existing.pain = pain;
         if (showMessage) alert('📌 운동 메모가 수정되었습니다!');
     } else {
-        state.pinnedExercises.push({ exercise: exercise, memo: memo, userName: state.currentUser, pain: pain });
+        state.pinnedExercises.push({ exercise, items, memo: memoText(items), userName: state.currentUser, pain: Boolean(pain) });
         if (showMessage) alert('📌 운동 메모가 고정되었습니다!');
     }
     savePinnedExercisesToStorage();
-    updatePinnedDisplay();
+    updatePinnedDisplay(false);
     if (window.updatePinButton) window.updatePinButton();
 }
+
+// 체크리스트에 한 줄 추가 (기록 저장 시 메모 칸, 카드의 '메모 한 줄 추가'). pain을 넘기지 않으면 통증 표시는 그대로.
+export function addMemoItem(exercise, text, pain) {
+    text = String(text || '').trim();
+    if (!exercise || !text) return;
+    let entry = state.pinnedExercises.find(p => p.exercise === exercise);
+    if (!entry) {
+        entry = { exercise, userName: state.currentUser, pain: false };
+        state.pinnedExercises.push(entry);
+    }
+    const items = [...memoItems(entry), { text, at: new Date().toISOString() }];
+    entry.items = items;
+    entry.memo = memoText(items);
+    if (pain !== undefined) entry.pain = pain;
+    savePinnedExercisesToStorage();
+    updatePinnedDisplay(false);
+}
+
+export function updateMemoItem(exercise, index, text) {
+    const entryIndex = state.pinnedExercises.findIndex(p => p.exercise === exercise);
+    if (entryIndex === -1) return;
+    const entry = state.pinnedExercises[entryIndex];
+    const items = [...memoItems(entry)];
+    if (!items[index]) return;
+    text = String(text || '').trim();
+    if (text) items[index] = { ...items[index], text };
+    else items.splice(index, 1);
+    if (items.length === 0 && !(entry.coachComment || '').trim()) state.pinnedExercises.splice(entryIndex, 1);
+    else { entry.items = items; entry.memo = memoText(items); }
+    savePinnedExercisesToStorage();
+    updatePinnedDisplay(false);
+}
+
+export function addStudentMemoItemFrom(input) {
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) { input.focus(); return; }
+    addMemoItem(input.dataset.exercise, text);
+}
+window.addStudentMemoItemFrom = addStudentMemoItemFrom;
+
+// 체크 = 완료. 지우지 않고 그 한 줄을 메모 보관함으로 옮긴다(실수로 체크해도 보관함에서 복원).
+// 줄이 그어진 모습이 잠깐 보이도록 0.6초 뒤 다시 그린다.
+export function completeStudentMemoItem(exercise, index) {
+    const entryIndex = state.pinnedExercises.findIndex(p => p.exercise === exercise);
+    if (entryIndex === -1) return;
+    const entry = state.pinnedExercises[entryIndex];
+    const items = [...memoItems(entry)];
+    const [done] = items.splice(index, 1);
+    if (!done) return;
+    state.archivedMemos.push({ exercise, memo: done.text, items: [done], pain: false, userName: state.currentUser, archivedAt: new Date().toISOString() });
+    if (items.length === 0 && !(entry.coachComment || '').trim()) {
+        state.pinnedExercises.splice(entryIndex, 1);
+    } else {
+        entry.items = items;
+        entry.memo = memoText(items);
+    }
+    savePinnedExercisesToStorage();
+    saveArchivedMemosToStorage();
+    setTimeout(() => updatePinnedDisplay(false), 600);
+}
+window.completeStudentMemoItem = completeStudentMemoItem;
 
 export function togglePinExercise() {
     const exercise = document.getElementById('exercise').value.trim();
@@ -1227,8 +1289,7 @@ export function togglePinExerciseFromEdit() {
         return;
     }
 
-    // Logic Unified with Workout Memo
-    saveWorkoutMemo(exercise, memo, true); // 내부에서 updatePinnedDisplay + updatePinButton 호출됨
+    if (memo) addMemoItem(exercise, memo);
 
     closeEditModal();
     // 전체 render() 금지 — 작성 중인 폼이 날아감. 표시 갱신은 saveWorkoutMemo가 이미 처리.
@@ -1592,7 +1653,17 @@ export function restoreArchivedMemo(index) {
 
     const memo = { ...state.archivedMemos[index] };
     delete memo.archivedAt;
-    state.pinnedExercises.push(memo);
+    // 같은 종목 메모가 이미 있으면 그 체크리스트 뒤에 붙인다(종목당 메모 1개 유지).
+    const existing = state.pinnedExercises.find(p => p.exercise === memo.exercise);
+    if (existing) {
+        const items = [...memoItems(existing), ...memoItems(memo)];
+        existing.items = items;
+        existing.memo = memoText(items);
+        existing.pain = existing.pain || memo.pain;
+    } else {
+        memo.items = memoItems(memo);
+        state.pinnedExercises.push(memo);
+    }
     state.archivedMemos.splice(index, 1);
 
     savePinnedExercisesToStorage();
@@ -1679,9 +1750,22 @@ window.closeMemoArchiveModal = closeMemoArchiveModal;
 
 // 메모 수정 모달 관련 변수
 let editingMemoExerciseName = null;
+let editingMemoItemIndex = null; // 체크리스트 한 항목 수정 중이면 그 위치
+
+// 체크리스트 한 항목 수정 — 같은 수정 모달을 쓴다. 날짜는 처음 쓴 날 그대로, 비우면 그 항목 삭제.
+export function editStudentMemoItem(exerciseName, index) {
+    const item = memoItems(state.pinnedExercises.find(p => p.exercise === exerciseName))[index];
+    if (!item) return;
+    editStudentMemo(exerciseName, item.text);
+    editingMemoItemIndex = index;
+    const title = document.getElementById('memoEditTitle');
+    if (title) title.textContent = `'${exerciseName}' 메모 한 줄 수정`;
+}
+window.editStudentMemoItem = editStudentMemoItem;
 
 export function editStudentMemo(exerciseName, currentMemo) {
     editingMemoExerciseName = exerciseName;
+    editingMemoItemIndex = null;
     const modal = document.getElementById('memoEditModal');
     const title = document.getElementById('memoEditTitle');
     const input = document.getElementById('memoEditInput');
@@ -1708,13 +1792,15 @@ export function closeMemoEditModal() {
         if (scrollY) window.scrollTo(0, parseInt(scrollY));
     }
     editingMemoExerciseName = null;
+    editingMemoItemIndex = null;
 }
 
 export function confirmMemoEdit() {
     if (editingMemoExerciseName) {
         const input = document.getElementById('memoEditInput');
         const newMemo = input.value; // Can be empty if user wants to clear it
-        saveWorkoutMemo(editingMemoExerciseName, newMemo, true);
+        if (editingMemoItemIndex !== null) updateMemoItem(editingMemoExerciseName, editingMemoItemIndex, newMemo);
+        else saveWorkoutMemo(editingMemoExerciseName, newMemo, true);
         closeMemoEditModal();
     }
 }

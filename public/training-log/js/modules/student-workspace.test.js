@@ -120,7 +120,7 @@ describe('달력에서 선택한 날짜로 기록 시작', () => {
     it('미래 날짜로 기록을 시작하지 않는다', () => {
         initializeStudentWorkspace(); fixture.state.selectedDate = '2026-09-26';
         startStudentRecord();
-        expect(fixture.state.studentView).toBe('calendar');
+        expect(fixture.state.studentView).toBe('write') // 한 화면 레이아웃: 항상 작성 상태, 미래 날짜는 작성일이 바뀌지 않는다;
         expect(fixture.state.studentWriteDate).toBe(today);
         expect(store().drafts).toEqual({});
     });

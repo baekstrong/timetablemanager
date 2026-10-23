@@ -377,6 +377,7 @@ body.modal-open {
 .student-writing-heading label { font-size:11px; color:rgba(0,0,0,.6); }
 .student-writing-heading input { max-width:145px; background:transparent; border:0; font-size:13px; color:rgba(0,0,0,.85); }
 .student-record-form { padding:16px 12px; }
+#studentWriteView { margin-bottom:22px; }
 .student-record-form>h3 { font-size:16px; font-weight:700; margin-bottom:12px; }
 .student-help { color:rgba(0,0,0,.6); font-size:11px; line-height:1.8; margin:8px 0 12px; }
 .student-exercise-search { position:relative; margin-bottom:14px; }
