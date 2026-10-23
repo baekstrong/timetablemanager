@@ -47,6 +47,10 @@ export function recruitmentOptions(configs, classes, today = koreanDate()) {
     });
 }
 
+// 신청 가능한 달 → 접수중인 달 → 이번 달(맨 앞) 순으로 기본 선택
+export const defaultRecruitmentMonth = options => (options.find(o => o.canApply)
+    || options.find(o => o.status === 'open') || options[0])?.month || '';
+
 export function recruitmentInquiryRoute(choice, options, fallbackPhone = '') {
     const inquiry = choice?.status === 'closed'
         ? options.find(o => o.month > choice.month && o.status !== 'closed')

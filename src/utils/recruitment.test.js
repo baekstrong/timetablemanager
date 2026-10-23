@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     koreanDate, shiftMonth, recruitmentOptions, monthEntrances, validateRecruitmentSubmission,
     inquirySmsLink, inquiryMessage, isInquiryPhone, isAdmissionDate, recruitmentInquiryRoute,
+    defaultRecruitmentMonth,
 } from './recruitment';
 
 const entrance = { id: 'nov', date: '2026-11-07', time: '10:00', isActive: true, maxCapacity: 6, currentCount: 2 };
@@ -71,5 +72,13 @@ describe('월별 신규 모집', () => {
         expect(inquirySmsLink('', '2026-11')).toBe('');
         expect(isInquiryPhone('010-1234-5678')).toBe(true);
         expect(isInquiryPhone('javascript:alert(1)')).toBe(false);
+    });
+
+    it('접수중인 달을 기본으로 선택한다', () => {
+        const oct = { month: '2026-10', status: 'closed' }, nov = { month: '2026-11', status: 'open', canApply: true };
+        expect(defaultRecruitmentMonth([oct, nov])).toBe('2026-11');
+        expect(defaultRecruitmentMonth([oct, { ...nov, canApply: false }])).toBe('2026-11');
+        expect(defaultRecruitmentMonth([oct, { month: '2026-11', status: 'inquiry' }])).toBe('2026-10');
+        expect(defaultRecruitmentMonth([])).toBe('');
     });
 });
