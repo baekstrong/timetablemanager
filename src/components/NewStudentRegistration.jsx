@@ -477,7 +477,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                     {/* 렌더 순서 1단계: 일정 (주 횟수 + 시간표 한 페이지) */}
                     {step === 0 && (
                         <div className="reg-step-content">
-                            <p className="reg-description">주 몇 회 수업을 원하시나요?</p>
+                            <p className="reg-description">주 몇 회 수업을 원하시나요? 선택해주세요</p>
                             <div className="reg-freq-cards compact">
                                 {PRICING.map((p) => p.frequency === 4 ? (
                                     <div key={p.frequency} className={`reg-freq-card reg-freq-card-four ${consultationOnly ? 'selected' : ''}`}>
