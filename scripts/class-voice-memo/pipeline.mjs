@@ -8,7 +8,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { decideNames, tagSpeakers, matchVoiceprints, parseRecordingStart, parseSrt, periodFor, renderLabeled, updateVoiceprints, voteNames, ymd } from './lib.mjs';
+import { decideNames, tagNameCalls, tagSpeakers, matchVoiceprints, parseRecordingStart, parseSrt, periodFor, renderLabeled, updateVoiceprints, voteNames, ymd } from './lib.mjs';
 import { loadClassContext, readCoachExerciseMemos, readExerciseNames } from './firestore.mjs';
 
 const HOME = os.homedir();
@@ -104,7 +104,8 @@ async function propose(transcriptFile) {
         ...names.map(n => readCoachExerciseMemos(n).then(r => r.memos.filter(m => !m.done)).catch(() => [])),
     ]);
     const exerciseMemos = Object.fromEntries(names.map((n, i) => [n, memoLists[i].map(m => ({ exercise: m.exercise, memo: m.memo }))]));
-    const input = JSON.stringify({ ...meta.context, exerciseMemos, exercises, transcript: readFileSync(transcriptFile, 'utf8') });
+    // 이름을 자주 잘못 듣으므로 코드가 명단과 자모 비교로 호명을 미리 표시한다(애매하면 후보만). 분석은 표시된 호명 대화만 메모로 만든다.
+    const input = JSON.stringify({ ...meta.context, exerciseMemos, exercises, transcript: tagNameCalls(readFileSync(transcriptFile, 'utf8'), names) });
     const out = run('claude', ['-p', '--tools', '', '--no-session-persistence',
         '--system-prompt-file', path.join(import.meta.dirname, 'RULES.md'),
         '위 규칙대로 이 수업의 메모 변경안을 JSON으로 작성해줘.'], { input, timeout: 15 * 60_000 }).toString();
@@ -120,6 +121,7 @@ async function propose(transcriptFile) {
     writePrivate(`${base}.json`, JSON.stringify({
         date: meta.context.date, period: meta.context.period, names, source: meta.context.source,
         recording: meta.recording, minutes: meta.minutes,
+        baseNotes: meta.context.coachNotes, // 제안이 고쳐 쓴 원래 메모 — 나중에 메모가 바뀌면 이 기준으로 다시 얹는다(rebaseNote)
         students: (parsed.students || []).filter(s => names.includes(s.name) || s.guessed), uncertain: parsed.uncertain || [],
     }, null, 1));
     return { label, date: meta.context.date, none: !(parsed.students || []).length };

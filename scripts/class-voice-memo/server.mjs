@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, w
 import os from 'node:os';
 import path from 'node:path';
 import { addCoachExerciseMemos, readCoachExerciseMemos, readCoachNotesDoc, readExerciseNames, TEST_ACCOUNTS, writeCoachNote } from './firestore.mjs';
+import { rebaseNote } from './lib.mjs';
 
 export const PORT = 5179;
 const STATE = path.join(os.homedir(), 'Library/Application Support/ClassVoiceMemo');
@@ -34,6 +35,11 @@ async function listProposals() {
         // 제안 이후 메모가 바뀌었을 수 있어 최신 값을 함께 보낸다(비교·충돌 확인용)
         for (const s of p.students || []) {
             s.currentCoachNote = notes[s.name] ?? '';
+            // 미처리 제안이 쌓여 그사이 메모가 바뀌었으면(앞 수업 저장 등) 바꾼 줄만 최신 메모에 다시 얹어 보여준다
+            if (s.coachNote && p.baseNotes && s.name in p.baseNotes) {
+                const rebased = rebaseNote(p.baseNotes[s.name], s.coachNote.proposed, s.currentCoachNote);
+                if (rebased !== s.coachNote.proposed) s.coachNote = { ...s.coachNote, proposed: rebased, rebased: true };
+            }
             s.currentExerciseMemos = (await readCoachExerciseMemos(s.name).catch(() => ({ memos: [] }))).memos
                 .map(m => ({ exercise: m.exercise, memo: m.memo }));
         }
@@ -68,7 +74,7 @@ async function save({ name, coachNote, exerciseItems }) {
 // 페이지에서 고친 내용을 제안 파일에 반영(저장 전 단계 — 앱 메모는 안 건드린다). 새로고침해도 고친 게 남는다.
 //   {op:'coachNote', student, text}       코치 전용 메모 제안을 코치가 고친 문구로 교체(없으면 새로 만듦)
 //   {op:'moveItem', from, index, to}      체크리스트 항목을 다른 수강생으로 옮김(섞인 경우)
-function patch({ file, op, student, text, from, index, to }) {
+async function patch({ file, op, student, text, from, index, to }) {
     const p = proposalPath(file);
     if (!p.endsWith('.json')) throw new Error('예전 형식 제안은 고칠 수 없어요');
     const data = JSON.parse(readFileSync(p, 'utf8'));
@@ -84,6 +90,7 @@ function patch({ file, op, student, text, from, index, to }) {
         const t = String(text ?? '').trim();
         if (!t) throw new Error('빈 메모는 저장할 수 없어요');
         s.coachNote = { ...(s.coachNote || { removed: [] }), proposed: t, edited: true };
+        data.baseNotes = { ...(data.baseNotes || {}), [student]: (await readCoachNotesDoc()).map[student] ?? '' };
     } else if (op === 'moveItem') {
         const src = get(from);
         const item = src.checklist?.[index];
@@ -132,7 +139,7 @@ const server = http.createServer(async (req, res) => {
             for await (const chunk of req) { body += chunk; if (body.length > 1e6) throw new Error('too large'); }
             const data = JSON.parse(body || '{}');
             if (req.url === '/api/save') return send(res, 200, await save(data));
-            if (req.url === '/api/patch') return send(res, 200, patch(data));
+            if (req.url === '/api/patch') return send(res, 200, await patch(data));
             if (req.url === '/api/finish') return send(res, 200, finish(data.file));
         }
         send(res, 404, { error: 'not found' });

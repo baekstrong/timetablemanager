@@ -53,6 +53,7 @@ button:disabled { opacity:.5; cursor:default; }
 .status { font-size:13px; margin-top:8px; }
 .ok { color:var(--ok); } .err { color:var(--err); }
 .saved { opacity:.55; pointer-events:none; }
+.summary { padding:12px 18px; font-size:14px; background:#329BE71A; border-color:#329BE74D; }
 .empty { text-align:center; color:var(--sub); padding:60px 0; }
 pre { white-space:pre-wrap; font-size:13px; background:var(--tint); padding:12px; border-radius:8px; }
 </style>
@@ -111,7 +112,7 @@ function studentHTML(p, s, si) {
     ${s.guessed && s.guessNote ? `<div class="hint">${esc(s.guessNote)}</div>` : ''}
     ${(s.evidence || []).length ? `<details><summary>녹음 근거 보기</summary><ul>${s.evidence.map(e => `<li>${esc(e)}</li>`).join('')}</ul></details>` : ''}
     ${cn ? `<div class="sec sec-coach" data-kind="coach">
-      <div class="sec-head"><label class="confirm"><input type="checkbox" class="c-coach" data-key="${esc(p.file)}::${esc(s.name)}::coach"> 코치 전용 메모 이대로 저장${cn.edited ? `<span class="badge b-edit">직접 고침</span>` : ''}</label><span class="hint">수강생에게 안 보임</span></div>
+      <div class="sec-head"><label class="confirm"><input type="checkbox" class="c-coach" data-key="${esc(p.file)}::${esc(s.name)}::coach"> 코치 전용 메모 이대로 저장${cn.edited ? `<span class="badge b-edit">직접 고침</span>` : ''}${cn.rebased ? `<span class="badge b-edit" title="이 제안을 만든 뒤 메모가 바뀌어 최신 메모 기준으로 다시 맞췄어요">최신 메모에 맞춤</span>` : ''}</label><span class="hint">수강생에게 안 보임</span></div>
       <div class="diff">${diffLines(s.currentCoachNote || '', cn.proposed)}</div>
       ${(cn.removed || []).length ? `<div class="hint" style="margin-top:6px">빠지는 내용: ${cn.removed.map(esc).join(' / ')}</div>` : ''}
       <button class="link edit">직접 고치기</button>
@@ -140,7 +141,8 @@ function render({ proposals, exerciseNames }) {
   document.getElementById('exercises').innerHTML = exerciseNames.map(n => `<option value="${esc(n)}">`).join('');
   const root = document.getElementById('root');
   if (!proposals.length) { root.innerHTML = '<p class="empty">확인할 제안이 없어요. 수업 녹음이 처리되면 여기에 떠요.</p>'; return; }
-  root.innerHTML = proposals.map(p => p.legacy
+  const summary = proposals.length > 1 ? `<div class="card summary">확인 안 한 수업 <b>${proposals.length}개</b>: ${proposals.map(p => label(p.file)).join(', ')} — 지난 수업부터 차례로 보여줘요.</div>` : '';
+  root.innerHTML = summary + proposals.map(p => p.legacy
     ? `<section class="card" data-file="${esc(p.file)}"><h2>${label(p.file)} <span class="hint">(예전 형식)</span></h2><pre>${esc(p.raw)}</pre>
        <div class="actions"><button class="finish">이 제안 닫기</button></div><div class="status"></div></section>`
     : `<section class="card" data-file="${esc(p.file)}">

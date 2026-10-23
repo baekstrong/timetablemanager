@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideNames, tagSpeakers, dropRepeats, findNames, matchVoiceprints, parseRecordingStart, parseSrt, periodFor, renderLabeled, updateVoiceprints, voteNames, ymd } from './lib.mjs';
+import { decideNames, nameCall, rebaseNote, tagNameCalls, tagSpeakers, dropRepeats, findNames, matchVoiceprints, parseRecordingStart, parseSrt, periodFor, renderLabeled, updateVoiceprints, voteNames, ymd } from './lib.mjs';
 
 describe('수업 음성 메모 lib', () => {
     it('음성 메모 파일명에서 시작 시각을 읽는다', () => {
@@ -60,6 +60,27 @@ describe('수업 음성 메모 lib', () => {
         expect(next.has(3)).toBe(false); // 비슷한 성문 없음
         expect(renderLabeled([{ speaker: 2, text: '네' }], 0, next)).toBe('[김선희?] 네');
         expect(matchVoiceprints({ 2: [0.95, 0.1, 0] }, vp, new Map(), ['정윤희']).size).toBe(0); // 오늘 명단에 없으면 안 씀
+    });
+
+    it('호명 표시: 잘못 들린 이름도 자모가 가까우면 맞추고, 애매하면 고르지 않는다 (10/22 5교시 실제 사례)', () => {
+        const R = ['전재현', '정진주', '정성훈', '송제엽', '김기상'];
+        expect(nameCall('김기선 선생님이 헤일로', R)).toEqual({ name: '김기상' });
+        expect(nameCall('김계성 선생님', R)).toEqual({ name: '김기상' });
+        expect(nameCall('윤진진 선생님', R)).toEqual({ name: '정진주' });
+        expect(nameCall('재현 씨도 그거 할까요', R)).toEqual({ name: '전재현' });
+        expect(nameCall('제연씨 무게 가볍죠', R).ambiguous.sort()).toEqual(['송제엽', '전재현']);
+        expect(nameCall('김태성 선생님꺼', R)).toBeNull(); // 너무 다르면 아무도 아님
+        expect(nameCall('정선생님 이거', R)).toBeNull(); // 호칭은 이름이 아님
+        expect(tagNameCalls('김기성 선생님 어깨 돌리기\n네', R)).toBe('김기성 선생님 어깨 돌리기 ⟪호명: 김기상⟫\n네');
+    });
+
+    it('미처리 제안을 최신 메모에 다시 얹는다 (앞 수업 저장분을 지우지 않음)', () => {
+        const base = 'A문제 -> 처방1\nB문제 -> 처방';
+        const proposed = 'A문제 -> 처방2\nB문제 -> 처방\nC문제 -> 새 처방'; // A 고침 + C 추가
+        const current = 'A문제 -> 처방1\nB문제 -> 처방\n앞 수업에서 저장한 줄'; // 그사이 다른 제안이 저장됨
+        expect(rebaseNote(base, proposed, current)).toBe('B문제 -> 처방\n앞 수업에서 저장한 줄\nA문제 -> 처방2\nC문제 -> 새 처방');
+        expect(rebaseNote(base, proposed, base)).toBe(proposed); // 안 바뀌었으면 그대로
+        expect(rebaseNote(undefined, proposed, current)).toBe(proposed); // 예전 제안(base 없음)은 그대로
     });
 
     it('연속 반복 줄만 지운다', () => {

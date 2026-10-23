@@ -43,6 +43,57 @@ export function tagSpeakers(lines, speakers) {
     return { coach: [...total].sort((x, y) => y[1] - x[1])[0]?.[0] ?? null, lines: tagged };
 }
 
+// 제안은 만들 당시 메모(base)를 고쳐 쓴 전문이다. 그사이 다른 제안 저장·코치 직접 수정으로 메모가 바뀌었으면
+// 제안이 바꾼 줄(추가·삭제)만 최신 메모에 다시 얹는다 — 미처리 수업이 쌓였을 때 앞 저장분을 지우지 않게.
+export function rebaseNote(base, proposed, current) {
+    if (base == null || base === current) return proposed;
+    const lines = (t) => (t || '').split('\n').map(l => l.trimEnd()).filter(Boolean);
+    const B = new Set(lines(base)), P = lines(proposed), P_ = new Set(P);
+    const removed = new Set([...B].filter(l => !P_.has(l)));
+    const kept = lines(current).filter(l => !removed.has(l));
+    const added = P.filter(l => !B.has(l) && !kept.includes(l));
+    return [...kept, ...added].join('\n');
+}
+
+// ── 호명 표시: 받아쓰기가 이름을 자주 잘못 듣는다(10/22 5교시: 김기상 → 김기선·김기성·김계성·김기랑…).
+// 한글을 초성·중성·종성으로 나눠 비교해 명단과 가까운 이름을 찾고, 줄 끝에 ⟪호명: 이름⟫을 붙인다.
+// 후보가 비슷하게 둘 이상이면 고르지 않고 ⟪호명?: A/B⟫ — 분석은 애매한 호명으로 메모를 만들지 않는다.
+const jamo = (ch) => { const c = ch.charCodeAt(0) - 0xAC00; return c < 0 || c > 11171 ? null : [Math.floor(c / 588), Math.floor((c % 588) / 28), c % 28]; };
+const sylDist = (a, b) => { const x = jamo(a), y = jamo(b); return !x || !y ? 3 : x.filter((v, i) => v !== y[i]).length; };
+const wordDist = (a, b) => a.length !== b.length ? Infinity : [...a].reduce((s, c, i) => s + sylDist(c, b[i]), 0);
+
+export function nameCall(line, roster) {
+    const best = new Map(); // 이름 → 가장 가까운 거리
+    const consider = (name, d) => { if (d < (best.get(name) ?? Infinity)) best.set(name, d); };
+    for (const w of line.match(/[가-힣]+/g) || []) {
+        for (const name of roster.filter(n => n.length === 3)) {
+            // 성+이름 세 글자: 성이 같고 자모 차이 2 이하 ("선생"이 든 조각은 호칭이라 제외)
+            for (let i = 0; i + 3 <= w.length; i++) {
+                const t = w.slice(i, i + 3);
+                if (t[0] === name[0] && !t.includes('선생')) { const d = wordDist(t, name); if (d <= 2) consider(name, d); }
+            }
+        }
+    }
+    // 이름 두 글자 + 호칭("재현 씨", "진주 선생님") — 두 글자는 우연히 비슷한 말이 많아 호칭이 붙을 때만
+    for (const m of line.matchAll(/([가-힣]{2})\s*(선생|쌤|씨|님)/g)) {
+        for (const name of roster.filter(n => n.length === 3)) { const d = wordDist(m[1], name.slice(1)); if (d <= 2) consider(name, d + 0.5); }
+    }
+    if (!best.size) return null;
+    const ranked = [...best].sort((a, b) => a[1] - b[1]);
+    const [first, second] = ranked;
+    // 1등이 정확(0)이거나 2등보다 확실히 가까울 때만 그 사람. 아니면 애매.
+    const margin = first[1] === 0 || first[1] === 0.5 ? 1 : 1.5;
+    if (!second || second[1] - first[1] >= margin) return { name: first[0] };
+    return { ambiguous: ranked.filter(([, d]) => d - first[1] < margin).map(([n]) => n) };
+}
+
+export function tagNameCalls(text, roster) {
+    return text.split('\n').map(line => {
+        const c = nameCall(line, roster);
+        return !c ? line : c.name ? `${line} ⟪호명: ${c.name}⟫` : `${line} ⟪호명?: ${c.ambiguous.join('/')}⟫`;
+    }).join('\n');
+}
+
 // 문장에 나온 명단 이름. 받아쓰기가 이름을 잘못 듣는 경우(정찬호→정찬화)를 위해 성이 같고 한 글자만 다른 세 글자도 인정.
 // "선희 선생님", "찬화님"처럼 이름 두 글자 + 호칭도 인정. "김선생" 같은 호칭 자체는 이름으로 보지 않는다.
 export function findNames(text, roster) {
