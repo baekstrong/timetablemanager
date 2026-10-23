@@ -17,6 +17,10 @@ h1 { font-size:22px; margin:0; } h2 { font-size:17px; margin:0; } h3 { font-size
 .badge { display:inline-block; font-size:12px; padding:2px 8px; border-radius:8px; margin-left:6px; vertical-align:2px; }
 .b-guess { background:#EDBC401A; color:#9A7414; border:1px solid #EDBC404D; }
 .b-self { background:#E94E581A; color:var(--err); border:1px solid #E94E584D; }
+.b-edit { background:#329BE71A; color:var(--accent-d); border:1px solid #329BE74D; }
+.ed-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:8px; }
+.row-top { display:flex; align-items:center; gap:6px; }
+select.who { font:13px inherit; padding:4px 8px; border:1px solid var(--amber-line); border-radius:8px; background:#fff; color:var(--amber-text); }
 .sec { margin-top:12px; border-radius:12px; padding:12px 14px; }
 .sec-coach { background:#fff; border:1px solid var(--line); }
 .sec-check { background:var(--amber-bg); border:1px solid var(--amber-line); }
@@ -96,22 +100,32 @@ function studentHTML(p, s, si) {
   const id = `${p.file}::${si}`;
   const cn = s.coachNote;
   const items = s.checklist || [];
+  const roster = (p.names || []);
+  const who = (cur) => `<select class="who" aria-label="누구 메모인지">${roster.map(n => `<option${n === cur ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
+  const editor = (text) => `<div class="editor" hidden>
+      <textarea class="coach-text">${esc(text)}</textarea>
+      <div class="ed-actions"><button class="ed-cancel">취소</button><button class="primary ed-ok">확인</button></div>
+    </div>`;
   return `<div class="student" data-id="${esc(id)}" data-name="${esc(s.name)}">
     <h2>${esc(s.name)}${s.guessed ? `<span class="badge b-guess">이름 추정</span>` : ''}${s.maybeCoachSelf ? `<span class="badge b-self">코치 본인 얘기일 수 있음</span>` : ''}</h2>
     ${s.guessed && s.guessNote ? `<div class="hint">${esc(s.guessNote)}</div>` : ''}
     ${(s.evidence || []).length ? `<details><summary>녹음 근거 보기</summary><ul>${s.evidence.map(e => `<li>${esc(e)}</li>`).join('')}</ul></details>` : ''}
     ${cn ? `<div class="sec sec-coach" data-kind="coach">
-      <div class="sec-head"><label class="confirm"><input type="checkbox" class="c-coach"> 코치 전용 메모 이대로 저장</label><span class="hint">수강생에게 안 보임</span></div>
+      <div class="sec-head"><label class="confirm"><input type="checkbox" class="c-coach" data-key="${esc(p.file)}::${esc(s.name)}::coach"> 코치 전용 메모 이대로 저장${cn.edited ? `<span class="badge b-edit">직접 고침</span>` : ''}</label><span class="hint">수강생에게 안 보임</span></div>
       <div class="diff">${diffLines(s.currentCoachNote || '', cn.proposed)}</div>
       ${(cn.removed || []).length ? `<div class="hint" style="margin-top:6px">빠지는 내용: ${cn.removed.map(esc).join(' / ')}</div>` : ''}
       <button class="link edit">직접 고치기</button>
-      <textarea class="coach-text" hidden>${esc(cn.proposed)}</textarea>
-    </div>` : ''}
+      ${editor(cn.proposed)}
+    </div>` : `<div class="sec sec-coach" data-kind="coach-new">
+      <button class="link edit">+ 코치 전용 메모 추가</button>
+      ${editor(s.currentCoachNote || '')}
+    </div>`}
     ${items.length ? `<div class="sec sec-check" data-kind="check">
       <div class="sec-head"><h3 style="color:var(--amber-text)">✅ 수강생 체크리스트</h3><span class="hint" style="color:var(--amber-text)">훈련일지에서 보임</span></div>
-      ${items.map(it => `<div class="row">
-        <input type="checkbox" class="c-item" style="margin-top:8px">
+      ${items.map((it, ii) => `<div class="row" data-index="${ii}">
+        <input type="checkbox" class="c-item" style="margin-top:8px" data-key="${esc(p.file)}::${esc(s.name)}::item::${esc(it.exercise)}::${esc(it.text)}">
         <div class="fields">
+          <div class="row-top">${who(s.name)}${it.moved ? `<span class="badge b-edit">옮김</span>` : ''}</div>
           <input type="text" class="ex" list="exercises" value="${esc(it.exercise)}" aria-label="운동 이름">
           <input type="text" class="tx" value="${esc(it.text)}" aria-label="체크리스트 문장">
           ${it.exerciseUnknown ? `<span class="warn">앱 운동 목록에 없는 이름이에요. 맞는 이름으로 고쳐주세요.</span>` : ''}
@@ -139,15 +153,42 @@ function render({ proposals, exerciseNames }) {
      </section>`).join('');
 }
 
-async function load() {
-  try { render(await api('/api/proposals')); }
+async function load(extraChecked = []) {
+  const keep = new Set([...document.querySelectorAll('input[type=checkbox]:checked')].map(c => c.dataset.key).filter(Boolean).concat(extraChecked));
+  const y = window.scrollY;
+  try {
+    render(await api('/api/proposals'));
+    document.querySelectorAll('input[type=checkbox][data-key]').forEach(c => { if (keep.has(c.dataset.key)) c.checked = true; });
+    window.scrollTo(0, y);
+  }
   catch (e) { document.getElementById('root').innerHTML = `<p class="empty err">불러오지 못했어요: ${esc(e.message)}</p>`; }
 }
+
+// 체크리스트 항목이 다른 수강생 얘기면 '누구'를 바꿔 옮긴다
+document.addEventListener('change', async (e) => {
+  const t = e.target;
+  if (!t.classList.contains('who')) return;
+  const card = t.closest('section.card'), st = t.closest('.student'), row = t.closest('.row');
+  try {
+    await api('/api/patch', { file: card.dataset.file, op: 'moveItem', from: st.dataset.name, index: +row.dataset.index, to: t.value });
+    await load();
+  } catch (err) { st.querySelector('.status').innerHTML = `<span class="err">${esc(err.message)}</span>`; t.value = st.dataset.name; }
+});
 
 document.addEventListener('click', async (e) => {
   const t = e.target;
   if (t.id === 'reload') return load();
-  if (t.classList.contains('edit')) { const ta = t.nextElementSibling; ta.hidden = !ta.hidden; t.textContent = ta.hidden ? '직접 고치기' : '고친 내용 숨기기'; return; }
+  if (t.classList.contains('edit')) { const ed = t.nextElementSibling; ed.hidden = false; t.hidden = true; ed.querySelector('textarea').focus(); return; }
+  if (t.classList.contains('ed-cancel')) { const ed = t.closest('.editor'); ed.hidden = true; ed.previousElementSibling.hidden = false; return; }
+  if (t.classList.contains('ed-ok')) {
+    // 고친 문구를 제안에 반영 → 비교 화면이 고친 내용으로 다시 그려지고 '이대로 저장'이 체크된다(앱 저장은 아직 아님)
+    const card = t.closest('section.card'), st = t.closest('.student');
+    try {
+      await api('/api/patch', { file: card.dataset.file, op: 'coachNote', student: st.dataset.name, text: t.closest('.editor').querySelector('textarea').value });
+      await load([`${card.dataset.file}::${st.dataset.name}::coach`]);
+    } catch (err) { st.querySelector('.status').innerHTML = `<span class="err">${esc(err.message)}</span>`; }
+    return;
+  }
   const card = t.closest('section.card');
   if (!card) return;
   const status = card.querySelector(':scope > .status');

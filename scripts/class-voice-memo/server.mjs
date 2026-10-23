@@ -65,6 +65,39 @@ async function save({ name, coachNote, exerciseItems }) {
     return result;
 }
 
+// 페이지에서 고친 내용을 제안 파일에 반영(저장 전 단계 — 앱 메모는 안 건드린다). 새로고침해도 고친 게 남는다.
+//   {op:'coachNote', student, text}       코치 전용 메모 제안을 코치가 고친 문구로 교체(없으면 새로 만듦)
+//   {op:'moveItem', from, index, to}      체크리스트 항목을 다른 수강생으로 옮김(섞인 경우)
+function patch({ file, op, student, text, from, index, to }) {
+    const p = proposalPath(file);
+    if (!p.endsWith('.json')) throw new Error('예전 형식 제안은 고칠 수 없어요');
+    const data = JSON.parse(readFileSync(p, 'utf8'));
+    const roster = (data.names || []).filter(n => !TEST_ACCOUNTS.includes(n));
+    const get = (name) => {
+        if (!roster.includes(name)) throw new Error(`${name}은(는) 이 수업 명단에 없어요`);
+        let s = data.students.find(x => x.name === name);
+        if (!s) { s = { name, guessed: false, evidence: [], coachNote: null, checklist: [] }; data.students.push(s); }
+        return s;
+    };
+    if (op === 'coachNote') {
+        const s = get(student);
+        const t = String(text ?? '').trim();
+        if (!t) throw new Error('빈 메모는 저장할 수 없어요');
+        s.coachNote = { ...(s.coachNote || { removed: [] }), proposed: t, edited: true };
+    } else if (op === 'moveItem') {
+        const src = get(from);
+        const item = src.checklist?.[index];
+        if (!item) throw new Error('옮길 항목을 찾을 수 없어요');
+        if (from === to) return { ok: true };
+        src.checklist.splice(index, 1);
+        get(to).checklist.push({ ...item, moved: true });
+    } else throw new Error('알 수 없는 수정');
+    // 내용이 하나도 없는 수강생 카드는 지운다
+    data.students = data.students.filter(s => s.coachNote || (s.checklist || []).length);
+    writeFileSync(p, JSON.stringify(data, null, 1), { mode: 0o600 });
+    return { ok: true };
+}
+
 function finish(file) {
     const p = proposalPath(file);
     const done = path.join(PROPOSALS, 'done');
@@ -99,6 +132,7 @@ const server = http.createServer(async (req, res) => {
             for await (const chunk of req) { body += chunk; if (body.length > 1e6) throw new Error('too large'); }
             const data = JSON.parse(body || '{}');
             if (req.url === '/api/save') return send(res, 200, await save(data));
+            if (req.url === '/api/patch') return send(res, 200, patch(data));
             if (req.url === '/api/finish') return send(res, 200, finish(data.file));
         }
         send(res, 404, { error: 'not found' });
