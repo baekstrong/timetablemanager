@@ -1,7 +1,7 @@
 import { localDate, escapeHTML } from './student-workspace-logic.js?v=20260925-student-ux';
 import { state, db, firebaseInitialized, persistenceEnabled } from '../state.js';
 import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue, moveButtons, swapSets } from './sets.js?v=20260925-student-ux';
-import { renderEditModalContent, generatePinnedMemosHTML, memoItems, memoText } from '../ui.js?v=20261023-memo-align';
+import { renderEditModalContent, generatePinnedMemosHTML, memoItems, memoText, memoListHTML } from '../ui.js?v=20261023-memo-list';
 import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js?v=20260925-student-ux';
 import { evaluatePR, pastSetsFrom } from './pr-logic.js';
 import { xpToGrade, gradeRank, recordVolume, GRADES } from './grades.js';
@@ -542,7 +542,6 @@ function renderRecordsList(docs) {
                 const time = data.timestamp ? data.timestamp.toDate().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '방금 전';
                 // 이 종목의 고정 메모를 기록 카드 아래에도 표시 (수정 여부와 무관하게)
                 const pinnedMemo = (state.pinnedExercises || []).find(p => p.exercise === data.exercise);
-                const memoText = (pinnedMemo && pinnedMemo.memo) || data.memo;
 
                 let setsDisplay = '';
                 if (data.sets && Array.isArray(data.sets)) {
@@ -579,7 +578,7 @@ function renderRecordsList(docs) {
                             </div>
                             <span class="text-xs text-gray-500">${time}</span>
                         </div>
-                        ${memoText ? `<div class="mt-2 mb-2 flex items-start gap-2 bg-[#F7F7F8] border-l-4 border-[#329BE7] rounded px-3 py-2"><span class="shrink-0">📝</span><span class="text-sm text-gray-800 leading-relaxed" style="white-space: pre-wrap;">${memoText}</span></div>` : ''}
+                        ${memoListHTML(pinnedMemo, data.memo)}
                         
                         ${data.feedback ? `<div class="student-record-feedback"><strong>코치 피드백</strong><p>${escapeHTML(data.feedback)}</p></div>` : ''}
                         <div class="flex gap-2 mt-2">

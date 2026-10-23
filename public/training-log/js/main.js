@@ -1,14 +1,14 @@
 import * as Admin from './modules/admin.js?v=20260925-student-ux';
-import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminModalHTML, renderStampModalHTML } from './ui.js?v=20261023-memo-align';
+import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminModalHTML, renderStampModalHTML } from './ui.js?v=20261023-memo-list';
 
 import { state, db, firebaseInitialized } from './state.js';
 import { loadSavedLogin } from './utils.js';
 // Import all functions to expose to window
-import * as Auth from './modules/auth.js?v=20261023-memo-align';
+import * as Auth from './modules/auth.js?v=20261023-memo-list';
 import * as Sets from './modules/sets.js?v=20260925-student-ux';
-import * as Records from './modules/records.js?v=20261023-memo-align';
+import * as Records from './modules/records.js?v=20261023-memo-list';
 import * as Calendar from './modules/calendar.js?v=20261023-memo-checklist';
-import * as Coach from './modules/coach.js?v=20261022-coach-checklist';
+import * as Coach from './modules/coach.js?v=20261023-memo-list';
 import * as Stamp from './modules/stamp.js?v=20261014-analytics';
 import * as OneRM from './modules/onerm.js?v=20261014-performance';
 import * as StudentWorkspace from './modules/student-workspace.js?v=20261023-memo-checklist';

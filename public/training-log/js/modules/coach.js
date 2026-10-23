@@ -1856,7 +1856,10 @@ function renderCoachRecordCard(item, pinnedList = []) {
     const data = item.data;
     // 학생 화면과 동일: 해당 종목 고정 메모 우선, 없으면 기록 자체 메모
     const pinned = pinnedList.find(p => p.exercise === data.exercise);
-    const memoText = (pinned && pinned.memo) || data.memo;
+    // 메모 체크리스트(2026-10-23): 항목마다 • + 오른쪽 월/일. ui.js memoListHTML과 같은 모양의 사본.
+    const memoRows = Array.isArray(pinned?.items) && pinned.items.length ? pinned.items
+        : (pinned && pinned.memo) || data.memo ? [{ text: (pinned && pinned.memo) || data.memo, at: '' }] : [];
+    const md = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()}`; };
     let setsDisplay = '';
     if (Array.isArray(data.sets)) {
         setsDisplay = data.sets.map((set, idx) => {
@@ -1882,7 +1885,7 @@ function renderCoachRecordCard(item, pinnedList = []) {
             </div>
         </div>
         ${setsDisplay}
-        ${memoText ? `<div class="mt-2 flex items-start gap-2 bg-[#F7F7F8] border-l-4 border-[#329BE7] rounded px-3 py-2"><span class="shrink-0">📝</span><span class="text-sm text-gray-800 leading-relaxed" style="white-space:pre-wrap;">${escCoach(memoText)}</span></div>` : ''}
+        ${memoRows.length ? `<ul class="mt-2 bg-[#F7F7F8] border-l-4 border-[#329BE7] rounded px-3 py-1.5">${memoRows.map(item => `<li class="flex items-start gap-2 py-1 text-sm text-gray-800 leading-relaxed"><span class="text-[#329BE7] shrink-0">•</span><span class="flex-1 min-w-0" style="white-space:pre-wrap;">${escCoach(item.text)}</span>${item.at ? `<span class="text-[11px] text-gray-400 shrink-0 pt-0.5">${md(item.at)}</span>` : ''}</li>`).join('')}</ul>` : ''}
     </div>`;
 }
 

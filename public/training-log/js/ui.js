@@ -334,6 +334,19 @@ const jsArg = s => String(s ?? '')
 // items가 없는 예전 메모는 통째로 한 항목(날짜 없음)으로 본다.
 export const memoItems = p => Array.isArray(p?.items) ? p.items : p?.memo ? [{ text: p.memo, at: '' }] : [];
 export const memoText = items => items.map(i => i.text).join('\n');
+// 기록 카드의 메모 박스 — 항목마다 점(•) + 오른쪽 작은 월/일. 예전 기록 자체 메모(fallback)는 한 항목으로.
+// coach.js에 같은 모양의 사본이 있다(모듈 간 새 import를 만들지 않으려고).
+export function memoListHTML(pinned, fallbackMemo = '') {
+    const items = memoItems(pinned).length ? memoItems(pinned) : fallbackMemo ? [{ text: fallbackMemo, at: '' }] : [];
+    if (!items.length) return '';
+    const md = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()}`; };
+    return `<ul class="mt-2 mb-2 bg-[#F7F7F8] border-l-4 border-[#329BE7] rounded px-3 py-1.5">${items.map(item => `
+        <li class="flex items-start gap-2 py-1 text-sm text-gray-800 leading-relaxed">
+            <span class="text-[#329BE7] shrink-0">•</span>
+            <span class="flex-1 min-w-0" style="white-space: pre-wrap;">${esc(item.text)}</span>
+            ${item.at ? `<span class="text-[11px] text-gray-400 shrink-0 pt-0.5">${md(item.at)}</span>` : ''}
+        </li>`).join('')}</ul>`;
+}
 
 export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, filterExercise = null) {
     const coachAll = (coachPinnedMemos || []).filter(m => m.exercise === filterExercise);
