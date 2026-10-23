@@ -4,9 +4,9 @@ import { renderLoginScreen, renderStudentScreen, renderCoachScreen, renderAdminM
 import { state, db, firebaseInitialized } from './state.js';
 import { loadSavedLogin } from './utils.js';
 // Import all functions to expose to window
-import * as Auth from './modules/auth.js?v=20261022-memo-design';
+import * as Auth from './modules/auth.js?v=20261023-terminated-reload';
 import * as Sets from './modules/sets.js?v=20260925-student-ux';
-import * as Records from './modules/records.js?v=20261022-memo-design';
+import * as Records from './modules/records.js?v=20261023-terminated-reload';
 import * as Calendar from './modules/calendar.js?v=20261014-performance';
 import * as Coach from './modules/coach.js?v=20261022-coach-checklist';
 import * as Stamp from './modules/stamp.js?v=20261014-analytics';

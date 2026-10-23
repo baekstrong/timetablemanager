@@ -59,6 +59,16 @@ function setAddRecordBtnBusy(busy) {
     else hideBlockingOverlay();
 }
 
+// iOS 사파리는 백그라운드에서 IndexedDB 연결을 끊고, 그러면 Firestore SDK가 스스로 종료돼
+// 이후 모든 읽기·쓰기가 'The client has already been terminated'로 실패한다. 페이지 재시작 말고는 복구 방법이 없다.
+const isTerminated = (err) => /client has already been terminated/i.test(err?.message || '');
+function reloadIfTerminated(err) {
+    if (!isTerminated(err)) return false;
+    alert('앱 연결이 끊겨 다시 불러옵니다.\n입력한 기록은 달력의 \'보관한 초안\'에서 복구할 수 있어요.');
+    location.reload();
+    return true;
+}
+
 export async function addRecord() {
     if (isAddingRecord) return; // 이미 저장 진행 중이면 무시(중복 탭 차단)
 
@@ -137,6 +147,7 @@ export async function addRecord() {
                 if (writingDate === localDate()) state.studentTodayHasRecords = false;
                 window.renderCalendar?.();
                 console.error('Error adding record:', err);
+                if (reloadIfTerminated(err)) return;
                 alert('기록 저장 실패: ' + err.message);
             });
         } else {
@@ -170,6 +181,11 @@ export async function addRecord() {
         prPromise.then(prStatus => { if (prStatus && state.currentUser === recordUser && !state.isCoach) showPRCelebration(prStatus, recordUser); });
     } catch (error) {
         console.error('Error adding record:', error);
+        if (isTerminated(error)) {
+            window.restoreFailedStudentRecord?.(`terminated-${Date.now()}`, { date: writingDate, exercise, memo, painCheck, sets: validSets }, recordUser);
+            reloadIfTerminated(error);
+            return;
+        }
         alert('기록 저장 실패: ' + error.message);
     } finally {
         isAddingRecord = false;
