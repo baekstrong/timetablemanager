@@ -43,6 +43,11 @@ textarea { width:100%; min-height:150px; font:14px/1.6 inherit; border:1px solid
 .row input[type=text] { width:100%; font:14px inherit; padding:7px 9px; border:1px solid var(--amber-line); border-radius:8px; background:#fff; }
 .row input.ex { font-weight:600; }
 .warn { color:#9A7414; font-size:12px; }
+.ex-wrap { position:relative; }
+.ex-list { position:absolute; z-index:5; left:0; right:0; top:100%; margin:2px 0 0; padding:4px; list-style:none; background:#fff; border:1px solid var(--amber-line); border-radius:8px; max-height:220px; overflow:auto; box-shadow:0 6px 20px rgba(0,0,0,.12); }
+.ex-list li { padding:6px 8px; border-radius:6px; cursor:pointer; font-size:14px; }
+.ex-list li:hover, .ex-list li.on { background:var(--amber-bg); }
+.ex-list li.none { color:var(--sub); cursor:default; background:none; }
 .existing { font-size:12px; color:var(--amber-text); margin-top:6px; opacity:.8; }
 details { margin-top:8px; font-size:13px; color:var(--sub); } summary { cursor:pointer; }
 ul { margin:6px 0 0; padding-left:18px; }
@@ -65,10 +70,10 @@ pre { white-space:pre-wrap; font-size:13px; background:var(--tint); padding:12px
   <p class="hint" style="margin-top:-8px">체크한 항목만 저장돼요. 코치 전용 메모는 수강생에게 안 보이고, 체크리스트는 훈련일지에서 그 운동을 고르면 수강생에게 보여요. 코치 메모 줄 중 수강생도 알면 좋은 건 <b>→ 수강생에게도</b>를 누르면 체크리스트로 복사돼요.</p>
   <div id="root"><p class="empty">불러오는 중…</p></div>
 </main>
-<datalist id="exercises"></datalist>
 <script>
 const api = (url, body) => fetch(url, body ? { method: 'POST', headers: { 'X-CVM': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { headers: { 'X-CVM': '1' } })
   .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j; });
+let EXERCISES = [];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // 줄 단위 비교(LCS) → 같은 줄 / 지워지는 줄 / 새 줄. 새 줄 안에서 원래 없던 말은 형광 표시.
@@ -129,9 +134,9 @@ function studentHTML(p, s, si) {
         <input type="checkbox" class="c-item" style="margin-top:8px" data-key="${esc(p.file)}::${esc(s.name)}::item::${esc(it.exercise)}::${esc(it.text)}">
         <div class="fields">
           <div class="row-top">${who(s.name)}${it.moved ? `<span class="badge b-edit">옮김</span>` : ''}${it.fromCoach ? `<span class="badge b-edit">코치 메모에서</span>` : ''}</div>
-          <input type="text" class="ex" list="exercises" value="${esc(it.exercise)}" aria-label="운동 이름">
+          <div class="ex-wrap"><input type="text" class="ex" value="${esc(it.exercise)}" placeholder="🔍 어떤 운동에 넣을지 검색" autocomplete="off" aria-label="운동 이름 검색"></div>
           <input type="text" class="tx" value="${esc(it.text)}" aria-label="체크리스트 문장">
-          ${it.exerciseUnknown ? `<span class="warn">앱 운동 목록에 없는 이름이에요. 맞는 이름으로 고쳐주세요.</span>` : ''}
+          <span class="warn"${EXERCISES.includes(it.exercise) ? ' hidden' : ''}>${it.exercise ? '앱 운동 목록에 없는 이름이에요. 목록에서 골라주세요.' : '운동을 골라주세요. 수강생이 훈련일지에서 그 운동을 고르면 보여요.'}</span>
         </div></div>`).join('')}
       ${(s.currentExerciseMemos || []).length ? `<div class="existing">이미 있는 항목: ${s.currentExerciseMemos.map(m => `${esc(m.exercise)} — ${esc(m.memo)}`).join(' / ')}</div>` : ''}
     </div>` : ''}
@@ -140,7 +145,7 @@ function studentHTML(p, s, si) {
 }
 
 function render({ proposals, exerciseNames }) {
-  document.getElementById('exercises').innerHTML = exerciseNames.map(n => `<option value="${esc(n)}">`).join('');
+  EXERCISES = exerciseNames;
   const root = document.getElementById('root');
   if (!proposals.length) { root.innerHTML = '<p class="empty">확인할 제안이 없어요. 수업 녹음이 처리되면 여기에 떠요.</p>'; return; }
   const summary = proposals.length > 1 ? `<div class="card summary">확인 안 한 수업 <b>${proposals.length}개</b>: ${proposals.map(p => label(p.file)).join(', ')} — 지난 수업부터 차례로 보여줘요.</div>` : '';
@@ -167,6 +172,45 @@ async function load(extraChecked = []) {
   }
   catch (e) { document.getElementById('root').innerHTML = `<p class="empty err">불러오지 못했어요: ${esc(e.message)}</p>`; }
 }
+
+// 운동 검색: 앱 운동 목록에서만 고르게 한다(목록 밖 이름이면 수강생 화면에 안 뜬다)
+const norm = v => v.toLowerCase().replace(/\s+/g, '');
+function showExList(input) {
+  const wrap = input.closest('.ex-wrap');
+  wrap.querySelector('.ex-list')?.remove();
+  const q = norm(input.value);
+  const hits = EXERCISES.filter(n => !q || norm(n).includes(q));
+  wrap.insertAdjacentHTML('beforeend', `<ul class="ex-list">${hits.length ? hits.map((n, i) => `<li data-v="${esc(n)}"${i ? '' : ' class="on"'}>${esc(n)}</li>`).join('') : '<li class="none">찾는 운동이 없어요</li>'}</ul>`);
+}
+function pickEx(input, v) {
+  input.value = v;
+  input.closest('.ex-wrap').querySelector('.ex-list')?.remove();
+  const w = input.closest('.fields').querySelector('.warn');
+  if (w) w.hidden = EXERCISES.includes(v);
+}
+document.addEventListener('focusin', e => { if (e.target.classList.contains('ex')) { e.target.select(); showExList(e.target); } });
+document.addEventListener('input', e => {
+  if (!e.target.classList.contains('ex')) return;
+  showExList(e.target);
+  const w = e.target.closest('.fields').querySelector('.warn');
+  if (w) w.hidden = EXERCISES.includes(e.target.value.trim());
+});
+document.addEventListener('keydown', e => {
+  const t = e.target; if (!t.classList.contains('ex')) return;
+  const ul = t.closest('.ex-wrap').querySelector('.ex-list'); if (!ul) return;
+  const lis = [...ul.querySelectorAll('li[data-v]')], i = lis.findIndex(l => l.classList.contains('on'));
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); if (!lis.length) return;
+    const n = (i + (e.key === 'ArrowDown' ? 1 : -1) + lis.length) % lis.length;
+    lis.forEach(l => l.classList.remove('on')); lis[n].classList.add('on'); lis[n].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter') { e.preventDefault(); if (lis[i]) pickEx(t, lis[i].dataset.v); }
+  else if (e.key === 'Escape') ul.remove();
+});
+document.addEventListener('mousedown', e => {
+  const li = e.target.closest('.ex-list li[data-v]');
+  if (li) { e.preventDefault(); pickEx(li.closest('.ex-wrap').querySelector('.ex'), li.dataset.v); return; }
+  if (!e.target.closest('.ex-wrap')) document.querySelectorAll('.ex-list').forEach(u => u.remove());
+});
 
 // 체크리스트 항목이 다른 수강생 얘기면 '누구'를 바꿔 옮긴다
 document.addEventListener('change', async (e) => {
@@ -218,7 +262,7 @@ document.addEventListener('click', async (e) => {
         .map(r => ({ exercise: r.querySelector('.ex').value, text: r.querySelector('.tx').value }));
       if (!coach && !items.length) continue;
       const st = el.querySelector('.status');
-      if (items.some(i => !i.exercise.trim())) { st.innerHTML = '<span class="err">체크리스트에 운동 이름을 채워주세요.</span>'; continue; }
+      if (items.some(i => !i.exercise.trim() || (EXERCISES.length && !EXERCISES.includes(i.exercise.trim())))) { st.innerHTML = '<span class="err">체크리스트 운동을 목록에서 골라주세요.</span>'; continue; }
       try {
         const r = await api('/api/save', { name: el.dataset.name, coachNote: coach, exerciseItems: items });
         st.innerHTML = `<span class="ok">저장됨 — ${[r.coachNote && '코치 전용 메모', r.exerciseItems && '체크리스트 ' + r.exerciseItems].filter(Boolean).join(', ')}</span>`;
