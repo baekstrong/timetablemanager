@@ -9,7 +9,7 @@ import path from 'node:path';
 import { addCoachExerciseMemos, readCoachExerciseMemos, readCoachNotesDoc, readExerciseNames, TEST_ACCOUNTS, writeCoachNote } from './firestore.mjs';
 import { rebaseNote } from './lib.mjs';
 
-export const PORT = 5179;
+export const PORT = +process.env.CVM_PORT || 5179; // 테스트용으로만 바꾼다
 const STATE = path.join(os.homedir(), 'Library/Application Support/ClassVoiceMemo');
 const PROPOSALS = path.join(STATE, 'proposals');
 const IDLE_MS = 2 * 3600_000;
@@ -74,6 +74,7 @@ async function save({ name, coachNote, exerciseItems }) {
 // 페이지에서 고친 내용을 제안 파일에 반영(저장 전 단계 — 앱 메모는 안 건드린다). 새로고침해도 고친 게 남는다.
 //   {op:'coachNote', student, text}       코치 전용 메모 제안을 코치가 고친 문구로 교체(없으면 새로 만듦)
 //   {op:'moveItem', from, index, to}      체크리스트 항목을 다른 수강생으로 옮김(섞인 경우)
+//   {op:'shareLine', student, text}       코치 전용 메모 한 줄을 수강생 체크리스트로도 복사(운동 이름은 문장에서 추정)
 async function patch({ file, op, student, text, from, index, to }) {
     const p = proposalPath(file);
     if (!p.endsWith('.json')) throw new Error('예전 형식 제안은 고칠 수 없어요');
@@ -98,6 +99,15 @@ async function patch({ file, op, student, text, from, index, to }) {
         if (from === to) return { ok: true };
         src.checklist.splice(index, 1);
         get(to).checklist.push({ ...item, moved: true });
+    } else if (op === 'shareLine') {
+        const s = get(student);
+        const t = String(text ?? '').trim();
+        if (!t) throw new Error('빈 줄은 옮길 수 없어요');
+        s.checklist ||= [];
+        if (s.checklist.some(i => i.text === t)) return { ok: true };
+        // ponytail: 문장에 든 가장 긴 운동 이름으로 추정, 못 찾으면 빈칸(코치가 채움)
+        const ex = (await readExerciseNames().catch(() => [])).filter(n => t.includes(n)).sort((a, b) => b.length - a.length)[0] || '';
+        s.checklist.push({ exercise: ex, text: t, fromCoach: true, exerciseUnknown: !ex });
     } else throw new Error('알 수 없는 수정');
     // 내용이 하나도 없는 수강생 카드는 지운다
     data.students = data.students.filter(s => s.coachNote || (s.checklist || []).length);

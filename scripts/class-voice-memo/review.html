@@ -31,6 +31,7 @@ input[type=checkbox] { width:20px; height:20px; accent-color:var(--accent); flex
 .sec-check input[type=checkbox] { accent-color:#BA7517; }
 .diff { font-size:14px; white-space:pre-wrap; word-break:keep-all; border-radius:8px; overflow:hidden; border:1px solid var(--line); }
 .diff div { padding:3px 10px; }
+.diff .share { float:right; margin-left:8px; padding:0; font-size:12px; text-decoration:none; color:#BA7517; }
 .d-same { color:var(--sub); }
 .d-add { background:#31A5521A; }
 .d-del { background:#E94E581A; color:var(--err); text-decoration:line-through; }
@@ -61,7 +62,7 @@ pre { white-space:pre-wrap; font-size:13px; background:var(--tint); padding:12px
 <body>
 <main>
   <div class="top"><h1>수업 메모 확인</h1><button id="reload">새로고침</button></div>
-  <p class="hint" style="margin-top:-8px">체크한 항목만 저장돼요. 코치 전용 메모는 수강생에게 안 보이고, 체크리스트는 훈련일지에서 그 운동을 고르면 수강생에게 보여요.</p>
+  <p class="hint" style="margin-top:-8px">체크한 항목만 저장돼요. 코치 전용 메모는 수강생에게 안 보이고, 체크리스트는 훈련일지에서 그 운동을 고르면 수강생에게 보여요. 코치 메모 줄 중 수강생도 알면 좋은 건 <b>→ 수강생에게도</b>를 누르면 체크리스트로 복사돼요.</p>
   <div id="root"><p class="empty">불러오는 중…</p></div>
 </main>
 <datalist id="exercises"></datalist>
@@ -71,7 +72,7 @@ const api = (url, body) => fetch(url, body ? { method: 'POST', headers: { 'X-CVM
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // 줄 단위 비교(LCS) → 같은 줄 / 지워지는 줄 / 새 줄. 새 줄 안에서 원래 없던 말은 형광 표시.
-function diffLines(a, b) {
+function diffLines(a, b, share = false) {
   const A = a ? a.split('\n') : [], B = b ? b.split('\n') : [];
   const dp = Array.from({ length: A.length + 1 }, () => new Array(B.length + 1).fill(0));
   for (let i = A.length - 1; i >= 0; i--) for (let j = B.length - 1; j >= 0; j--)
@@ -91,7 +92,8 @@ function diffLines(a, b) {
     if (score < 0.3) return esc(line);
     return line.split(/(\s+)/).map(w => /\S/.test(w) && !best.has(w) ? `<mark>${esc(w)}</mark>` : esc(w)).join('');
   };
-  return out.map(([t, line]) => `<div class="d-${t}">${t === 'add' ? marked(line) : esc(line) || '&nbsp;'}</div>`).join('');
+  const shareBtn = (t, line) => share && t !== 'del' && line.trim() ? `<button class="link share" data-line="${esc(line)}" title="이 줄을 수강생 체크리스트로도 추가">→ 수강생에게도</button>` : '';
+  return out.map(([t, line]) => `<div class="d-${t}">${t === 'add' ? marked(line) : esc(line) || '&nbsp;'}${shareBtn(t, line)}</div>`).join('');
 }
 
 const label = f => { const m = /^(\d{4})-(\d{2})-(\d{2})_(\w+)교시/.exec(f); if (!m) return f;
@@ -113,7 +115,7 @@ function studentHTML(p, s, si) {
     ${(s.evidence || []).length ? `<details><summary>녹음 근거 보기</summary><ul>${s.evidence.map(e => `<li>${esc(e)}</li>`).join('')}</ul></details>` : ''}
     ${cn ? `<div class="sec sec-coach" data-kind="coach">
       <div class="sec-head"><label class="confirm"><input type="checkbox" class="c-coach" data-key="${esc(p.file)}::${esc(s.name)}::coach"> 코치 전용 메모 이대로 저장${cn.edited ? `<span class="badge b-edit">직접 고침</span>` : ''}${cn.rebased ? `<span class="badge b-edit" title="이 제안을 만든 뒤 메모가 바뀌어 최신 메모 기준으로 다시 맞췄어요">최신 메모에 맞춤</span>` : ''}</label><span class="hint">수강생에게 안 보임</span></div>
-      <div class="diff">${diffLines(s.currentCoachNote || '', cn.proposed)}</div>
+      <div class="diff">${diffLines(s.currentCoachNote || '', cn.proposed, true)}</div>
       ${(cn.removed || []).length ? `<div class="hint" style="margin-top:6px">빠지는 내용: ${cn.removed.map(esc).join(' / ')}</div>` : ''}
       <button class="link edit">직접 고치기</button>
       ${editor(cn.proposed)}
@@ -126,7 +128,7 @@ function studentHTML(p, s, si) {
       ${items.map((it, ii) => `<div class="row" data-index="${ii}">
         <input type="checkbox" class="c-item" style="margin-top:8px" data-key="${esc(p.file)}::${esc(s.name)}::item::${esc(it.exercise)}::${esc(it.text)}">
         <div class="fields">
-          <div class="row-top">${who(s.name)}${it.moved ? `<span class="badge b-edit">옮김</span>` : ''}</div>
+          <div class="row-top">${who(s.name)}${it.moved ? `<span class="badge b-edit">옮김</span>` : ''}${it.fromCoach ? `<span class="badge b-edit">코치 메모에서</span>` : ''}</div>
           <input type="text" class="ex" list="exercises" value="${esc(it.exercise)}" aria-label="운동 이름">
           <input type="text" class="tx" value="${esc(it.text)}" aria-label="체크리스트 문장">
           ${it.exerciseUnknown ? `<span class="warn">앱 운동 목록에 없는 이름이에요. 맞는 이름으로 고쳐주세요.</span>` : ''}
@@ -182,6 +184,17 @@ document.addEventListener('click', async (e) => {
   if (t.id === 'reload') return load();
   if (t.classList.contains('edit')) { const ed = t.nextElementSibling; ed.hidden = false; t.hidden = true; ed.querySelector('textarea').focus(); return; }
   if (t.classList.contains('ed-cancel')) { const ed = t.closest('.editor'); ed.hidden = true; ed.previousElementSibling.hidden = false; return; }
+  if (t.classList.contains('share')) {
+    // 코치 전용 메모 줄을 수강생 체크리스트에도 넣는다(제안 파일만 바뀜, 저장은 '체크한 것 저장'에서)
+    const card = t.closest('section.card'), st = t.closest('.student'), text = t.dataset.line.trim();
+    try {
+      await api('/api/patch', { file: card.dataset.file, op: 'shareLine', student: st.dataset.name, text });
+      await load();
+      const row = [...document.querySelectorAll(`.student[data-name="${CSS.escape(st.dataset.name)}"] .row`)].find(r => r.querySelector('.tx').value === text);
+      if (row) { row.querySelector('.c-item').checked = true; (row.querySelector('.ex').value ? row.querySelector('.tx') : row.querySelector('.ex')).focus(); }
+    } catch (err) { st.querySelector('.status').innerHTML = `<span class="err">${esc(err.message)}</span>`; }
+    return;
+  }
   if (t.classList.contains('ed-ok')) {
     // 고친 문구를 제안에 반영 → 비교 화면이 고친 내용으로 다시 그려지고 '이대로 저장'이 체크된다(앱 저장은 아직 아님)
     const card = t.closest('section.card'), st = t.closest('.student');
@@ -205,6 +218,7 @@ document.addEventListener('click', async (e) => {
         .map(r => ({ exercise: r.querySelector('.ex').value, text: r.querySelector('.tx').value }));
       if (!coach && !items.length) continue;
       const st = el.querySelector('.status');
+      if (items.some(i => !i.exercise.trim())) { st.innerHTML = '<span class="err">체크리스트에 운동 이름을 채워주세요.</span>'; continue; }
       try {
         const r = await api('/api/save', { name: el.dataset.name, coachNote: coach, exerciseItems: items });
         st.innerHTML = `<span class="ok">저장됨 — ${[r.coachNote && '코치 전용 메모', r.exerciseItems && '체크리스트 ' + r.exerciseItems].filter(Boolean).join(', ')}</span>`;
