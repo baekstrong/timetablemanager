@@ -65,7 +65,7 @@ export function renderStudentScreen() {
         <div class="student-workspace max-w-2xl mx-auto p-4 pb-20">
             <header class="student-workspace-header">
                 <div><p>근력학교</p><h2>훈련일지</h2><span>${escapeHTML(state.currentUser)}님</span></div>
-                <div class="student-header-tools"><button type="button" onclick="openMemoArchiveModal()">메모 보관함</button><button type="button" onclick="openOneRMModal()">1RM 계산기</button></div>
+                <div class="student-header-tools"><button type="button" onclick="openOneRMModal()">1RM 계산기</button></div>
             </header>
             <div id="myStampContainer"></div>
             <!-- 2026-10-23: 달력 → 입력칸 → 기록 내역을 한 화면에 (화면 전환 없음). 달력에서 고른 날짜가 작성일. -->
@@ -397,22 +397,17 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, fi
     }
 
     // 2. 내 운동 메모 체크리스트 — 체크하면 줄이 그어지고 0.6초 뒤 메모 보관함으로 옮겨진다(삭제 아님).
+    // 2026-10-23 사용자 결정: 카드 단위 ☆·보관·삭제 버튼은 뺀다(줄 체크=보관, 줄 수정에서 비우기=삭제로 충분).
     if (pinned) {
         const isHighlighted = pinned.highlighted === true;
         const items = memoItems(pinned);
-        const starBtn = `<button onclick="toggleStudentMemoHighlight(${idx})" class="${isHighlighted ? 'text-[#EDBC40]' : 'text-gray-300 hover:text-[#EDBC40]'} text-base leading-none" title="${isHighlighted ? '중요 해제' : '중요 표시'}">${isHighlighted ? '★' : '☆'}</button>`;
         html += `
             <div class="bg-[#329BE71A] border ${isHighlighted ? 'border-[#EDBC40]' : 'border-[#329BE74D]'} rounded-xl px-3.5 py-3">
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-1.5 min-w-0">
                         <h3 class="text-[13px] font-semibold text-[#327AB8] whitespace-nowrap">📌 내 운동 메모</h3>
                         ${items.length ? `<span class="text-xs text-[#327AB8]">${items.length}개</span>` : ''}
-                        ${starBtn}
                         ${pinned.pain ? '<span class="text-[11px] bg-[#E94E581A] text-[#E94E58] border border-[#E94E584D] px-1.5 py-0.5 rounded-md font-semibold">통증</span>' : ''}
-                    </div>
-                    <div class="flex gap-2.5 flex-shrink-0 text-xs">
-                        <button onclick="archiveWorkoutMemo(${idx})" class="text-gray-500">보관</button>
-                        <button onclick="removePinnedExercise(${idx});" class="text-[#E94E58]">삭제</button>
                     </div>
                 </div>
                 ${items.length ? items.map((item, i) => `
