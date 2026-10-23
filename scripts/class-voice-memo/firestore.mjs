@@ -12,11 +12,13 @@ const projectId = JSON.parse(readFileSync(keyFile)).project_id;
 const DB = `projects/${projectId}/databases/(default)`;
 const BASE = `https://firestore.googleapis.com/v1/${DB}/documents`;
 
-let tokenPromise;
+// 클라이언트만 캐시하고 토큰은 매번 받는다 — 라이브러리가 만료 전에 알아서 갱신한다.
+// (토큰을 캐시하면 1시간 넘게 떠 있는 확인 페이지 서버가 ACCESS_TOKEN_EXPIRED 401로 멈춘다)
+let clientPromise;
 async function headers() {
-    tokenPromise ??= new GoogleAuth({ keyFile, scopes: ['https://www.googleapis.com/auth/datastore'] })
-        .getClient().then(c => c.getAccessToken()).then(t => t.token);
-    return { Authorization: `Bearer ${await tokenPromise}`, 'Content-Type': 'application/json' };
+    clientPromise ??= new GoogleAuth({ keyFile, scopes: ['https://www.googleapis.com/auth/datastore'] }).getClient();
+    const { token } = await (await clientPromise).getAccessToken();
+    return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 
 async function getDoc(p) {
