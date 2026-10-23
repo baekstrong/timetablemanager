@@ -86,7 +86,7 @@ export function renderStudentScreen() {
                         <button type="button" id="exerciseClearBtn" onclick="clearExerciseSelection()" aria-label="다른 운동 검색" class="hidden">✕</button>
                         <div id="exerciseSuggestions" class="hidden" aria-label="운동 검색 결과" onkeydown="handleExerciseSuggestionKeydown(event)"></div>
                     </div>
-                    <div id="exerciseMemoCard"></div><div id="oneRMQuickCard"></div>
+                    <div id="oneRMQuickCard"></div><div id="exerciseMemoCard"></div>
                     <div id="studentReference"></div>
                     <div id="setsContainer"></div>
                     <details class="student-form-details"><summary>메모·통증 남기기</summary><label for="memo">운동 메모</label><textarea id="memo" placeholder="기록 저장 시 이 종목 메모에 한 줄 추가돼요" rows="2" oninput="autoSaveFormData()"></textarea><label class="student-pain-label"><input type="checkbox" id="painCheck" onchange="autoSaveFormData()"> 운동 중 통증이 있었습니다</label></details>
@@ -403,7 +403,7 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, fi
                     </div>
                 </div>
                 ${items.length ? items.map((item, i) => `
-                    <div class="flex items-start gap-2 ${i ? 'border-t border-[#329BE733]' : ''}">
+                    <div class="flex items-center gap-2 ${i ? 'border-t border-[#329BE733]' : ''}">
                     <label data-memo-item class="flex flex-1 min-w-0 items-start gap-2.5 py-2 cursor-pointer transition-opacity duration-300">
                         <input type="checkbox" class="mt-0.5 w-[18px] h-[18px] flex-shrink-0 accent-[#329BE7]" aria-label="완료 처리"
                             onchange="if (window.completeStudentMemoItem) { this.disabled = true; this.closest('[data-memo-item]').classList.add('line-through', 'opacity-40'); completeStudentMemoItem('${jsArg(pinned.exercise)}', ${i}); }">
