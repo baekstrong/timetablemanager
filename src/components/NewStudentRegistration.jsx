@@ -159,13 +159,19 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
         return count;
     }, [slotOccupancy, disabledClasses]);
 
+    // 대기 신청은 가능한 시간을 여러 개 고르는 것이라 같은 요일 여러 교시 허용
+    const oneSlotPerDay = consultationOnly || !isWaitlistMode;
     const handleSlotToggle = (day, period) => {
         const exists = selectedSlots.find(s => s.day === day && s.period === period);
 
         if (exists) {
             setSelectedSlots(selectedSlots.filter(s => !(s.day === day && s.period === period)));
         } else {
-            if (consultationOnly && selectedSlots.some(s => s.day === day)) return;
+            // 정규 신청은 같은 요일에 한 교시만 — 같은 요일 다른 교시를 누르면 그 교시로 바꾼다
+            if (oneSlotPerDay && selectedSlots.some(s => s.day === day)) {
+                setSelectedSlots(selectedSlots.map(s => s.day === day ? { day, period } : s));
+                return;
+            }
             // 대기 모드에서는 슬롯 개수 제한 없음 (가능한 시간 전부 선택)
             if (!isWaitlistMode && selectedSlots.length >= weeklyFrequency) return;
             setSelectedSlots([...selectedSlots, { day, period }]);
@@ -555,10 +561,10 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                                 s => s.day === day && s.period === period.id
                                             );
                                             // 대기 모드에서는 만석 셀도 선택 가능 + 개수 제한 없음
-                                            const duplicateDay = consultationOnly && !isSelected && selectedSlots.some(s => s.day === day);
-                                            const canSelect = !duplicateDay && (isWaitlistMode
-                                                ? !isDisabled && (isSelected || true)
-                                                : !isDisabled && !isFull && (isSelected || selectedSlots.length < weeklyFrequency));
+                                            const sameDaySelected = oneSlotPerDay && selectedSlots.some(s => s.day === day);
+                                            const canSelect = isWaitlistMode
+                                                ? !isDisabled
+                                                : !isDisabled && !isFull && (isSelected || sameDaySelected || selectedSlots.length < weeklyFrequency);
 
                                             return (
                                                 <div

@@ -57,7 +57,7 @@ export default function RegistrationMonthPicker({ onStart }) {
     const inquiryPhone = inquiry?.inquiryPhone || phone;
     const smsLink = inquiry ? inquirySmsLink(inquiryPhone, inquiry.month, navigator.userAgent) : '';
     const start = async () => {
-        if (!choice?.canApply || starting || loading) return;
+        if (!choice?.canApply || starting) return;
         setStarting(true);
         try {
             await assertRecruitmentOpen(choice.month);
@@ -78,9 +78,10 @@ export default function RegistrationMonthPicker({ onStart }) {
         <header className="reg-header"><div className="recruitment-brand">근력학교</div><h1 className="reg-title">신규 수강 신청</h1></header>
         <div className="reg-body">
             <p>입학을 희망하는 달을 선택해주세요.</p>
-            {loading && <p className="recruitment-muted" role="status">모집 정보를 확인하고 있습니다.</p>}
+            {loading && !choice && <p className="recruitment-muted" role="status">모집 정보를 확인하고 있습니다.</p>}
             {error && <div className="recruitment-error" role="alert"><p>{error}</p><button className="reg-btn reg-btn-secondary" onClick={load} disabled={loading}>다시 확인</button></div>}
-            {!loading && !error && choice && <>
+            {/* 탭 복귀·focus 재조회 중에도 화면을 유지한다 — 인앱 브라우저는 첫 터치에 focus가 와서, 숨기면 그 터치가 사라졌다 */}
+            {!error && choice && <>
                 <div className="recruitment-months" aria-label="희망 입학 월">
                     {options.map(o => <button key={o.month} className={`recruitment-month ${o.month === selected ? 'selected' : ''}`}
                         aria-pressed={o.month === selected} onClick={() => { picked.current = true; setSelected(o.month); setCopyMessage(''); }} disabled={starting}>

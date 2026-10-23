@@ -5,7 +5,7 @@ import {
 } from 'firebase/firestore';
 import {
     koreanDate, isRecruitmentMonth, shiftMonth, monthEntrances, isEntranceAvailable,
-    normalizeInquiryPhone, isInquiryPhone, validateRecruitmentSubmission, RECRUITMENT_STATUSES,
+    normalizeInquiryPhone, isInquiryPhone, validateRecruitmentSubmission, assertRegularSlots, RECRUITMENT_STATUSES,
 } from '../utils/recruitment';
 
 function requireDb() {
@@ -74,6 +74,7 @@ export async function submitRecruitmentRegistration(data, status = 'pending') {
             ? await transaction.get(doc(db, 'entranceClasses', data.entranceClassId)) : null;
         validateRecruitmentSubmission(config.exists() ? config.data() : null, data,
             entrance?.exists() ? entrance.data() : null);
+        if (status === 'pending') assertRegularSlots(data.requestedSlots, data.weeklyFrequency);
         transaction.set(registrationRef, {
             ...data, status, isWaitlist: status === 'waitlist', coachSeen: false, questionSeen: false,
             createdAt: serverTimestamp(), updatedAt: serverTimestamp(),

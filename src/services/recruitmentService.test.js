@@ -11,7 +11,7 @@ vi.mock('firebase/firestore', () => ({
 import { assertRecruitmentOpen, getRecruitmentOverview, saveRecruitmentMonth, submitRecruitmentRegistration } from './recruitmentService';
 
 const ec = { date: '2026-11-07', time: '10:00', isActive: true, maxCapacity: 6, currentCount: 1 };
-const data = { weeklyFrequency: 2, name: '예시', recruitmentMonth: '2026-11', entranceClassId: 'ec1', entranceDate: ec.date, entranceInquiry: '' };
+const data = { weeklyFrequency: 2, name: '예시', recruitmentMonth: '2026-11', entranceClassId: 'ec1', entranceDate: ec.date, entranceInquiry: '', requestedSlots: [{ day: '화', period: 1 }, { day: '목', period: 1 }] };
 const snapshot = value => ({ exists: () => Boolean(value), data: () => value });
 beforeEach(() => {
     vi.clearAllMocks();

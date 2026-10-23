@@ -88,6 +88,14 @@ export function validateRecruitmentSubmission(config, data, entrance, today = ko
     }
 }
 
+// 정규 신청: 주횟수만큼, 같은 요일엔 한 교시만 (대기 신청은 가능한 시간 여러 개라 제외)
+export function assertRegularSlots(slots, weeklyFrequency) {
+    const days = new Set((slots || []).map(s => s.day));
+    if (!Array.isArray(slots) || slots.length !== weeklyFrequency || days.size !== slots.length) {
+        throw new Error('같은 요일에는 한 교시만 선택할 수 있습니다. 수업 시간을 다시 선택해주세요.');
+    }
+}
+
 export const normalizeInquiryPhone = phone => String(phone || '').replace(/\D/g, '');
 export const isInquiryPhone = phone => /^(01\d{8,9}|0[2-6]\d{7,9})$/.test(normalizeInquiryPhone(phone));
 export const inquiryMessage = month => `안녕하세요. 근력학교 ${monthLabel(month)} 입학 문의드립니다.\n\n이름:\n희망 요일 / 시간:\n궁금한 점:`;

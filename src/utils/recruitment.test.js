@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     koreanDate, shiftMonth, recruitmentOptions, monthEntrances, validateRecruitmentSubmission,
     inquirySmsLink, inquiryMessage, isInquiryPhone, isAdmissionDate, recruitmentInquiryRoute,
-    defaultRecruitmentMonth,
+    defaultRecruitmentMonth, assertRegularSlots,
 } from './recruitment';
 
 const entrance = { id: 'nov', date: '2026-11-07', time: '10:00', isActive: true, maxCapacity: 6, currentCount: 2 };
@@ -80,5 +80,11 @@ describe('월별 신규 모집', () => {
         expect(defaultRecruitmentMonth([oct, { ...nov, canApply: false }])).toBe('2026-11');
         expect(defaultRecruitmentMonth([oct, { month: '2026-11', status: 'inquiry' }])).toBe('2026-10');
         expect(defaultRecruitmentMonth([])).toBe('');
+    });
+
+    it('정규 신청은 같은 요일 두 교시를 거부한다', () => {
+        expect(() => assertRegularSlots([{ day: '화', period: 1 }, { day: '목', period: 1 }, { day: '목', period: 2 }], 3)).toThrow();
+        expect(() => assertRegularSlots([{ day: '화', period: 1 }, { day: '목', period: 1 }], 3)).toThrow();
+        expect(() => assertRegularSlots([{ day: '화', period: 1 }, { day: '목', period: 1 }, { day: '금', period: 4 }], 3)).not.toThrow();
     });
 });
