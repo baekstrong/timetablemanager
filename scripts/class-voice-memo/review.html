@@ -74,7 +74,7 @@ pre { white-space:pre-wrap; font-size:13px; background:var(--tint); padding:12px
 <body>
 <main>
   <div class="top"><h1>수업 메모 확인</h1><button id="reload">새로고침</button></div>
-  <p class="hint" style="margin-top:-8px">체크한 항목만 저장돼요. 코치 전용 메모는 수강생에게 안 보이고, 체크리스트는 훈련일지에서 그 운동을 고르면 수강생에게 보여요. 코치 메모 줄 중 수강생도 알면 좋은 건 <b>→ 수강생에게도</b>를 누르면 체크리스트로 복사돼요.</p>
+  <p class="hint" style="margin-top:-8px">체크하면 바로 앱에 저장돼요(체크한 항목만). 코치 전용 메모는 수강생에게 안 보이고, 체크리스트는 훈련일지에서 그 운동을 고르면 수강생에게 보여요. 코치 메모 줄 중 수강생도 알면 좋은 건 <b>→ 수강생에게도</b>를 누르면 체크리스트로 복사돼요.</p>
   <div id="root"><p class="empty">불러오는 중…</p></div>
 </main>
 <script>
@@ -115,6 +115,9 @@ function studentHTML(p, s, si) {
   const id = `${p.file}::${si}`;
   const cn = s.coachNote;
   const items = s.checklist || [];
+  // 저장 여부는 앱의 실제 값으로 판단 — 새로고침·재접속해도 정확하다
+  const coachSaved = !!cn && (s.currentCoachNote || '').trim() === cn.proposed.trim();
+  const itemSaved = it => (s.currentExerciseMemos || []).some(m => m.exercise === it.exercise && m.memo === it.text);
   const roster = (p.names || []);
   const who = (cur) => `<select class="who" aria-label="누구 메모인지">${roster.map(n => `<option${n === cur ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
   const editor = (text) => `<div class="editor" hidden>
@@ -126,7 +129,7 @@ function studentHTML(p, s, si) {
     ${s.guessed && s.guessNote ? `<div class="hint">${esc(s.guessNote)}</div>` : ''}
     ${(s.evidence || []).length ? `<details><summary>녹음 근거 보기</summary><ul>${s.evidence.map(e => `<li>${esc(e)}</li>`).join('')}</ul></details>` : ''}
     ${cn ? `<div class="sec sec-coach" data-kind="coach">
-      <div class="sec-head"><label class="confirm"><input type="checkbox" class="c-coach" data-key="${esc(p.file)}::${esc(s.name)}::coach"> 코치 전용 메모 이대로 저장${cn.edited ? `<span class="badge b-edit">직접 고침</span>` : ''}${cn.rebased ? `<span class="badge b-edit" title="이 제안을 만든 뒤 메모가 바뀌어 최신 메모 기준으로 다시 맞췄어요">최신 메모에 맞춤</span>` : ''}</label><span class="hint">수강생에게 안 보임</span></div>
+      <div class="sec-head"><label class="confirm"><input type="checkbox" class="c-coach" data-key="${esc(p.file)}::${esc(s.name)}::coach"${coachSaved ? ' checked disabled' : ''}> ${coachSaved ? '<span class="ok">✓ 코치 전용 메모 저장됨</span>' : '코치 전용 메모 이대로 저장'}${cn.edited ? `<span class="badge b-edit">직접 고침</span>` : ''}${cn.rebased ? `<span class="badge b-edit" title="이 제안을 만든 뒤 메모가 바뀌어 최신 메모 기준으로 다시 맞췄어요">최신 메모에 맞춤</span>` : ''}</label><span class="hint">수강생에게 안 보임</span></div>
       <div class="diff">${diffLines(s.currentCoachNote || '', cn.proposed, true)}</div>
       ${(cn.removed || []).length ? `<div class="hint" style="margin-top:6px">빠지는 내용: ${cn.removed.map(esc).join(' / ')}</div>` : ''}
       <button class="link edit">직접 고치기</button>
@@ -137,8 +140,8 @@ function studentHTML(p, s, si) {
     </div>`}
     ${items.length ? `<div class="sec sec-check" data-kind="check">
       <div class="sec-head"><h3 style="color:var(--amber-text)">✅ 수강생 체크리스트</h3><span class="hint" style="color:var(--amber-text)">훈련일지에서 보임</span></div>
-      ${items.map((it, ii) => `<div class="row" data-index="${ii}">
-        <input type="checkbox" class="c-item" style="margin-top:8px" data-key="${esc(p.file)}::${esc(s.name)}::item::${esc(it.exercise)}::${esc(it.text)}">
+      ${items.map((it, ii) => `<div class="row${itemSaved(it) ? ' saved' : ''}" data-index="${ii}">
+        <input type="checkbox" class="c-item" style="margin-top:8px" data-key="${esc(p.file)}::${esc(s.name)}::item::${esc(it.exercise)}::${esc(it.text)}"${itemSaved(it) ? ' checked disabled title="저장됨"' : ''}>
         <div class="fields">
           <div class="row-top">${who(s.name)}${it.moved ? `<span class="badge b-edit">옮김</span>` : ''}${it.fromCoach ? `<span class="badge b-edit">코치 메모에서</span>` : ''}</div>
           <div class="ex-wrap" data-cands="${esc(JSON.stringify((it.exerciseCandidates || []).filter(n => EXERCISES.includes(n))))}"><input type="text" class="ex" value="${esc(it.exercise)}" placeholder="🔍 어떤 운동에 넣을지 검색" autocomplete="off" aria-label="운동 이름 검색"></div>
@@ -176,7 +179,7 @@ function render({ proposals, exerciseNames }) {
                <optgroup label="이 수업 명단">${rest.map(n => `<option>${esc(n)}</option>`).join('')}</optgroup></select>
            </div>`; }).join('')}
        </div>` : ''}
-       <div class="actions"><button class="finish">이 제안 닫기</button><button class="primary save">체크한 것 저장</button></div>
+       <div class="actions"><span class="hint" style="margin-right:auto;align-self:center">체크하거나 고치면 바로 저장돼요</span><button class="finish">이 제안 닫기</button></div>
        <div class="status"></div>
      </section>`).join('');
 }
@@ -188,8 +191,40 @@ async function load(extraChecked = []) {
     render(await api('/api/proposals'));
     document.querySelectorAll('input[type=checkbox][data-key]').forEach(c => { if (keep.has(c.dataset.key)) c.checked = true; });
     window.scrollTo(0, y);
+    extraChecked.forEach(k => { const c = document.querySelector(`input[data-key="${CSS.escape(k)}"]`); if (c) autoSave(c); });
   }
   catch (e) { document.getElementById('root').innerHTML = `<p class="empty err">불러오지 못했어요: ${esc(e.message)}</p>`; }
+}
+
+// 자동 저장: 체크하거나 체크된 항목을 고치면 그 수강생 것만 0.5초 뒤 저장. 수강생별로 한 번에 하나씩 순서대로.
+const timers = new Map(), queues = new Map();
+function autoSave(node) {
+  const el = node.closest('.student'); if (!el) return;
+  const key = `${el.closest('section.card').dataset.file}::${el.dataset.name}`;
+  clearTimeout(timers.get(key));
+  timers.set(key, setTimeout(() => queues.set(key, (queues.get(key) || Promise.resolve()).then(() => saveStudent(key))), 500));
+}
+async function saveStudent(key) {
+  const [file, name] = key.split('::');
+  const sel = `section.card[data-file="${CSS.escape(file)}"] .student[data-name="${CSS.escape(name)}"]`;
+  let el = document.querySelector(sel); if (!el) return;
+  const st = el.querySelector('.status');
+  const coachBox = el.querySelector('.c-coach:checked:not(:disabled)');
+  const rows = [...el.querySelectorAll('.row:not(.saved)')].filter(r => r.querySelector('.c-item').checked);
+  const ok = r => { const v = r.querySelector('.ex').value.trim(); return v && (!EXERCISES.length || EXERCISES.includes(v)); };
+  const items = rows.filter(ok).map(r => ({ exercise: r.querySelector('.ex').value.trim(), text: r.querySelector('.tx').value }));
+  const waiting = rows.length - items.length;
+  if (!coachBox && !items.length) { if (waiting) st.innerHTML = '<span class="warn">운동을 고르면 바로 저장돼요.</span>'; return; }
+  st.innerHTML = '<span class="hint">저장 중…</span>';
+  try {
+    // 최신 메모 기준으로 저장(그사이 다른 곳에서 바뀌었으면 서버가 막는다)
+    const s = (await api('/api/proposals')).proposals.find(x => x.file === file)?.students.find(x => x.name === name);
+    const coach = coachBox ? { text: el.querySelector('.coach-text').value, expect: s?.currentCoachNote ?? '' } : null;
+    await api('/api/save', { name, coachNote: coach, exerciseItems: items });
+    await load();
+    el = document.querySelector(sel);
+    if (el) el.querySelector('.status').innerHTML = `<span class="ok">✓ 저장됨</span>${waiting ? ' <span class="warn">운동을 안 고른 항목은 고르면 저장돼요.</span>' : ''}`;
+  } catch (err) { st.innerHTML = `<span class="err">저장 실패: ${esc(err.message)}</span>`; }
 }
 
 // 운동 검색: 앱 운동 목록에서만 고르게 한다(목록 밖 이름이면 수강생 화면에 안 뜬다)
@@ -208,6 +243,7 @@ function pickEx(input, v) {
   const w = input.closest('.fields').querySelector('.warn');
   if (w) w.hidden = EXERCISES.includes(v);
   input.closest('.fields').querySelectorAll('.cand').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  autoSave(input);
 }
 document.addEventListener('focusin', e => { if (e.target.classList.contains('ex')) { e.target.select(); showExList(e.target); } });
 document.addEventListener('input', e => {
@@ -236,6 +272,7 @@ document.addEventListener('mousedown', e => {
 // 체크리스트 항목이 다른 수강생 얘기면 '누구'를 바꿔 옮긴다
 document.addEventListener('change', async (e) => {
   const t = e.target;
+  if ((t.matches('.c-coach, .c-item') && t.checked) || t.matches('.row .tx, .row .ex, .coach-text')) return autoSave(t);
   if (t.classList.contains('unk-who')) {
     // 누군지 모르는 메모 → 고른 사람 코치 전용 메모에 붙이고 '이대로 저장'을 체크해 둔다
     const card = t.closest('section.card'), name = t.value;
@@ -258,22 +295,22 @@ document.addEventListener('change', async (e) => {
 document.addEventListener('click', async (e) => {
   const t = e.target;
   if (t.id === 'reload') return load();
-  if (t.classList.contains('cand')) { pickEx(t.closest('.fields').querySelector('.ex'), t.dataset.v); t.closest('.row').querySelector('.c-item').checked = true; return; }
+  if (t.classList.contains('cand')) { t.closest('.row').querySelector('.c-item').checked = true; pickEx(t.closest('.fields').querySelector('.ex'), t.dataset.v); return; }
   if (t.classList.contains('edit')) { const ed = t.nextElementSibling; ed.hidden = false; t.hidden = true; ed.querySelector('textarea').focus(); return; }
   if (t.classList.contains('ed-cancel')) { const ed = t.closest('.editor'); ed.hidden = true; ed.previousElementSibling.hidden = false; return; }
   if (t.classList.contains('share')) {
-    // 코치 전용 메모 줄을 수강생 체크리스트에도 넣는다(제안 파일만 바뀜, 저장은 '체크한 것 저장'에서)
+    // 코치 전용 메모 줄을 수강생 체크리스트에도 넣고 체크(운동이 정해져 있으면 바로 저장)
     const card = t.closest('section.card'), st = t.closest('.student'), text = t.dataset.line.trim();
     try {
       await api('/api/patch', { file: card.dataset.file, op: 'shareLine', student: st.dataset.name, text });
       await load();
       const row = [...document.querySelectorAll(`.student[data-name="${CSS.escape(st.dataset.name)}"] .row`)].find(r => r.querySelector('.tx').value === text);
-      if (row) { row.querySelector('.c-item').checked = true; (row.querySelector('.ex').value ? row.querySelector('.tx') : row.querySelector('.ex')).focus(); }
+      if (row) { row.querySelector('.c-item').checked = true; autoSave(row); (row.querySelector('.ex').value ? row.querySelector('.tx') : row.querySelector('.ex')).focus(); }
     } catch (err) { st.querySelector('.status').innerHTML = `<span class="err">${esc(err.message)}</span>`; }
     return;
   }
   if (t.classList.contains('ed-ok')) {
-    // 고친 문구를 제안에 반영 → 비교 화면이 고친 내용으로 다시 그려지고 '이대로 저장'이 체크된다(앱 저장은 아직 아님)
+    // 고친 문구를 제안에 반영 → 비교 화면이 고친 내용으로 다시 그려지고 체크되어 바로 저장된다
     const card = t.closest('section.card'), st = t.closest('.student');
     try {
       await api('/api/patch', { file: card.dataset.file, op: 'coachNote', student: st.dataset.name, text: t.closest('.editor').querySelector('textarea').value });
@@ -284,30 +321,8 @@ document.addEventListener('click', async (e) => {
   const card = t.closest('section.card');
   if (!card) return;
   const status = card.querySelector(':scope > .status');
-  if (t.classList.contains('save')) {
-    const proposals = (await api('/api/proposals')).proposals; // 최신 메모 기준으로 저장(다른 기기에서 바뀌었으면 서버가 막는다)
-    const p = proposals.find(x => x.file === card.dataset.file);
-    let count = 0; t.disabled = true;
-    for (const el of card.querySelectorAll('.student:not(.saved)')) {
-      const s = p.students[+el.dataset.id.split('::')[1]];
-      const coach = el.querySelector('.c-coach:checked') ? { text: el.querySelector('.coach-text').value, expect: s.currentCoachNote } : null;
-      const items = [...el.querySelectorAll('.row')].filter(r => r.querySelector('.c-item').checked)
-        .map(r => ({ exercise: r.querySelector('.ex').value, text: r.querySelector('.tx').value }));
-      if (!coach && !items.length) continue;
-      const st = el.querySelector('.status');
-      if (items.some(i => !i.exercise.trim() || (EXERCISES.length && !EXERCISES.includes(i.exercise.trim())))) { st.innerHTML = '<span class="err">체크리스트 운동을 목록에서 골라주세요.</span>'; continue; }
-      try {
-        const r = await api('/api/save', { name: el.dataset.name, coachNote: coach, exerciseItems: items });
-        st.innerHTML = `<span class="ok">저장됨 — ${[r.coachNote && '코치 전용 메모', r.exerciseItems && '체크리스트 ' + r.exerciseItems].filter(Boolean).join(', ')}</span>`;
-        el.querySelectorAll('input:checked').forEach(c => c.closest('.sec, .row').classList.add('saved'));
-        count++;
-      } catch (err) { st.innerHTML = `<span class="err">저장 실패: ${esc(err.message)}</span>`; }
-    }
-    t.disabled = false;
-    status.innerHTML = count ? `<span class="ok">${count}명 저장했어요. 다 끝났으면 '이 제안 닫기'를 눌러주세요.</span>` : '<span class="err">체크한 항목이 없어요.</span>';
-  }
   if (t.classList.contains('finish')) {
-    if (!confirm('이 제안을 닫을까요? 저장하지 않은 항목은 버려지고, 받아쓴 글도 지워져요.')) return;
+    if (!confirm('이 제안을 닫을까요? 체크 안 한 항목은 버려지고, 받아쓴 글도 지워져요.')) return;
     try { await api('/api/finish', { file: card.dataset.file }); card.remove(); if (!document.querySelector('section.card')) load(); }
     catch (err) { status.innerHTML = `<span class="err">${esc(err.message)}</span>`; }
   }

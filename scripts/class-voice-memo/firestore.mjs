@@ -72,6 +72,10 @@ export async function readExerciseNames() {
 // 읽은 뒤 수강생이 지우는 등 문서가 바뀌었으면 조건부 쓰기로 실패한다.
 export async function addCoachExerciseMemos(name, items) {
     const cur = await readCoachExerciseMemos(name);
+    // 자동 저장이 같은 항목을 두 번 보내도 한 번만 들어가게(이미 있는 운동+문장은 건너뜀)
+    const seen = new Set(cur.memos.map(m => `${m.exercise}\n${m.memo}`));
+    items = items.filter(it => { const k = `${it.exercise}\n${it.text}`; if (seen.has(k)) return false; seen.add(k); return true; });
+    if (!items.length) return 0;
     const now = new Date().toISOString();
     const added = items.map((it, i) => ({
         exercise: it.exercise, memo: it.text, pinnedBy: '백관장', createdAt: now,
