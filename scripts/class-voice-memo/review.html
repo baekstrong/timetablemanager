@@ -24,6 +24,10 @@ select.who { font:13px inherit; padding:4px 8px; border:1px solid var(--amber-li
 .sec { margin-top:12px; border-radius:12px; padding:12px 14px; }
 .sec-coach { background:#fff; border:1px solid var(--line); }
 .sec-check { background:var(--amber-bg); border:1px solid var(--amber-line); }
+.unk { border-color:#EDBC404D; background:#EDBC401A; }
+.unk-row { padding:10px 0; border-top:1px solid #EDBC404D; display:grid; gap:6px; }
+.unk-row:first-of-type { border-top:none; }
+.unk-row select { justify-self:start; }
 .sec-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
 .hint { font-size:12px; color:var(--sub); }
 label.confirm { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; cursor:pointer; }
@@ -156,7 +160,18 @@ function render({ proposals, exerciseNames }) {
        <h2>${label(p.file)}</h2>
        <div class="hint">녹음 ${p.minutes ? p.minutes + '분' : ''} · 후보 명단 ${esc((p.names || []).join(', ') || '없음')}</div>
        ${(p.students || []).length ? p.students.map((s, i) => studentHTML(p, s, i)).join('') : '<p class="hint">이 수업은 메모 변경 제안이 없어요.</p>'}
-       ${(p.uncertain || []).length ? `<details open><summary>누구 얘기인지 불확실해서 뺀 것</summary><ul>${p.uncertain.map(u => `<li>${esc(u)}</li>`).join('')}</ul></details>` : ''}
+       ${(p.uncertain || []).length ? `<div class="sec sec-coach unk">
+         <div class="sec-head"><h3>❓ 누군지 모르는 메모</h3><span class="hint">이름을 고르면 그 사람 코치 전용 메모에 붙어요</span></div>
+         ${p.uncertain.map((u, ui) => { const o = typeof u === 'string' ? { line: u, candidates: [] } : u;
+           const rest = (p.names || []).filter(n => !(o.candidates || []).includes(n));
+           return `<div class="unk-row" data-index="${ui}">
+             <div>${esc(o.line)}</div>
+             ${o.why ? `<div class="hint">${esc(o.why)}</div>` : ''}
+             <select class="who unk-who" aria-label="누구 메모인지"><option value="">누구? 이름 고르기</option>
+               ${(o.candidates || []).length ? `<optgroup label="후보">${o.candidates.map(n => `<option>${esc(n)}</option>`).join('')}</optgroup>` : ''}
+               <optgroup label="이 수업 명단">${rest.map(n => `<option>${esc(n)}</option>`).join('')}</optgroup></select>
+           </div>`; }).join('')}
+       </div>` : ''}
        <div class="actions"><button class="finish">이 제안 닫기</button><button class="primary save">체크한 것 저장</button></div>
        <div class="status"></div>
      </section>`).join('');
@@ -215,6 +230,17 @@ document.addEventListener('mousedown', e => {
 // 체크리스트 항목이 다른 수강생 얘기면 '누구'를 바꿔 옮긴다
 document.addEventListener('change', async (e) => {
   const t = e.target;
+  if (t.classList.contains('unk-who')) {
+    // 누군지 모르는 메모 → 고른 사람 코치 전용 메모에 붙이고 '이대로 저장'을 체크해 둔다
+    const card = t.closest('section.card'), name = t.value;
+    if (!name) return;
+    try {
+      await api('/api/patch', { file: card.dataset.file, op: 'assignUncertain', index: +t.closest('.unk-row').dataset.index, to: name });
+      await load([`${card.dataset.file}::${name}::coach`]);
+      document.querySelector(`.student[data-name="${CSS.escape(name)}"]`)?.scrollIntoView({ block: 'center' });
+    } catch (err) { card.querySelector(':scope > .status').innerHTML = `<span class="err">${esc(err.message)}</span>`; t.value = ''; }
+    return;
+  }
   if (!t.classList.contains('who')) return;
   const card = t.closest('section.card'), st = t.closest('.student'), row = t.closest('.row');
   try {

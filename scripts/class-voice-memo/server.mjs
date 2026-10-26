@@ -75,6 +75,7 @@ async function save({ name, coachNote, exerciseItems }) {
 //   {op:'coachNote', student, text}       코치 전용 메모 제안을 코치가 고친 문구로 교체(없으면 새로 만듦)
 //   {op:'moveItem', from, index, to}      체크리스트 항목을 다른 수강생으로 옮김(섞인 경우)
 //   {op:'shareLine', student, text}       코치 전용 메모 한 줄을 수강생 체크리스트로도 복사(운동 이름은 문장에서 추정)
+//   {op:'assignUncertain', index, to}     누군지 모르는 메모를 코치가 고른 사람의 코치 전용 메모 끝에 한 줄로 붙임
 async function patch({ file, op, student, text, from, index, to }) {
     const p = proposalPath(file);
     if (!p.endsWith('.json')) throw new Error('예전 형식 제안은 고칠 수 없어요');
@@ -108,6 +109,19 @@ async function patch({ file, op, student, text, from, index, to }) {
         // ponytail: 문장에 든 가장 긴 운동 이름으로 추정, 못 찾으면 빈칸(코치가 채움)
         const ex = (await readExerciseNames().catch(() => [])).filter(n => t.includes(n)).sort((a, b) => b.length - a.length)[0] || '';
         s.checklist.push({ exercise: ex, text: t, fromCoach: true, exerciseUnknown: !ex });
+    } else if (op === 'assignUncertain') {
+        const u = data.uncertain?.[index];
+        if (!u) throw new Error('항목을 찾을 수 없어요');
+        const line = String(typeof u === 'string' ? u : u.line || '').trim(); // 예전 제안은 문자열
+        const s = get(to);
+        const current = (await readCoachNotesDoc()).map[to] ?? '';
+        // 기존 제안이 있으면 최신 메모 기준으로 맞춘 것 위에 붙인다(listProposals와 같은 기준)
+        let base = current;
+        if (s.coachNote) base = data.baseNotes && to in data.baseNotes ? rebaseNote(data.baseNotes[to], s.coachNote.proposed, current) : s.coachNote.proposed;
+        s.coachNote = { ...(s.coachNote || { removed: [] }), proposed: base.trim() ? `${base.trimEnd()}\n${line}` : line, edited: true };
+        if (typeof u !== 'string' && u.why) s.evidence = [...(s.evidence || []), u.why];
+        data.baseNotes = { ...(data.baseNotes || {}), [to]: current };
+        data.uncertain.splice(index, 1);
     } else throw new Error('알 수 없는 수정');
     // 내용이 하나도 없는 수강생 카드는 지운다
     data.students = data.students.filter(s => s.coachNote || (s.checklist || []).length);
