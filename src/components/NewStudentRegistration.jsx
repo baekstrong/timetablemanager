@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getDisabledClasses, updateNewStudentRegistration, getFAQs, getNewStudentRegistrations } from '../services/firebaseService';
 import { getRecruitmentOverview, submitRecruitmentRegistration } from '../services/recruitmentService';
-import { koreanDate, monthLabel, monthEntrances, isEntranceAvailable } from '../utils/recruitment';
+import { monthLabel, monthEntrances, isEntranceAvailable } from '../utils/recruitment';
 import RegistrationMonthPicker from './RegistrationMonthPicker';
 import ConsultationRequestForm from './ConsultationRequestForm';
 import useKoreanMonth from '../hooks/useKoreanMonth';
@@ -96,12 +96,6 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
     const [entranceError, setEntranceError] = useState('');
     const [entranceLoading, setEntranceLoading] = useState(false);
     const [selectedEntrance, setSelectedEntrance] = useState(null);
-    const [entranceInquiry, setEntranceInquiry] = useState(''); // 다른 날 문의 (YYYY-MM-DD)
-    const [entranceInquiryReason, setEntranceInquiryReason] = useState(''); // 문의 사유 (필수)
-    const [showInquiryCalendar, setShowInquiryCalendar] = useState(false);
-    const [inquiryCalMonth, setInquiryCalMonth] = useState(() => {
-        return { year: Number(recruitmentMonth.slice(0, 4)), month: Number(recruitmentMonth.slice(5)) - 1 };
-    });
     const [showEntranceExplain, setShowEntranceExplain] = useState(true);
 
     // Step 5: 결제
@@ -195,7 +189,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
         switch (step) {
             case 0: return scheduleReady && !scheduleError && (consultationOnly ? weeklyFrequency === 4 : [2, 3].includes(weeklyFrequency)) && (isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency);
             case 1: return name.trim() && phone1.trim() && phone2.trim() && phone3.trim() && gender && exerciseExperience.trim();
-            case 2: return !entranceLoading && !entranceError && (isEntranceAvailable(entranceClasses.find(ec => ec.id === selectedEntrance)) || (entranceInquiry.startsWith(`${recruitmentMonth}-`) && entranceInquiry >= koreanDate() && entranceInquiryReason.trim() !== ''));
+            case 2: return !entranceLoading && !entranceError && (isEntranceAvailable(entranceClasses.find(ec => ec.id === selectedEntrance)));
             case 3: return paymentMethod !== '';
             case 4: return true;
             case 5: return true;
@@ -228,8 +222,8 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                 entranceClassId: selectedEntrance,
                 entranceDate: entranceClass ? entranceClass.date : '',
                 entranceClassDate: entranceClass ? `${formatEntranceDate(entranceClass.date)} ${entranceClass.time}${entranceClass.endTime ? ' ~ ' + entranceClass.endTime : ''}` : '',
-                entranceInquiry: entranceInquiry || '',
-                entranceInquiryReason: entranceInquiry ? entranceInquiryReason.trim() : '',
+                entranceInquiry: '', // 2026-10-26 다른 날짜 문의 제거 — 지정일만
+                entranceInquiryReason: '',
                 entranceCost,
                 totalCost,
                 paymentMethod,
@@ -702,8 +696,6 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                             onClick={() => {
                                                 if (isClosed) return;
                                                 setSelectedEntrance(ec.id);
-                                                setEntranceInquiry('');
-                                                setEntranceInquiryReason('');
                                             }}
                                         >
                                             <div className="reg-entrance-date">{formatEntranceDate(ec.date)}</div>
@@ -720,120 +712,8 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                 </div>
                             )}
 
-                            {/* 다른 날 문의 (예외 — 부득이한 경우만, 사유 필수) */}
                             <div className="reg-entrance-inquiry">
-                                <div className="reg-entrance-inquiry-note">
-                                    입학반은 매월 지정일에만 진행됩니다.
-                                </div>
-                                <div
-                                    className="reg-entrance-inquiry-label"
-                                    onClick={() => {
-                                        if (showInquiryCalendar) {
-                                            setShowInquiryCalendar(false);
-                                            setEntranceInquiry('');
-                                            setEntranceInquiryReason('');
-                                        } else {
-                                            setShowInquiryCalendar(true);
-                                        }
-                                    }}
-                                >
-                                    부득이하게 참석이 어려운 경우에만 다른 날짜 문의 ›
-                                </div>
-                                {showInquiryCalendar && (() => {
-                                    const { year, month } = inquiryCalMonth;
-                                    const today = new Date();
-                                    today.setHours(0, 0, 0, 0);
-                                    const daysInMonth = new Date(year, month + 1, 0).getDate();
-                                    const firstDow = new Date(year, month, 1).getDay(); // 0=일
-
-                                    // 달력 그리드 생성
-                                    const cells = [];
-                                    for (let i = 0; i < firstDow; i++) cells.push(null); // 빈칸
-                                    for (let d = 1; d <= daysInMonth; d++) {
-                                        const date = new Date(year, month, d);
-                                        const dow = date.getDay();
-                                        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                                        const isWeekend = dow === 0 || dow === 6;
-                                        const isPast = date <= today;
-                                        const isExistingEntrance = entranceClasses.some(ec => ec.date === dateStr);
-                                        cells.push({
-                                            day: d, dateStr, isWeekend,
-                                            disabled: !isWeekend || isPast || isExistingEntrance || !dateStr.startsWith(`${recruitmentMonth}-`),
-                                            isEntrance: isExistingEntrance && isWeekend
-                                        });
-                                    }
-
-                                    const canPrevMonth = false;
-                                    const canNextMonth = false;
-
-                                    return (
-                                        <div className="reg-inquiry-calendar">
-                                            <div className="reg-inquiry-cal-header">
-                                                <button
-                                                    type="button"
-                                                    className="reg-inquiry-cal-nav"
-                                                    disabled={!canPrevMonth}
-                                                    onClick={() => setInquiryCalMonth(prev => {
-                                                        const d = new Date(prev.year, prev.month - 1, 1);
-                                                        return { year: d.getFullYear(), month: d.getMonth() };
-                                                    })}
-                                                >&lt;</button>
-                                                <span className="reg-inquiry-cal-title">{year}년 {month + 1}월</span>
-                                                <button
-                                                    type="button"
-                                                    className="reg-inquiry-cal-nav"
-                                                    disabled={!canNextMonth}
-                                                    onClick={() => setInquiryCalMonth(prev => {
-                                                        const d = new Date(prev.year, prev.month + 1, 1);
-                                                        return { year: d.getFullYear(), month: d.getMonth() };
-                                                    })}
-                                                >&gt;</button>
-                                            </div>
-                                            <div className="reg-inquiry-cal-grid">
-                                                {['일', '월', '화', '수', '목', '금', '토'].map(d => (
-                                                    <div key={d} className={`reg-inquiry-cal-dow${d === '토' || d === '일' ? ' weekend' : ''}`}>{d}</div>
-                                                ))}
-                                                {cells.map((cell, idx) => (
-                                                    <div
-                                                        key={idx}
-                                                        className={`reg-inquiry-cal-cell${
-                                                            !cell ? ' empty' :
-                                                            cell.disabled ? (cell.isEntrance ? ' entrance' : ' disabled') :
-                                                            entranceInquiry === cell.dateStr ? ' selected' : ' selectable'
-                                                        }`}
-                                                        onClick={() => {
-                                                            if (!cell || cell.disabled) return;
-                                                            if (entranceInquiry === cell.dateStr) {
-                                                                setEntranceInquiry('');
-                                                                setEntranceInquiryReason('');
-                                                            } else {
-                                                                setEntranceInquiry(cell.dateStr);
-                                                                setSelectedEntrance(null);
-                                                            }
-                                                        }}
-                                                    >
-                                                        {cell ? cell.day : ''}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            {entranceInquiry && (
-                                                <>
-                                                    <div className="reg-inquiry-selected">
-                                                        {formatEntranceDate(entranceInquiry)} 10:00 ~ 13:00 희망
-                                                    </div>
-                                                    <textarea
-                                                        className="reg-inquiry-reason"
-                                                        value={entranceInquiryReason}
-                                                        onChange={(e) => setEntranceInquiryReason(e.target.value)}
-                                                        placeholder="지정일에 참석이 어려운 사유를 적어주세요. (필수)"
-                                                        rows={2}
-                                                        maxLength={200}
-                                                    />
-                                                </>
-                                            )}
-                                        </div>
-                                    );
-                                })()}
+                                <div className="reg-entrance-inquiry-note">입학반은 매월 지정일에만 진행됩니다.</div>
                             </div>
                         </div>
                     )}
@@ -949,7 +829,6 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                 <div className="reg-summary-row">
                                     <span>입학반</span>
                                     <span>{(() => {
-                                        if (entranceInquiry) return `날짜 문의: ${formatEntranceDate(entranceInquiry)} 10:00~13:00`;
                                         const ec = entranceClasses.find(c => c.id === selectedEntrance);
                                         return ec ? `${formatEntranceDate(ec.date)} ${ec.time}${ec.endTime ? ' ~ ' + ec.endTime : ''}` : '';
                                     })()}</span>

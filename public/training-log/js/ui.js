@@ -64,7 +64,7 @@ export function renderStudentScreen() {
     return `
         <div class="student-workspace max-w-2xl mx-auto p-4 pb-20">
             <header class="student-workspace-header">
-                <div><p>근력학교</p><h2>훈련일지</h2><span>${escapeHTML(state.currentUser)}님</span></div>
+                <h2>훈련일지</h2>
                 <div class="student-header-tools"><button type="button" onclick="openOneRMModal()">1RM 계산기</button></div>
             </header>
             <div id="myStampContainer"></div>
