@@ -124,7 +124,7 @@ async function propose(transcriptFile) {
         baseNotes: meta.context.coachNotes, // 제안이 고쳐 쓴 원래 메모 — 나중에 메모가 바뀌면 이 기준으로 다시 얹는다(rebaseNote)
         students: (parsed.students || []).filter(s => names.includes(s.name) || s.guessed), uncertain: parsed.uncertain || [],
     }, null, 1));
-    return { label, date: meta.context.date, none: !(parsed.students || []).length };
+    return { label, date: meta.context.date, none: !(parsed.students || []).length && !(parsed.uncertain || []).length };
 }
 
 const PAGE = 'http://127.0.0.1:5179';

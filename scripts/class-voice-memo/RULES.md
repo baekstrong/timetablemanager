@@ -46,7 +46,7 @@
 
 ## 수강생 체크리스트 형식
 - 수강생이 읽는 문장이다. 짧은 명령형 한 줄(예: "엉덩이를 뒤로 빼지 말고 아래로 보내기"). 진단명·원인 추정·다른 사람 얘기·코치 내부 판단은 넣지 않는다(그건 코치 전용 메모).
-- `exercise`는 `exercises` 목록의 이름과 정확히 같게 쓴다. 목록에 없으면 가장 가까운 이름을 쓰고 `exerciseUnknown: true`.
+- `exercise`는 `exercises` 목록의 이름과 정확히 같게 쓴다. **어느 운동에 붙일지 확실하지 않으면**(목록에 없는 운동, 세트 사이에 하라는 보조 운동, 여러 운동 중 어느 건지 애매함) 항목을 버리지 말고 `exercise: ""`, `exerciseUnknown: true`, `exerciseCandidates`에 가능성 있는 목록 이름 최대 3개(그 지시를 들은 운동 순)를 넣는다. 코치가 그중 하나를 고른다(2026-10-26 사용자 결정).
 - 이미 있는 체크리스트(`exerciseMemos`)와 같은 내용은 다시 제안하지 않는다.
 
 ## 출력: JSON 하나만 (설명·코드펜스 없이)
@@ -59,7 +59,7 @@
       "maybeCoachSelf": false,
       "evidence": ["녹음에서 근거가 된 말 1~3개를 짧게"],
       "coachNote": { "proposed": "저장될 최종 코치 전용 메모 전문(현재 메모의 관련 없는 부분 포함)", "removed": ["지워지는 정보"] },
-      "checklist": [ { "exercise": "운동 이름", "text": "수강생에게 보일 한 줄", "exerciseUnknown": false } ]
+      "checklist": [ { "exercise": "운동 이름(모르면 빈 문자열)", "text": "수강생에게 보일 한 줄", "exerciseUnknown": false, "exerciseCandidates": [] } ]
     }
   ],
   "uncertain": [ { "line": "문제 -> 해결책", "candidates": ["가능성 있는 명단 이름"], "why": "근거 말 + 누구인지 모르는 이유" } ]

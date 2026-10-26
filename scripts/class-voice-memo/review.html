@@ -48,6 +48,9 @@ textarea { width:100%; min-height:150px; font:14px/1.6 inherit; border:1px solid
 .row input.ex { font-weight:600; }
 .warn { color:#9A7414; font-size:12px; }
 .ex-wrap { position:relative; }
+.cands { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+button.cand { padding:4px 10px; font-size:13px; border-radius:8px; border-color:var(--amber-line); color:var(--amber-text); }
+button.cand.on { background:#BA7517; border-color:#BA7517; color:#fff; }
 .ex-list { position:absolute; z-index:5; left:0; right:0; top:100%; margin:2px 0 0; padding:4px; list-style:none; background:#fff; border:1px solid var(--amber-line); border-radius:8px; max-height:220px; overflow:auto; box-shadow:0 6px 20px rgba(0,0,0,.12); }
 .ex-list li { padding:6px 8px; border-radius:6px; cursor:pointer; font-size:14px; }
 .ex-list li:hover, .ex-list li.on { background:var(--amber-bg); }
@@ -138,7 +141,8 @@ function studentHTML(p, s, si) {
         <input type="checkbox" class="c-item" style="margin-top:8px" data-key="${esc(p.file)}::${esc(s.name)}::item::${esc(it.exercise)}::${esc(it.text)}">
         <div class="fields">
           <div class="row-top">${who(s.name)}${it.moved ? `<span class="badge b-edit">옮김</span>` : ''}${it.fromCoach ? `<span class="badge b-edit">코치 메모에서</span>` : ''}</div>
-          <div class="ex-wrap"><input type="text" class="ex" value="${esc(it.exercise)}" placeholder="🔍 어떤 운동에 넣을지 검색" autocomplete="off" aria-label="운동 이름 검색"></div>
+          <div class="ex-wrap" data-cands="${esc(JSON.stringify((it.exerciseCandidates || []).filter(n => EXERCISES.includes(n))))}"><input type="text" class="ex" value="${esc(it.exercise)}" placeholder="🔍 어떤 운동에 넣을지 검색" autocomplete="off" aria-label="운동 이름 검색"></div>
+          ${(it.exerciseCandidates || []).some(n => EXERCISES.includes(n)) && !EXERCISES.includes(it.exercise) ? `<div class="cands"><span class="hint">어느 운동인지 모르겠어요. 후보:</span>${it.exerciseCandidates.filter(n => EXERCISES.includes(n)).map(n => `<button class="cand" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}
           <input type="text" class="tx" value="${esc(it.text)}" aria-label="체크리스트 문장">
           <span class="warn"${EXERCISES.includes(it.exercise) ? ' hidden' : ''}>${it.exercise ? '앱 운동 목록에 없는 이름이에요. 목록에서 골라주세요.' : '운동을 골라주세요. 수강생이 훈련일지에서 그 운동을 고르면 보여요.'}</span>
         </div></div>`).join('')}
@@ -194,14 +198,16 @@ function showExList(input) {
   const wrap = input.closest('.ex-wrap');
   wrap.querySelector('.ex-list')?.remove();
   const q = norm(input.value);
-  const hits = EXERCISES.filter(n => !q || norm(n).includes(q));
-  wrap.insertAdjacentHTML('beforeend', `<ul class="ex-list">${hits.length ? hits.map((n, i) => `<li data-v="${esc(n)}"${i ? '' : ' class="on"'}>${esc(n)}</li>`).join('') : '<li class="none">찾는 운동이 없어요</li>'}</ul>`);
+  const cands = JSON.parse(wrap.dataset.cands || '[]'); // AI가 고른 후보를 맨 위에
+  const hits = [...cands, ...EXERCISES.filter(n => !cands.includes(n))].filter(n => !q || norm(n).includes(q));
+  wrap.insertAdjacentHTML('beforeend', `<ul class="ex-list">${hits.length ? hits.map((n, i) => `<li data-v="${esc(n)}"${i ? '' : ' class="on"'}>${cands.includes(n) ? '⭐ ' : ''}${esc(n)}</li>`).join('') : '<li class="none">찾는 운동이 없어요</li>'}</ul>`);
 }
 function pickEx(input, v) {
   input.value = v;
   input.closest('.ex-wrap').querySelector('.ex-list')?.remove();
   const w = input.closest('.fields').querySelector('.warn');
   if (w) w.hidden = EXERCISES.includes(v);
+  input.closest('.fields').querySelectorAll('.cand').forEach(b => b.classList.toggle('on', b.dataset.v === v));
 }
 document.addEventListener('focusin', e => { if (e.target.classList.contains('ex')) { e.target.select(); showExList(e.target); } });
 document.addEventListener('input', e => {
@@ -252,6 +258,7 @@ document.addEventListener('change', async (e) => {
 document.addEventListener('click', async (e) => {
   const t = e.target;
   if (t.id === 'reload') return load();
+  if (t.classList.contains('cand')) { pickEx(t.closest('.fields').querySelector('.ex'), t.dataset.v); t.closest('.row').querySelector('.c-item').checked = true; return; }
   if (t.classList.contains('edit')) { const ed = t.nextElementSibling; ed.hidden = false; t.hidden = true; ed.querySelector('textarea').focus(); return; }
   if (t.classList.contains('ed-cancel')) { const ed = t.closest('.editor'); ed.hidden = true; ed.previousElementSibling.hidden = false; return; }
   if (t.classList.contains('share')) {
