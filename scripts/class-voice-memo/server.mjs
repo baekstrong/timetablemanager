@@ -76,11 +76,20 @@ async function save({ name, coachNote, exerciseItems }) {
 //   {op:'moveItem', from, index, to}      체크리스트 항목을 다른 수강생으로 옮김(섞인 경우)
 //   {op:'shareLine', student, text}       코치 전용 메모 한 줄을 수강생 체크리스트로도 복사(운동 이름은 문장에서 추정)
 //   {op:'assignUncertain', index, to}     누군지 모르는 메모를 코치가 고른 사람의 코치 전용 메모 끝에 한 줄로 붙임
+//   {op:'moveCoach', from, to}            코치 전용 메모 제안에서 새로 넣는 줄을 다른 수강생 메모로 옮김(사람을 잘못 짚은 경우)
 async function patch({ file, op, student, text, from, index, to }) {
     const p = proposalPath(file);
     if (!p.endsWith('.json')) throw new Error('예전 형식 제안은 고칠 수 없어요');
     const data = JSON.parse(readFileSync(p, 'utf8'));
     const roster = (data.names || []).filter(n => !TEST_ACCOUNTS.includes(n));
+    const notes = async () => (await readCoachNotesDoc()).map;
+    // 최신 메모 기준으로 맞춘 제안 전문(listProposals와 같은 기준)
+    const rebased = (s, current) => data.baseNotes && s.name in data.baseNotes ? rebaseNote(data.baseNotes[s.name], s.coachNote.proposed, current) : s.coachNote.proposed;
+    const appendLines = (s, lines, current) => {
+        const base = s.coachNote ? rebased(s, current) : current;
+        s.coachNote = { ...(s.coachNote || { removed: [] }), proposed: [base.trimEnd(), ...lines].filter(Boolean).join('\n'), edited: true };
+        data.baseNotes = { ...(data.baseNotes || {}), [s.name]: current };
+    };
     const get = (name) => {
         if (!roster.includes(name)) throw new Error(`${name}은(는) 이 수업 명단에 없어요`);
         let s = data.students.find(x => x.name === name);
@@ -114,14 +123,21 @@ async function patch({ file, op, student, text, from, index, to }) {
         if (!u) throw new Error('항목을 찾을 수 없어요');
         const line = String(typeof u === 'string' ? u : u.line || '').trim(); // 예전 제안은 문자열
         const s = get(to);
-        const current = (await readCoachNotesDoc()).map[to] ?? '';
-        // 기존 제안이 있으면 최신 메모 기준으로 맞춘 것 위에 붙인다(listProposals와 같은 기준)
-        let base = current;
-        if (s.coachNote) base = data.baseNotes && to in data.baseNotes ? rebaseNote(data.baseNotes[to], s.coachNote.proposed, current) : s.coachNote.proposed;
-        s.coachNote = { ...(s.coachNote || { removed: [] }), proposed: base.trim() ? `${base.trimEnd()}\n${line}` : line, edited: true };
+        appendLines(s, [line], (await notes())[to] ?? '');
         if (typeof u !== 'string' && u.why) s.evidence = [...(s.evidence || []), u.why];
-        data.baseNotes = { ...(data.baseNotes || {}), [to]: current };
         data.uncertain.splice(index, 1);
+    } else if (op === 'moveCoach') {
+        if (from === to) return { ok: true };
+        const src = get(from), dst = get(to);
+        if (!src.coachNote) throw new Error('옮길 코치 전용 메모가 없어요');
+        const map = await notes();
+        // 원래 사람 메모에 이미 있는 줄은 두고, 이번 제안이 새로 넣는(바꾼) 줄만 옮긴다
+        const have = new Set((map[from] ?? '').split('\n').map(l => l.trim()));
+        const lines = rebased(src, map[from] ?? '').split('\n').map(l => l.trim()).filter(l => l && !have.has(l));
+        if (!lines.length) throw new Error('옮길 새 줄이 없어요');
+        appendLines(dst, lines, map[to] ?? '');
+        dst.evidence = [...(dst.evidence || []), ...(src.evidence || [])];
+        src.coachNote = null;
     } else throw new Error('알 수 없는 수정');
     // 내용이 하나도 없는 수강생 카드는 지운다
     data.students = data.students.filter(s => s.coachNote || (s.checklist || []).length);

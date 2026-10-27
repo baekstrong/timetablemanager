@@ -134,6 +134,7 @@ function studentHTML(p, s, si) {
     ${s.guessed && s.guessNote ? `<div class="hint">${esc(s.guessNote)}</div>` : ''}
     ${(s.evidence || []).length ? `<details><summary>녹음 근거 보기</summary><ul>${s.evidence.map(e => `<li>${esc(e)}</li>`).join('')}</ul></details>` : ''}
     ${showCoach ? `<div class="sec sec-coach" data-kind="coach">
+      <div class="row-top" style="margin-bottom:6px">${who(s.name).replace('class="who"', 'class="who coach-who"')}<span class="hint">다른 사람 얘기면 이름을 바꾸세요</span></div>
       <div class="sec-head"><label class="confirm"><input type="checkbox" class="c-coach" data-key="${esc(p.file)}::${esc(s.name)}::coach"> 코치 전용 메모 이대로 저장${cn.edited ? `<span class="badge b-edit">직접 고침</span>` : ''}${cn.rebased ? `<span class="badge b-edit" title="이 제안을 만든 뒤 메모가 바뀌어 최신 메모 기준으로 다시 맞췄어요">최신 메모에 맞춤</span>` : ''}</label><span class="hint">수강생에게 안 보임</span></div>
       <div class="diff">${diffLines(s.currentCoachNote || '', cn.proposed, true)}</div>
       ${(cn.removed || []).length ? `<div class="hint" style="margin-top:6px">빠지는 내용: ${cn.removed.map(esc).join(' / ')}</div>` : ''}
@@ -293,6 +294,16 @@ document.addEventListener('change', async (e) => {
       await load([`${card.dataset.file}::${name}::coach`]);
       document.querySelector(`.student[data-name="${CSS.escape(name)}"]`)?.scrollIntoView({ block: 'center' });
     } catch (err) { card.querySelector(':scope > .status').innerHTML = `<span class="err">${esc(err.message)}</span>`; t.value = ''; }
+    return;
+  }
+  if (t.classList.contains('coach-who')) {
+    // 코치 전용 메모가 다른 사람 얘기면 새로 넣는 줄을 그 사람 메모로 옮긴다(옮긴 쪽은 체크해서 바로 저장하지 않음 — 확인 후 체크)
+    const card = t.closest('section.card'), st = t.closest('.student');
+    try {
+      await api('/api/patch', { file: card.dataset.file, op: 'moveCoach', from: st.dataset.name, to: t.value });
+      await load();
+      document.querySelector(`.student[data-name="${CSS.escape(t.value)}"]`)?.scrollIntoView({ block: 'center' });
+    } catch (err) { st.querySelector('.status').innerHTML = `<span class="err">${esc(err.message)}</span>`; t.value = st.dataset.name; }
     return;
   }
   if (!t.classList.contains('who')) return;
