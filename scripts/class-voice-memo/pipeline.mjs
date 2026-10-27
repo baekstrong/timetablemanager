@@ -8,7 +8,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { decideNames, tagNameCalls, tagSpeakers, matchVoiceprints, parseRecordingStart, parseSrt, periodFor, renderLabeled, updateVoiceprints, voteNames, ymd } from './lib.mjs';
+import { decideGroup, decideNames, groupByClass, tagNameCalls, tagSpeakers, matchVoiceprints, parseRecordingStart, parseSrt, periodFor, renderLabeled, updateVoiceprints, voteNames, ymd } from './lib.mjs';
 import { loadClassContext, readCoachExerciseMemos, readExerciseNames } from './firestore.mjs';
 
 const HOME = os.homedir();
@@ -58,12 +58,14 @@ const VOICEPRINTS = path.join(STATE, 'voiceprints.json'); // 생체정보 — �
 const DIARIZE = existsSync(path.join(STATE, 'diarize.on')) && existsSync(VENV_PY);
 
 // 받아쓰기(+켜져 있으면 화자 구분) → 줄마다 [코치]/[이름]/[이름?]/[다른 사람N]. 화자 구분 실패 시 받아쓰기만.
-function transcribe(file, names, date) {
-    const id = path.basename(file, '.m4a');
+// files가 여럿이면(전화로 끊긴 녹음) 시간순으로 이어 붙여 하나로 받아쓴다.
+function transcribe(files, names, date) {
+    const id = path.basename(files[0], '.m4a');
     const wav = path.join(dirs.tmp, `${id}.wav`);
     const out = path.join(dirs.tmp, id);
     try {
-        run('ffmpeg', ['-v', 'error', '-y', '-i', file, '-ar', '16000', '-ac', '1', wav]);
+        const concat = files.length > 1 ? ['-filter_complex', `${files.map((_, i) => `[${i}:a]`).join('')}concat=n=${files.length}:v=0:a=1`] : [];
+        run('ffmpeg', ['-v', 'error', '-y', ...files.flatMap(f => ['-i', f]), ...concat, '-ar', '16000', '-ac', '1', wav]);
         // VAD + 문맥 끊기(-mc 0)로 조용한 구간의 반복 환각을 막는다 (1차 테스트 52% → 0%)
         run('whisper-cli', ['-m', path.join(MODELS, 'ggml-large-v3-turbo.bin'), '-l', 'ko', '-t', '8',
             '--vad', '-vm', path.join(MODELS, 'ggml-silero-v5.1.2.bin'), '-mc', '0', '-sns',
@@ -154,6 +156,7 @@ for (let waited = 0; waited < 10 * 60_000;) {
     await new Promise(r => setTimeout(r, ms));
     waited += ms;
 }
+const inClass = [];
 for (const f of recordings().filter(f => !processed.has(f)).sort()) {
     const file = path.join(REC, f);
     if (Date.now() - statSync(file).mtimeMs < SETTLE_MS) { log(`대기 ${f}: 아직 내려받는 중 — 다음 실행에 처리`); continue; }
@@ -162,19 +165,27 @@ for (const f of recordings().filter(f => !processed.has(f)).sort()) {
     // 수업 시간(평일 시작 15분 전~종료) 밖에서 시작했거나 오래된 녹음은 개인 녹음일 수 있어 받아쓰지 않는다
     const skip = Date.now() - start.getTime() > MAX_AGE_MS ? '이틀 지난 녹음'
         : period == null ? '수업 시간 외 녹음' : null;
-    const seconds = skip ? 0 : Number(run('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).toString());
-    if (skip || !(seconds >= MIN_SECONDS)) {
-        log(`건너뜀 ${f}: ${skip ?? `${Math.round(seconds)}초짜리 짧은 녹음`}`);
-        processed.add(f); saveProcessed(); continue;
+    if (skip) { log(`건너뜀 ${f}: ${skip}`); processed.add(f); saveProcessed(); continue; }
+    const seconds = Number(run('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).toString());
+    inClass.push({ f, start, period, seconds });
+}
+// 같은 교시 녹음은 합친 길이로 판단(전화로 끊긴 수업). 짧으면 수업 종료 30분 뒤까지 다음 조각을 기다린다.
+for (const g of groupByClass(inClass)) {
+    const decision = decideGroup(g, new Date(), MIN_SECONDS);
+    if (decision === 'wait') continue;
+    if (decision === 'skip') {
+        log(`건너뜀 ${g.parts.join(' + ')}: 합쳐서 ${Math.round(g.seconds)}초짜리 짧은 녹음`);
+        g.parts.forEach(f => processed.add(f)); saveProcessed(); continue;
     }
-    const context = await loadClassContext(ymd(start), period);
+    const context = await loadClassContext(g.date, g.period);
     const t0 = Date.now();
-    const { text, speakers } = transcribe(file, context.names, ymd(start));
-    const base = path.join(dirs.transcripts, `${context.date}_${context.period ?? 'x'}교시_${path.basename(f, '.m4a').replace(/\s+/g, '_')}`);
+    const { text, speakers } = transcribe(g.parts.map(f => path.join(REC, f)), context.names, g.date);
+    const stem = path.basename(g.parts[0], '.m4a').replace(/\s+/g, '_') + (g.parts.length > 1 ? '-합침' : '');
+    const base = path.join(dirs.transcripts, `${context.date}_${context.period ?? 'x'}교시_${stem}`);
     writePrivate(`${base}.txt`, text);
-    writePrivate(`${base}.txt.json`, JSON.stringify({ recording: f, minutes: Math.round(seconds / 60), context, speakers }, null, 1));
-    processed.add(f); saveProcessed();
-    log(`받아쓰기 ${f} ${Math.round(seconds / 60)}분 → ${Math.round((Date.now() - t0) / 1000)}초`);
+    writePrivate(`${base}.txt.json`, JSON.stringify({ recording: g.parts.join(' + '), minutes: Math.round(g.seconds / 60), context, speakers }, null, 1));
+    g.parts.forEach(f => processed.add(f)); saveProcessed();
+    log(`받아쓰기 ${g.parts.join(' + ')} ${Math.round(g.seconds / 60)}분 → ${Math.round((Date.now() - t0) / 1000)}초`);
 }
 
 // 2) 제안이 아직 없는 받아쓰기 → 제안 (claude 실패분은 다음 실행에 재시도)

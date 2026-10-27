@@ -23,6 +23,28 @@ export function periodFor(date) {
     return p ? p.id : null;
 }
 
+// 수업 중 전화가 오면 녹음이 여러 개로 끊긴다. 같은 날·같은 교시 녹음을 묶어 합친 길이로 판단한다.
+// [{f, start, period, seconds}] → [{date, period, parts(시간순), seconds, endsAt}]. endsAt = 수업 종료 + 30분(마지막 조각이 아직 녹음 중일 수 있음).
+export function groupByClass(items) {
+    const groups = new Map();
+    for (const it of [...items].sort((a, b) => a.start - b.start)) {
+        const key = `${ymd(it.start)}_${it.period}`;
+        if (!groups.has(key)) {
+            const end = new Date(it.start);
+            end.setHours(0, END_MINUTES[it.period] + 30, 0, 0);
+            groups.set(key, { date: ymd(it.start), period: it.period, parts: [], seconds: 0, endsAt: end });
+        }
+        const g = groups.get(key);
+        g.parts.push(it.f);
+        g.seconds += it.seconds;
+    }
+    return [...groups.values()];
+}
+
+// 합쳐서 기준을 넘으면 처리, 아직 수업(+30분) 중이면 다음 조각을 기다림, 끝났는데 짧으면 건너뜀
+export const decideGroup = (g, now, minSeconds) =>
+    g.seconds >= minSeconds ? 'process' : now < g.endsAt ? 'wait' : 'skip';
+
 export const ymd = (d) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 

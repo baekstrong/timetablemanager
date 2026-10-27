@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideNames, nameCall, rebaseNote, tagNameCalls, tagSpeakers, dropRepeats, findNames, matchVoiceprints, parseRecordingStart, parseSrt, periodFor, renderLabeled, updateVoiceprints, voteNames, ymd } from './lib.mjs';
+import { decideGroup, decideNames, groupByClass, nameCall, rebaseNote, tagNameCalls, tagSpeakers, dropRepeats, findNames, matchVoiceprints, parseRecordingStart, parseSrt, periodFor, renderLabeled, updateVoiceprints, voteNames, ymd } from './lib.mjs';
 
 describe('수업 음성 메모 lib', () => {
     it('음성 메모 파일명에서 시작 시각을 읽는다', () => {
@@ -17,6 +17,21 @@ describe('수업 음성 메모 lib', () => {
         expect(periodFor(at(9, 30))).toBeNull();
         expect(periodFor(at(14, 0))).toBeNull();
         expect(periodFor(new Date(2026, 9, 24, 12, 0))).toBeNull(); // 토요일
+    });
+
+    it('전화로 끊긴 같은 교시 녹음은 합쳐서 판단한다', () => {
+        const at = (h, m) => new Date(2026, 9, 27, h, m); // 10/27 화
+        const groups = groupByClass([
+            { f: 'b', start: at(12, 33), period: 2, seconds: 3161 },
+            { f: 'a', start: at(12, 0), period: 2, seconds: 1979 },
+            { f: 'c', start: at(10, 0), period: 1, seconds: 2344 },
+        ]);
+        const p2 = groups.find(g => g.period === 2);
+        expect(p2.parts).toEqual(['a', 'b']);
+        expect(decideGroup(p2, at(12, 40), 3600)).toBe('process');
+        const p1 = groups.find(g => g.period === 1);
+        expect(decideGroup(p1, at(11, 59), 3600)).toBe('wait');  // 11:30 종료 + 30분 전: 다음 조각 대기
+        expect(decideGroup(p1, at(12, 0), 3600)).toBe('skip');
     });
 
     it('SRT를 읽고 줄마다 화자를 붙인다 (가장 오래 말한 화자 = 코치)', () => {
