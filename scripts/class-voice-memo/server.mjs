@@ -75,9 +75,9 @@ async function save({ name, coachNote, exerciseItems }) {
 //   {op:'coachNote', student, text}       코치 전용 메모 제안을 코치가 고친 문구로 교체(없으면 새로 만듦)
 //   {op:'moveItem', from, index, to}      체크리스트 항목을 다른 수강생으로 옮김(섞인 경우)
 //   {op:'shareLine', student, text}       코치 전용 메모 한 줄을 수강생 체크리스트로도 복사(운동 이름은 문장에서 추정)
-//   {op:'assignUncertain', index, to}     누군지 모르는 메모를 코치가 고른 사람의 코치 전용 메모 끝에 한 줄로 붙임
+//   {op:'assignUncertain', index, to, as} 누군지 모르는 메모를 코치가 고른 사람의 코치 전용 메모 끝에 한 줄로 붙임(as='checklist'면 수강생 체크리스트로)
 //   {op:'moveCoach', from, to}            코치 전용 메모 제안에서 새로 넣는 줄을 다른 수강생 메모로 옮김(사람을 잘못 짚은 경우)
-async function patch({ file, op, student, text, from, index, to }) {
+async function patch({ file, op, student, text, from, index, to, as }) {
     const p = proposalPath(file);
     if (!p.endsWith('.json')) throw new Error('예전 형식 제안은 고칠 수 없어요');
     const data = JSON.parse(readFileSync(p, 'utf8'));
@@ -89,6 +89,15 @@ async function patch({ file, op, student, text, from, index, to }) {
         const base = s.coachNote ? rebased(s, current) : current;
         s.coachNote = { ...(s.coachNote || { removed: [] }), proposed: [base.trimEnd(), ...lines].filter(Boolean).join('\n'), edited: true };
         data.baseNotes = { ...(data.baseNotes || {}), [s.name]: current };
+    };
+    // 체크리스트에 한 줄 추가. 이미 있으면 false
+    const addChecklist = async (s, t) => {
+        s.checklist ||= [];
+        if (s.checklist.some(i => i.text === t)) return false;
+        // ponytail: 문장에 든 가장 긴 운동 이름으로 추정, 못 찾으면 빈칸(코치가 채움)
+        const ex = (await readExerciseNames().catch(() => [])).filter(n => t.includes(n)).sort((a, b) => b.length - a.length)[0] || '';
+        s.checklist.push({ exercise: ex, text: t, fromCoach: true, exerciseUnknown: !ex });
+        return true;
     };
     const get = (name) => {
         if (!roster.includes(name)) throw new Error(`${name}은(는) 이 수업 명단에 없어요`);
@@ -113,17 +122,14 @@ async function patch({ file, op, student, text, from, index, to }) {
         const s = get(student);
         const t = String(text ?? '').trim();
         if (!t) throw new Error('빈 줄은 옮길 수 없어요');
-        s.checklist ||= [];
-        if (s.checklist.some(i => i.text === t)) return { ok: true };
-        // ponytail: 문장에 든 가장 긴 운동 이름으로 추정, 못 찾으면 빈칸(코치가 채움)
-        const ex = (await readExerciseNames().catch(() => [])).filter(n => t.includes(n)).sort((a, b) => b.length - a.length)[0] || '';
-        s.checklist.push({ exercise: ex, text: t, fromCoach: true, exerciseUnknown: !ex });
+        if (!(await addChecklist(s, t))) return { ok: true };
     } else if (op === 'assignUncertain') {
         const u = data.uncertain?.[index];
         if (!u) throw new Error('항목을 찾을 수 없어요');
         const line = String(typeof u === 'string' ? u : u.line || '').trim(); // 예전 제안은 문자열
         const s = get(to);
-        appendLines(s, [line], (await notes())[to] ?? '');
+        if (as === 'checklist') await addChecklist(s, line);
+        else appendLines(s, [line], (await notes())[to] ?? '');
         if (typeof u !== 'string' && u.why) s.evidence = [...(s.evidence || []), u.why];
         data.uncertain.splice(index, 1);
     } else if (op === 'moveCoach') {

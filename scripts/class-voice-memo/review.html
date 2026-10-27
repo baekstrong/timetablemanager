@@ -180,12 +180,13 @@ function render({ proposals, exerciseNames }) {
        <div class="hint">녹음 ${p.minutes ? p.minutes + '분' : ''} · 후보 명단 ${esc((p.names || []).join(', ') || '없음')}</div>
        ${p.html}
        ${(p.uncertain || []).length ? `<div class="sec sec-coach unk">
-         <div class="sec-head"><h3>❓ 누군지 모르는 메모</h3><span class="hint">이름을 고르면 그 사람 코치 전용 메모에 붙어요</span></div>
+         <div class="sec-head"><h3>❓ 누군지 모르는 메모</h3><span class="hint">넣을 곳과 이름을 고르면 그 사람 메모에 붙어요</span></div>
          ${p.uncertain.map((u, ui) => { const o = typeof u === 'string' ? { line: u, candidates: [] } : u;
            const rest = (p.names || []).filter(n => !(o.candidates || []).includes(n));
            return `<div class="unk-row" data-index="${ui}">
              <div>${esc(o.line)}</div>
              ${o.why ? `<div class="hint">${esc(o.why)}</div>` : ''}
+             <select class="who unk-as" aria-label="어디에 넣을지"><option value="coach">코치 전용 메모</option><option value="checklist">수강생 체크리스트</option></select>
              <select class="who unk-who" aria-label="누구 메모인지"><option value="">누구? 이름 고르기</option>
                ${(o.candidates || []).length ? `<optgroup label="후보">${o.candidates.map(n => `<option>${esc(n)}</option>`).join('')}</optgroup>` : ''}
                <optgroup label="이 수업 명단">${rest.map(n => `<option>${esc(n)}</option>`).join('')}</optgroup></select>
@@ -286,13 +287,16 @@ document.addEventListener('mousedown', e => {
 document.addEventListener('change', async (e) => {
   const t = e.target;
   if ((t.matches('.c-coach, .c-item') && t.checked) || t.matches('.row .tx, .row .ex, .coach-text')) return autoSave(t);
+  if (t.classList.contains('unk-as')) return; // 넣을 곳만 고른 상태 — 이름을 고를 때 반영
   if (t.classList.contains('unk-who')) {
-    // 누군지 모르는 메모 → 고른 사람 코치 전용 메모에 붙이고 '이대로 저장'을 체크해 둔다
-    const card = t.closest('section.card'), name = t.value;
+    // 누군지 모르는 메모 → 고른 사람 코치 전용 메모(또는 수강생 체크리스트)에 붙이고 체크해 둔다
+    const card = t.closest('section.card'), name = t.value, row = t.closest('.unk-row');
     if (!name) return;
+    const as = row.querySelector('.unk-as').value;
     try {
-      await api('/api/patch', { file: card.dataset.file, op: 'assignUncertain', index: +t.closest('.unk-row').dataset.index, to: name });
-      await load([`${card.dataset.file}::${name}::coach`]);
+      await api('/api/patch', { file: card.dataset.file, op: 'assignUncertain', index: +row.dataset.index, to: name, as });
+      // 체크리스트는 운동을 확인하고 직접 체크(운동 후보를 누르면 자동 체크)
+      await load(as === 'checklist' ? [] : [`${card.dataset.file}::${name}::coach`]);
       document.querySelector(`.student[data-name="${CSS.escape(name)}"]`)?.scrollIntoView({ block: 'center' });
     } catch (err) { card.querySelector(':scope > .status').innerHTML = `<span class="err">${esc(err.message)}</span>`; t.value = ''; }
     return;
