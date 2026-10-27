@@ -118,7 +118,8 @@ function studentHTML(p, s, si) {
   const items = s.checklist || [];
   // 저장 여부는 앱의 실제 값으로 판단 — 새로고침·재접속해도 정확하다
   const coachSaved = !!cn && (s.currentCoachNote || '').trim() === cn.proposed.trim();
-  const itemSaved = it => (s.currentExerciseMemos || []).some(m => m.exercise === it.exercise && m.memo === it.text);
+  // 운동을 페이지에서 골랐으면 제안 파일엔 빈칸이라 문장만으로 저장 여부를 본다
+  const itemSaved = it => (s.currentExerciseMemos || []).some(m => (!it.exercise || m.exercise === it.exercise) && m.memo === it.text);
   // 저장된 건 숨기고 남은 것만 보여준다(2026-10-27 사용자 요청). 남은 게 없으면 수강생 카드도 안 그린다.
   const showCoach = cn && !coachSaved;
   const left = items.map((it, ii) => [it, ii]).filter(([it]) => !itemSaved(it));
