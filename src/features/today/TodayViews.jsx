@@ -70,7 +70,7 @@ export function StudentToday({ name, taskGroups, lessons, weekLabel, waiting, po
     </main>;
 }
 
-export function CoachToday({ scheduleTransfers, scheduleTransferCount = 0, user, hasNewPostNotification = false, onRefresh, refreshedAt, refreshing, refreshMessage, dateLabel, lessons, minutes, taskGroups, notes, notesReady = true, onAction, onSaveNote, onNavigate }) {
+export function CoachToday({ scheduleTransfers, scheduleTransferCount = 0, user, hasNewPostNotification = false, onRefresh, refreshedAt, refreshing, refreshMessage, freeWorkout = null, dateLabel, lessons, minutes, taskGroups, notes, notesReady = true, onAction, onSaveNote, onNavigate }) {
     const [manualId, setManualId] = useState(null);
     const [drafts, setDrafts] = useState({});
     const [editingNotes, setEditingNotes] = useState({});
@@ -101,8 +101,11 @@ export function CoachToday({ scheduleTransfers, scheduleTransferCount = 0, user,
         <TaskSection coach groups={taskGroups} onAction={onAction} currentPeriod={currentId} extraGroup={scheduleTransfers} extraCount={scheduleTransferCount} />
         <div className="today-coach-columns">
             <section className="today-card today-daily"><div className="today-section-title"><h2>오늘 수업</h2><span className="today-muted">{lessons.length}개 수업</span>{onRefresh && <RefreshStatus refreshedAt={refreshedAt} refreshing={refreshing} message={refreshMessage} onRefresh={onRefresh} />}</div>
-                {lessons.length === 0 && <p className="today-empty">오늘 예정된 수업이 없습니다.</p>}
-                {lessons.map(lesson => <button key={lesson.id} className={`today-lesson${lesson.id === currentId ? ' is-current' : ''}${lesson.id === selectedId ? ' is-selected' : ''}`} aria-pressed={lesson.id === selectedId} onClick={() => setManualId(lesson.id)}>
+                {lessons.length === 0 && !freeWorkout && <p className="today-empty">오늘 예정된 수업이 없습니다.</p>}
+                {[...lessons, ...(freeWorkout ? [{ ...freeWorkout, free: true }] : [])].sort((a, b) => a.startMinute - b.startMinute).map(lesson => lesson.free ? <div key="free" className="today-lesson today-free">
+                    <div className="today-lesson-title"><strong>자율 운동</strong><span>{lesson.time}</span></div>
+                    <div className="today-lesson-body">{lesson.names.length ? <><p><strong>{lesson.names.length}명</strong></p><div className="today-roster">{lesson.names.map(name => <StudentTag key={name} name={name} />)}</div></> : <p className="today-muted">신청 없음</p>}</div>
+                </div> : <button key={lesson.id} className={`today-lesson${lesson.id === currentId ? ' is-current' : ''}${lesson.id === selectedId ? ' is-selected' : ''}`} aria-pressed={lesson.id === selectedId} onClick={() => setManualId(lesson.id)}>
                     <div className="today-lesson-title"><strong>{lesson.id}교시</strong><span>{lesson.time}</span>{lesson.id === currentId && <b>수업 중</b>}</div>
                     <div className="today-lesson-body"><p><strong>{lesson.attendees.length}명</strong> <span className="today-muted">(여석: {lesson.availableSeats}자리)</span></p>
                         <div className="today-roster">{lesson.roster.map(person => <StudentTag key={person.name} {...person} />)}</div>

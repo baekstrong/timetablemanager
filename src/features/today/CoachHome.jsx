@@ -10,7 +10,7 @@ import { createVisibleTask } from '../../utils/visibleTask';
 
 const StudentRegistrationModal = lazy(() => import('../../components/StudentRegistrationModal'));
 
-export default function CoachHome({ user, hasNewPostNotification = false, core, students, disabledClasses, registrations, scheduleTransfers, onNavigate, refresh, refreshedAt, refreshing, refreshMessage, dataReady = core.weeklyDataLoaded }) {
+export default function CoachHome({ user, freeWorkoutByDate = {}, hasNewPostNotification = false, core, students, disabledClasses, registrations, scheduleTransfers, onNavigate, refresh, refreshedAt, refreshing, refreshMessage, dataReady = core.weeklyDataLoaded }) {
     const [now, setNow] = useState(() => new Date());
     const [notes, setNotes] = useState({});
     const [notesReady, setNotesReady] = useState(false);
@@ -85,6 +85,13 @@ export default function CoachHome({ user, hasNewPostNotification = false, core, 
         }));
         return { id: period.id, time: period.time.replace('~', '—'), startMinute: period.startHour * 60 + period.startMinute, endMinute: period.startHour * 60 + period.startMinute + 90, roster: [...new Map(roster.map(person => [person.name, person])).values()], attendees: attendingNames(cell), availableSeats: cell.availableSeats };
     }).filter(lesson => lesson.roster.length);
+    // 자율운동은 선택·코치 메모 대상이 아닌 표시 전용. 시간표 3교시 칸과 같은 명단을 쓴다.
+    const freePeriod = PERIODS.find(period => period.type === 'free');
+    const freeWorkout = freePeriod && core.weekDates[day] && core.getHolidayInfo(day) === null ? {
+        time: freePeriod.time.replace('~', '—'),
+        startMinute: freePeriod.startHour * 60 + freePeriod.startMinute,
+        names: (freeWorkoutByDate[weekDateToISO(core.weekDates[day])] || []).map(item => item.studentName),
+    } : null;
     const refreshPeriod = `${now.toLocaleDateString('sv-SE')}:${lessonRefreshId(lessons, minutes)}`;
     const previousPeriod = useRef(refreshPeriod);
     useEffect(() => {
@@ -117,7 +124,7 @@ export default function CoachHome({ user, hasNewPostNotification = false, core, 
     }
     return <>
         {error && <p className="today-error" role="alert">{error}</p>}
-        <CoachToday scheduleTransferCount={core.weekWaitlist.filter(item => ['waiting', 'notified'].includes(item.status)).length} scheduleTransfers={scheduleTransfers} user={user} hasNewPostNotification={hasNewPostNotification} onRefresh={refresh} refreshedAt={refreshedAt} refreshing={refreshing} refreshMessage={refreshMessage} dateLabel={now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })} lessons={lessons} minutes={minutes} taskGroups={groups} notes={notes} onAction={onAction} notesReady={notesReady} onSaveNote={saveNote} onNavigate={onNavigate} />
+        <CoachToday scheduleTransferCount={core.weekWaitlist.filter(item => ['waiting', 'notified'].includes(item.status)).length} scheduleTransfers={scheduleTransfers} user={user} hasNewPostNotification={hasNewPostNotification} onRefresh={refresh} refreshedAt={refreshedAt} refreshing={refreshing} refreshMessage={refreshMessage} freeWorkout={freeWorkout} dateLabel={now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })} lessons={lessons} minutes={minutes} taskGroups={groups} notes={notes} onAction={onAction} notesReady={notesReady} onSaveNote={saveNote} onNavigate={onNavigate} />
         {payment && <ReviewModal title={`${payment['이름']} · 결제 확인`} busy={busy} onClose={() => setPayment(null)}><p>{payment['요일 및 시간']} · {payment['결제금액']}만원</p><label className="today-field">결제일<input type="date" value={paymentDate} onChange={event => setPaymentDate(event.target.value)} /></label><label className="today-field">결제 방식<select value={method} onChange={event => setMethod(event.target.value)}>{['카드', '네이버', '제로페이', '계좌'].map(value => <option key={value}>{value}</option>)}</select></label>{error && <p role="alert">{error}</p>}<ActionButton primary disabled={busy || !paymentDate} onClick={savePayment}>{busy ? '저장 중…' : '결제 완료로 저장'}</ActionButton></ReviewModal>}
         {renewal && <Suspense fallback={<p role="status">등록 화면을 불러오는 중…</p>}><StudentRegistrationModal initialRenewalName={renewal} onClose={() => setRenewal(null)} onSuccess={async () => { setRenewal(null); await refresh(); }} /></Suspense>}
     </>;

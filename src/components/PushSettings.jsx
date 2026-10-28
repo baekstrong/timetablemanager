@@ -10,7 +10,7 @@ export default function PushSettings({ user, readOnly = false }) {
     const working = useRef(false);
     const detailsId = useId();
     const name = user?.username;
-    const state = result?.name === name ? result.state : null;
+    const state = result?.name === name ? result?.state : null;
     useEffect(() => {
         if (!name || readOnly) return;
         let cancelled = false;
