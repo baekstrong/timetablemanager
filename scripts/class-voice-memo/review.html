@@ -180,7 +180,7 @@ function render({ proposals, exerciseNames }) {
        <div class="hint">녹음 ${p.minutes ? p.minutes + '분' : ''} · 후보 명단 ${esc((p.names || []).join(', ') || '없음')}</div>
        ${p.html}
        ${(p.uncertain || []).length ? `<div class="sec sec-coach unk">
-         <div class="sec-head"><h3>❓ 누군지 모르는 메모</h3><span class="hint">넣을 곳과 이름을 고르면 그 사람 메모에 붙어요</span></div>
+         <div class="sec-head"><h3>❓ 누군지 모르는 메모</h3><span class="hint">넣을 곳과 이름을 고르면 그 사람 아래로 옮겨져요 — 확인 후 체크해야 저장</span></div>
          ${p.uncertain.map((u, ui) => { const o = typeof u === 'string' ? { line: u, candidates: [] } : u;
            const rest = (p.names || []).filter(n => !(o.candidates || []).includes(n));
            return `<div class="unk-row" data-index="${ui}">
@@ -295,8 +295,8 @@ document.addEventListener('change', async (e) => {
     const as = row.querySelector('.unk-as').value;
     try {
       await api('/api/patch', { file: card.dataset.file, op: 'assignUncertain', index: +row.dataset.index, to: name, as });
-      // 체크리스트는 운동을 확인하고 직접 체크(운동 후보를 누르면 자동 체크)
-      await load(as === 'checklist' ? [] : [`${card.dataset.file}::${name}::coach`]);
+      // 붙이기만 하고 체크는 코치가 직접 — 체크리스트는 운동을 고른 뒤, 코치 전용 메모는 내용 확인 후(이름만 골라도 저장되던 문제)
+      await load();
       document.querySelector(`.student[data-name="${CSS.escape(name)}"]`)?.scrollIntoView({ block: 'center' });
     } catch (err) { card.querySelector(':scope > .status').innerHTML = `<span class="err">${esc(err.message)}</span>`; t.value = ''; }
     return;
