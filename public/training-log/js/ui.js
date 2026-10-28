@@ -350,8 +350,11 @@ export function memoListHTML(pinned, fallbackMemo = '') {
 
 export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, filterExercise = null) {
     const coachAll = (coachPinnedMemos || []).filter(m => m.exercise === filterExercise);
-    const coachList = coachAll.filter(m => !m.done);
+    // 2026-10-28: 실수로 체크해도 되돌릴 수 있게, 오늘 체크한 항목은 줄 그은 채 남기고 다시 누르면 취소. 다음 날부터 숨긴다.
+    const today = new Date().toDateString();
+    const coachList = coachAll.filter(m => !m.done || new Date(m.doneAt).toDateString() === today);
     const doneCount = coachAll.length - coachList.length;
+    const leftCount = coachList.filter(m => !m.done).length;
     const idx = studentPinnedMemos.findIndex(p => p.exercise === filterExercise);
     const pinned = idx !== -1 ? studentPinnedMemos[idx] : null;
 
@@ -377,15 +380,15 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, fi
             <div class="bg-[#FAEEDA] border border-[#FAC775] rounded-xl px-3.5 py-3">
                 <div class="flex items-center justify-between mb-0.5">
                     <h3 class="text-[13px] font-semibold text-[#854F0B]">✅ 코치 체크리스트</h3>
-                    <span class="text-xs text-[#854F0B]">${coachList.length}개 남음</span>
+                    <span class="text-xs text-[#854F0B]">${leftCount}개 남음</span>
                 </div>
                 ${coachList.map((memo, i) => `
                     <label data-coach-item class="flex items-start gap-2.5 py-2.5 ${i ? 'border-t border-[#FAC775]/60' : ''} cursor-pointer transition-opacity duration-300">
-                        <input type="checkbox" class="mt-0.5 w-[18px] h-[18px] flex-shrink-0 accent-[#BA7517]"
-                            onchange="if (window.completeCoachMemo) { this.disabled = true; this.closest('[data-coach-item]').classList.add('line-through', 'opacity-40'); completeCoachMemo('${jsArg(memo.id || '')}', ${coachPinnedMemos.indexOf(memo)}); }">
-                        <span class="flex-1 min-w-0">
-                            <span class="block text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">${esc(memo.memo)}</span>
-                            <span class="block text-xs text-gray-500 mt-0.5">${md(memo.createdAt)} 코치</span>
+                        <input type="checkbox" ${memo.done ? 'checked' : ''} class="mt-0.5 w-[18px] h-[18px] flex-shrink-0 accent-[#BA7517]"
+                            onchange="const f = this.checked ? window.completeCoachMemo : window.undoCoachMemo; if (f) { this.disabled = true; f('${jsArg(memo.id || '')}', ${coachPinnedMemos.indexOf(memo)}); } else this.checked = !this.checked;">
+                        <span class="flex-1 min-w-0 ${memo.done ? 'opacity-50' : ''}">
+                            <span class="block text-sm text-gray-800 whitespace-pre-wrap leading-relaxed ${memo.done ? 'line-through' : ''}">${esc(memo.memo)}</span>
+                            <span class="block text-xs text-gray-500 mt-0.5">${memo.done ? '오늘 완료 · 다시 누르면 취소' : `${md(memo.createdAt)} 코치`}</span>
                         </span>
                     </label>
                 `).join('')}

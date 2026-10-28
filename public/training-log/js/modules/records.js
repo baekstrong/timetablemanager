@@ -1,7 +1,7 @@
 import { localDate, escapeHTML } from './student-workspace-logic.js?v=20260925-student-ux';
 import { state, db, firebaseInitialized, persistenceEnabled } from '../state.js';
 import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue, moveButtons, swapSets } from './sets.js?v=20260925-student-ux';
-import { renderEditModalContent, generatePinnedMemosHTML, memoItems, memoText, memoListHTML } from '../ui.js?v=20261026-title-unify';
+import { renderEditModalContent, generatePinnedMemosHTML, memoItems, memoText, memoListHTML } from '../ui.js?v=20261028-checklist-undo';
 import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js?v=20260925-student-ux';
 import { evaluatePR, pastSetsFrom } from './pr-logic.js';
 import { xpToGrade, gradeRank, recordVolume, GRADES } from './grades.js';
@@ -1808,29 +1808,33 @@ window.editStudentMemo = editStudentMemo;
 window.closeMemoEditModal = closeMemoEditModal;
 window.confirmMemoEdit = confirmMemoEdit;
 
-// 코치 체크리스트 항목 완료 (수강생 화면) — 지우지 않고 done으로 남겨 코치 화면에서 완료로 보이게 한다.
-// 체크 표시가 잠깐 보이도록 0.6초 뒤 목록에서 뺀다. 저장 실패 시 되돌린다.
-export async function completeCoachMemo(id, index) {
+// 코치 체크리스트 항목 완료/취소 (수강생 화면) — 지우지 않고 done으로 남겨 코치 화면에서 완료로 보이게 한다.
+// 오늘 체크한 항목은 줄 그은 채 남아 다시 누르면 취소된다(ui.js). 저장 실패 시 되돌린다.
+async function setCoachMemoDone(id, index, done) {
     // 예전 메모는 id가 없어 목록 위치로 찾는다
     const target = id ? state.coachPinnedMemos.find(m => String(m.id) === String(id)) : state.coachPinnedMemos[index];
-    if (!target || target.done) return;
-    target.done = true;
-    target.doneAt = new Date().toISOString();
+    if (!target || !!target.done === done) return;
+    const prevAt = target.doneAt;
+    target.done = done;
+    if (done) target.doneAt = new Date().toISOString(); else delete target.doneAt;
     const write = db.collection('coachPinnedMemos').doc(state.currentUser).set({
         userName: state.currentUser,
         memos: state.coachPinnedMemos,
         updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
-    setTimeout(renderExerciseMemo, 600);
+    renderExerciseMemo();
     const undo = () => {
-        target.done = false;
-        delete target.doneAt;
+        target.done = !done;
+        if (prevAt) target.doneAt = prevAt; else delete target.doneAt;
         renderExerciseMemo();
         alert('체크 저장에 실패했습니다. 네트워크를 확인해주세요.');
     };
     try { await commitWrite(write, undo); } catch { undo(); } // 캐시 꺼진 환경은 commitWrite가 그대로 await → 실패가 throw로 온다
 }
+export const completeCoachMemo = (id, index) => setCoachMemoDone(id, index, true);
+export const undoCoachMemo = (id, index) => setCoachMemoDone(id, index, false);
 window.completeCoachMemo = completeCoachMemo;
+window.undoCoachMemo = undoCoachMemo;
 
 // 코치 고정 메모 해제 (수강생 화면에서)
 export async function removeCoachPinnedMemo(index) {

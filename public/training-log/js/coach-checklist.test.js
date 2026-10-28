@@ -15,8 +15,18 @@ describe('코치 체크리스트 (운동 선택 시 카드)', () => {
         expect(html).not.toContain('그립 넓게');
         expect(html).toContain('1개 남음');
         expect(html).toContain('완료한 코치 체크리스트 1개');
-        expect(html).toContain("completeCoachMemo('a', 0)");
+        expect(html).toContain("f('a', 0)");
         expect(html).toContain('type="checkbox"');
+    });
+
+    it('오늘 체크한 항목은 줄 그은 채 남아 다시 누르면 취소된다', () => {
+        const html = generatePinnedMemosHTML([{ id: 'd', exercise: '벤치프레스', memo: '오늘 체크', done: true, doneAt: new Date().toISOString() }], [], '벤치프레스');
+        expect(html).toContain('오늘 체크');
+        expect(html).toContain('line-through');
+        expect(html).toContain('다시 누르면 취소');
+        expect(html).toContain('checked');
+        expect(html).toContain('0개 남음');
+        expect(html).not.toContain('숨겼어요');
     });
 
     it('다른 운동 항목은 섞이지 않고, 수강생 메모와 함께 뜬다', () => {
@@ -37,7 +47,7 @@ describe('코치 체크리스트 (운동 선택 시 카드)', () => {
     it('메모 내용은 이스케이프된다', () => {
         const html = generatePinnedMemosHTML([{ id: "x'y", exercise: 'A', memo: '<img src=x onerror=alert(1)>' }], [], 'A');
         expect(html).not.toContain('<img');
-        expect(html).toContain("completeCoachMemo('x\\'y', 0)");
+        expect(html).toContain("f('x\\'y', 0)");
     });
 });
 
