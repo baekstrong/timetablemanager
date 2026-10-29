@@ -199,10 +199,17 @@ function render({ proposals, exerciseNames }) {
 
 async function load(extraChecked = []) {
   const keep = new Set([...document.querySelectorAll('input[type=checkbox]:checked')].map(c => c.dataset.key).filter(Boolean).concat(extraChecked));
+  // 페이지에서 고른 운동·고친 문장은 제안 파일에 없다 — 다시 그려도 남게 한다(안 그러면 저장 대기 중이던 항목이 운동 빈칸으로 돌아가 저장이 안 됨)
+  const vals = new Map([...document.querySelectorAll('.row')].map(r => [r.querySelector('.c-item').dataset.key, [r.querySelector('.ex').value, r.querySelector('.tx').value]]));
   const y = window.scrollY;
   try {
     render(await api('/api/proposals'));
     document.querySelectorAll('input[type=checkbox][data-key]').forEach(c => { if (keep.has(c.dataset.key)) c.checked = true; });
+    document.querySelectorAll('.row').forEach(r => {
+      const v = vals.get(r.querySelector('.c-item').dataset.key); if (!v) return;
+      r.querySelector('.ex').value = v[0]; r.querySelector('.tx').value = v[1];
+      const w = r.querySelector('.warn'); if (w) w.hidden = EXERCISES.includes(v[0].trim());
+    });
     window.scrollTo(0, y);
     extraChecked.forEach(k => { const c = document.querySelector(`input[data-key="${CSS.escape(k)}"]`); if (c) autoSave(c); });
   }
