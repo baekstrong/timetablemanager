@@ -3,6 +3,7 @@ import {
     getNotificationDeadline,
     isNotificationExpired,
     canStillNotify,
+    findWaitlistsReleasedByHolding,
     resolveAfterSeatFreed,
     resolveToTarget,
 } from './makeupWaitlist';
@@ -86,5 +87,25 @@ describe('resolveToTarget', () => {
     it('여석 0이면 아무도 알리지 않는다', () => {
         const { toNotify } = resolveToTarget([entry()], now, 0);
         expect(toNotify).toHaveLength(0);
+    });
+});
+
+describe('findWaitlistsReleasedByHolding — 홀딩한 수업의 보강 대기', () => {
+    const wait = (over) => ({ id: 'w', studentName: '이정은', status: 'waiting', date: '2026-10-30', day: '금', period: 5,
+        originalClass: { date: '2026-10-29', day: '목', period: 1 }, ...over });
+    it('원래 수업 날짜를 홀딩하면 그 대기(waiting/notified)를 취소 대상으로', () => {
+        const entries = [wait({ id: 'a' }), wait({ id: 'b', status: 'notified' })];
+        expect(findWaitlistsReleasedByHolding(entries, '이정은', ['2026-10-29']).map(e => e.id)).toEqual(['a', 'b']);
+    });
+    it('다른 날짜 홀딩·다른 수강생·이미 끝난 대기는 건드리지 않음', () => {
+        const entries = [
+            wait({ id: 'other-date', originalClass: { date: '2026-10-27', day: '화', period: 1 } }),
+            wait({ id: 'other-name', studentName: '송영훈' }),
+            wait({ id: 'accepted', status: 'accepted' }),
+        ];
+        expect(findWaitlistsReleasedByHolding(entries, '이정은', ['2026-10-29'])).toEqual([]);
+    });
+    it('보강 목적지 날짜만 홀딩한 경우는 취소하지 않음', () => {
+        expect(findWaitlistsReleasedByHolding([wait()], '이정은', ['2026-10-30'])).toEqual([]);
     });
 });

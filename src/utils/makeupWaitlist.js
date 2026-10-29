@@ -56,3 +56,17 @@ export function resolveToTarget(entries, now = new Date(), availableSeats = 0) {
     const claimable = Math.max(0, availableSeats - activeNotifiedCount);
     return { toExpire, toNotify: waiting.slice(0, claimable) };
 }
+
+/**
+ * 홀딩한 날짜의 수업을 원래 수업으로 걸어둔 보강 대기 (2026-10-30 사용자 요청).
+ * 그 수업을 홀딩했으면 옮길 수업 자체가 없으므로 대기는 의미가 없다 → 취소 대상.
+ * 예: 목1(10/29)을 금5로 보강 대기 → 목1(10/29) 홀딩 시 금5 대기 취소.
+ */
+export function findWaitlistsReleasedByHolding(entries = [], studentName, heldDates = []) {
+    const held = new Set(heldDates);
+    return entries.filter(e =>
+        e.studentName === studentName &&
+        (e.status === 'waiting' || e.status === 'notified') &&
+        held.has(e.originalClass?.date)
+    );
+}

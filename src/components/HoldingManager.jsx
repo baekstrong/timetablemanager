@@ -14,13 +14,13 @@ import {
     getActiveMakeupRequests
 } from '../services/firebaseService';
 import { cancelHoldingInSheets } from '../services/googleSheetsService';
-import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
+import { cancelWaitlistsForHeldDates, onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import { validateHoldingDates } from '../utils/holdingDates';
 import { isWithinRegisteredPeriod } from '../utils/membershipDates';
 import { parseHoldingDate, getHoldingClass, getHoldingRequestDateError, isBeforeHoldingDeadline } from '../utils/holdingEligibility';
 import './HoldingManager.css';
 
-const holdingServices = { createHoldingRequest, markHoldingSheetsApplied, createAbsenceRequest, getHoldingsByStudent, getAbsencesByStudent, cancelHolding, cancelAbsence, getHolidays, getActiveMakeupRequests, cancelHoldingInSheets, onSeatsFreedForDates };
+const holdingServices = { createHoldingRequest, markHoldingSheetsApplied, createAbsenceRequest, getHoldingsByStudent, getAbsencesByStudent, cancelHolding, cancelAbsence, getHolidays, getActiveMakeupRequests, cancelHoldingInSheets, onSeatsFreedForDates, cancelWaitlistsForHeldDates };
 
 // 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (timezone 문제 방지)
 const formatLocalDate = (date) => {
@@ -62,7 +62,7 @@ const isHoliday = (date) => {
 };
 
 const HoldingManager = ({ user, studentData, isLoading, initialDate = '', onBack, onStudentDataRefresh, services = holdingServices, readOnly = false }) => {
-    const { createHoldingRequest, markHoldingSheetsApplied, createAbsenceRequest, getHoldingsByStudent, getAbsencesByStudent, cancelHolding, cancelAbsence, getHolidays, getActiveMakeupRequests, cancelHoldingInSheets, onSeatsFreedForDates } = services;
+    const { createHoldingRequest, markHoldingSheetsApplied, createAbsenceRequest, getHoldingsByStudent, getAbsencesByStudent, cancelHolding, cancelAbsence, getHolidays, getActiveMakeupRequests, cancelHoldingInSheets, onSeatsFreedForDates, cancelWaitlistsForHeldDates } = services;
     const { requestHolding, refresh } = useGoogleSheets();
     const [requestType, setRequestType] = useState('holding'); // 'holding' | 'absence'
     const [selectedDates, setSelectedDates] = useState([]);
@@ -461,7 +461,12 @@ const HoldingManager = ({ user, studentData, isLoading, initialDate = '', onBack
                 sheetsUpdated = true;
                 if (createdHoldingId) await markHoldingSheetsApplied(createdHoldingId).catch(() => {});
 
-                alert(`홀딩 신청이 완료되었습니다.\n기간: ${startDate} ~ ${endDate}`);
+                // 홀딩한 수업을 옮기려던 보강 대기는 의미가 없으므로 취소한다.
+                const cancelledWaits = cancelWaitlistsForHeldDates
+                    ? await cancelWaitlistsForHeldDates(user.username, sortedDates).catch(e => { console.error('보강 대기 자동 취소 실패:', e); return 0; })
+                    : 0;
+
+                alert(`홀딩 신청이 완료되었습니다.\n기간: ${startDate} ~ ${endDate}${cancelledWaits ? `\n\n홀딩한 수업의 보강 대기 ${cancelledWaits}건은 자동으로 취소되었습니다.` : ''}`);
 
                 // 리로드 2개는 서로 결과를 안 쓴다 → 병렬 (alert 이후 대기 시간)
                 const [holdings] = await Promise.all([

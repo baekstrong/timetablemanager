@@ -3,7 +3,7 @@ import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets, pauseStudent, resumeStudent, getPausedStudentResumeInfo } from '../services/googleSheetsService';
 import { createHoldingRequest, markHoldingSheetsApplied, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, deleteAllStudentAppData, recordStudentCount, getGradeMap, ensureUserAccount, getUnappliedHoldings } from '../services/firebaseService';
 import { getCoachStudentListStatus, shouldShowInCoachStudentList, isPausedRegistration } from '../utils/studentList';
-import { onSeatsFreedForDates } from '../services/makeupWaitlistService';
+import { cancelWaitlistsForHeldDates, onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import { setStudentPassword } from '../services/authService';
 import GoogleSheetsEmbed from './GoogleSheetsEmbed';
 import StudentRegistrationModal from './StudentRegistrationModal';
@@ -445,7 +445,11 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             );
             if (created?.id) await markHoldingSheetsApplied(created.id).catch(() => {});
 
-            alert(`홀딩 처리 완료!\n\n홀딩 기간: ${startDate} ~ ${endDate}\n새 종료날짜: ${result.newEndDate}\n홀딩 상태: ${result.holdingStatus}`);
+            // 홀딩한 수업을 옮기려던 보강 대기는 의미가 없으므로 취소한다.
+            const cancelledWaits = await cancelWaitlistsForHeldDates(holdingTarget['이름'], sortedDates)
+                .catch(e => { console.error('보강 대기 자동 취소 실패:', e); return 0; });
+
+            alert(`홀딩 처리 완료!\n\n홀딩 기간: ${startDate} ~ ${endDate}\n새 종료날짜: ${result.newEndDate}\n홀딩 상태: ${result.holdingStatus}${cancelledWaits ? `\n보강 대기 ${cancelledWaits}건 자동 취소` : ''}`);
 
             // 빠진 자리의 보강 대기자에게 순차 알림 (실패해도 처리 자체에는 영향 없음)
             try {

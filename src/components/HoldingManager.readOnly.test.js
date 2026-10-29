@@ -28,7 +28,7 @@ vi.mock('../services/firebaseService', () => ({
     getHoldingsByStudent: vi.fn(), getAbsencesByStudent: vi.fn(), cancelHolding: vi.fn(),
     cancelAbsence: vi.fn(), getHolidays: vi.fn(), getActiveMakeupRequests: vi.fn(),
 }));
-vi.mock('../services/makeupWaitlistService', () => ({ onSeatsFreedForDates: vi.fn() }));
+vi.mock('../services/makeupWaitlistService', () => ({ onSeatsFreedForDates: vi.fn(), cancelWaitlistsForHeldDates: vi.fn() }));
 
 import HoldingManager from './HoldingManager';
 

@@ -1,11 +1,12 @@
 import {
     getActiveMakeupWaitlists,
+    getMakeupWaitlistsByStudent,
     notifyMakeupWaitlist,
     updateMakeupWaitlistStatus,
 } from './firebaseService';
 import { sendMakeupSeatAvailableSMS } from './smsService';
 import { pushMakeupSeat } from './pushService';
-import { resolveAfterSeatFreed, resolveToTarget } from '../utils/makeupWaitlist';
+import { findWaitlistsReleasedByHolding, resolveAfterSeatFreed, resolveToTarget } from '../utils/makeupWaitlist';
 import { parseScheduleString } from '../utils/scheduleUtils';
 import { PERIODS } from '../data/mockData';
 
@@ -101,6 +102,20 @@ export async function onSeatsFreedForDates(dates, scheduleStr) {
     // 슬롯끼리는 date|day|period로 갈라져 대상 대기자가 겹치지 않으므로 같은 스냅샷을 써도 안전하다.
     const all = (await getActiveMakeupWaitlists()).map(normalizeWaitlistEntry);
     await Promise.all(slots.map(s => onSeatFreed(s.date, s.dayName, s.period, null, all)));
+}
+
+/**
+ * 홀딩한 날짜를 원래 수업으로 건 본인의 보강 대기를 취소한다. 취소한 건수 반환.
+ * 자리 안내(notified)를 받은 대기를 취소하면 그 자리를 다음 순번에게 넘긴다.
+ * 홀딩 저장(학생·코치 경로) 뒤에 부른다 — 실패해도 홀딩 자체에는 영향이 없다.
+ */
+export async function cancelWaitlistsForHeldDates(studentName, heldDates) {
+    const mine = (await getMakeupWaitlistsByStudent(studentName)).map(normalizeWaitlistEntry);
+    const targets = findWaitlistsReleasedByHolding(mine, studentName, heldDates);
+    await Promise.all(targets.map(e => updateMakeupWaitlistStatus(e.id, 'cancelled')));
+    targets.filter(e => e.status === 'notified')
+        .forEach(e => onSeatFreed(e.date, e.day, e.period).catch(() => {}));
+    return targets.length;
 }
 
 /**
