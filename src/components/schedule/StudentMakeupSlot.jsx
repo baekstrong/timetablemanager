@@ -17,6 +17,7 @@ const normalizeLabel = value => String(value || '').replace(/\s+/g, '');
  * now: Date used by the parent; label/reason: its existing availability result.
  * disabled/onClick: passed through unchanged; this component never decides eligibility.
  * existingWait: optional waiting/notified entry, used only to label the existing action.
+ * waitCount: 이 칸의 보강 대기 인원(만석일 때만). 대기 신청 전에 줄 길이를 알 수 있게 작게 표시.
  */
 export default function StudentMakeupSlot({
     session = null,
@@ -28,6 +29,7 @@ export default function StudentMakeupSlot({
     ariaLabel,
     isFull = false,
     existingWait = null,
+    waitCount = 0,
     className = '',
 }) {
     const fallbackType = reason === '홀딩' || label === '홀딩' ? 'holding' : reason === '휴일' || label === '휴일' ? 'holiday' : null;
@@ -44,7 +46,8 @@ export default function StudentMakeupSlot({
     if (isAttendance) redundantLabels.push('자율 운동');
     const secondaryLabel = hasPersonalStatus && availableLabel && !redundantLabels.some(item => normalizeLabel(item) === normalizeLabel(availableLabel)) ? availableLabel : '';
     const visibleLabels = hasPersonalStatus ? [primaryLabel, regularDetail, isAttendance ? statusLabel : '', secondaryLabel] : [availableLabel];
-    const accessibleLabel = [ariaLabel, ...visibleLabels.filter(item => item && !ariaLabel?.includes(item)), reason && !ariaLabel?.includes(reason) && !visibleLabels.includes(reason) ? reason : ''].filter(Boolean).join(' · ');
+    const waitCountLabel = !hasPersonalStatus && waitCount > 0 ? `대기 ${waitCount}명` : '';
+    const accessibleLabel = [ariaLabel, ...[...visibleLabels, waitCountLabel].filter(item => item && !ariaLabel?.includes(item)), reason && !ariaLabel?.includes(reason) && !visibleLabels.includes(reason) ? reason : ''].filter(Boolean).join(' · ');
     const badgeStatus = statusLabel === '보강결석' ? 'makeupAbsent' : STATUS_TAGS[type];
     // ponytail: 여석/마감/대기 색상 구분용
     const availabilityKind = hasPersonalStatus ? undefined : existingWait ? 'wait' : isFull ? 'full' : availableLabel === '마감' ? 'closed' : availableLabel.endsWith('자리') ? 'open' : undefined;
@@ -62,6 +65,9 @@ export default function StudentMakeupSlot({
             {regularDetail && <span className="student-makeup-slot-detail">{regularDetail}</span>}
             {isAttendance && <ScheduleStatusBadge label={statusLabel} className="student-makeup-slot-badge is-attendance" />}
             {secondaryLabel && <span className={`student-makeup-slot-availability${existingWait ? ' is-wait' : ''}`}>{secondaryLabel}</span>}
-        </> : <span className="student-makeup-slot-label">{availableLabel}</span>}
+        </> : <>
+            <span className="student-makeup-slot-label">{availableLabel}</span>
+            {waitCountLabel && <span className="student-makeup-slot-wait-count">{waitCountLabel}</span>}
+        </>}
     </button>;
 }

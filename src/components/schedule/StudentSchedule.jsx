@@ -1066,6 +1066,7 @@ function CurrentWeekStudentSchedule({
                 if (existingWait) { reason = ''; label = existingWait.status === 'notified' ? '자리 도착' : '대기 중'; }
                 return <StudentMakeupSlot key={date} session={session} now={now} label={label} reason={reason}
                     isFull={data.isFull} existingWait={existingWait}
+                    waitCount={data.isFull && !reason ? getSeatWaitCount(date, day, period.id) : 0}
                     className={`slot-kind-${getHolidayInfo(day) !== null || isClassDisabled(day, period.id) ? 'empty' : period.type === 'free' ? 'free' : 'lesson'}`}
                     disabled={Boolean(reason) || isSubmittingMakeup || isSubmittingWaitlist}
                     ariaLabel={`${classLabel(slot)} ${label}${reason && reason !== label ? ` · ${reason}` : ''}`}

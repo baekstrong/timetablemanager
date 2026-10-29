@@ -20,3 +20,4 @@
 .student-class-slot.student-makeup-slot[data-availability="closed"] .student-makeup-slot-label { color:var(--text-muted); }
 .student-class-slot.student-makeup-slot[data-availability="full"] .student-makeup-slot-label { color:var(--error); font-weight:600; }
 .student-class-slot.student-makeup-slot[data-availability="wait"] .student-makeup-slot-label { color:var(--accent-hover); font-weight:600; }
+.student-class-slot.student-makeup-slot .student-makeup-slot-wait-count { font-size:9px; line-height:1.2; color:var(--text-secondary); }
