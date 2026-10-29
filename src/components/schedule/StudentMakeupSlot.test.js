@@ -11,12 +11,12 @@ describe('보강 시간표 만석 칸의 대기 인원', () => {
     it('대기자가 있으면 대기 가능 아래에 인원을 작게 표시', () => {
         const html = render({ waitCount: 3 });
         expect(html).toContain('대기 가능');
-        expect(html).toContain('<span class="student-makeup-slot-wait-count">대기 3명</span>');
-        expect(html).toContain('aria-label="대기 가능 · 대기 3명"');
+        expect(html).toContain('<span class="student-makeup-slot-wait-count">3명 대기중</span>');
+        expect(html).toContain('aria-label="대기 가능 · 3명 대기중"');
     });
     it('대기자가 없거나 내 수업 칸이면 표시하지 않음', () => {
         expect(render({ waitCount: 0 })).not.toContain('wait-count');
         const regular = { type: 'regular', date: '2026-11-02', period: 6, day: '월' };
-        expect(render({ waitCount: 2, session: regular })).not.toContain('대기 2명');
+        expect(render({ waitCount: 2, session: regular })).not.toContain('2명 대기중');
     });
 });

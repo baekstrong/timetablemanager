@@ -46,7 +46,7 @@ export default function StudentMakeupSlot({
     if (isAttendance) redundantLabels.push('자율 운동');
     const secondaryLabel = hasPersonalStatus && availableLabel && !redundantLabels.some(item => normalizeLabel(item) === normalizeLabel(availableLabel)) ? availableLabel : '';
     const visibleLabels = hasPersonalStatus ? [primaryLabel, regularDetail, isAttendance ? statusLabel : '', secondaryLabel] : [availableLabel];
-    const waitCountLabel = !hasPersonalStatus && waitCount > 0 ? `대기 ${waitCount}명` : '';
+    const waitCountLabel = !hasPersonalStatus && waitCount > 0 ? `${waitCount}명 대기중` : '';
     const accessibleLabel = [ariaLabel, ...[...visibleLabels, waitCountLabel].filter(item => item && !ariaLabel?.includes(item)), reason && !ariaLabel?.includes(reason) && !visibleLabels.includes(reason) ? reason : ''].filter(Boolean).join(' · ');
     const badgeStatus = statusLabel === '보강결석' ? 'makeupAbsent' : STATUS_TAGS[type];
     // ponytail: 여석/마감/대기 색상 구분용
