@@ -6,7 +6,7 @@ import {
 } from './firebaseService';
 import { sendMakeupSeatAvailableSMS } from './smsService';
 import { pushMakeupSeat } from './pushService';
-import { findWaitlistsReleasedByHolding, resolveAfterSeatFreed, resolveToTarget } from '../utils/makeupWaitlist';
+import { findWaitlistsReleasedByHolding, isOriginalClassStarted, resolveAfterSeatFreed, resolveToTarget } from '../utils/makeupWaitlist';
 import { parseScheduleString } from '../utils/scheduleUtils';
 import { PERIODS } from '../data/mockData';
 
@@ -25,8 +25,12 @@ function formatDateText(dateStr) {
     return `${d.getMonth() + 1}/${d.getDate()}(${dayNames[d.getDay()]})`;
 }
 
-/** expire 처리 + 다음 순번 notified 전환 + SMS 발송. 알린 인원 수 반환. */
-async function applyResolution({ toExpire, toNotify }) {
+/** cancel·expire 처리 + 다음 순번 notified 전환 + 푸시/SMS 발송. 알린 인원 수 반환. */
+async function applyResolution({ toCancel = [], toExpire, toNotify }) {
+    for (const e of toCancel) {
+        await updateMakeupWaitlistStatus(e.id, 'cancelled')
+            .catch(err => console.error('보강 대기 자동 취소 실패:', e.id, err));
+    }
     for (const e of toExpire) {
         await updateMakeupWaitlistStatus(e.id, 'expired')
             .catch(err => console.error('보강 대기 만료 처리 실패:', e.id, err));
@@ -125,7 +129,14 @@ export async function cancelWaitlistsForHeldDates(studentName, heldDates) {
  */
 export async function syncMakeupWaitlists(getAvailableSeats) {
     try {
-        const all = (await getActiveMakeupWaitlists()).map(normalizeWaitlistEntry);
+        let all = (await getActiveMakeupWaitlists()).map(normalizeWaitlistEntry);
+        // 원래 수업이 시작된 대기는 슬롯 여석을 모르는 주(다음 주 등)에도 취소한다.
+        const now = new Date();
+        const stale = all.filter(e => isOriginalClassStarted(e, now));
+        if (stale.length) {
+            await applyResolution({ toCancel: stale, toExpire: [], toNotify: [] });
+            all = all.filter(e => !stale.includes(e));
+        }
         const bySlot = new Map();
         all.forEach(e => {
             const key = `${e.date}|${e.day}|${e.period}`;

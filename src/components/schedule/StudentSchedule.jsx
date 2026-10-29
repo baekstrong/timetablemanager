@@ -14,7 +14,7 @@ import {
     declineMakeupWaitlist,
 } from '../../services/firebaseService';
 import { normalizeWaitlistEntry, onSeatFreed } from '../../services/makeupWaitlistService';
-import { isNotificationExpired, getNotificationDeadline } from '../../utils/makeupWaitlist';
+import { isNotificationExpired, getNotificationDeadline, isLiveWaitlist, isOriginalClassStarted } from '../../utils/makeupWaitlist';
 import { processHolidayMakeupEndDate, getStudentField, calculateMembershipStats } from '../../services/googleSheetsService';
 import {
     weekDateToISO,
@@ -33,6 +33,8 @@ import { StudentTag, AvailableSeatsCell, HolidayCell } from './ScheduleCell';
 import StudentClassView from './StudentClassView';
 import StudentMakeupSlot from './StudentMakeupSlot';
 import ReviewModal from '../../features/today/ReviewModal';
+import { getPushPermission, initPush, isPushAvailable } from '../../services/pushService';
+import { pushBlockedGuide, resolvePushState } from '../../utils/pushStatus';
 import { buildStudentWeek, studentWeekDays, classLabel, classStartMs, sourceUnavailableReason, studentDateISO } from './studentClassModel';
 
 const DEFAULT_SERVICES = { getActiveMakeupRequests, getWeekMakeupRequests, createMakeupRequest, cancelMakeupRequest, completeMakeupRequest, getHolidays, createMakeupWaitlist, getActiveMakeupWaitlists, updateMakeupWaitlistStatus, acceptMakeupWaitlist, declineMakeupWaitlist, onSeatFreed, processHolidayMakeupEndDate };
@@ -153,6 +155,8 @@ function CurrentWeekStudentSchedule({
     const [waitlistOriginalClass, setWaitlistOriginalClass] = useState(null);
     const [respondingWaitlist, setRespondingWaitlist] = useState(null); // notified 항목
     const [isSubmittingWaitlist, setIsSubmittingWaitlist] = useState(false);
+    // 대기 신청 뒤 알림이 꺼져 있으면 띄우는 안내 — 'off' | 'denied' | 'unsupported' | 'enabling'
+    const [pushPrompt, setPushPrompt] = useState(null);
 
     const myWaitlists = useMemo(
         () => activeWaitlists.filter(w => w.studentName === user?.username),
@@ -162,7 +166,7 @@ function CurrentWeekStudentSchedule({
     // 이번 주 보강 '약속' 건수(보강 이력 + 활성 대기) — 대기도 수락 시 보강이 되므로 미리 횟수에 포함
     const myWeekCommitments = useMemo(() => {
         const { start, end } = getThisWeekRange(now);
-        const valid = myWaitlists.filter(entry => entry.status === 'waiting' ? classStartMs(entry) > now.getTime() : entry.status === 'notified' && !isNotificationExpired(entry, now));
+        const valid = myWaitlists.filter(entry => isLiveWaitlist(entry, now));
         return countWeekMakeupCommitments(myWeekMakeupHistory, valid, start, end);
     }, [myWeekMakeupHistory, myWaitlists, now]);
 
@@ -180,7 +184,7 @@ function CurrentWeekStudentSchedule({
         const effective = getEffectiveEndDate(studentData, new Date(`${membership.endDate}T00:00:00`));
         if (effective) membership.endDate = formatDateISO(effective);
     }
-    const validWaits = myWaitlists.filter(entry => entry.status === 'waiting' ? classStartMs(entry) > now.getTime() : entry.status === 'notified' && !isNotificationExpired(entry, now));
+    const validWaits = myWaitlists.filter(entry => isLiveWaitlist(entry, now));
 
     function changeStudentTab(tab) {
         setStudentTab(tab);
@@ -241,8 +245,7 @@ function CurrentWeekStudentSchedule({
     function getSeatWaitCount(date, day, periodId) {
         if (!date) return 0;
         return activeWaitlists.filter(w =>
-            w.date === date && w.day === day && w.period === periodId &&
-            (w.status === 'waiting' || (w.status === 'notified' && !isNotificationExpired(w)))
+            w.date === date && w.day === day && w.period === periodId && isLiveWaitlist(w, now)
         ).length;
     }
 
@@ -289,6 +292,10 @@ function CurrentWeekStudentSchedule({
                 setMyWeekMakeupHistory(thisWeekMakeups);
                 setActiveWaitlists(waitlists.map(normalizeWaitlistEntry));
                 loadedPersonalKey.current = personalRequestKey;
+                // 원래 수업이 시작된 내 대기는 자동 취소 (화면에서는 이미 isLiveWaitlist로 빠져 있다)
+                if (!readOnly) waitlists
+                    .filter(w => w.studentName === user.username && isOriginalClassStarted(w))
+                    .forEach(w => updateMakeupWaitlistStatus(w.id, 'cancelled').catch(() => {}));
                 setMakeupDataState('loaded');
 
                 // 지난 보강 자동 완료 처리 (active → completed)
@@ -306,7 +313,7 @@ function CurrentWeekStudentSchedule({
         return () => { cancelled = true; };
         // 개인 조회는 공통 주간 자료/전체 명단을 기다리지 않는다. 주간 갱신 완료만으로
         // 재조회하지 않고, 직접 새로고침이나 신청 처리 후에 필요한 자료를 갱신한다.
-    }, [user?.username, user?.role, personalRequestKey, completeMakeupRequest, getActiveMakeupRequests, getWeekMakeupRequests, getActiveMakeupWaitlists, readOnly]);
+    }, [user?.username, user?.role, personalRequestKey, completeMakeupRequest, getActiveMakeupRequests, getWeekMakeupRequests, getActiveMakeupWaitlists, updateMakeupWaitlistStatus, readOnly]);
 
     // ── 헬퍼 ──
     // 보강 자리가 비었을 때(취소·시간 변경) 대기 1순위에게 알림. 취소된 보강생은 아직 주간 상태에
@@ -628,7 +635,9 @@ function CurrentWeekStudentSchedule({
         try {
             const phone = String(getStudentField(studentData, '핸드폰') || '').trim();
             await createMakeupWaitlist(user.username, phone, waitlistSlot, waitlistOriginalClass);
-            alert(`보강 대기 신청 완료!\n자리가 나면 알림으로 안내드립니다 (선착순).\n\n💡 알림을 켜두시면 자리 소식을 빠르게 받을 수 있어요.\n(내 수업 화면 상단의 🔔 버튼)`);
+            const pushState = await currentPushState();
+            if (pushState === 'on') alert('보강 대기 신청 완료!\n자리가 나면 앱 알림으로 안내드립니다 (선착순).');
+            else setPushPrompt(pushState);
             setShowWaitlistRequest(false);
             setWaitlistSlot(null);
             setWaitlistOriginalClass(null);
@@ -642,6 +651,26 @@ function CurrentWeekStudentSchedule({
         } finally {
             setIsSubmittingWaitlist(false);
         }
+    }
+
+    async function currentPushState() {
+        const available = await isPushAvailable();
+        const permission = getPushPermission();
+        const token = available && permission === 'granted' ? await initPush(user.username) : null;
+        return resolvePushState({ available, permission, token });
+    }
+
+    // 아이폰은 사용자 제스처 안에서만 권한 팝업이 뜨므로 버튼 클릭 핸들러에서 바로 요청한다.
+    async function enablePushFromPrompt() {
+        setPushPrompt('enabling');
+        const token = await initPush(user.username, true);
+        if (token) {
+            setPushPrompt(null);
+            alert('알림이 켜졌어요. 보강 자리가 나면 바로 알려드릴게요.');
+            return;
+        }
+        const state = await currentPushState();
+        setPushPrompt(state === 'on' ? null : state);
     }
 
     function handleWaitlistChipClick(entry) {
@@ -1303,6 +1332,19 @@ function CurrentWeekStudentSchedule({
                     }}
                 />
             )}
+
+            {/* 보강 대기 신청 완료 + 알림 꺼짐 안내 */}
+            {pushPrompt && <ReviewModal title="보강 대기 신청 완료" busy={pushPrompt === 'enabling'} onClose={() => { if (pushPrompt !== 'enabling') setPushPrompt(null); }}>
+                <div className="student-class-modal">
+                    <p className="student-class-help">자리가 나면 선착순으로 안내드려요.</p>
+                    <p className="student-class-notice">지금은 앱 알림이 꺼져 있어요. 알림을 켜두면 자리 소식을 바로 받을 수 있어요.</p>
+                    {(pushPrompt === 'denied' || pushPrompt === 'unsupported') && <p className="student-class-help">{pushBlockedGuide(pushPrompt, /iPad|iPhone|iPod/.test(navigator.userAgent))}</p>}
+                    <div className="student-class-actions">
+                        <button type="button" className="student-class-button" disabled={pushPrompt === 'enabling'} onClick={() => setPushPrompt(null)}>닫기</button>
+                        {(pushPrompt === 'off' || pushPrompt === 'enabling') && <button type="button" className="student-class-button primary" disabled={pushPrompt === 'enabling'} onClick={enablePushFromPrompt}>{pushPrompt === 'enabling' ? '설정 중…' : '알림 켜기'}</button>}
+                    </div>
+                </div>
+            </ReviewModal>}
 
             {/* 보강 대기 수락/거절 모달 */}
             {respondingWaitlist && modernStudent && <ReviewModal title="기다리던 자리 확인" busy={isSubmittingWaitlist} onClose={() => { if (!isSubmittingWaitlist) setRespondingWaitlist(null); }}>

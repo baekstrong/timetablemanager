@@ -23,28 +23,51 @@ export function canStillNotify(entry, now = new Date()) {
     return classStart ? now < classStart : false;
 }
 
+/**
+ * 옮기려던 원래 수업이 이미 시작됐는가 (2026-10-30 사용자 요청).
+ * 시작된 수업은 보강으로 옮길 수 없어(수락 단계도 차단) 대기는 자동 취소 대상이다.
+ * 이걸 안 거르면 수락할 수 없는 사람에게 알림이 가고 그 자리가 최대 1시간 묶인다.
+ */
+export function isOriginalClassStarted(entry, now = new Date()) {
+    const original = entry?.originalClass;
+    if (!original?.date) return false;
+    const start = getClassDateTime(original.date, Number(original.period));
+    return start ? now >= start : false;
+}
+
+/** 아직 살아 있는 대기인가 — 화면 표시·주간 약속 수·대기 인원 계산 공용 */
+export function isLiveWaitlist(entry, now = new Date()) {
+    if (isOriginalClassStarted(entry, now)) return false;
+    if (entry.status === 'waiting') return canStillNotify(entry, now);
+    return entry.status === 'notified' && !isNotificationExpired(entry, now);
+}
+
 function splitQueue(entries, now) {
-    const toExpire = entries.filter(e => e.status === 'notified' && isNotificationExpired(e, now));
-    const activeNotifiedCount = entries.filter(e => e.status === 'notified' && !isNotificationExpired(e, now)).length;
-    const waiting = entries
+    const toCancel = entries.filter(e => (e.status === 'waiting' || e.status === 'notified') && isOriginalClassStarted(e, now));
+    const live = entries.filter(e => !toCancel.includes(e));
+    const toExpire = live.filter(e => e.status === 'notified' && isNotificationExpired(e, now));
+    const activeNotifiedCount = live.filter(e => e.status === 'notified' && !isNotificationExpired(e, now)).length;
+    const waiting = live
         .filter(e => e.status === 'waiting' && canStillNotify(e, now))
         .sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
-    return { toExpire, activeNotifiedCount, waiting };
+    return { toCancel, toExpire, activeNotifiedCount, waiting };
 }
 
 /**
  * 자리가 freedSeats개 새로 빠졌을 때 (홀딩/결석/보강취소/거절 트리거).
  * 만료된 notified가 반납한 자리도 함께 다음 순번에게 배정한다.
- * 반환: { toExpire: entry[], toNotify: entry[] }
+ * 반환: { toCancel: entry[], toExpire: entry[], toNotify: entry[] } — toCancel은 원래 수업이 시작된 대기
  *
  * 호출자 계약: entries는 반드시 같은 슬롯(date+day+period)의 대기열이어야 한다.
  * 반환된 toNotify의 status는 여전히 'waiting' — 호출자가 SMS 발송 후
  * 'notified' 전환 + notifiedAt 기록을 책임진다. toExpire도 마찬가지로 'expired' 전환은 호출자 몫.
  */
 export function resolveAfterSeatFreed(entries, now = new Date(), freedSeats = 1) {
-    const { toExpire, waiting } = splitQueue(entries, now);
-    const claimable = Math.max(0, freedSeats) + toExpire.length;
-    return { toExpire, toNotify: waiting.slice(0, claimable) };
+    const { toCancel, toExpire, waiting } = splitQueue(entries, now);
+    // 자리 안내를 받았다가 취소되는 대기도 쥐고 있던 자리를 반납한다.
+    const released = toExpire.length + toCancel.filter(e => e.status === 'notified').length;
+    const claimable = Math.max(0, freedSeats) + released;
+    return { toCancel, toExpire, toNotify: waiting.slice(0, claimable) };
 }
 
 /**
@@ -52,9 +75,9 @@ export function resolveAfterSeatFreed(entries, now = new Date(), freedSeats = 1)
  * 유효한 notified는 자리를 선점한 것으로 보고, 남는 자리만큼만 새로 알린다.
  */
 export function resolveToTarget(entries, now = new Date(), availableSeats = 0) {
-    const { toExpire, activeNotifiedCount, waiting } = splitQueue(entries, now);
+    const { toCancel, toExpire, activeNotifiedCount, waiting } = splitQueue(entries, now);
     const claimable = Math.max(0, availableSeats - activeNotifiedCount);
-    return { toExpire, toNotify: waiting.slice(0, claimable) };
+    return { toCancel, toExpire, toNotify: waiting.slice(0, claimable) };
 }
 
 /**

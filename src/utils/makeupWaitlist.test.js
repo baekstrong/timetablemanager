@@ -4,6 +4,8 @@ import {
     isNotificationExpired,
     canStillNotify,
     findWaitlistsReleasedByHolding,
+    isOriginalClassStarted,
+    isLiveWaitlist,
     resolveAfterSeatFreed,
     resolveToTarget,
 } from './makeupWaitlist';
@@ -16,7 +18,7 @@ function entry(over = {}) {
     return {
         id: 'w1', studentName: '김대기', phone: '01000000000',
         ...SLOT, periodName: '5교시',
-        originalClass: { date: '2026-06-17', day: '수', period: 5, periodName: '5교시' },
+        originalClass: { date: '2026-06-22', day: '월', period: 5, periodName: '5교시' },
         status: 'waiting', createdAtMs: 1000, notifiedAtMs: null,
         ...over,
     };
@@ -107,5 +109,31 @@ describe('findWaitlistsReleasedByHolding — 홀딩한 수업의 보강 대기',
     });
     it('보강 목적지 날짜만 홀딩한 경우는 취소하지 않음', () => {
         expect(findWaitlistsReleasedByHolding([wait()], '이정은', ['2026-10-30'])).toEqual([]);
+    });
+});
+
+describe('원래 수업이 시작된 보강 대기 자동 취소', () => {
+    // 목5(10/29 19:50) → 금5(10/30) 대기. 확인 시각 10/30 10:00 = 원래 수업 지남, 보강 수업 전.
+    const now = new Date('2026-10-30T10:00:00+09:00');
+    const entry = (over) => ({ id: 'x', studentName: '이슬아', status: 'waiting', date: '2026-10-30', day: '금', period: 5, createdAtMs: 1,
+        originalClass: { date: '2026-10-29', day: '목', period: 5 }, ...over });
+    it('원래 수업이 시작됐으면 살아 있는 대기가 아니다', () => {
+        expect(isOriginalClassStarted(entry(), now)).toBe(true);
+        expect(isLiveWaitlist(entry(), now)).toBe(false);
+        expect(isLiveWaitlist(entry({ originalClass: { date: '2026-10-31', day: '금', period: 1 } }), now)).toBe(true);
+    });
+    it('자리가 나면 지난 대기는 취소하고 다음 순번에게 알린다', () => {
+        const stale = entry({ id: 'stale', createdAtMs: 1 });
+        const ok = entry({ id: 'ok', createdAtMs: 2, originalClass: { date: '2026-11-02', day: '월', period: 1 } });
+        const r = resolveAfterSeatFreed([stale, ok], now, 1);
+        expect(r.toCancel.map(e => e.id)).toEqual(['stale']);
+        expect(r.toNotify.map(e => e.id)).toEqual(['ok']);
+    });
+    it('자리 안내를 받았던 지난 대기를 취소하면 그 자리도 다음 순번에게', () => {
+        const notified = entry({ id: 'n', status: 'notified', notifiedAtMs: now.getTime() - 60000 });
+        const a = entry({ id: 'a', createdAtMs: 2, originalClass: { date: '2026-11-02', day: '월', period: 1 } });
+        const b = entry({ id: 'b', createdAtMs: 3, originalClass: { date: '2026-11-02', day: '월', period: 1 } });
+        expect(resolveAfterSeatFreed([notified, a, b], now, 1).toNotify.map(e => e.id)).toEqual(['a', 'b']);
+        expect(resolveToTarget([notified, a, b], now, 1).toNotify.map(e => e.id)).toEqual(['a']);
     });
 });

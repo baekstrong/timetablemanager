@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { getPushPermission, initPush, isPushAvailable } from '../services/pushService';
-import { resolvePushState } from '../utils/pushStatus';
+import { pushBlockedGuide, resolvePushState } from '../utils/pushStatus';
 import './PushSettings.css';
 
 export default function PushSettings({ user, readOnly = false }) {
@@ -42,8 +42,7 @@ export default function PushSettings({ user, readOnly = false }) {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     const label = busy ? '설정 중…' : state === 'on' ? '알림 켜짐' : state === 'off' ? '알림 켜기' : state ? '알림 설정' : '알림 확인 중';
     const message = state === 'on' ? '공지·댓글·답글·보강 자리 알림을 받을 수 있어요.'
-        : state === 'denied' ? (isIOS ? '아이폰 설정 → 알림 → 근력학교에서 알림을 허용해주세요.' : '주소창 왼쪽 사이트 설정 → 알림 → 허용으로 바꿔주세요.')
-        : state === 'unsupported' ? (isIOS ? '사파리에서 공유 → 홈 화면에 추가한 뒤 앱을 열어 알림을 켜주세요.' : '이 브라우저에서는 알림을 켤 수 없어요. 카톡·인스타 안에서 열었다면 크롬으로 다시 열어주세요.')
+        : state === 'denied' || state === 'unsupported' ? pushBlockedGuide(state, isIOS)
         : '공지·댓글·답글·보강 자리 알림을 받아보세요. 허용했는데 켜지지 않으면 다시 시도해주세요.';
     return <span className="push-settings">
         <button type="button" className={`push-settings-button${state === 'on' ? ' is-on' : ''}`} disabled={!state || busy}

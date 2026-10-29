@@ -13,3 +13,8 @@ export const resolvePushState = ({ available, permission, token }) => {
   if (permission === 'denied') return 'denied';
   return token ? 'on' : 'off';
 };
+
+/** 알림을 켤 수 없는 상태(차단·미지원)일 때 사용자가 직접 할 일 안내 — PushSettings·보강 대기 안내 공용 */
+export const pushBlockedGuide = (state, isIOS) => state === 'denied'
+  ? (isIOS ? '아이폰 설정 → 알림 → 근력학교에서 알림을 허용해주세요.' : '주소창 왼쪽 사이트 설정 → 알림 → 허용으로 바꿔주세요.')
+  : (isIOS ? '사파리에서 공유 → 홈 화면에 추가한 뒤 앱을 열어 알림을 켜주세요.' : '이 브라우저에서는 알림을 켤 수 없어요. 카톡·인스타 안에서 열었다면 크롬으로 다시 열어주세요.');
