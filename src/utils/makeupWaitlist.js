@@ -57,6 +57,19 @@ export function canKeepAfterOriginal(entry, now = new Date()) {
     return !!originalStart && !!targetStart && now < originalStart && originalStart < targetStart;
 }
 
+/**
+ * '다른 시간으로 보강 변경'을 고를 수 있는가 (2026-10-30 사용자 결정) — 원래 수업 시작 전의 대기(waiting).
+ * 원래 수업 시작 2시간 전 보강 마감은 이 경로에서 면제한다: 대기자는 1시간 전 선택 알림을 받고
+ * 고르는데, 2번(대기 유지)을 골라도 그 시점에 원래 수업이 결석으로 바뀌므로 코치 명단 변동은 같다.
+ * '대기 유지'를 이미 고른 대기도 원래 수업 전이면 바꿀 수 있다(결석은 보강이동으로 대체).
+ */
+export function canConvertWaitToMakeup(entry, now = new Date()) {
+    if (!entry || entry.status !== 'waiting') return false;
+    const original = entry.originalClass;
+    const originalStart = original?.date ? getClassDateTime(original.date, Number(original.period)) : null;
+    return !!originalStart && now < originalStart;
+}
+
 /** 아직 살아 있는 대기인가 — 화면 표시·주간 약속 수·대기 인원 계산 공용 */
 export function isLiveWaitlist(entry, now = new Date()) {
     if (isReleasedByOriginalStart(entry, now)) return false;

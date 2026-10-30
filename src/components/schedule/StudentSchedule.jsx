@@ -16,7 +16,7 @@ import {
     declineMakeupWaitlist,
 } from '../../services/firebaseService';
 import { normalizeWaitlistEntry, onSeatFreed, onSeatsFreedForDates } from '../../services/makeupWaitlistService';
-import { isNotificationExpired, getNotificationDeadline, isLiveWaitlist, isReleasedByOriginalStart, isOriginalClassStarted } from '../../utils/makeupWaitlist';
+import { isNotificationExpired, getNotificationDeadline, isLiveWaitlist, isReleasedByOriginalStart, isOriginalClassStarted, canConvertWaitToMakeup } from '../../utils/makeupWaitlist';
 import { processHolidayMakeupEndDate, getStudentField, calculateMembershipStats } from '../../services/googleSheetsService';
 import {
     weekDateToISO,
@@ -159,6 +159,8 @@ function CurrentWeekStudentSchedule({
     const [isSubmittingWaitlist, setIsSubmittingWaitlist] = useState(false);
     // 대기 신청 뒤 알림이 꺼져 있으면 띄우는 안내 — 'off' | 'denied' | 'unsupported' | 'enabling'
     const [pushPrompt, setPushPrompt] = useState(null);
+    // '다른 시간으로 보강 변경' 중인 보강 대기 — 여석 칸을 고르면 대기를 정식 보강으로 바꾼다
+    const [convertingWait, setConvertingWait] = useState(null);
 
     const myWaitlists = useMemo(
         () => activeWaitlists.filter(w => w.studentName === user?.username),
@@ -171,6 +173,13 @@ function CurrentWeekStudentSchedule({
         const valid = myWaitlists.filter(entry => isLiveWaitlist(entry, now));
         return countWeekMakeupCommitments(myWeekMakeupHistory, valid, start, end);
     }, [myWeekMakeupHistory, myWaitlists, now]);
+    // 대기를 보강으로 바꾸는 중이면 그 대기가 차지한 1회는 새 보강이 이어받으므로 빼고 센다
+    const convertingCountsThisWeek = (() => {
+        if (!convertingWait || !isLiveWaitlist(convertingWait, now)) return false;
+        const { start, end } = getThisWeekRange(now);
+        return convertingWait.date >= start && convertingWait.date <= end;
+    })();
+    const myQuotaUsed = myWeekCommitments - (convertingCountsThisWeek ? 1 : 0);
 
     const allHolidays = [...Object.entries(KOREAN_HOLIDAYS).map(([date, reason]) => ({ date, reason })), ...weekHolidays];
     // Sheets의 현재 홀딩도 보존하되 실제 선택 날짜가 있는 Firebase 홀딩을 먼저 쓴다.
@@ -393,7 +402,7 @@ function CurrentWeekStudentSchedule({
         }
 
         // 주 수강 횟수만큼 당주 보강 신청 가능 (취소 내역·활성 대기도 소진으로 간주)
-        if (!forceMode && myWeekCommitments >= makeupWeeklyLimit) {
+        if (!forceMode && myQuotaUsed >= makeupWeeklyLimit) {
             alert(`보강은 주 ${makeupWeeklyLimit}회까지 신청 가능합니다.\n이번 주 보강·대기 신청 내역(취소 포함)이 있어 추가 신청이 불가합니다.`);
             return;
         }
@@ -419,6 +428,10 @@ function CurrentWeekStudentSchedule({
         // 시간 변경 중이면 원래 수업이 이미 정해져 있으므로 모달 없이 바로 교체한다.
         if (changingMakeup) {
             submitMakeupChange(slot);
+            return;
+        }
+        if (convertingWait) {
+            submitWaitConversion(slot);
             return;
         }
 
@@ -711,6 +724,92 @@ function CurrentWeekStudentSchedule({
         loadWeeklyData?.();
     }
 
+    function startWaitConversion(entry) {
+        if (readOnly) { alert('실데이터 조회 전용 화면에서는 신청·취소를 할 수 없습니다.'); return; }
+        if (!validateStudentDataReady() || isSubmittingWaitlist) return;
+        if (!canConvertWaitToMakeup(entry)) { alert('원래 수업이 이미 시작되어 보강으로 바꿀 수 없습니다.'); reloadMyWaitlists(); return; }
+        setChangingMakeup(null);
+        setSelectedOriginalClass(null);
+        setFlowStep(null);
+        setFlowTarget(null);
+        setConvertingWait(entry);
+        setStudentTab('all');
+    }
+
+    /**
+     * 보강 대기 → 여석 있는 다른 시간 정식 보강 (2026-10-30 사용자 결정).
+     * 원래 수업 2시간 전 마감은 면제(원래 수업 시작 전까지), 보강 수업 쪽 마감은 일반 규칙 그대로.
+     * 새 보강을 먼저 만들고 대기를 취소한다 — 중간에 실패해도 대기는 남는다.
+     */
+    async function submitWaitConversion(slot) {
+        if (readOnly) { alert('실데이터 조회 전용 화면에서는 신청·취소를 할 수 없습니다.'); return; }
+        if (!validateStudentDataReady() || isSubmittingMakeup) return;
+        const entry = convertingWait;
+        if (!entry) return;
+        const oc = entry.originalClass;
+        if (!canConvertWaitToMakeup(entry)) {
+            alert('원래 수업이 이미 시작되어 보강으로 바꿀 수 없습니다.');
+            setConvertingWait(null);
+            await reloadMyWaitlists();
+            return;
+        }
+        if (slot.date === oc.date && Number(slot.period) === Number(oc.period)) {
+            alert('같은 수업으로 보강 신청할 수 없습니다.\n다른 시간을 선택해주세요.');
+            return;
+        }
+        if (wouldDoubleBookStudent(oc, slot.day, slot.date)) {
+            alert('보강 대상 요일에 이미 다른 정규 수업이 있어요.\n다른 요일을 선택해주세요.');
+            return;
+        }
+        const duplicateOriginal = activeMakeupRequests.some(m =>
+            m.status === 'active' && m.originalClass.date === oc.date && Number(m.originalClass.period) === Number(oc.period)
+        );
+        if (duplicateOriginal) {
+            alert('이 원래 수업은 이미 다른 보강으로 옮겨져 있습니다.');
+            return;
+        }
+        if (!confirmEndDateShift(oc, slot)) return;
+        if (!confirm(`보강 대기를 다른 시간 보강으로 바꿀까요?\n\n${classLabel(oc)} → ${classLabel(slot)}\n`
+            + `(대기하던 ${classLabel(entry)}는 취소돼요)\n\n※ 대기가 쓰던 이번 주 보강 1회를 그대로 이어받아요.`)) return;
+
+        setIsSubmittingMakeup(true);
+        try {
+            await createMakeupRequest(user.username, oc, slot);
+            try {
+                await updateMakeupWaitlistStatus(entry.id, 'cancelled');
+            } catch (statusError) {
+                // 보강은 이미 확정됨 — 원래 수업이 보강이동이라 대기는 시작 시각에 백스톱이 정리한다
+                console.error('보강 대기 취소 실패 (보강은 생성됨):', entry.id, statusError);
+            }
+            if (entry.keepAfterOriginal && entry.keptAbsenceId) {
+                // '대기 유지'로 만든 결석은 보강이동으로 바뀌었으므로 지운다(자리는 이미 비어 있음).
+                await cancelAbsence?.(entry.keptAbsenceId)?.catch(err => console.error('대기 유지 결석 정리 실패:', err));
+            } else {
+                // 원래 수업 자리가 새로 비었다 → 그 수업 대기자에게 안내
+                onSeatsFreedForDates?.([oc.date], `${oc.day}${oc.period}`)?.catch(e => console.error('보강 대기 알림 트리거 실패:', e));
+            }
+            let endDateMessage = '';
+            try {
+                const activeAndCompleted = await getActiveMakeupRequests(user.username);
+                const endDateResult = await syncHolidayMakeupEndDate(activeAndCompleted, oc.date);
+                if (endDateResult.updated && endDateResult.newEndDate) {
+                    endDateMessage = `\n새 종료일: ${endDateResult.newEndDate}`;
+                    await refreshStudents?.();
+                }
+            } catch (endDateError) {
+                console.error('대기 → 보강 변경 후 종료일 재계산 실패:', endDateError);
+            }
+            setConvertingWait(null);
+            setStudentTab('mine');
+            alert(`보강으로 변경되었습니다!\n${classLabel(oc)} → ${classLabel(slot)}${endDateMessage}`);
+            await Promise.all([reloadMyWaitlists(), reloadStudentMakeups(), loadWeeklyData()]);
+        } catch (error) {
+            alert(`보강 변경 실패: ${error.message}`);
+        } finally {
+            setIsSubmittingMakeup(false);
+        }
+    }
+
     async function handleKeepAfterOriginal(entry) {
         if (readOnly) { alert('실데이터 조회 전용 화면에서는 신청·취소를 할 수 없습니다.'); return; }
         if (!validateStudentDataReady() || isSubmittingWaitlist || !keepMakeupWaitlistAfterOriginal) return;
@@ -856,7 +955,7 @@ function CurrentWeekStudentSchedule({
             onCoachCellClick?.(day, periodObj.id, cellData);
             return;
         }
-        if (changingMakeup && cellData.isFull) {
+        if ((changingMakeup || convertingWait) && cellData.isFull) {
             alert('만석인 시간으로는 옮길 수 없어요.\n여석이 있는 칸을 선택해주세요.');
             return;
         }
@@ -1119,7 +1218,7 @@ function CurrentWeekStudentSchedule({
                 const slot = { date, day, period: period.id };
                 const existingWait = validWaits.find(item => item.date === date && Number(item.period) === period.id);
                 const session = personalSessions.find(item => item.date === date && item.period === period.id);
-                const source = changingMakeup?.originalClass || selectedOriginalClass;
+                const source = changingMakeup?.originalClass || convertingWait?.originalClass || selectedOriginalClass;
                 const otherMakeups = changingMakeup ? activeMakeupRequests.filter(item => item.id !== changingMakeup.id) : activeMakeupRequests;
                 let reason = '';
                 let label = data.isFull ? '대기 가능' : `${data.availableSeats}자리`;
@@ -1128,11 +1227,12 @@ function CurrentWeekStudentSchedule({
                 else if (isClassDisabled(day, period.id)) reason = label = '수업 없음';
                 else if (isSlotLocked(day, period.id)) reason = label = '신청 불가';
                 else if (isMyHoldingDate?.(date)) reason = label = '홀딩';
-                else if (classStartMs(slot) - now.getTime() <= (data.isFull ? 0 : 120 * 60 * 1000)) reason = label = '마감';
+                else if (classStartMs(slot) - now.getTime() <= (data.isFull && !convertingWait ? 0 : 120 * 60 * 1000)) reason = label = '마감';
                 else if (session && ['regular', 'makeup'].includes(session.type)) reason = label = session.type === 'makeup' ? '내 보강' : '내 수업';
                 else if (source && wouldDoubleBookStudent(source, day, date, otherMakeups)) reason = label = '선택 불가';
-                else if (myWeekCommitments >= makeupWeeklyLimit) reason = '이번 주 보강·대기 한도를 모두 사용했어요.';
+                else if (myQuotaUsed >= makeupWeeklyLimit) reason = '이번 주 보강·대기 한도를 모두 사용했어요.';
                 if (existingWait) { reason = ''; label = existingWait.status === 'notified' ? '자리 도착' : '대기 중'; }
+                if (convertingWait && data.isFull && !reason) reason = existingWait ? label : (label = '만석');
                 return <StudentMakeupSlot key={date} session={session} now={now} label={label} reason={reason}
                     isFull={data.isFull} existingWait={existingWait}
                     waitCount={data.isFull && !reason ? getSeatWaitCount(date, day, period.id) : 0}
@@ -1161,11 +1261,12 @@ function CurrentWeekStudentSchedule({
                 days={days} sessions={personalSessions} now={now} tab={studentTab} onTabChange={changeStudentTab}
                 loading={personalLoading} error={personalError} onRetry={retryStudentData}
                 requestUnavailableReason={studentRequestDataError} requestError={requestDataError}
-                membership={membership} source={changingMakeup?.originalClass || selectedOriginalClass} quotaUsed={myWeekCommitments} quotaLimit={makeupWeeklyLimit}
-                waits={validWaits} onWaitlist={handleWaitlistChipClick} onKeepWait={handleKeepAfterOriginal} onSourceChoose={() => { if (changingMakeup) return; setFlowTarget(null); setFlowStep('source'); }}
+                membership={membership} source={changingMakeup?.originalClass || convertingWait?.originalClass || selectedOriginalClass} quotaUsed={myQuotaUsed} quotaLimit={makeupWeeklyLimit}
+                waits={validWaits} onWaitlist={handleWaitlistChipClick} onKeepWait={handleKeepAfterOriginal} onConvertWait={startWaitConversion} onSourceChoose={() => { if (changingMakeup || convertingWait) return; setFlowTarget(null); setFlowStep('source'); }}
                 onMakeup={startStudentMakeup} onCancelMakeup={handleMakeupCancel} onNavigate={onNavigate}
             >
                 {changingMakeup && <div className="student-class-notice"><strong>보강 시간 변경 중</strong><p>원래 수업이 만석이에요. 다른 빈자리를 선택해주세요.</p><button type="button" className="student-class-link" onClick={() => setChangingMakeup(null)}>변경 그만두기</button></div>}
+                {convertingWait && <div className="student-class-notice"><strong>대기를 보강으로 변경 중</strong><p>{classLabel(convertingWait.originalClass)} 수업을 옮길 빈자리를 선택해주세요. 고르면 {classLabel(convertingWait)} 대기는 취소돼요.</p><button type="button" className="student-class-link" onClick={() => setConvertingWait(null)}>변경 그만두기</button></div>}
                 {!studentRequestDataError && renderModernGrid()}
             </StudentClassView>}
             {!modernStudent && <>

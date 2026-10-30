@@ -8,6 +8,7 @@ import {
     isLiveWaitlist,
     isReleasedByOriginalStart,
     canKeepAfterOriginal,
+    canConvertWaitToMakeup,
     resolveAfterSeatFreed,
     resolveToTarget,
 } from './makeupWaitlist';
@@ -154,5 +155,21 @@ describe("'원래 수업 빠지고 대기 유지'", () => {
         expect(canKeepAfterOriginal({ ...base, originalClass: { date: '2026-10-29', day: '목', period: 1 } }, now)).toBe(false);
         expect(canKeepAfterOriginal({ ...base, date: '2026-10-30', period: 2, originalClass: { date: '2026-10-30', day: '금', period: 4 } }, now)).toBe(false);
         expect(canKeepAfterOriginal({ ...base, keepAfterOriginal: true, originalClass: { date: '2026-10-30', day: '금', period: 4 } }, now)).toBe(false);
+    });
+});
+
+describe("'다른 시간으로 보강 변경'", () => {
+    const now = new Date('2026-10-30T17:10:00+09:00'); // 금 4교시(18:00) 50분 전 — 일반 보강 마감(2시간 전)은 지남
+    const base = { id: 'c', studentName: '이정은', status: 'waiting', date: '2026-11-02', day: '월', period: 5, createdAtMs: 1 };
+    it('원래 수업 시작 전이면 2시간 마감이 지나도 고를 수 있다', () => {
+        expect(canConvertWaitToMakeup({ ...base, originalClass: { date: '2026-10-30', day: '금', period: 4 } }, now)).toBe(true);
+    });
+    it("'대기 유지'를 고른 대기도 원래 수업 전이면 바꿀 수 있다", () => {
+        expect(canConvertWaitToMakeup({ ...base, keepAfterOriginal: true, originalClass: { date: '2026-10-30', day: '금', period: 4 } }, now)).toBe(true);
+    });
+    it('원래 수업이 시작됐거나, 자리 안내(notified)를 받은 대기는 안 된다', () => {
+        expect(canConvertWaitToMakeup({ ...base, originalClass: { date: '2026-10-30', day: '금', period: 2 } }, now)).toBe(false);
+        expect(canConvertWaitToMakeup({ ...base, keepAfterOriginal: true, originalClass: { date: '2026-10-29', day: '목', period: 1 } }, now)).toBe(false);
+        expect(canConvertWaitToMakeup({ ...base, status: 'notified', originalClass: { date: '2026-10-30', day: '금', period: 4 } }, now)).toBe(false);
     });
 });

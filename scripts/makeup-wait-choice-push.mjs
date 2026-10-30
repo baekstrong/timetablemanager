@@ -4,6 +4,7 @@
  *
  * 보강 대기가 걸린 원래 수업이 1시간 안에 시작하면 그 수강생에게 앱 푸시를 보낸다.
  * 앱 '내 수업'에서 [원래 수업 빠지고 대기 유지]를 고르면 원래 수업은 결석 처리되고 대기가 유지된다.
+ * [다른 시간으로 보강 변경]을 고르면 여석 있는 칸으로 정식 보강이 되고 대기는 취소된다(원래 수업 2시간 전 마감 면제).
  * 아무것도 안 고르면 원래 수업 시작 때 대기가 자동 취소된다(앱 로직).
  *
  * 실행: GitHub Actions 예약(.github/workflows/makeup-wait-choice.yml, 평일 10분마다).
@@ -111,7 +112,7 @@ async function main() {
                         token,
                         data: {
                             title: `1시간 후 ${label(e.originalClass.date, e.originalClass.period)} 수업이에요`,
-                            body: `${label(e.date, e.period)} 보강 대기 중이에요. 원래 수업을 빠지고 대기를 유지하려면 앱에서 선택해주세요. 선택하지 않으면 수업 시작 때 대기가 취소돼요.`,
+                            body: `${label(e.date, e.period)} 보강 대기 중이에요. 앱 '내 수업'에서 ① 원래 수업 출석(그대로 두기) ② 빠지고 대기 유지 ③ 다른 시간으로 보강 변경 중에 골라주세요. 안 고르면 수업 시작 때 대기가 취소돼요.`,
                             tag: `makeup-choice-${e.id}`,
                             url: './?page=schedule',
                         },

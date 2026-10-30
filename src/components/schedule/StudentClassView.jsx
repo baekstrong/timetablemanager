@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { classLabel, classTime, classStartMs, CLASS_LABELS, classStatusLabel, nextStudentClass, sourceUnavailableReason } from './studentClassModel';
-import { canKeepAfterOriginal, getNotificationDeadline } from '../../utils/makeupWaitlist';
+import { canKeepAfterOriginal, canConvertWaitToMakeup, getNotificationDeadline } from '../../utils/makeupWaitlist';
 import { ScheduleStatusBadge } from './ScheduleCell';
 import ReviewModal from '../../features/today/ReviewModal';
 import { courseNoticeSession } from '../../utils/courseNoticeSession';
@@ -16,7 +16,7 @@ export default function StudentClassView({
     days, sessions = [], now, tab, onTabChange, readOnly = false,
     loading = false, error = '', onRetry, studentName, membership, source, quotaUsed, quotaLimit,
     requestUnavailableReason = '', requestError = '',
-    waits = [], onWaitlist, onKeepWait, onSourceChoose, onMakeup, onCancelMakeup, onNavigate, children,
+    waits = [], onWaitlist, onKeepWait, onConvertWait, onSourceChoose, onMakeup, onCancelMakeup, onNavigate, children,
 }) {
     const [selection, setSelection] = useState(null);
     const [dismissedCourseNotice, setDismissedCourseNotice] = useState('');
@@ -90,11 +90,15 @@ export default function StudentClassView({
             </section>
             {waiting.map(entry => {
                 const canKeep = onKeepWait && canKeepAfterOriginal(entry, now);
+                const canConvert = onConvertWait && canConvertWaitToMakeup(entry, now);
                 return <div key={entry.id} className="student-class-wait"><div><span className="student-class-chip">보강 대기 중</span><strong>{classLabel(entry)}</strong>
                     {entry.keepAfterOriginal
                         ? <p>원래 수업 · {classLabel(entry.originalClass)} (결석 처리됨)<br />자리가 안 나면 원래 수업은 소진돼요.</p>
                         : <p>원래 수업 · {classLabel(entry.originalClass)}<br />{canKeep ? '원래 수업이 시작되면 대기는 자동 취소돼요.' : '수락 전까지 원래 수업은 유지돼요.'}</p>}
-                    {canKeep && <button type="button" className="student-class-button student-class-keep-wait" disabled={readOnly || Boolean(requestUnavailableReason)} onClick={() => onKeepWait(entry)}>원래 수업 빠지고 대기 유지</button>}
+                    {(canKeep || canConvert) && <div className="student-class-wait-actions">
+                        {canKeep && <button type="button" className="student-class-button student-class-keep-wait" disabled={readOnly || Boolean(requestUnavailableReason)} onClick={() => onKeepWait(entry)}>원래 수업 빠지고 대기 유지</button>}
+                        {canConvert && <button type="button" className="student-class-button student-class-convert-wait" disabled={readOnly || Boolean(requestUnavailableReason)} onClick={() => onConvertWait(entry)}>다른 시간으로 보강 변경</button>}
+                    </div>}
                 </div><button type="button" className="student-class-link" disabled={readOnly || Boolean(requestUnavailableReason)} onClick={() => onWaitlist(entry)}>대기 취소</button></div>;
             })}
             <div className="student-class-membership"><div><span>남은 수업</span><strong>{membership?.remainingSessions ?? '—'}<small>회</small></strong></div><div><span>수강 종료일</span><strong>{shortDate(membership?.endDate)}</strong></div><button type="button" aria-label="수강권 자세히 보기" onClick={() => onNavigate?.('myinfo')}>›</button></div>
@@ -106,7 +110,7 @@ export default function StudentClassView({
             {quotaUsed >= quotaLimit && <p className="student-class-notice">이번 주 보강·대기 한도를 모두 사용했어요.</p>}
             {children}
             <p className="student-class-help">대기 신청만으로 수업이 이동하지 않아요. 자리가 나면 직접 수락해요.</p>
-            <details className="student-class-policy"><summary>보강 신청·취소 기준</summary><p>원래 수업과 보강 수업 모두 시작 2시간 전까지 신청할 수 있어요. 취소는 보강 수업 시작 1시간 전까지 가능해요.</p><p>이번 주 신청 한도는 {quotaLimit}회예요. 취소한 보강도 사용 횟수에 포함되며, 대기 중인 신청도 한도를 차지해요.</p><p>원래 수업이 만석이면 취소로 돌아갈 수 없어요. 남은 횟수가 있으면 다른 시간으로 변경할 수 있어요.</p></details>
+            <details className="student-class-policy"><summary>보강 신청·취소 기준</summary><p>원래 수업과 보강 수업 모두 시작 2시간 전까지 신청할 수 있어요. 취소는 보강 수업 시작 1시간 전까지 가능해요.</p><p>보강 대기 중인 수업은 원래 수업 시작 전까지 내 일정의 대기 카드에서 다른 시간 보강으로 바꿀 수 있어요.</p><p>이번 주 신청 한도는 {quotaLimit}회예요. 취소한 보강도 사용 횟수에 포함되며, 대기 중인 신청도 한도를 차지해요.</p><p>원래 수업이 만석이면 취소로 돌아갈 수 없어요. 남은 횟수가 있으면 다른 시간으로 변경할 수 있어요.</p></details>
         </>}
     </div>;
 }
