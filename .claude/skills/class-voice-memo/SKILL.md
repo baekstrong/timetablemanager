@@ -15,9 +15,9 @@ description: 수업 녹음에서 자동으로 만든 메모 제안(코치 전용
 - 대기 중 제안: `~/Library/Application Support/ClassVoiceMemo/proposals/*.json`(하위 `done/` 제외). 없으면 `pipeline.log` 마지막 몇 줄로 상태를 알려준다.
 
 ## 페이지가 하는 일 (server.mjs)
-- 코치 전용 메모: 현재 → 제안 비교(빠지는 줄 빨강, 새 줄 초록, 새 단어 형광), "직접 고치기" 가능. 체크하면 백업 후 `coachNotes/notes`의 그 수강생 키만 조건부 저장(페이지 연 뒤 바뀌었으면 거부) → 재조회로 확인.
-- 수강생 체크리스트: 항목마다 체크·운동 이름·문장 수정. 체크한 것만 `coachPinnedMemos/{이름}.memos`에 `{exercise, memo, pinnedBy:'백관장', createdAt, id, source:'voice-memo'}`로 추가(기존 항목은 원형 보존, 조건부 쓰기). 훈련일지에서 그 운동을 고르면 체크리스트로 보인다.
-- "이 제안 닫기": 제안을 `done/`으로 옮기고 받아쓰기를 지운다.
+- 코치 전용 메모: 현재 → 제안 비교(빠지는 줄 빨강, 새 줄 초록, 새 단어 형광), "직접 고치기" 가능. 체크하고 `확인 완료`를 누르면 백업 후 `coachNotes/notes`의 그 수강생 키만 조건부 저장(페이지 연 뒤 바뀌었으면 거부) → 재조회로 확인.
+- 수강생 체크리스트: 항목마다 체크·운동 이름·문장 수정. 체크하고 `확인 완료`를 누른 것만 `coachPinnedMemos/{이름}.memos`에 `{exercise, memo, pinnedBy:'백관장', createdAt, id, source:'voice-memo'}`로 추가(기존 항목은 원형 보존, 조건부 쓰기). 훈련일지에서 그 운동을 고르면 체크리스트로 보인다.
+- `확인 완료`: 체크한 것을 저장한 뒤(체크 안 한 건 버림) 제안을 `done/`으로 옮기고 받아쓰기를 지운다.
 
 ## 절대 하지 않는 것
 - 수강생 본인 메모(`pinnedMemos`) 쓰기. 테스트 계정(`김기안`) 저장.

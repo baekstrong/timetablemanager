@@ -74,7 +74,7 @@ pre { white-space:pre-wrap; font-size:13px; background:var(--tint); padding:12px
 <body>
 <main>
   <div class="top"><h1>수업 메모 확인</h1><button id="reload">새로고침</button></div>
-  <p class="hint" style="margin-top:-8px">체크하면 바로 앱에 저장돼요(체크한 항목만). 코치 전용 메모는 수강생에게 안 보이고, 체크리스트는 훈련일지에서 그 운동을 고르면 수강생에게 보여요. 코치 메모 줄 중 수강생도 알면 좋은 건 <b>→ 수강생에게도</b>를 누르면 체크리스트로 복사돼요.</p>
+  <p class="hint" style="margin-top:-8px">다 체크한 뒤 수업 맨 아래 <b>확인 완료</b>를 누르면 체크한 항목만 앱에 저장돼요. 코치 전용 메모는 수강생에게 안 보이고, 체크리스트는 훈련일지에서 그 운동을 고르면 수강생에게 보여요. 코치 메모 줄 중 수강생도 알면 좋은 건 <b>→ 수강생에게도</b>를 누르면 체크리스트로 복사돼요.</p>
   <div id="toast" class="status"></div>
   <div id="root"><p class="empty">불러오는 중…</p></div>
 </main>
@@ -136,7 +136,7 @@ function studentHTML(p, s, si) {
     ${(s.evidence || []).length ? `<details><summary>녹음 근거 보기</summary><ul>${s.evidence.map(e => `<li>${esc(e)}</li>`).join('')}</ul></details>` : ''}
     ${showCoach ? `<div class="sec sec-coach" data-kind="coach">
       <div class="row-top" style="margin-bottom:6px">${who(s.name).replace('class="who"', 'class="who coach-who"')}<span class="hint">다른 사람 얘기면 이름을 바꾸세요</span></div>
-      <div class="sec-head"><label class="confirm"><input type="checkbox" class="c-coach" data-key="${esc(p.file)}::${esc(s.name)}::coach"> 코치 전용 메모 이대로 저장${cn.edited ? `<span class="badge b-edit">직접 고침</span>` : ''}${cn.rebased ? `<span class="badge b-edit" title="이 제안을 만든 뒤 메모가 바뀌어 최신 메모 기준으로 다시 맞췄어요">최신 메모에 맞춤</span>` : ''}</label><span class="hint">수강생에게 안 보임</span></div>
+      <div class="sec-head"><label class="confirm"><input type="checkbox" class="c-coach" data-key="${esc(p.file)}::${esc(s.name)}::coach" data-expect="${esc(s.currentCoachNote || '')}"> 코치 전용 메모 이대로 저장${cn.edited ? `<span class="badge b-edit">직접 고침</span>` : ''}${cn.rebased ? `<span class="badge b-edit" title="이 제안을 만든 뒤 메모가 바뀌어 최신 메모 기준으로 다시 맞췄어요">최신 메모에 맞춤</span>` : ''}</label><span class="hint">수강생에게 안 보임</span></div>
       <div class="diff">${diffLines(s.currentCoachNote || '', cn.proposed, true)}</div>
       ${(cn.removed || []).length ? `<div class="hint" style="margin-top:6px">빠지는 내용: ${cn.removed.map(esc).join(' / ')}</div>` : ''}
       <button class="link edit">직접 고치기</button>
@@ -180,7 +180,7 @@ function render({ proposals, exerciseNames }) {
        <div class="hint">녹음 ${p.minutes ? p.minutes + '분' : ''} · 후보 명단 ${esc((p.names || []).join(', ') || '없음')}</div>
        ${p.html}
        ${(p.uncertain || []).length ? `<div class="sec sec-coach unk">
-         <div class="sec-head"><h3>❓ 누군지 모르는 메모</h3><span class="hint">넣을 곳과 이름을 고르면 그 사람 아래로 옮겨져요 — 확인 후 체크해야 저장</span></div>
+         <div class="sec-head"><h3>❓ 누군지 모르는 메모</h3><span class="hint">넣을 곳과 이름을 고르면 그 사람 아래로 옮겨져요 — 체크하고 확인 완료해야 저장</span></div>
          ${p.uncertain.map((u, ui) => { const o = typeof u === 'string' ? { line: u, candidates: [] } : u;
            const rest = (p.names || []).filter(n => !(o.candidates || []).includes(n));
            return `<div class="unk-row" data-index="${ui}">
@@ -192,15 +192,29 @@ function render({ proposals, exerciseNames }) {
                <optgroup label="이 수업 명단">${rest.map(n => `<option>${esc(n)}</option>`).join('')}</optgroup></select>
            </div>`; }).join('')}
        </div>` : ''}
-       <div class="actions"><span class="hint" style="margin-right:auto;align-self:center">필요한 것만 체크하고 확인 완료 — 체크 안 한 건 버려요</span><button class="primary finish">확인 완료</button></div>
+       <div class="actions"><span class="hint" style="margin-right:auto;align-self:center">누르면 체크한 것만 저장하고 체크 안 한 건 버려요</span><button class="primary finish">확인 완료</button></div>
        <div class="status"></div>
      </section>`).join('');
 }
 
+// 체크·고른 운동·고친 문장은 확인 완료 전까지 이 페이지에만 있다 — 새로고침·탭을 닫아도 남게 브라우저에 보관한다
+const DRAFT = 'cvm-draft';
+let rendered = false;
+function readDraft() {
+  try { return JSON.parse(localStorage.getItem(DRAFT)) || { checked: [], vals: [] }; } catch { return { checked: [], vals: [] }; }
+}
+function syncDraft() {
+  if (!rendered) return;
+  const checked = [...document.querySelectorAll('input[type=checkbox]:checked')].map(c => c.dataset.key).filter(Boolean);
+  const vals = [...document.querySelectorAll('.row')].map(r => [r.querySelector('.c-item').dataset.key, [r.querySelector('.ex').value, r.querySelector('.tx').value]]);
+  try { localStorage.setItem(DRAFT, JSON.stringify({ checked, vals })); } catch { /* 보관 실패해도 페이지는 그대로 쓴다 */ }
+}
+
 async function load(extraChecked = []) {
-  const keep = new Set([...document.querySelectorAll('input[type=checkbox]:checked')].map(c => c.dataset.key).filter(Boolean).concat(extraChecked));
-  // 페이지에서 고른 운동·고친 문장은 제안 파일에 없다 — 다시 그려도 남게 한다(안 그러면 저장 대기 중이던 항목이 운동 빈칸으로 돌아가 저장이 안 됨)
-  const vals = new Map([...document.querySelectorAll('.row')].map(r => [r.querySelector('.c-item').dataset.key, [r.querySelector('.ex').value, r.querySelector('.tx').value]]));
+  syncDraft();
+  const draft = readDraft();
+  const keep = new Set([...draft.checked, ...extraChecked]);
+  const vals = new Map(draft.vals);
   const y = window.scrollY;
   try {
     render(await api('/api/proposals'));
@@ -211,41 +225,25 @@ async function load(extraChecked = []) {
       const w = r.querySelector('.warn'); if (w) w.hidden = EXERCISES.includes(v[0].trim());
     });
     window.scrollTo(0, y);
-    extraChecked.forEach(k => { const c = document.querySelector(`input[data-key="${CSS.escape(k)}"]`); if (c) autoSave(c); });
+    rendered = true;
+    syncDraft();
   }
-  catch (e) { document.getElementById('root').innerHTML = `<p class="empty err">불러오지 못했어요: ${esc(e.message)}</p>`; }
+  catch (e) { rendered = false; document.getElementById('root').innerHTML = `<p class="empty err">불러오지 못했어요: ${esc(e.message)}</p>`; }
 }
 
-// 자동 저장: 체크하거나 체크된 항목을 고치면 그 수강생 것만 0.5초 뒤 저장. 수강생별로 한 번에 하나씩 순서대로.
-const timers = new Map(), queues = new Map();
-function autoSave(node) {
-  const el = node.closest('.student'); if (!el) return;
-  const key = `${el.closest('section.card').dataset.file}::${el.dataset.name}`;
-  clearTimeout(timers.get(key));
-  timers.set(key, setTimeout(() => queues.set(key, (queues.get(key) || Promise.resolve()).then(() => saveStudent(key))), 500));
-}
-async function saveStudent(key) {
-  const [file, name] = key.split('::');
-  const sel = `section.card[data-file="${CSS.escape(file)}"] .student[data-name="${CSS.escape(name)}"]`;
-  let el = document.querySelector(sel); if (!el) return true;
-  const st = el.querySelector('.status');
-  const coachBox = el.querySelector('.c-coach:checked:not(:disabled)');
-  const rows = [...el.querySelectorAll('.row:not(.saved)')].filter(r => r.querySelector('.c-item').checked);
-  const ok = r => { const v = r.querySelector('.ex').value.trim(); return v && (!EXERCISES.length || EXERCISES.includes(v)); };
-  const items = rows.filter(ok).map(r => ({ exercise: r.querySelector('.ex').value.trim(), text: r.querySelector('.tx').value }));
-  const waiting = rows.length - items.length;
-  if (!coachBox && !items.length) { if (waiting) st.innerHTML = '<span class="warn">운동을 고르면 바로 저장돼요.</span>'; return !waiting; }
-  st.innerHTML = '<span class="hint">저장 중…</span>';
+const validExercise = r => { const v = r.querySelector('.ex').value.trim(); return v && (!EXERCISES.length || EXERCISES.includes(v)); };
+// 한 수강생의 체크한 항목을 저장. 성공하면 null, 실패하면 이유를 돌려준다.
+async function saveStudent(el) {
+  const coachBox = el.querySelector('.c-coach:checked');
+  const rows = [...el.querySelectorAll('.row')].filter(r => r.querySelector('.c-item').checked);
+  const items = rows.map(r => ({ exercise: r.querySelector('.ex').value.trim(), text: r.querySelector('.tx').value }));
+  if (!coachBox && !items.length) return null;
   try {
-    // 최신 메모 기준으로 저장(그사이 다른 곳에서 바뀌었으면 서버가 막는다)
-    const s = (await api('/api/proposals')).proposals.find(x => x.file === file)?.students.find(x => x.name === name);
-    const coach = coachBox ? { text: el.querySelector('.coach-text').value, expect: s?.currentCoachNote ?? '' } : null;
-    await api('/api/save', { name, coachNote: coach, exerciseItems: items });
-    await load();
-    // 저장된 건 화면에서 빠지므로 위쪽 알림으로 알려준다
-    document.getElementById('toast').innerHTML = `<span class="ok">✓ ${esc(name)} 저장됨</span>${waiting ? ' <span class="warn">운동을 안 고른 항목은 고르면 저장돼요.</span>' : ''}`;
-    return !waiting;
-  } catch (err) { st.innerHTML = `<span class="err">저장 실패: ${esc(err.message)}</span>`; return false; }
+    // expect는 화면을 그릴 때의 메모 — 체크해 둔 사이 앱에서 메모가 바뀌었으면 서버가 막아 옛 내용으로 덮어쓰지 않는다
+    const coach = coachBox ? { text: el.querySelector('.coach-text').value, expect: coachBox.dataset.expect } : null;
+    await api('/api/save', { name: el.dataset.name, coachNote: coach, exerciseItems: items });
+    return null;
+  } catch (err) { return err.message; }
 }
 
 // 운동 검색: 앱 운동 목록에서만 고르게 한다(목록 밖 이름이면 수강생 화면에 안 뜬다)
@@ -264,10 +262,11 @@ function pickEx(input, v) {
   const w = input.closest('.fields').querySelector('.warn');
   if (w) w.hidden = EXERCISES.includes(v);
   input.closest('.fields').querySelectorAll('.cand').forEach(b => b.classList.toggle('on', b.dataset.v === v));
-  autoSave(input);
+  syncDraft();
 }
 document.addEventListener('focusin', e => { if (e.target.classList.contains('ex')) { e.target.select(); showExList(e.target); } });
 document.addEventListener('input', e => {
+  syncDraft();
   if (!e.target.classList.contains('ex')) return;
   showExList(e.target);
   const w = e.target.closest('.fields').querySelector('.warn');
@@ -293,7 +292,7 @@ document.addEventListener('mousedown', e => {
 // 체크리스트 항목이 다른 수강생 얘기면 '누구'를 바꿔 옮긴다
 document.addEventListener('change', async (e) => {
   const t = e.target;
-  if ((t.matches('.c-coach, .c-item') && t.checked) || t.matches('.row .tx, .row .ex, .coach-text')) return autoSave(t);
+  syncDraft();
   if (t.classList.contains('unk-as')) return; // 넣을 곳만 고른 상태 — 이름을 고를 때 반영
   if (t.classList.contains('unk-who')) {
     // 누군지 모르는 메모 → 고른 사람 코치 전용 메모(또는 수강생 체크리스트)에 붙이고 체크해 둔다
@@ -333,18 +332,18 @@ document.addEventListener('click', async (e) => {
   if (t.classList.contains('edit')) { const ed = t.nextElementSibling; ed.hidden = false; t.hidden = true; ed.querySelector('textarea').focus(); return; }
   if (t.classList.contains('ed-cancel')) { const ed = t.closest('.editor'); ed.hidden = true; ed.previousElementSibling.hidden = false; return; }
   if (t.classList.contains('share')) {
-    // 코치 전용 메모 줄을 수강생 체크리스트에도 넣고 체크(운동이 정해져 있으면 바로 저장)
+    // 코치 전용 메모 줄을 수강생 체크리스트에도 넣고 체크(저장은 확인 완료 때)
     const card = t.closest('section.card'), st = t.closest('.student'), text = t.dataset.line.trim();
     try {
       await api('/api/patch', { file: card.dataset.file, op: 'shareLine', student: st.dataset.name, text });
       await load();
       const row = [...document.querySelectorAll(`.student[data-name="${CSS.escape(st.dataset.name)}"] .row`)].find(r => r.querySelector('.tx').value === text);
-      if (row) { row.querySelector('.c-item').checked = true; autoSave(row); (row.querySelector('.ex').value ? row.querySelector('.tx') : row.querySelector('.ex')).focus(); }
+      if (row) { row.querySelector('.c-item').checked = true; syncDraft(); (row.querySelector('.ex').value ? row.querySelector('.tx') : row.querySelector('.ex')).focus(); }
     } catch (err) { st.querySelector('.status').innerHTML = `<span class="err">${esc(err.message)}</span>`; }
     return;
   }
   if (t.classList.contains('ed-ok')) {
-    // 고친 문구를 제안에 반영 → 비교 화면이 고친 내용으로 다시 그려지고 체크되어 바로 저장된다
+    // 고친 문구를 제안에 반영 → 비교 화면이 고친 내용으로 다시 그려지고 체크된다(저장은 확인 완료 때)
     const card = t.closest('section.card'), st = t.closest('.student');
     try {
       await api('/api/patch', { file: card.dataset.file, op: 'coachNote', student: st.dataset.name, text: t.closest('.editor').querySelector('textarea').value });
@@ -356,19 +355,31 @@ document.addEventListener('click', async (e) => {
   if (!card) return;
   const status = card.querySelector(':scope > .status');
   if (t.classList.contains('finish')) {
-    // 확인 완료: 체크한 것 중 아직 안 들어간 걸 마저 저장하고, 체크 안 한 건 버리고 이 수업을 닫는다
+    // 확인 완료: 체크한 걸 저장하고, 체크 안 한 건 버리고 이 수업을 닫는다
     const file = card.dataset.file;
+    const students = [...card.querySelectorAll('.student')];
+    const checkedRows = [...card.querySelectorAll('.row')].filter(r => r.querySelector('.c-item').checked);
+    // 운동을 안 고른 항목이 있으면 아무것도 저장하지 않고 멈춘다
+    const missing = checkedRows.find(r => !validExercise(r));
+    if (missing) {
+      status.innerHTML = '<span class="err">체크한 항목 중 운동을 안 고른 게 있어요. 운동을 고르거나 체크를 풀고 다시 눌러주세요. 아직 아무것도 저장하지 않았어요.</span>';
+      missing.querySelector('.ex').focus();
+      return;
+    }
+    const pending = card.querySelector('.row, .c-coach, .unk-row');
+    if (pending && !checkedRows.length && !card.querySelector('.c-coach:checked') && !confirm('체크한 항목이 없어요. 이 수업 제안을 전부 버릴까요?')) return;
     t.disabled = true; status.innerHTML = '<span class="hint">저장 중…</span>';
-    const keys = [...card.querySelectorAll('.student')].filter(el => el.querySelector('.c-coach:checked, .c-item:checked'))
-      .map(el => `${file}::${el.dataset.name}`);
-    for (const key of keys) {
-      clearTimeout(timers.get(key));
-      await queues.get(key);
-      if (!(await saveStudent(key))) {
-        const c = document.querySelector(`section.card[data-file="${CSS.escape(file)}"]`);
-        if (c) { c.querySelector(':scope > .status').innerHTML = '<span class="err">저장 못 한 항목이 있어요(운동 미선택·저장 실패). 고치거나 체크를 풀고 다시 눌러주세요.</span>'; c.querySelector('.finish').disabled = false; }
-        return;
-      }
+    const failed = [];
+    for (const el of students) {
+      const why = await saveStudent(el);
+      if (why) failed.push(`${el.dataset.name}: ${why}`);
+    }
+    if (failed.length) {
+      // 저장된 사람은 다시 그리면 빠지고, 실패한 사람만 체크된 채 남는다
+      await load();
+      const c = document.querySelector(`section.card[data-file="${CSS.escape(file)}"]`);
+      if (c) c.querySelector(':scope > .status').innerHTML = `<span class="err">저장 못 한 항목이 있어요. 확인하고 다시 눌러주세요.<br>${failed.map(esc).join('<br>')}</span>`;
+      return;
     }
     await api('/api/finish', { file }).catch(() => {}); // 다 저장돼 이미 자동으로 닫혔을 수 있다
     await load();
