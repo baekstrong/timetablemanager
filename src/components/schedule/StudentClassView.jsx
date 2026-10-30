@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { classLabel, classTime, classStartMs, CLASS_LABELS, classStatusLabel, nextStudentClass, sourceUnavailableReason } from './studentClassModel';
-import { getNotificationDeadline } from '../../utils/makeupWaitlist';
+import { canKeepAfterOriginal, getNotificationDeadline } from '../../utils/makeupWaitlist';
 import { ScheduleStatusBadge } from './ScheduleCell';
 import ReviewModal from '../../features/today/ReviewModal';
 import { courseNoticeSession } from '../../utils/courseNoticeSession';
@@ -16,7 +16,7 @@ export default function StudentClassView({
     days, sessions = [], now, tab, onTabChange, readOnly = false,
     loading = false, error = '', onRetry, studentName, membership, source, quotaUsed, quotaLimit,
     requestUnavailableReason = '', requestError = '',
-    waits = [], onWaitlist, onSourceChoose, onMakeup, onCancelMakeup, onNavigate, children,
+    waits = [], onWaitlist, onKeepWait, onSourceChoose, onMakeup, onCancelMakeup, onNavigate, children,
 }) {
     const [selection, setSelection] = useState(null);
     const [dismissedCourseNotice, setDismissedCourseNotice] = useState('');
@@ -88,7 +88,15 @@ export default function StudentClassView({
                     </div>;
                 }) : <div className="student-class-empty"><h3>{selectedDate ? '이날은 수업이 없어요' : '이 주에 남은 수업이 없어요'}</h3><p>다른 날짜를 선택해 수업 내역을 확인해보세요.</p>{selectedDate && next && <button type="button" className="student-class-link" onClick={() => setSelection(next.date)}>다음 수업 보기 · {classLabel(next)} ›</button>}</div>}
             </section>
-            {waiting.map(entry => <div key={entry.id} className="student-class-wait"><div><span className="student-class-chip">보강 대기 중</span><strong>{classLabel(entry)}</strong><p>원래 수업 · {classLabel(entry.originalClass)}<br />수락 전까지 원래 수업은 유지돼요.</p></div><button type="button" className="student-class-link" disabled={readOnly || Boolean(requestUnavailableReason)} onClick={() => onWaitlist(entry)}>대기 취소</button></div>)}
+            {waiting.map(entry => {
+                const canKeep = onKeepWait && canKeepAfterOriginal(entry, now);
+                return <div key={entry.id} className="student-class-wait"><div><span className="student-class-chip">보강 대기 중</span><strong>{classLabel(entry)}</strong>
+                    {entry.keepAfterOriginal
+                        ? <p>원래 수업 · {classLabel(entry.originalClass)} (결석 처리됨)<br />자리가 안 나면 원래 수업은 소진돼요.</p>
+                        : <p>원래 수업 · {classLabel(entry.originalClass)}<br />{canKeep ? '원래 수업이 시작되면 대기는 자동 취소돼요.' : '수락 전까지 원래 수업은 유지돼요.'}</p>}
+                    {canKeep && <button type="button" className="student-class-button student-class-keep-wait" disabled={readOnly || Boolean(requestUnavailableReason)} onClick={() => onKeepWait(entry)}>원래 수업 빠지고 대기 유지</button>}
+                </div><button type="button" className="student-class-link" disabled={readOnly || Boolean(requestUnavailableReason)} onClick={() => onWaitlist(entry)}>대기 취소</button></div>;
+            })}
             <div className="student-class-membership"><div><span>남은 수업</span><strong>{membership?.remainingSessions ?? '—'}<small>회</small></strong></div><div><span>수강 종료일</span><strong>{shortDate(membership?.endDate)}</strong></div><button type="button" aria-label="수강권 자세히 보기" onClick={() => onNavigate?.('myinfo')}>›</button></div>
             <button type="button" className="student-class-training" onClick={() => onNavigate?.('training-log')}><span><strong>지난 수업, 어떻게 했더라?</strong><small>훈련일지에서 내 기록 이어보기</small></span><span aria-hidden="true">›</span></button>
             <button type="button" className="student-class-link" onClick={() => onNavigate?.('holding')}>홀딩·결석 신청 및 내역 ›</button>

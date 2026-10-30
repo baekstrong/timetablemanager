@@ -11,10 +11,12 @@ import {
     getActiveMakeupWaitlists,
     updateMakeupWaitlistStatus,
     acceptMakeupWaitlist,
+    keepMakeupWaitlistAfterOriginal,
+    cancelAbsence,
     declineMakeupWaitlist,
 } from '../../services/firebaseService';
-import { normalizeWaitlistEntry, onSeatFreed } from '../../services/makeupWaitlistService';
-import { isNotificationExpired, getNotificationDeadline, isLiveWaitlist, isOriginalClassStarted } from '../../utils/makeupWaitlist';
+import { normalizeWaitlistEntry, onSeatFreed, onSeatsFreedForDates } from '../../services/makeupWaitlistService';
+import { isNotificationExpired, getNotificationDeadline, isLiveWaitlist, isReleasedByOriginalStart, isOriginalClassStarted } from '../../utils/makeupWaitlist';
 import { processHolidayMakeupEndDate, getStudentField, calculateMembershipStats } from '../../services/googleSheetsService';
 import {
     weekDateToISO,
@@ -37,10 +39,10 @@ import { getPushPermission, initPush, isPushAvailable } from '../../services/pus
 import { pushBlockedGuide, resolvePushState } from '../../utils/pushStatus';
 import { buildStudentWeek, studentWeekDays, classLabel, classStartMs, sourceUnavailableReason, studentDateISO } from './studentClassModel';
 
-const DEFAULT_SERVICES = { getActiveMakeupRequests, getWeekMakeupRequests, createMakeupRequest, cancelMakeupRequest, completeMakeupRequest, getHolidays, createMakeupWaitlist, getActiveMakeupWaitlists, updateMakeupWaitlistStatus, acceptMakeupWaitlist, declineMakeupWaitlist, onSeatFreed, processHolidayMakeupEndDate };
+const DEFAULT_SERVICES = { getActiveMakeupRequests, getWeekMakeupRequests, createMakeupRequest, cancelMakeupRequest, completeMakeupRequest, getHolidays, createMakeupWaitlist, getActiveMakeupWaitlists, updateMakeupWaitlistStatus, acceptMakeupWaitlist, declineMakeupWaitlist, onSeatFreed, processHolidayMakeupEndDate, keepMakeupWaitlistAfterOriginal, cancelAbsence, onSeatsFreedForDates };
 const EMPTY_LIST = [];
 const denyReadOnlyWrite = async () => { throw new Error('실데이터 조회 전용 화면에서는 신청·취소를 할 수 없습니다.'); };
-const READ_ONLY_WRITES = { createMakeupRequest: denyReadOnlyWrite, cancelMakeupRequest: denyReadOnlyWrite, completeMakeupRequest: denyReadOnlyWrite, createMakeupWaitlist: denyReadOnlyWrite, updateMakeupWaitlistStatus: denyReadOnlyWrite, acceptMakeupWaitlist: denyReadOnlyWrite, declineMakeupWaitlist: denyReadOnlyWrite, onSeatFreed: denyReadOnlyWrite, processHolidayMakeupEndDate: denyReadOnlyWrite };
+const READ_ONLY_WRITES = { createMakeupRequest: denyReadOnlyWrite, cancelMakeupRequest: denyReadOnlyWrite, completeMakeupRequest: denyReadOnlyWrite, createMakeupWaitlist: denyReadOnlyWrite, updateMakeupWaitlistStatus: denyReadOnlyWrite, acceptMakeupWaitlist: denyReadOnlyWrite, declineMakeupWaitlist: denyReadOnlyWrite, onSeatFreed: denyReadOnlyWrite, processHolidayMakeupEndDate: denyReadOnlyWrite, keepMakeupWaitlistAfterOriginal: denyReadOnlyWrite, cancelAbsence: denyReadOnlyWrite, onSeatsFreedForDates: denyReadOnlyWrite };
 
 const KOR_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 // "2026-06-24" → "6월 24일(수)"
@@ -101,7 +103,7 @@ function CurrentWeekStudentSchedule({
     initialTab = 'mine',
 }) {
     const effectiveServices = readOnly ? { ...services, ...READ_ONLY_WRITES } : services;
-    const { getActiveMakeupRequests, getWeekMakeupRequests, createMakeupRequest, cancelMakeupRequest, completeMakeupRequest, getHolidays, createMakeupWaitlist, getActiveMakeupWaitlists, updateMakeupWaitlistStatus, acceptMakeupWaitlist, declineMakeupWaitlist, onSeatFreed, processHolidayMakeupEndDate } = effectiveServices;
+    const { getActiveMakeupRequests, getWeekMakeupRequests, createMakeupRequest, cancelMakeupRequest, completeMakeupRequest, getHolidays, createMakeupWaitlist, getActiveMakeupWaitlists, updateMakeupWaitlistStatus, acceptMakeupWaitlist, declineMakeupWaitlist, onSeatFreed, processHolidayMakeupEndDate, keepMakeupWaitlistAfterOriginal, cancelAbsence, onSeatsFreedForDates } = effectiveServices;
     const [clockNow, setClockNow] = useState(() => new Date());
     const now = suppliedNow || clockNow;
     const [studentTab, setStudentTab] = useState(initialTab === 'all' ? 'all' : 'mine');
@@ -294,7 +296,7 @@ function CurrentWeekStudentSchedule({
                 loadedPersonalKey.current = personalRequestKey;
                 // 원래 수업이 시작된 내 대기는 자동 취소 (화면에서는 이미 isLiveWaitlist로 빠져 있다)
                 if (!readOnly) waitlists
-                    .filter(w => w.studentName === user.username && isOriginalClassStarted(w))
+                    .filter(w => w.studentName === user.username && isReleasedByOriginalStart(w))
                     .forEach(w => updateMakeupWaitlistStatus(w.id, 'cancelled').catch(() => {}));
                 setMakeupDataState('loaded');
 
@@ -688,11 +690,43 @@ function CurrentWeekStudentSchedule({
             return;
         }
         if (entry.status === 'waiting') {
-            if (confirm('이 시간의 보강 대기를 취소하시겠습니까?')) {
+            const restoresOriginal = entry.keepAfterOriginal && !isOriginalClassStarted(entry);
+            const message = restoresOriginal
+                ? '이 시간의 보강 대기를 취소하시겠습니까?\n원래 수업의 결석 처리도 함께 취소되어 원래 수업에 나오시면 됩니다.'
+                : '이 시간의 보강 대기를 취소하시겠습니까?';
+            if (confirm(message)) {
                 updateMakeupWaitlistStatus(entry.id, 'cancelled')
+                    .then(() => releaseKeptAbsence(entry))
                     .then(reloadMyWaitlists)
                     .catch(err => alert(`대기 취소 실패: ${err.message}`));
             }
+        }
+    }
+
+    // '대기 유지'로 만든 결석은 원래 수업 시작 전에 대기를 그만두면 되돌린다(원래 수업에 나올 수 있게).
+    // 원래 수업이 지난 뒤면 그 수업은 소진이라 결석을 그대로 둔다.
+    async function releaseKeptAbsence(entry) {
+        if (!entry.keepAfterOriginal || !entry.keptAbsenceId || isOriginalClassStarted(entry)) return;
+        await cancelAbsence?.(entry.keptAbsenceId);
+        loadWeeklyData?.();
+    }
+
+    async function handleKeepAfterOriginal(entry) {
+        if (readOnly) { alert('실데이터 조회 전용 화면에서는 신청·취소를 할 수 없습니다.'); return; }
+        if (!validateStudentDataReady() || isSubmittingWaitlist || !keepMakeupWaitlistAfterOriginal) return;
+        if (isOriginalClassStarted(entry)) { alert('원래 수업이 이미 시작되어 선택할 수 없습니다.'); await reloadMyWaitlists(); return; }
+        if (!confirm(`원래 수업(${classLabel(entry.originalClass)})은 결석 처리되고, 그 자리는 다른 수강생에게 열려요.\n\n${classLabel(entry)} 보강 자리가 나면 알림을 드려요.\n끝내 자리가 안 나면 원래 수업은 소진돼요(종료일 연장 없음).\n\n원래 수업을 빠지고 대기를 유지할까요?`)) return;
+        setIsSubmittingWaitlist(true);
+        try {
+            await keepMakeupWaitlistAfterOriginal(entry);
+            alert('원래 수업은 결석 처리되었고, 보강 대기는 유지됩니다.');
+            const { date, day, period } = entry.originalClass;
+            onSeatsFreedForDates?.([date], `${day}${period}`)?.catch(e => console.error('보강 대기 알림 트리거 실패:', e));
+            await Promise.all([reloadMyWaitlists(), loadWeeklyData?.()]);
+        } catch (error) {
+            alert(`처리 실패: ${error.message}`);
+        } finally {
+            setIsSubmittingWaitlist(false);
         }
     }
 
@@ -708,7 +742,8 @@ function CurrentWeekStudentSchedule({
             return;
         }
         // 원래 수업이 이미 시작/종료된 경우 — 출석한 수업을 보강으로 옮길 수 없음
-        if (isClassWithinMinutes(entry.originalClass.date, entry.originalClass.period, 0)) {
+        // ('원래 수업 빠지고 대기 유지'를 고른 대기는 원래 수업이 결석 처리돼 있으므로 예외)
+        if (!entry.keepAfterOriginal && isClassWithinMinutes(entry.originalClass.date, entry.originalClass.period, 0)) {
             alert('옮기려던 원래 수업이 이미 시작되어 수락할 수 없습니다.');
             updateMakeupWaitlistStatus(entry.id, 'expired').catch(() => {});
             setRespondingWaitlist(null);
@@ -759,6 +794,10 @@ function CurrentWeekStudentSchedule({
                 // 보강은 이미 확정됨 — 대기 상태 전환 실패는 치명적이지 않음 (백스톱이 정리)
                 console.error('보강 대기 accepted 전환 실패 (보강은 생성됨):', entry.id, statusError);
             }
+            // '대기 유지'로 만든 결석은 정식 보강(보강이동)으로 바뀌었으므로 지운다.
+            if (entry.keepAfterOriginal && entry.keptAbsenceId) {
+                await cancelAbsence?.(entry.keptAbsenceId)?.catch(err => console.error('대기 유지 결석 정리 실패:', err));
+            }
             try {
                 const activeAndCompleted = await getActiveMakeupRequests(user.username);
                 await syncHolidayMakeupEndDate(activeAndCompleted, entry.originalClass.date);
@@ -793,6 +832,7 @@ function CurrentWeekStudentSchedule({
         setIsSubmittingWaitlist(true);
         try {
             await declineMakeupWaitlist(entry.id);
+            await releaseKeptAbsence(entry).catch(err => console.error('대기 유지 결석 되돌리기 실패:', err));
             // 거절은 실제로 자리를 비우지 않으므로(거절자는 자리를 점유한 적 없음) 실제 여석 기준으로만 다음 순번 알림.
             const dPeriodObj = PERIODS.find(p => p.id === entry.period);
             const dExpectedDate = weekDates[entry.day] ? weekDateToISO(weekDates[entry.day]) : null;
@@ -1122,7 +1162,7 @@ function CurrentWeekStudentSchedule({
                 loading={personalLoading} error={personalError} onRetry={retryStudentData}
                 requestUnavailableReason={studentRequestDataError} requestError={requestDataError}
                 membership={membership} source={changingMakeup?.originalClass || selectedOriginalClass} quotaUsed={myWeekCommitments} quotaLimit={makeupWeeklyLimit}
-                waits={validWaits} onWaitlist={handleWaitlistChipClick} onSourceChoose={() => { if (changingMakeup) return; setFlowTarget(null); setFlowStep('source'); }}
+                waits={validWaits} onWaitlist={handleWaitlistChipClick} onKeepWait={handleKeepAfterOriginal} onSourceChoose={() => { if (changingMakeup) return; setFlowTarget(null); setFlowStep('source'); }}
                 onMakeup={startStudentMakeup} onCancelMakeup={handleMakeupCancel} onNavigate={onNavigate}
             >
                 {changingMakeup && <div className="student-class-notice"><strong>보강 시간 변경 중</strong><p>원래 수업이 만석이에요. 다른 빈자리를 선택해주세요.</p><button type="button" className="student-class-link" onClick={() => setChangingMakeup(null)}>변경 그만두기</button></div>}

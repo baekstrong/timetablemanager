@@ -20,13 +20,13 @@ vi.mock('../../services/firebaseService', () => ({
     getActiveMakeupRequests: vi.fn(), getWeekMakeupRequests: vi.fn(), createMakeupRequest: vi.fn(),
     cancelMakeupRequest: vi.fn(), completeMakeupRequest: vi.fn(), getHolidays: vi.fn(),
     createMakeupWaitlist: vi.fn(), getActiveMakeupWaitlists: vi.fn(), updateMakeupWaitlistStatus: vi.fn(),
-    acceptMakeupWaitlist: vi.fn(), declineMakeupWaitlist: vi.fn(), getDisabledClasses: vi.fn(),
+    acceptMakeupWaitlist: vi.fn(), declineMakeupWaitlist: vi.fn(), keepMakeupWaitlistAfterOriginal: vi.fn(), cancelAbsence: vi.fn(), getDisabledClasses: vi.fn(),
     getLockedSlots: vi.fn(), getNewStudentRegistrations: vi.fn(), createWaitlistRequest: vi.fn(),
     cancelWaitlistRequest: vi.fn(), checkWaitlistAvailability: vi.fn(), updateWaitlistAvailability: vi.fn(),
     removeFreeWorkout: vi.fn(), addFreeWorkoutRosterMember: vi.fn(), removeFreeWorkoutRosterMember: vi.fn(),
 }));
 vi.mock('../../services/makeupWaitlistService', () => ({
-    normalizeWaitlistEntry: entry => entry, onSeatFreed: vi.fn(), syncMakeupWaitlists: vi.fn(),
+    normalizeWaitlistEntry: entry => entry, onSeatFreed: vi.fn(), onSeatsFreedForDates: vi.fn(), syncMakeupWaitlists: vi.fn(),
 }));
 vi.mock('../../features/today/CoachHome', () => ({ default: () => null }));
 vi.mock('./FreeWorkoutModal', () => ({ default: () => null }));

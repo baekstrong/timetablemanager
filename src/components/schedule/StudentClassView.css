@@ -101,3 +101,4 @@
 .student-class-grid-scroll-hint { display: none; }
 @media (max-width: 600px) { .student-class-grid-scroll-hint { display: block; color: var(--text-secondary); font-size: 11px; line-height: 1.5; margin-bottom: 8px; } }
 .student-class-grid-time, .student-class-grid > .student-class-grid-heading-cell:first-child { position: sticky; left: 0; z-index: 1; background: var(--canvas); }
+.student-class-wait .student-class-keep-wait { margin-top:8px; }

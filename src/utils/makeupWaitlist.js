@@ -35,15 +35,37 @@ export function isOriginalClassStarted(entry, now = new Date()) {
     return start ? now >= start : false;
 }
 
+/**
+ * 원래 수업 시작으로 취소해야 하는 대기인가.
+ * 수강생이 '원래 수업 빠지고 대기 유지'(keepAfterOriginal)를 골랐으면 원래 수업은 결석 처리됐고
+ * 대기는 보강 수업 시작 전까지 살아 있다(2026-10-30 사용자 결정, 자리가 안 나면 그 수업은 소진).
+ */
+export function isReleasedByOriginalStart(entry, now = new Date()) {
+    return !entry?.keepAfterOriginal && isOriginalClassStarted(entry, now);
+}
+
+/**
+ * '원래 수업 빠지고 대기 유지'를 고를 수 있는가 — 원래 수업 시작 전이고,
+ * 원래 수업이 보강 수업보다 먼저인 대기만(반대면 보강 수업이 먼저 끝나 고를 필요가 없다).
+ */
+export function canKeepAfterOriginal(entry, now = new Date()) {
+    if (!entry || entry.keepAfterOriginal) return false;
+    if (entry.status !== 'waiting' && entry.status !== 'notified') return false;
+    const original = entry.originalClass;
+    const originalStart = original?.date ? getClassDateTime(original.date, Number(original.period)) : null;
+    const targetStart = getClassDateTime(entry.date, Number(entry.period));
+    return !!originalStart && !!targetStart && now < originalStart && originalStart < targetStart;
+}
+
 /** 아직 살아 있는 대기인가 — 화면 표시·주간 약속 수·대기 인원 계산 공용 */
 export function isLiveWaitlist(entry, now = new Date()) {
-    if (isOriginalClassStarted(entry, now)) return false;
+    if (isReleasedByOriginalStart(entry, now)) return false;
     if (entry.status === 'waiting') return canStillNotify(entry, now);
     return entry.status === 'notified' && !isNotificationExpired(entry, now);
 }
 
 function splitQueue(entries, now) {
-    const toCancel = entries.filter(e => (e.status === 'waiting' || e.status === 'notified') && isOriginalClassStarted(e, now));
+    const toCancel = entries.filter(e => (e.status === 'waiting' || e.status === 'notified') && isReleasedByOriginalStart(e, now));
     const live = entries.filter(e => !toCancel.includes(e));
     const toExpire = live.filter(e => e.status === 'notified' && isNotificationExpired(e, now));
     const activeNotifiedCount = live.filter(e => e.status === 'notified' && !isNotificationExpired(e, now)).length;

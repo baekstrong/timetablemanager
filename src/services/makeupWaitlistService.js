@@ -6,7 +6,7 @@ import {
 } from './firebaseService';
 import { sendMakeupSeatAvailableSMS } from './smsService';
 import { pushMakeupSeat } from './pushService';
-import { findWaitlistsReleasedByHolding, isOriginalClassStarted, resolveAfterSeatFreed, resolveToTarget } from '../utils/makeupWaitlist';
+import { findWaitlistsReleasedByHolding, isReleasedByOriginalStart, resolveAfterSeatFreed, resolveToTarget } from '../utils/makeupWaitlist';
 import { parseScheduleString } from '../utils/scheduleUtils';
 import { PERIODS } from '../data/mockData';
 
@@ -132,7 +132,7 @@ export async function syncMakeupWaitlists(getAvailableSeats) {
         let all = (await getActiveMakeupWaitlists()).map(normalizeWaitlistEntry);
         // 원래 수업이 시작된 대기는 슬롯 여석을 모르는 주(다음 주 등)에도 취소한다.
         const now = new Date();
-        const stale = all.filter(e => isOriginalClassStarted(e, now));
+        const stale = all.filter(e => isReleasedByOriginalStart(e, now));
         if (stale.length) {
             await applyResolution({ toCancel: stale, toExpire: [], toNotify: [] });
             all = all.filter(e => !stale.includes(e));

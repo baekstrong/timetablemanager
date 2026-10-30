@@ -1202,6 +1202,25 @@ export const notifyMakeupWaitlist = async (id) => {
     }));
 };
 
+/**
+ * '원래 수업 빠지고 대기 유지' (2026-10-30 사용자 결정).
+ * 원래 수업 날짜에 결석을 만들어 시간표에 결석으로 보이고 그 자리를 비운 뒤,
+ * 대기에 keepAfterOriginal을 표시해 원래 수업이 지나도 대기를 유지한다.
+ * 결석은 종료일을 바꾸지 않으므로 자리가 끝내 안 나면 그 수업은 소진된다.
+ */
+export const keepMakeupWaitlistAfterOriginal = async (entry) => {
+    const absence = await createAbsenceRequest(entry.studentName, entry.originalClass.date);
+    try {
+        await safeWrite(() => updateDocStatus('makeupWaitlists', entry.id, {
+            keepAfterOriginal: true, keptAbsenceId: absence.id, keptAt: serverTimestamp(),
+        }));
+    } catch (err) {
+        await cancelAbsence(absence.id).catch(() => {});
+        throw err;
+    }
+    return absence.id;
+};
+
 export const acceptMakeupWaitlist = async (id) => {
     return safeWrite(() => updateDocStatus('makeupWaitlists', id, {
         status: 'accepted', respondedAt: serverTimestamp(),

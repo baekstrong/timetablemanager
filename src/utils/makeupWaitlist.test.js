@@ -6,6 +6,8 @@ import {
     findWaitlistsReleasedByHolding,
     isOriginalClassStarted,
     isLiveWaitlist,
+    isReleasedByOriginalStart,
+    canKeepAfterOriginal,
     resolveAfterSeatFreed,
     resolveToTarget,
 } from './makeupWaitlist';
@@ -135,5 +137,22 @@ describe('원래 수업이 시작된 보강 대기 자동 취소', () => {
         const b = entry({ id: 'b', createdAtMs: 3, originalClass: { date: '2026-11-02', day: '월', period: 1 } });
         expect(resolveAfterSeatFreed([notified, a, b], now, 1).toNotify.map(e => e.id)).toEqual(['a', 'b']);
         expect(resolveToTarget([notified, a, b], now, 1).toNotify.map(e => e.id)).toEqual(['a']);
+    });
+});
+
+describe("'원래 수업 빠지고 대기 유지'", () => {
+    const now = new Date('2026-10-30T10:00:00+09:00');
+    const base = { id: 'k', studentName: '이정은', status: 'waiting', date: '2026-10-31', day: '금', period: 5, createdAtMs: 1 };
+    it('유지를 고른 대기는 원래 수업이 지나도 살아 있다', () => {
+        const kept = { ...base, keepAfterOriginal: true, originalClass: { date: '2026-10-29', day: '목', period: 1 } };
+        expect(isReleasedByOriginalStart(kept, now)).toBe(false);
+        expect(isLiveWaitlist(kept, now)).toBe(true);
+        expect(resolveAfterSeatFreed([kept], now, 1).toNotify.map(e => e.id)).toEqual(['k']);
+    });
+    it('원래 수업 시작 전 + 원래 수업이 보강보다 먼저일 때만 고를 수 있다', () => {
+        expect(canKeepAfterOriginal({ ...base, originalClass: { date: '2026-10-30', day: '금', period: 4 } }, now)).toBe(true);
+        expect(canKeepAfterOriginal({ ...base, originalClass: { date: '2026-10-29', day: '목', period: 1 } }, now)).toBe(false);
+        expect(canKeepAfterOriginal({ ...base, date: '2026-10-30', period: 2, originalClass: { date: '2026-10-30', day: '금', period: 4 } }, now)).toBe(false);
+        expect(canKeepAfterOriginal({ ...base, keepAfterOriginal: true, originalClass: { date: '2026-10-30', day: '금', period: 4 } }, now)).toBe(false);
     });
 });

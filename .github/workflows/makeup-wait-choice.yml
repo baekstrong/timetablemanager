@@ -1,0 +1,36 @@
+name: 보강 대기 수업 전 선택 알림
+
+# 보강 대기가 걸린 원래 수업 1시간 전에 수강생에게 '원래 수업 빠지고 대기 유지' 선택 알림(앱 푸시)을 보낸다.
+# 스크립트는 의존성이 없어 npm ci를 하지 않는다. 예약 실행은 몇 분씩 밀릴 수 있어 스크립트가 70분 창으로 본다.
+on:
+  schedule:
+    - cron: '*/10 0-12 * * 1-5'   # 평일 09:00~21:59 KST (1교시 10:00 ~ 6교시 21:40의 1시간 전)
+  workflow_dispatch:
+
+concurrency:
+  group: makeup-wait-choice
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts/makeup-wait-choice-push.mjs
+            src/data/mockData.js
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: 서비스 계정 키 복원
+        env:
+          FIREBASE_ADMIN_KEY: ${{ secrets.FIREBASE_ADMIN_KEY }}
+        run: printenv FIREBASE_ADMIN_KEY > firebase-admin-key.json
+
+      - name: 선택 알림 발송
+        run: node scripts/makeup-wait-choice-push.mjs
