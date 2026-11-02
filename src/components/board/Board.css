@@ -703,6 +703,15 @@
     opacity: 0.8;
 }
 
+/* 데스크톱: 넓은 화면에서 사진이 화면을 가득 채우지 않도록 제한 (클릭하면 원본) */
+@media (min-width: 601px) {
+    .post-detail-image {
+        max-width: min(100%, 560px);
+        max-height: 520px;
+        object-fit: contain;
+    }
+}
+
 /* ===== Comment Image ===== */
 .comment-image {
     max-width: 240px;
