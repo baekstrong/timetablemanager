@@ -77,6 +77,20 @@ export function isLiveWaitlist(entry, now = new Date()) {
     return entry.status === 'notified' && !isNotificationExpired(entry, now);
 }
 
+/**
+ * 그 칸에서 자리 안내(notified)를 받고 수락을 기다리는 대기 수 (2026-11-03 사용자 결정).
+ * 안내가 간 자리는 찬 것으로 본다 — 그 사이 다른 수강생이 가져가면 수락했을 때 "자리가 찼다"가 되어 불만이 생긴다.
+ * 본인(self) 대기는 빼야 본인이 그 자리를 수락할 수 있다.
+ */
+export function countHeldSeats(entries = [], slot, self, now = new Date()) {
+    return entries.filter(e =>
+        e.status === 'notified' &&
+        e.date === slot.date && e.day === slot.day && Number(e.period) === Number(slot.period) &&
+        e.studentName !== self &&
+        isLiveWaitlist(e, now)
+    ).length;
+}
+
 function splitQueue(entries, now) {
     const toCancel = entries.filter(e => (e.status === 'waiting' || e.status === 'notified') && isReleasedByOriginalStart(e, now));
     const live = entries.filter(e => !toCancel.includes(e));

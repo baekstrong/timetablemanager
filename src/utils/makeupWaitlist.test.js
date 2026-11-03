@@ -11,6 +11,7 @@ import {
     canConvertWaitToMakeup,
     resolveAfterSeatFreed,
     resolveToTarget,
+    countHeldSeats,
 } from './makeupWaitlist';
 
 // 5교시 = 19:50 시작 (mockData PERIODS 기준)
@@ -171,5 +172,25 @@ describe("'다른 시간으로 보강 변경'", () => {
         expect(canConvertWaitToMakeup({ ...base, originalClass: { date: '2026-10-30', day: '금', period: 2 } }, now)).toBe(false);
         expect(canConvertWaitToMakeup({ ...base, keepAfterOriginal: true, originalClass: { date: '2026-10-29', day: '목', period: 1 } }, now)).toBe(false);
         expect(canConvertWaitToMakeup({ ...base, status: 'notified', originalClass: { date: '2026-10-30', day: '금', period: 4 } }, now)).toBe(false);
+    });
+});
+
+describe('countHeldSeats — 자리 안내 중인 자리는 찬 것으로 (2026-11-03)', () => {
+    const notifiedAt = new Date('2026-06-19T10:00:00').getTime();
+    const at = new Date('2026-06-19T10:30:00');
+
+    it('안내 1시간 안의 다른 수강생 대기는 자리를 잡은 것으로 센다', () => {
+        expect(countHeldSeats([entry({ status: 'notified', notifiedAtMs: notifiedAt })], SLOT, '정다른', at)).toBe(1);
+    });
+    it('본인 대기는 빼야 본인이 수락할 수 있다', () => {
+        expect(countHeldSeats([entry({ status: 'notified', notifiedAtMs: notifiedAt })], SLOT, '김대기', at)).toBe(0);
+    });
+    it('그냥 대기중·만료된 안내·다른 칸은 세지 않는다', () => {
+        const list = [
+            entry({ id: 'a', status: 'waiting' }),
+            entry({ id: 'b', status: 'notified', notifiedAtMs: notifiedAt - 2 * 60 * 60 * 1000 }),
+            entry({ id: 'c', status: 'notified', notifiedAtMs: notifiedAt, period: 4 }),
+        ];
+        expect(countHeldSeats(list, SLOT, '정다른', at)).toBe(0);
     });
 });

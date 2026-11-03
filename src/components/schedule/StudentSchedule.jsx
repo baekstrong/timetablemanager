@@ -16,7 +16,7 @@ import {
     declineMakeupWaitlist,
 } from '../../services/firebaseService';
 import { normalizeWaitlistEntry, onSeatFreed, onSeatsFreedForDates } from '../../services/makeupWaitlistService';
-import { isNotificationExpired, getNotificationDeadline, isLiveWaitlist, isReleasedByOriginalStart, isOriginalClassStarted, canConvertWaitToMakeup } from '../../utils/makeupWaitlist';
+import { countHeldSeats, isNotificationExpired, getNotificationDeadline, isLiveWaitlist, isReleasedByOriginalStart, isOriginalClassStarted, canConvertWaitToMakeup } from '../../utils/makeupWaitlist';
 import { processHolidayMakeupEndDate, getStudentField, calculateMembershipStats } from '../../services/googleSheetsService';
 import {
     weekDateToISO,
@@ -74,7 +74,7 @@ function CurrentWeekStudentSchedule({
     studentData,
     isMyHoldingDate,
     isMakeupHeld,
-    getCellData,
+    getCellData: getRawCellData,
     getFreshCellData,
     getHolidayInfo,
     loadWeeklyData,
@@ -261,6 +261,22 @@ function CurrentWeekStudentSchedule({
         ).length;
     }
 
+    // 자리 안내(notified)를 받고 수락을 기다리는 다른 수강생 몫은 찬 자리로 센다(2026-11-03 사용자 결정).
+    // 대기 알림 계산(onSeatFreed → resolveToTarget)은 안내 중 인원을 따로 빼므로 거기엔 getRawCellData를 넘긴다.
+    function withHeldSeats(data, slot, waitlists = activeWaitlists) {
+        const held = countHeldSeats(waitlists, slot, user?.username, now);
+        if (!held) return data;
+        const currentCount = data.currentCount + held;
+        const availableSeats = Math.max(0, MAX_CAPACITY - currentCount);
+        return { ...data, heldSeats: held, currentCount, availableSeats, isFull: availableSeats === 0 };
+    }
+
+    function getCellData(day, periodObj) {
+        const data = getRawCellData(day, periodObj);
+        const date = weekDates[day] ? weekDateToISO(weekDates[day]) : null;
+        return date ? withHeldSeats(data, { date, day, period: periodObj.id }) : data;
+    }
+
     async function syncHolidayMakeupEndDate(makeupRequests, referenceDate = null) {
         // active 보강만 카운트 (completed는 과거에 이미 처리되었거나 레거시 데이터일 가능성 높아 재적용 시 종료일이 중복 당겨지는 것을 방지)
         const countedHolidayDates = (makeupRequests || [])
@@ -335,7 +351,7 @@ function CurrentWeekStudentSchedule({
             const periodObj = PERIODS.find(p => p.id === mc.period);
             const expectedDate = weekDates[mc.day] ? weekDateToISO(weekDates[mc.day]) : null;
             const seats = (periodObj && expectedDate === mc.date)
-                ? Math.max(0, MAX_CAPACITY - (getCellData(mc.day, periodObj).currentCount - 1))
+                ? Math.max(0, MAX_CAPACITY - (getRawCellData(mc.day, periodObj).currentCount - 1))
                 : null;
             await onSeatFreed(mc.date, mc.day, mc.period, seats);
         } catch (e) {
@@ -450,7 +466,8 @@ function CurrentWeekStudentSchedule({
         if (!getFreshCellData) return true;
         let fresh;
         try {
-            fresh = await getFreshCellData(slot);
+            const [cell, waitlists] = await Promise.all([getFreshCellData(slot), getActiveMakeupWaitlists()]);
+            fresh = cell && withHeldSeats(cell, slot, waitlists.map(normalizeWaitlistEntry));
         } catch (error) {
             console.error('최신 자리 확인 실패:', error);
             alert('최신 자리 정보를 확인하지 못했어요.\n잠시 후 다시 시도해주세요.');
@@ -898,7 +915,8 @@ function CurrentWeekStudentSchedule({
             let fresh = null;
             if (getFreshCellData) {
                 try {
-                    fresh = await getFreshCellData(entry);
+                    const [cell, waitlists] = await Promise.all([getFreshCellData(entry), getActiveMakeupWaitlists()]);
+                    fresh = cell && withHeldSeats(cell, entry, waitlists.map(normalizeWaitlistEntry));
                 } catch (checkError) {
                     console.error('최신 자리 확인 실패:', checkError);
                     alert('최신 자리 정보를 확인하지 못했어요.\n잠시 후 다시 시도해주세요.');
@@ -971,7 +989,7 @@ function CurrentWeekStudentSchedule({
             const dPeriodObj = PERIODS.find(p => p.id === entry.period);
             const dExpectedDate = weekDates[entry.day] ? weekDateToISO(weekDates[entry.day]) : null;
             const dSeats = (dPeriodObj && dExpectedDate === entry.date)
-                ? getCellData(entry.day, dPeriodObj).availableSeats
+                ? getRawCellData(entry.day, dPeriodObj).availableSeats
                 : null;
             await onSeatFreed(entry.date, entry.day, entry.period, dSeats);
             setRespondingWaitlist(null);
