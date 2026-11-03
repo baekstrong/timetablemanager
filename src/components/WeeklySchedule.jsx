@@ -100,7 +100,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
         isMyHoldingDate,
         isMakeupHeld,
         delayedReregistrationStudents, lastClassByName,
-        getCellData, getHolidayInfo,
+        getCellData, getFreshCellData, getHolidayInfo,
         weekHoldings, weekHolidays, getEffectiveEndDate, unpaidStudentNames, weeklyDataLoaded, weeklyDataError, weekFreeWorkout, freeWorkoutRoster,
     } = scheduleCore;
 
@@ -715,6 +715,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
                     isMyHoldingDate={isMyHoldingDate}
                     isMakeupHeld={isMakeupHeld}
                     getCellData={getCellData}
+                    getFreshCellData={getFreshCellData}
                     getHolidayInfo={getHolidayInfo}
                     loadWeeklyData={loadWeeklyData}
                     refreshStudents={async () => { await Promise.all([refresh(), onStudentDataRefresh?.(), retryFailedSettings()]); }}
@@ -777,6 +778,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
                     isMyHoldingDate={isMyHoldingDate}
                     isMakeupHeld={isMakeupHeld}
                     getCellData={getCellData}
+                    getFreshCellData={getFreshCellData}
                     getHolidayInfo={getHolidayInfo}
                     loadWeeklyData={loadWeeklyData}
                     refreshStudents={async () => { await Promise.all([refresh(), onStudentDataRefresh?.()]); }}

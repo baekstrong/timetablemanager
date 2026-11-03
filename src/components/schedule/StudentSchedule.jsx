@@ -75,6 +75,7 @@ function CurrentWeekStudentSchedule({
     isMyHoldingDate,
     isMakeupHeld,
     getCellData,
+    getFreshCellData,
     getHolidayInfo,
     loadWeeklyData,
     refreshStudents,
@@ -443,6 +444,24 @@ function CurrentWeekStudentSchedule({
         } else setShowMakeupModal(true);
     }
 
+    // 확정 직전 서버 최신 기록으로 그 칸이 아직 비어 있는지 다시 센다.
+    // 화면을 오래 열어 둔 사이 다른 수강생이 자리를 채웠으면 정원(7명)을 넘기므로 막는다(2026-11-03 화5 8명 사례).
+    async function isSeatStillOpen(slot) {
+        if (!getFreshCellData) return true;
+        let fresh;
+        try {
+            fresh = await getFreshCellData(slot);
+        } catch (error) {
+            console.error('최신 자리 확인 실패:', error);
+            alert('최신 자리 정보를 확인하지 못했어요.\n잠시 후 다시 시도해주세요.');
+            return false;
+        }
+        if (!fresh?.isFull) return true;
+        alert(`그 사이 ${classLabel(slot)} 자리가 다 찼어요.\n시간표를 새로 불러올게요. 다른 시간을 선택해주세요.`);
+        loadWeeklyData?.()?.catch(() => {});
+        return false;
+    }
+
     async function handleMakeupSubmit() {
         if (readOnly) { alert('실데이터 조회 전용 화면에서는 신청·취소를 할 수 없습니다.'); return; }
         if (!selectedOriginalClass || !selectedMakeupSlot) return;
@@ -479,6 +498,7 @@ function CurrentWeekStudentSchedule({
 
         setIsSubmittingMakeup(true);
         try {
+            if (!(await isSeatStillOpen(selectedMakeupSlot))) return;
             await createMakeupRequest(user.username, selectedOriginalClass, selectedMakeupSlot);
             let endDateMessage = '';
             try {
@@ -585,6 +605,7 @@ function CurrentWeekStudentSchedule({
 
         setIsSubmittingMakeup(true);
         try {
+            if (!(await isSeatStillOpen(newSlot))) return;
             await createMakeupRequest(user.username, oc, newSlot);
             await cancelMakeupRequest(target.id);
             await notifyMakeupSeatFreed(mc); // 비운 기존 보강 자리 → 대기자 알림
@@ -774,6 +795,7 @@ function CurrentWeekStudentSchedule({
 
         setIsSubmittingMakeup(true);
         try {
+            if (!(await isSeatStillOpen(slot))) return;
             await createMakeupRequest(user.username, oc, slot);
             try {
                 await updateMakeupWaitlistStatus(entry.id, 'cancelled');
@@ -869,21 +891,34 @@ function CurrentWeekStudentSchedule({
             alert('그 날 이미 다른 정규 수업이 있어 수락할 수 없습니다.');
             return;
         }
-        // 이번 주 시간표 범위면 여석 재확인 (그 사이 다시 만석이 됐을 수 있음)
-        const expectedDate = weekDates[entry.day] ? weekDateToISO(weekDates[entry.day]) : null;
-        if (expectedDate === entry.date) {
-            const periodObj = PERIODS.find(p => p.id === entry.period);
-            if (periodObj && getCellData(entry.day, periodObj).isFull) {
+        setIsSubmittingWaitlist(true);
+        try {
+            // 여석 재확인 (그 사이 다시 만석이 됐을 수 있음). 화면 숫자가 아니라 서버 최신 기록으로 센다 —
+            // 안내를 받고 한참 뒤 수락하면 화면이 낡아 정원을 넘길 수 있다. 이번 주 화면 밖 날짜는 화면 기준.
+            let fresh = null;
+            if (getFreshCellData) {
+                try {
+                    fresh = await getFreshCellData(entry);
+                } catch (checkError) {
+                    console.error('최신 자리 확인 실패:', checkError);
+                    alert('최신 자리 정보를 확인하지 못했어요.\n잠시 후 다시 시도해주세요.');
+                    return;
+                }
+            }
+            if (!fresh) {
+                const expectedDate = weekDates[entry.day] ? weekDateToISO(weekDates[entry.day]) : null;
+                const periodObj = PERIODS.find(p => p.id === entry.period);
+                if (expectedDate === entry.date && periodObj) fresh = getCellData(entry.day, periodObj);
+            }
+            if (fresh?.isFull) {
                 alert('그 사이 자리가 다시 찼습니다. 자리가 나면 다시 안내드리겠습니다.');
                 // notified로 두면 만석인데도 수락 프롬프트가 계속 떠 반복 실패하므로 대기 상태로 되돌림.
                 await updateMakeupWaitlistStatus(entry.id, 'waiting').catch(() => {});
                 setRespondingWaitlist(null);
+                loadWeeklyData?.()?.catch(() => {});
                 await reloadMyWaitlists();
                 return;
             }
-        }
-        setIsSubmittingWaitlist(true);
-        try {
             await createMakeupRequest(user.username, entry.originalClass, {
                 date: entry.date, day: entry.day, period: entry.period, periodName: entry.periodName,
             });

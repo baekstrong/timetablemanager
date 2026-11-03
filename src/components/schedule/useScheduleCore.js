@@ -16,7 +16,8 @@ import {
     getScheduleSortKey,
     isDelayedReregistration,
 } from '../../utils/scheduleUtils';
-import { MOCK_DATA, MAX_CAPACITY, KOREAN_HOLIDAYS } from '../../data/mockData';
+import { MOCK_DATA, MAX_CAPACITY, KOREAN_HOLIDAYS, PERIODS } from '../../data/mockData';
+import { getMakeupRequestsByWeek, getAbsencesByDate } from '../../services/firebaseService';
 import { getUnpaidStudentNames } from '../../utils/studentList';
 import { secondClassDayISO, cappedEndForFirstClassMove } from '../../utils/makeupEndDate';
 import { computeSlotOccupancy, getPendingNamesForSlot } from '../../utils/slotOccupancy';
@@ -321,7 +322,10 @@ export function useScheduleCore({
     }, [user, students, getEffectiveEndDate]);
 
     // ── Cell data computation ──
-    function getCellData(day, periodObj) {
+    // fresh: { makeups, absences } — 저장 직전 서버에서 다시 읽은 그 날짜 기록. 없으면 화면 데이터 사용.
+    function getCellData(day, periodObj, fresh = null) {
+        const cellMakeups = fresh?.makeups ?? weekMakeupRequests;
+        const cellAbsences = fresh?.absences ?? weekAbsences;
         const regularClass = scheduleData.regularEnrollments.find(
             e => e.day === day && e.period === periodObj.id
         );
@@ -352,14 +356,14 @@ export function useScheduleCore({
             const slotDate = weekDateToISO(dateStr);
 
             // 보강 목적지 슬롯: 결석/홀딩 여부에 따라 분류
-            const makeupRequestsForSlot = weekMakeupRequests.filter(m =>
+            const makeupRequestsForSlot = cellMakeups.filter(m =>
                 m.makeupClass.day === day &&
                 m.makeupClass.period === periodObj.id &&
                 m.makeupClass.date === slotDate
             );
             for (const m of makeupRequestsForSlot) {
                 const name = m.studentName;
-                const isAbsent = weekAbsences.some(a =>
+                const isAbsent = cellAbsences.some(a =>
                     a.studentName === name && a.date === slotDate
                 );
                 if (isAbsent) {
@@ -377,7 +381,7 @@ export function useScheduleCore({
             }
 
             // 보강 원래 자리: 다른 시간으로 이동한 학생 (보강이동 표시)
-            makeupMovedStudents = weekMakeupRequests
+            makeupMovedStudents = cellMakeups
                 .filter(m =>
                     m.originalClass.day === day &&
                     m.originalClass.period === periodObj.id &&
@@ -422,7 +426,7 @@ export function useScheduleCore({
                 .filter(s => getStudentField(s, '신규/재등록') !== '신규')
                 .map(s => s['이름']);
 
-            absenceStudents = weekAbsences
+            absenceStudents = cellAbsences
                 .filter(a => a.date === slotDate && studentNames.includes(a.studentName))
                 .map(a => a.studentName)
                 .filter(name => !makeupMovedStudents.includes(name));
@@ -490,6 +494,19 @@ export function useScheduleCore({
         };
     }
 
+    // 보강을 확정하기 직전, 그 칸 인원을 서버 최신 기록으로 다시 센다.
+    // 화면을 오래 열어 둔 사이 다른 수강생이 자리를 채웠으면 정원(7명)을 넘기므로 막아야 한다.
+    // 이번 주 화면 밖 날짜는 판단할 수 없어 null. 조회 실패는 호출자에게 throw.
+    async function getFreshCellData(slot) {
+        const periodObj = PERIODS.find(p => p.id === Number(slot.period));
+        if (!periodObj || !weekDates[slot.day] || weekDateToISO(weekDates[slot.day]) !== slot.date) return null;
+        const [makeups, absences] = await Promise.all([
+            getMakeupRequestsByWeek(slot.date, slot.date),
+            getAbsencesByDate(slot.date),
+        ]);
+        return getCellData(slot.day, periodObj, { makeups, absences });
+    }
+
     // ── Holiday detection for a slot ──
     function getHolidayInfo(day) {
         if (!weekDates[day]) return null;
@@ -517,6 +534,7 @@ export function useScheduleCore({
         delayedReregistrationStudents,
         lastClassByName,
         getCellData,
+        getFreshCellData,
         getHolidayInfo,
         unpaidStudentNames,
     };
