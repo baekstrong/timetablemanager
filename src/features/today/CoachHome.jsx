@@ -1,16 +1,16 @@
 import { publishRoster, publishLastClasses, publishReregX, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../../services/firebaseService';
 import { weekDateToISO } from '../../utils/scheduleUtils';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { PERIODS, DAYS } from '../../data/mockData';
+import { PERIODS, DAYS, MAX_CAPACITY } from '../../data/mockData';
 import { readCoachNotes, saveCoachNote, confirmStudentPayment } from './todayService';
-import { attendingNames, lessonRefreshId, buildCoachTaskGroups } from './todayModel';
+import { attendingNames, lessonRefreshId, buildCoachTaskGroups, buildNewWaitlistGroup } from './todayModel';
 import { CoachToday, ActionButton } from './TodayViews';
 import ReviewModal from './ReviewModal';
 import { createVisibleTask } from '../../utils/visibleTask';
 
 const StudentRegistrationModal = lazy(() => import('../../components/StudentRegistrationModal'));
 
-export default function CoachHome({ user, freeWorkoutByDate = {}, hasNewPostNotification = false, core, students, disabledClasses, registrations, scheduleTransfers, onNavigate, refresh, refreshedAt, refreshing, refreshMessage, dataReady = core.weeklyDataLoaded }) {
+export default function CoachHome({ user, freeWorkoutByDate = {}, hasNewPostNotification = false, core, students, disabledClasses, registrations, newStudentWaitlist = [], scheduleTransfers, onNavigate, refresh, refreshedAt, refreshing, refreshMessage, dataReady = core.weeklyDataLoaded }) {
     const [now, setNow] = useState(() => new Date());
     const [notes, setNotes] = useState({});
     const [notesReady, setNotesReady] = useState(false);
@@ -101,15 +101,20 @@ export default function CoachHome({ user, freeWorkoutByDate = {}, hasNewPostNoti
         }
     }, [refreshPeriod]);
     const periodFor = name => lessons.find(lesson => lesson.attendees.includes(name))?.id;
-    const groups = buildCoachTaskGroups({
-        lastDayStudents: core.lastDayStudents,
-        delayedStudents: core.delayedReregistrationStudents,
-        unpaidRows, periodFor,
-    });
+    const groups = [
+        // 신규 대기는 맨 앞 — 자리가 나면 코치가 직접 연락한다(자동 문자 없음)
+        buildNewWaitlistGroup(newStudentWaitlist, core.newStudentSlotOccupancy, disabledClasses, MAX_CAPACITY),
+        ...buildCoachTaskGroups({
+            lastDayStudents: core.lastDayStudents,
+            delayedStudents: core.delayedReregistrationStudents,
+            unpaidRows, periodFor,
+        }),
+    ];
     const onAction = item => {
         setError('');
         if (item.type === 'renewal') setRenewal(item.name);
         else if (item.type === 'payment') setPayment(item.student);
+        else if (item.type === 'newWaitlist') onNavigate('newstudents', 'waitlist');
     };
     async function saveNote(name, value) {
         await saveCoachNote(name, value);

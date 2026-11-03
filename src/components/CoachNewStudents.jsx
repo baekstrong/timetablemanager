@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { db } from '../config/firebase';
 import { doc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { setStudentPassword } from '../services/authService';
@@ -33,7 +33,11 @@ import SmsStatusChips from './SmsStatusChips';
 import { smsIssueCount, isReminderResendable } from '../utils/smsStatus';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { formatEntranceDate, convertToYYMMDD, calculateStartEndDates } from '../utils/dateUtils';
-import { slotsOf } from '../utils/scheduleUtils';
+import { slotsOf, parseScheduleString } from '../utils/scheduleUtils';
+import { computeSlotOccupancy } from '../utils/slotOccupancy';
+import { WAIT_TYPES, waitTypeOf, isCoachWaitlist, sortWaitlist, waitlistSeatStatus, monthWaitlistNotice } from '../utils/newStudentWaitlist';
+import CoachWaitlistAddModal from './CoachWaitlistAddModal';
+import MonthWaitlistNotice from './MonthWaitlistNotice';
 import { PRICING, PERIODS, DAYS, MAX_CAPACITY } from '../data/mockData';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import PendingRegistrationEditor from './PendingRegistrationEditor';
@@ -81,6 +85,11 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
     const [editSlots, setEditSlots] = useState([]);
     const [disabledClasses, setDisabledClasses] = useState([]);
     const [slotOccupancy, setSlotOccupancy] = useState({});
+    // 신규 대기 자리 판정: 신규 신청 화면과 같은 기준(현재 활성 시간표 + 승인 대기 신청)
+    const [pendingForSeats, setPendingForSeats] = useState([]);
+    const newSeatOccupancy = useMemo(() => computeSlotOccupancy(allStudents || [], pendingForSeats, parseScheduleString), [allStudents, pendingForSeats]);
+    const [showWaitlistAdd, setShowWaitlistAdd] = useState(false);
+    const [monthNotice, setMonthNotice] = useState(null); // { month, rows }
 
     // === 입학반 관리 ===
     const [entranceClasses, setEntranceClassesList] = useState([]);
@@ -175,7 +184,13 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
             return;
         }
         try {
-            const data = await getNewStudentRegistrations(regFilter || null);
+            const [fetched, pending] = await Promise.all([
+                getNewStudentRegistrations(regFilter || null),
+                regFilter === 'waitlist' ? getNewStudentRegistrations('pending') : null,
+            ]);
+            if (pending) setPendingForSeats(pending);
+            // 대기는 먼저 신청한 사람이 위(순번 1)
+            const data = regFilter === 'waitlist' ? sortWaitlist(fetched) : fetched;
 
             // 승인된 건 중 입학반 날짜가 지난 건 자동 완료 처리
             const today = new Date();
@@ -203,6 +218,20 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
         }
         setLoading(false);
         loadRegCounts();
+    };
+
+    // 모집을 접수중으로 바꾸면 그 달 모집 대기자와 자리 여부를 보여준다(문자는 코치가 직접).
+    const handleRecruitmentOpened = async (month) => {
+        try {
+            const [waitlist, pending] = await Promise.all([getNewStudentRegistrations('waitlist'), getNewStudentRegistrations('pending')]);
+            setPendingForSeats(pending);
+            const occupancy = computeSlotOccupancy(allStudents || [], pending, parseScheduleString);
+            const rows = monthWaitlistNotice(waitlist, month, occupancy, disabledClasses, MAX_CAPACITY);
+            if (rows.length) setMonthNotice({ month, rows });
+        } catch (err) {
+            console.error('모집 대기 조회 실패:', err);
+            alert('모집 대기 명단을 불러오지 못했습니다. 신규 > 대기 목록에서 확인해주세요.');
+        }
     };
 
     const loadEntranceClasses = async () => {
@@ -645,7 +674,8 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                 endDate: reg.endDate,
             };
             if (typeKey === 'reception') {
-                const ok = await sendStudentRegistrationSMS(reg.phone, reg.name, reg.isWaitlist);
+                const ok = await sendStudentRegistrationSMS(reg.phone, reg.name, reg.isWaitlist,
+                    reg.isWaitlist && waitTypeOf(reg) === 'month' ? monthLabel(reg.recruitmentMonth) : '');
                 await updateNewStudentRegistration(reg.id, { 'smsLog.reception': { status: ok ? 'sent' : 'failed', at: Date.now() } });
             } else if (typeKey === 'approval') {
                 const ok = await sendStudentApprovalSMS(reg.phone, reg.name, details);
@@ -1538,7 +1568,7 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                     className={`cns-filter-btn ${regFilter === f ? 'active' : ''}`}
                                     onClick={() => setRegFilter(f)}
                                 >
-                                    {f === 'consultation' ? '상담 요청' : f === 'pending' ? '대기중' : f === 'waitlist' ? '대기(만석)' : f === 'approved' ? '승인됨' : '거절됨'}
+                                    {f === 'consultation' ? '상담 요청' : f === 'pending' ? '대기중' : f === 'waitlist' ? '대기' : f === 'approved' ? '승인됨' : '거절됨'}
                                     {(regCounts[f] || 0) > 0 && f !== 'rejected' && (
                                         <span className="cns-filter-dot" />
                                     )}
@@ -1552,6 +1582,12 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                 {activeTab === 'registrations' && (
                     <div className="cns-section">
 
+                        {regFilter === 'waitlist' && (
+                            <div className="cns-waitlist-toolbar">
+                                <p>먼저 신청한 순서입니다. 자리가 나거나 모집이 열리면 직접 연락해 안내하세요.</p>
+                                <button className="cns-add-btn" onClick={() => setShowWaitlistAdd(true)}>+ 대기 직접 추가</button>
+                            </div>
+                        )}
                         {loading ? (
                             <div className="cns-loading">불러오는 중...</div>
                         ) : regFilter === 'consultation' ? (
@@ -1561,12 +1597,15 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                         ) : registrations.length === 0 ? (
                             <div className="cns-empty">
                                 {regFilter === 'pending' ? '대기 중인 등록이 없습니다.'
-                                    : regFilter === 'waitlist' ? '대기(만석) 신청이 없습니다.'
+                                    : regFilter === 'waitlist' ? '대기 신청이 없습니다.'
                                     : '해당 목록이 없습니다.'}
                             </div>
                         ) : (() => {
                             // 카드 렌더링 함수
-                            const renderRegCard = (reg) => (
+                            const renderRegCard = (reg, index) => {
+                                const waiting = regFilter === 'waitlist';
+                                const seat = waiting ? waitlistSeatStatus(reg, newSeatOccupancy, disabledClasses, MAX_CAPACITY) : null;
+                                return (
                                 <div key={reg.id} className="cns-reg-card">
                                     <div
                                         className="cns-reg-card-header"
@@ -1578,6 +1617,7 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                         })}
                                     >
                                         <div className="cns-reg-main">
+                                            {waiting && <span className="cns-wait-order" aria-label={`대기 ${index + 1}번`}>{index + 1}</span>}
                                             <span className="cns-reg-name">{reg.name}</span>
                                             <span className="cns-reg-freq">
                                                 {PRICING.find(p => p.frequency === reg.weeklyFrequency)?.label || `주${reg.weeklyFrequency}회`}
@@ -1585,14 +1625,21 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                             <span className="cns-reg-schedule">{formatScheduleDisplay(reg)}</span>
                                         </div>
                                         <div className="cns-reg-badges">
-                                            {reg.recruitmentMonth && <span className="cns-badge entrance">{monthLabel(reg.recruitmentMonth)} 모집</span>}
+                                            {waiting && <span className={`cns-badge wait-${waitTypeOf(reg)}`}>{WAIT_TYPES[waitTypeOf(reg)]}</span>}
+                                            {waiting && isCoachWaitlist(reg) && <span className="cns-badge wait-coach">코치 등록</span>}
+                                            {reg.recruitmentMonth && (waiting
+                                                ? <span className="cns-badge entrance wait-month-label">{Number(reg.recruitmentMonth.slice(5))}월 희망</span>
+                                                : <span className="cns-badge entrance">{monthLabel(reg.recruitmentMonth)} 모집</span>)}
                                             {/* 신청한 입학반 날짜 — 승인 전에도 카드를 펼치지 않고 바로 보이게 */}
                                             {(reg.entranceDate || reg.entranceInquiry) && (
                                                 <span className={`cns-badge ${reg.entranceInquiry ? 'entrance-ask' : 'entrance'}`}>
                                                     입학반 {shortEntranceDate(reg.entranceDate || reg.entranceInquiry)}{reg.entranceInquiry ? ' 문의' : ''}
                                                 </span>
                                             )}
-                                            {reg.hasAvailableSlots && <span className="cns-badge" style={{ background: '#f59e0b', color: '#fff', fontWeight: 700 }}>여석 발생!</span>}
+                                            {/* 대기 목록은 지금 시간표로 다시 계산한 자리 여부를 보여준다 */}
+                                            {seat?.hasSeat && <span className="cns-badge seat-open">자리 있음</span>}
+                                            {!waiting && reg.hasAvailableSlots && <span className="cns-badge" style={{ background: '#f59e0b', color: '#fff', fontWeight: 700 }}>여석 발생!</span>}
+                                            {reg.memo && <span className="cns-badge question">메모</span>}
                                             {reg.wantsConsultation && <span className="cns-badge consult">상담</span>}
                                             {reg.question && <span className="cns-badge question">질문</span>}
                                             <span className="cns-expand-arrow">{collapsedRegs.has(reg.id) ? '▼' : '▲'}</span>
@@ -1601,9 +1648,10 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
 
                                     {/* 문자 상황판 — 카드를 펼치지 않아도 예약/발송 상태가 보이게 헤더 밖에 둔다
                                         (헤더 안에 두면 재발송 클릭이 접기/펼치기까지 토글함) */}
-                                    <div className="cns-reg-sms">
+                                    {/* 코치가 직접 넣은 대기는 문자를 보내지 않으므로 상황판 생략 */}
+                                    {!isCoachWaitlist(reg) && <div className="cns-reg-sms">
                                         <SmsStatusChips reg={reg} onResend={handleResendSms} resendDisabledReason={resendDisabledReason} />
-                                    </div>
+                                    </div>}
 
                                     {!collapsedRegs.has(reg.id) && (
                                         <div className="cns-reg-detail">
@@ -1616,6 +1664,7 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                                     <span className="cns-detail-label">연락처</span>
                                                     <span className="cns-detail-value">{reg.phone}</span>
                                                 </div>
+                                                {!waiting && <>
                                                 <div className="cns-detail-item">
                                                     <span className="cns-detail-label">결제방식</span>
                                                     <span className="cns-detail-value">
@@ -1641,16 +1690,18 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                                     <span className="cns-detail-label">총 비용</span>
                                                     <span className="cns-detail-value">{reg.totalCost?.toLocaleString()}원</span>
                                                 </div>
+                                                </>}
                                                 {reg.status === 'pending' && reg.startDate && reg.endDate && (
                                                     <div className="cns-detail-item full">
                                                         <span className="cns-detail-label">수강 기간</span>
                                                         <span className="cns-detail-value">{formatEntranceDate(reg.startDate)} ~ {formatEntranceDate(reg.endDate)}</span>
                                                     </div>
                                                 )}
-                                                <div className="cns-detail-item">
+                                                {/* 모집 대기는 입학반을 승인할 때 정한다 */}
+                                                {!(waiting && !reg.entranceClassDate) && <div className="cns-detail-item">
                                                     <span className="cns-detail-label">입학반</span>
                                                     <span className="cns-detail-value">{reg.entranceClassDate || '-'}</span>
-                                                </div>
+                                                </div>}
                                                 {reg.entranceInquiry && (
                                                     <div className="cns-detail-item full">
                                                         <span className="cns-detail-label">입학반 날짜 문의</span>
@@ -1688,6 +1739,18 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                                     <div className="cns-detail-item full">
                                                         <span className="cns-detail-label">운동 목적</span>
                                                         <span className="cns-detail-value">{reg.exerciseGoal}</span>
+                                                    </div>
+                                                )}
+                                                {reg.memo && (
+                                                    <div className="cns-detail-item full">
+                                                        <span className="cns-detail-label">메모</span>
+                                                        <span className="cns-detail-value">{reg.memo}</span>
+                                                    </div>
+                                                )}
+                                                {seat?.hasSeat && (
+                                                    <div className="cns-detail-item full">
+                                                        <span className="cns-detail-label">지금 자리 있는 희망 시간</span>
+                                                        <span className="cns-detail-value">{seat.availableSlots.map(s => `${s.day}${s.period}`).join(' ')}</span>
                                                     </div>
                                                 )}
                                                 {reg.question && (
@@ -1778,7 +1841,8 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                         </div>
                                     )}
                                 </div>
-                            );
+                                );
+                            };
 
                             // SMS 누락 요약 배너
                             const smsSummaryBanner = (() => {
@@ -1844,7 +1908,7 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                 {/* === 입학반 관리 탭 === */}
                 {activeTab === 'entrance' && (
                     <div className="cns-section">
-                        <RecruitmentManager renderEntrance={renderEntranceCard} entrances={entranceClasses} entrancesLoading={loading} onAddEntrance={month => {
+                        <RecruitmentManager onOpened={handleRecruitmentOpened} renderEntrance={renderEntranceCard} entrances={entranceClasses} entrancesLoading={loading} onAddEntrance={month => {
                             setEditingEntrance(null); setEntranceFormMonth(month);
                             setEntranceForm({ date: '', time: '10:00', endTime: '13:00', description: '', maxCapacity: 6, currentCount: 0 });
                             setShowEntranceForm(true);
@@ -2364,6 +2428,18 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                         setRegistrations(current => current.map(r => r.id === pendingEditReg.id ? { ...r, ...plan } : r));
                         setPendingEditReg(null);
                     }} />
+            )}
+
+            {showWaitlistAdd && (
+                <CoachWaitlistAddModal occupancy={newSeatOccupancy} disabledClasses={disabledClasses}
+                    onClose={() => setShowWaitlistAdd(false)}
+                    onSaved={async () => { setShowWaitlistAdd(false); await loadRegistrations(); }} />
+            )}
+
+            {monthNotice && (
+                <MonthWaitlistNotice month={monthNotice.month} rows={monthNotice.rows}
+                    onClose={() => setMonthNotice(null)}
+                    onOpenList={() => { setMonthNotice(null); setActiveTab('registrations'); setRegFilter('waitlist'); }} />
             )}
 
             {/* === 시간표 편집 모달 === */}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getDisabledClasses, updateNewStudentRegistration, getFAQs, getNewStudentRegistrations } from '../services/firebaseService';
-import { getRecruitmentOverview, submitRecruitmentRegistration } from '../services/recruitmentService';
+import { getRecruitmentOverview, submitRecruitmentRegistration, submitMonthWaitlist } from '../services/recruitmentService';
 import { monthLabel, monthEntrances, isEntranceAvailable } from '../utils/recruitment';
 import RegistrationMonthPicker from './RegistrationMonthPicker';
 import ConsultationRequestForm from './ConsultationRequestForm';
@@ -46,9 +46,13 @@ const parseScheduleString = (scheduleStr) => {
 };
 
 const STEP_NAMES = ['일정', '정보', '입학반', '결제', '상담', '확인'];
+// 모집 대기(문의 및 대기 가능한 달)는 입학반·결제·상담 없이 일정 → 정보 → 확인
+const MONTH_WAITLIST_STEPS = [0, 1, 5];
 
-export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
+export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth, monthWaitlist = false }) => {
     const [step, setStep] = useState(0);
+    const stepOrder = monthWaitlist ? MONTH_WAITLIST_STEPS : STEP_NAMES.map((_, i) => i);
+    const stepIndex = stepOrder.indexOf(step);
     const [consultationOnly, setConsultationOnly] = useState(false);
     const [consultationSubmitted, setConsultationSubmitted] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -110,7 +114,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
     const [expandedFaq, setExpandedFaq] = useState(null);
 
     // 대기(만석) 모드
-    const [isWaitlistMode, setIsWaitlistMode] = useState(false);
+    const [isWaitlistMode, setIsWaitlistMode] = useState(monthWaitlist);
 
     // Load entrance classes when reaching 입학반 step (step 2, 날짜가 지난 입학반 제외)
     useEffect(() => {
@@ -187,7 +191,8 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
 
     const canProceed = () => {
         switch (step) {
-            case 0: return scheduleReady && !scheduleError && (consultationOnly ? weeklyFrequency === 4 : [2, 3].includes(weeklyFrequency)) && (isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency);
+            case 0: return scheduleReady && !scheduleError && (consultationOnly ? weeklyFrequency === 4 : [2, 3].includes(weeklyFrequency)) && (monthWaitlist ? new Set(selectedSlots.map(s => s.day)).size >= weeklyFrequency
+                : isWaitlistMode ? selectedSlots.length >= weeklyFrequency : selectedSlots.length === weeklyFrequency);
             case 1: return name.trim() && phone1.trim() && phone2.trim() && phone3.trim() && gender && exerciseExperience.trim();
             case 2: return !entranceLoading && !entranceError && (isEntranceAvailable(entranceClasses.find(ec => ec.id === selectedEntrance)));
             case 3: return paymentMethod !== '';
@@ -231,7 +236,8 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                 question: question.trim()
             };
 
-            const created = await submitRecruitmentRegistration(data, isWaitlistMode ? 'waitlist' : 'pending');
+            const created = monthWaitlist ? await submitMonthWaitlist(data)
+                : await submitRecruitmentRegistration(data, isWaitlistMode ? 'waitlist' : 'pending');
             const regId = created?.id;
 
             // 안내 문자 발송 (수강생 SMS 1 + 코치 SMS 1)
@@ -249,7 +255,8 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                     exerciseGoal: exerciseGoal.trim(),
                     wantsConsultation,
                     question: question.trim(),
-                    isWaitlist: isWaitlistMode
+                    isWaitlist: isWaitlistMode,
+                    waitMonthLabel: monthWaitlist ? monthLabel(recruitmentMonth) : ''
                 });
                 if (regId) {
                     await updateNewStudentRegistration(regId, {
@@ -288,12 +295,14 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                     <div className="reg-success">
                         <div className="reg-success-icon">✓</div>
                         <h2>{monthLabel(recruitmentMonth)}<br />{isWaitlistMode ? '대기 신청이 완료되었습니다!' : '신청이 완료되었습니다!'}</h2>
-                        <p>{isWaitlistMode
+                        <p>{monthWaitlist
+                            ? '모집이 시작되거나 선택하신 시간에 자리가 나면 코치가 먼저 연락드리겠습니다.'
+                            : isWaitlistMode
                             ? `선택하신 ${selectedSlots.length}개 시간 중 주${weeklyFrequency}회 자리가 나면 코치가 연락드리겠습니다.`
                             : '코치의 승인 후 안내 문자가 발송될 예정입니다.'}</p>
-                        <p className="reg-success-info">
+                        {!monthWaitlist && <p className="reg-success-info">
                             아이디: <strong>{name}</strong>
-                        </p>
+                        </p>}
                     </div>
                 </div>
             </div>
@@ -306,12 +315,12 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                 {/* Header */}
                 <div className="reg-header">
                     <h1 className="reg-title">근력학교 등록</h1>
-                    <div className="recruitment-wizard-month"><strong>{monthLabel(recruitmentMonth)} 신규 수강 신청</strong><button type="button" className="recruitment-text-button" disabled={submitting}
+                    <div className="recruitment-wizard-month"><strong>{monthLabel(recruitmentMonth)} {monthWaitlist ? '대기 신청' : '신규 수강 신청'}</strong><button type="button" className="recruitment-text-button" disabled={submitting}
                         onClick={() => { if (step === 0 || confirm('모집월을 변경하면 작성중인 신청 내용이 초기화됩니다. 변경하시겠습니까?')) onChangeMonth(); }}>모집월 변경</button></div>
                     <div className="reg-steps">
-                        {(consultationOnly ? ['희망 시간', '상담 정보'] : STEP_NAMES).map((s, i) => (
-                            <div key={i} className={`reg-step-dot ${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`}>
-                                <span>{i < step ? '✓' : i + 1}</span>
+                        {(consultationOnly ? ['희망 시간', '상담 정보'] : stepOrder.map(i => STEP_NAMES[i])).map((s, i) => (
+                            <div key={i} className={`reg-step-dot ${i === stepIndex ? 'active' : ''} ${i < stepIndex ? 'done' : ''}`}>
+                                <span>{i < stepIndex ? '✓' : i + 1}</span>
                             </div>
                         ))}
                     </div>
@@ -473,7 +482,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                         <div className="reg-step-content">
                             <p className="reg-description">주 몇 회 수업을 원하시나요? 선택해주세요</p>
                             <div className="reg-freq-cards compact">
-                                {PRICING.map((p) => p.frequency === 4 ? (
+                                {PRICING.filter(p => !monthWaitlist || p.frequency !== 4).map((p) => p.frequency === 4 ? (
                                     <div key={p.frequency} className={`reg-freq-card reg-freq-card-four ${consultationOnly ? 'selected' : ''}`}>
                                         <div className="reg-freq-label">주4회</div>
                                         <div className="reg-freq-consult-note">상담 후 신청 가능</div>
@@ -498,7 +507,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                             setWeeklyFrequency(p.frequency);
                                             setBaseCost(p.baseCost);
                                             setSelectedSlots([]);
-                                            setIsWaitlistMode(false);
+                                            setIsWaitlistMode(monthWaitlist);
                                         }}>
                                         <div className="reg-freq-label">{p.label}</div>
                                         <div className="reg-freq-cost">{p.baseCost.toLocaleString()}원</div>
@@ -512,9 +521,9 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                     '위에서 주 횟수를 먼저 선택해주세요'
                                 ) : isWaitlistMode ? (
                                     <>
-                                        가능한 시간을 모두 선택해주세요
+                                        {monthWaitlist ? `가능한 시간을 모두 선택해주세요 (서로 다른 요일 ${weeklyFrequency}일 이상)` : '가능한 시간을 모두 선택해주세요'}
                                         <span className="reg-slot-count">
-                                            ({selectedSlots.length}개 선택, 최소 {weeklyFrequency}개)
+                                            ({selectedSlots.length}개 선택{monthWaitlist ? '' : `, 최소 ${weeklyFrequency}개`})
                                         </span>
                                     </>
                                 ) : (
@@ -563,7 +572,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                             return (
                                                 <div
                                                     key={key}
-                                                    className={`reg-grid-cell ${isDisabled ? 'disabled' : ''} ${isFull && !isWaitlistMode ? 'full' : ''} ${isFull && isWaitlistMode ? 'full-waitlist' : ''} ${isSelected ? 'selected' : ''} ${!canSelect && !isSelected ? 'locked' : ''}`}
+                                                    className={`reg-grid-cell ${isDisabled ? 'disabled' : ''} ${isFull && !isWaitlistMode ? 'full' : ''} ${isFull && isWaitlistMode && !monthWaitlist ? 'full-waitlist' : ''} ${isSelected ? 'selected' : ''} ${!canSelect && !isSelected ? 'locked' : ''}`}
                                                     onClick={() => {
                                                         if (!canSelect) return;
                                                         if (isDisabled) return;
@@ -573,6 +582,8 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                                 >
                                                     {isDisabled ? (
                                                         <span className="reg-cell-text">-</span>
+                                                    ) : monthWaitlist ? (
+                                                        <span className="reg-cell-text">{isSelected ? '선택' : ''}</span>
                                                     ) : isFull ? (
                                                         <span className="reg-cell-text full-text">{isWaitlistMode && isSelected ? '선택' : '마감'}</span>
                                                     ) : (
@@ -621,11 +632,13 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                     lineHeight: '1.5',
                                     color: '#92400e'
                                 }}>
-                                    <p style={{ margin: '0 0 4px', fontWeight: '600' }}>대기 신청 모드</p>
+                                    <p style={{ margin: '0 0 4px', fontWeight: '600' }}>{monthWaitlist ? `${monthLabel(recruitmentMonth)} 대기 신청` : '대기 신청 모드'}</p>
                                     <p style={{ margin: 0 }}>
-                                        가능한 시간을 <strong>모두</strong> 선택해주세요. 마감된 시간도 선택할 수 있습니다. 이 중 주{weeklyFrequency}회 자리가 나면 코치가 연락드립니다.
+                                        {monthWaitlist
+                                            ? <>다닐 수 있는 시간을 <strong>모두</strong> 선택해주세요. 모집이 시작되거나 이 중 주{weeklyFrequency || ''}회 자리가 나면 코치가 연락드립니다.</>
+                                            : <>가능한 시간을 <strong>모두</strong> 선택해주세요. 마감된 시간도 선택할 수 있습니다. 이 중 주{weeklyFrequency}회 자리가 나면 코치가 연락드립니다.</>}
                                     </p>
-                                    <button
+                                    {!monthWaitlist && <button
                                         type="button"
                                         onClick={() => {
                                             setIsWaitlistMode(false);
@@ -643,7 +656,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                         }}
                                     >
                                         일반 등록으로 돌아가기
-                                    </button>
+                                    </button>}
                                 </div>
                             )}
                         </div>
@@ -826,13 +839,13 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                 <div className="reg-summary-row">
                                     <span>시간표</span><span>{getScheduleString()}</span>
                                 </div>
-                                <div className="reg-summary-row">
+                                {!monthWaitlist && <div className="reg-summary-row">
                                     <span>입학반</span>
                                     <span>{(() => {
                                         const ec = entranceClasses.find(c => c.id === selectedEntrance);
                                         return ec ? `${formatEntranceDate(ec.date)} ${ec.time}${ec.endTime ? ' ~ ' + ec.endTime : ''}` : '';
                                     })()}</span>
-                                </div>
+                                </div>}
                                 {!isWaitlistMode && (() => {
                                     const ec = entranceClasses.find(c => c.id === selectedEntrance);
                                     if (!ec) return null;
@@ -850,13 +863,13 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                         </>
                                     );
                                 })()}
-                                <div className="reg-summary-row">
+                                {!monthWaitlist && <><div className="reg-summary-row">
                                     <span>결제 방식</span>
                                     <span>{paymentMethod === 'naver' ? '네이버' : paymentMethod === 'card' ? '현장 카드 결제' : paymentMethod === 'zeropay' ? '제로페이' : '현장 계좌 이체'}</span>
                                 </div>
                                 <div className="reg-summary-row total">
                                     <span>총 비용</span><span>{totalCost.toLocaleString()}원</span>
-                                </div>
+                                </div></>}
                                 {wantsConsultation && (
                                     <div className="reg-summary-row">
                                         <span>상담</span><span>요청함</span>
@@ -865,7 +878,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
                                 {isWaitlistMode && (
                                     <div className="reg-summary-row" style={{ background: '#fef3c7', borderRadius: '6px' }}>
                                         <span style={{ color: '#92400e', fontWeight: 600 }}>대기 신청</span>
-                                        <span style={{ color: '#92400e' }}>여석 발생 시 연락</span>
+                                        <span style={{ color: '#92400e' }}>{monthWaitlist ? '모집 시작·자리 발생 시 연락' : '여석 발생 시 연락'}</span>
                                     </div>
                                 )}
                             </div>
@@ -918,19 +931,19 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
 
                 {/* Footer */}
                 {(!consultationOnly || step === 0) && <div className="reg-footer">
-                    {step > 0 && (
+                    {stepIndex > 0 && (
                         <button
                             className="reg-btn reg-btn-secondary"
-                            onClick={() => setStep(step - 1)}
+                            onClick={() => setStep(stepOrder[stepIndex - 1])}
                         >
                             이전
                         </button>
                     )}
-                    {step < STEP_NAMES.length - 1 ? (
+                    {stepIndex < stepOrder.length - 1 ? (
                         <button
                             className="reg-btn reg-btn-primary"
                             disabled={!canProceed()}
-                            onClick={() => setStep(step + 1)}
+                            onClick={() => setStep(stepOrder[stepIndex + 1])}
                         >
                             다음
                         </button>
@@ -951,7 +964,8 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
 
 export default function NewStudentRegistration() {
     const current = useKoreanMonth();
-    const [month, setMonth] = useState(null);
-    return month && month >= current ? <RegistrationWizard key={month} recruitmentMonth={month} onChangeMonth={() => setMonth(null)} />
-        : <RegistrationMonthPicker onStart={setMonth} />;
+    const [start, setStart] = useState(null); // { month, waitlist }
+    return start && start.month >= current
+        ? <RegistrationWizard key={`${start.month}-${start.waitlist}`} recruitmentMonth={start.month} monthWaitlist={start.waitlist} onChangeMonth={() => setStart(null)} />
+        : <RegistrationMonthPicker onStart={month => setStart({ month, waitlist: false })} onWaitlist={month => setStart({ month, waitlist: true })} />;
 }

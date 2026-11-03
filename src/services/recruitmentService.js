@@ -1,12 +1,13 @@
 import { db } from '../config/firebase';
 import {
     collection, doc, documentId, getDocsFromServer, getDocFromServer,
-    query, where, setDoc, serverTimestamp, runTransaction,
+    query, where, setDoc, addDoc, serverTimestamp, runTransaction,
 } from 'firebase/firestore';
 import {
     koreanDate, isRecruitmentMonth, shiftMonth, monthEntrances, isEntranceAvailable,
     normalizeInquiryPhone, isInquiryPhone, validateRecruitmentSubmission, assertRegularSlots, RECRUITMENT_STATUSES,
 } from '../utils/recruitment';
+import { validateWaitlistEntry, slotsToString, sortSlots, assertWaitlistMonthStatus } from '../utils/newStudentWaitlist';
 
 function requireDb() {
     if (!db) throw new Error('모집 정보를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
@@ -81,4 +82,45 @@ export async function submitRecruitmentRegistration(data, status = 'pending') {
         });
     });
     return { success: true, id: registrationRef.id };
+}
+
+// 신규 수강 대기 문서. 입학반·결제는 코치가 승인할 때 정한다.
+function waitlistDoc(data, extra) {
+    const requestedSlots = sortSlots(data.requestedSlots).map(s => ({ day: s.day, period: Number(s.period) }));
+    return {
+        recruitmentMonth: data.recruitmentMonth, name: data.name.trim(), phone: data.phone,
+        weeklyFrequency: data.weeklyFrequency, requestedSlots, scheduleString: slotsToString(requestedSlots),
+        entranceClassId: null, entranceDate: '', entranceClassDate: '', entranceInquiry: '',
+        status: 'waitlist', isWaitlist: true, coachSeen: false, questionSeen: false,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...extra,
+    };
+}
+
+// '문의 및 대기 가능'인 달의 공개 대기 신청. 마감·접수중인 달은 받지 않는다(규칙도 같은 조건).
+export async function submitMonthWaitlist(data) {
+    requireDb();
+    validateWaitlistEntry(data);
+    const config = await getDocFromServer(doc(db, 'recruitmentMonths', data.recruitmentMonth));
+    assertWaitlistMonthStatus(config.exists() ? config.data().status : 'inquiry');
+    const ref = await addDoc(collection(db, 'newStudentRegistrations'), waitlistDoc(data, {
+        waitType: 'month', source: 'public',
+        password: String(data.phone).replace(/\D/g, '').slice(-4),
+        gender: data.gender || '', occupation: data.occupation || '', referralSource: data.referralSource || '',
+        exerciseExperience: data.exerciseExperience || '', healthIssues: data.healthIssues || '',
+        exerciseGoal: data.exerciseGoal || '', question: data.question || '',
+    }));
+    return { success: true, id: ref.id };
+}
+
+// 코치가 전화·DM으로 받은 대기를 직접 추가. 그 달이 접수중이면 만석 대기, 아니면 모집 대기로 분류한다(마감된 달은 불가).
+export async function addCoachWaitlist(data) {
+    requireDb();
+    validateWaitlistEntry(data, { coach: true });
+    const config = await getDocFromServer(doc(db, 'recruitmentMonths', data.recruitmentMonth));
+    assertWaitlistMonthStatus(config.exists() ? config.data().status : 'inquiry', { coach: true });
+    const ref = await addDoc(collection(db, 'newStudentRegistrations'), waitlistDoc(data, {
+        waitType: config.exists() && config.data().status === 'open' ? 'seat' : 'month', source: 'coach',
+        password: String(data.phone).replace(/\D/g, '').slice(-4), memo: String(data.memo || '').trim(),
+    }));
+    return { success: true, id: ref.id };
 }

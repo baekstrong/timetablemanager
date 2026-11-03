@@ -5,7 +5,7 @@ import { monthLabel, shiftMonth, RECRUITMENT_STATUSES } from '../utils/recruitme
 import './Recruitment.css';
 import useKoreanMonth from '../hooks/useKoreanMonth';
 
-function MonthForm({ month, config, defaultPhone, entrancesLoading, onSaved, past }) {
+function MonthForm({ month, config, defaultPhone, entrancesLoading, onSaved, onOpened, past }) {
     const [status, setStatus] = useState(config?.status || 'inquiry');
     const [notice, setNotice] = useState(config?.notice || '');
     const [phone, setPhone] = useState(config?.inquiryPhone || defaultPhone);
@@ -20,6 +20,8 @@ function MonthForm({ month, config, defaultPhone, entrancesLoading, onSaved, pas
         try {
             await saveRecruitmentMonth(month, { status, notice, inquiryPhone: phone });
             onSaved({ month, status, notice: notice.trim(), inquiryPhone: phone.replace(/\D/g, '') });
+            // 접수중으로 새로 바꾼 경우에만 그 달 모집 대기자 안내 창(자동 문자 없음)
+            if (status === 'open' && config?.status !== 'open') onOpened?.(month);
             setMessage(`${monthLabel(month)} 모집 상태를 ${RECRUITMENT_STATUSES[status]}로 저장했습니다.`);
         } catch (err) { setError(err.message); }
         finally { setSaving(false); }
@@ -27,7 +29,7 @@ function MonthForm({ month, config, defaultPhone, entrancesLoading, onSaved, pas
 
     return <form className="recruitment-management-form" onSubmit={save}>
         <h3>{monthLabel(month)} 모집 설정</h3>
-        <p className="recruitment-muted">{config ? `현재 공개 상태: ${RECRUITMENT_STATUSES[config.status]}` : past ? '저장된 모집 설정이 없습니다.' : '아직 설정하지 않은 달은 문의만 받습니다.'}</p>
+        <p className="recruitment-muted">{config ? `현재 공개 상태: ${RECRUITMENT_STATUSES[config.status]}` : past ? '저장된 모집 설정이 없습니다.' : '아직 설정하지 않은 달은 문의와 대기 신청만 받습니다.'}</p>
         {past && <p className="recruitment-muted">지난달 모집 기록입니다.</p>}
         <fieldset disabled={saving || entrancesLoading || past}>
             <legend>모집 상태</legend>
@@ -35,7 +37,7 @@ function MonthForm({ month, config, defaultPhone, entrancesLoading, onSaved, pas
                 <label key={value} className={`recruitment-state-option ${status === value ? 'selected' : ''}`}>
                     <input type="radio" name={`recruitment-${month}`} value={value} checked={status === value} onChange={() => setStatus(value)} />{label}
                 </label>)}</div>
-            <p className="recruitment-muted">접수중이면 신청할 수 있고, 문의만 가능·마감이면 신청을 받지 않습니다. 마감된 달도 신청페이지에 표시됩니다.</p>
+            <p className="recruitment-muted">접수중이면 신청할 수 있고, 문의 및 대기 가능이면 문의와 대기 신청만, 마감이면 둘 다 받지 않습니다. 마감된 달도 신청페이지에 표시됩니다.</p>
             <label className="recruitment-field">문자 문의번호
                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="010-0000-0000" autoComplete="tel" />
             </label>
@@ -49,7 +51,7 @@ function MonthForm({ month, config, defaultPhone, entrancesLoading, onSaved, pas
     </form>;
 }
 
-export default function RecruitmentManager({ entrances, entrancesLoading, onAddEntrance, renderEntrance }) {
+export default function RecruitmentManager({ entrances, entrancesLoading, onAddEntrance, renderEntrance, onOpened }) {
     const current = useKoreanMonth();
     const [selectedMonth, setMonth] = useState(null);
     const month = selectedMonth || current;
@@ -98,7 +100,7 @@ export default function RecruitmentManager({ entrances, entrancesLoading, onAddE
         {copyMessage && <p role="status" className="recruitment-muted">{copyMessage}</p>}
         {loading ? <p role="status">모집 설정을 불러오고 있습니다.</p> : error ? <div role="alert" className="recruitment-error"><p>{error}</p><button onClick={() => { setLoading(true); setReload(v => v + 1); }}>다시 확인</button></div>
             : <MonthForm key={month} month={month} config={config} defaultPhone={defaultPhone} entrancesLoading={entrancesLoading}
-                past={month < current} onSaved={next => setConfigs(previous => [...previous.filter(c => c.month !== next.month), next])} />}
+                past={month < current} onOpened={onOpened} onSaved={next => setConfigs(previous => [...previous.filter(c => c.month !== next.month), next])} />}
         <section className="recruitment-entrances" aria-label={`${monthLabel(month)} 입학반`}>
             <div className="recruitment-management-header">
                 <h3>{monthLabel(month)} 입학반</h3>

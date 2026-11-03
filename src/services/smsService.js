@@ -164,8 +164,11 @@ const formatScheduleDate = (date) => {
  * 수강생에게 접수 확인 문자 발송
  * "신규 수강 신청 내역이 코치에게 전달되었습니다. 수강이 승인되면 연락 드리겠습니다"
  */
-export const sendStudentRegistrationSMS = async (studentPhone, studentName, isWaitlist = false) => {
-  const text = isWaitlist
+export const sendStudentRegistrationSMS = async (studentPhone, studentName, isWaitlist = false, waitMonthLabel = '') => {
+  // waitMonthLabel: 문의 및 대기 가능한 달의 모집 대기 (예: '2026년 12월')
+  const text = waitMonthLabel
+    ? `[근력학교] ${studentName}님, ${waitMonthLabel} 신규 수강 대기 신청 내역이 코치에게 전달되었습니다. 모집이 시작되거나 신청한 시간에 자리가 나면 연락드리겠습니다.`
+    : isWaitlist
     ? `[근력학교] ${studentName}님, 신규 수강 대기 신청 내역이 코치에게 전달되었습니다. 신청한 시간에 여석이 발생하면 연락드리겠습니다.`
     : `[근력학교] ${studentName}님, 신규 수강 신청 내역이 코치에게 전달되었습니다. 수강이 승인되면 연락 드리겠습니다.`;
 
@@ -207,7 +210,9 @@ export const sendCoachNewRegistrationSMS = async (studentName, details, studentP
       ? '현장 카드 결제'
       : '현장 계좌 이체';
 
-  let text = isWaitlist
+  let text = details.waitMonthLabel
+    ? `[근력학교] ${details.waitMonthLabel} 모집 대기 신청이 접수되었습니다.`
+    : isWaitlist
     ? `[근력학교] 신규 수강 대기 신청이 접수되었습니다.`
     : `[근력학교] 신규 수강 신청이 접수되었습니다.`;
   text += `\n이름: ${studentName}`;
@@ -222,7 +227,7 @@ export const sendCoachNewRegistrationSMS = async (studentName, details, studentP
   }
   text += `\n주횟수: 주${details.weeklyFrequency}회`;
   text += `\n시간표: ${details.scheduleString}`;
-  text += `\n결제방식: ${paymentLabel}`;
+  if (!details.waitMonthLabel) text += `\n결제방식: ${paymentLabel}`;
   if (details.entranceClassDate) {
     text += `\n입학반: ${details.entranceClassDate}`;
   }
@@ -481,7 +486,7 @@ export const sendRegistrationNotifications = async (studentPhone, studentName, d
   // 병렬로 수강생/코치 문자 발송
   const isWaitlist = details.isWaitlist || false;
   const [studentResult, coachResult] = await Promise.allSettled([
-    sendStudentRegistrationSMS(studentPhone, studentName, isWaitlist),
+    sendStudentRegistrationSMS(studentPhone, studentName, isWaitlist, details.waitMonthLabel || ''),
     sendCoachNewRegistrationSMS(studentName, details, studentPhone, isWaitlist)
   ]);
 

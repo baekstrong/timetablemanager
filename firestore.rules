@@ -83,10 +83,24 @@ service cloud.firestore {
             && admissionDateAllowed(data.entranceInquiry, data.recruitmentMonth)
             && data.entranceInquiryReason is string && data.entranceInquiryReason.size() > 0));
     }
-    // 신규 신청 공개 조회는 기존 경로 유지. 생성은 열린 모집월만, 이후 공개 갱신은 접수 문자 결과만 허용.
+    // '문의 및 대기 가능'(설정 없음 포함)인 달의 모집 대기(2026-11-03). 마감·접수중인 달은 받지 않는다.
+    // 입학반·결제 없이 희망 시간만 받으며 좌석을 예약하지 않는다.
+    function publicMonthWaitlistAllowed() {
+      let data = request.resource.data;
+      let config = /databases/$(database)/documents/recruitmentMonths/$(data.recruitmentMonth);
+      return data.status == 'waitlist' && data.waitType == 'month' && data.source == 'public'
+        && data.recruitmentMonth is string && data.recruitmentMonth.matches('[0-9]{4}-(0[1-9]|1[0-2])')
+        && (!exists(config) || get(config).data.status == 'inquiry')
+        && data.weeklyFrequency in [2, 3]
+        && data.entranceClassId == null && data.entranceDate == '' && data.entranceInquiry == ''
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 50
+        && data.requestedSlots is list && data.requestedSlots.size() >= data.weeklyFrequency
+        && data.requestedSlots.size() <= 25;
+    }
+    // 신규 신청 공개 조회는 기존 경로 유지. 생성은 열린 모집월(또는 모집 대기)만, 이후 공개 갱신은 접수 문자 결과만 허용.
     match /newStudentRegistrations/{id} {
       allow read: if true;
-      allow create: if isCoach() || publicRecruitmentAllowed();
+      allow create: if isCoach() || publicRecruitmentAllowed() || publicMonthWaitlistAllowed();
       allow update: if isCoach() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['smsLog', 'updatedAt']);
       allow delete: if isCoach();
     }

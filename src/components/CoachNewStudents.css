@@ -829,3 +829,53 @@
     .cns-filter-row { flex-wrap: wrap; }
     .cns-filter-btn { flex: 1 1 72px; }
 }
+
+/* === 신규 대기 (2026-11-03) === */
+.cns-waitlist-toolbar { display: flex; gap: .75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: .75rem; }
+.cns-waitlist-toolbar p { margin: 0; font-size: .8rem; color: var(--text-secondary); flex: 1 1 200px; }
+.cns-wait-order { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px;
+    border-radius: var(--r-chip); background: var(--canvas-tint); border: 1px solid var(--hairline); font-size: .75rem; font-weight: 700; color: var(--text); }
+.cns-badge.wait-seat { background: #E9EDF2; color: #44505E; }
+.cns-badge.wait-month { background: var(--accent-10); color: var(--accent-hover); border: 1px solid var(--accent-30); }
+.cns-badge.wait-coach { background: var(--canvas-tint); color: var(--text-secondary); border: 1px solid var(--hairline); }
+.cns-badge.seat-open { background: #31A5521A; color: var(--success); border: 1px solid #31A5524D; }
+/* 배지가 많아도 한 글자씩 세로로 접히지 않게 줄 단위로 넘긴다 */
+.cns-reg-badges { flex-wrap: wrap; justify-content: flex-end; }
+.cns-reg-badges .cns-badge { white-space: nowrap; }
+.cns-badge.seat-none { background: var(--canvas-tint); color: var(--text-muted); border: 1px solid var(--hairline); }
+.cns-modal-sub { margin: -.5rem 0 1rem; font-size: .85rem; color: var(--text-secondary); line-height: 1.5; }
+
+.cns-waitlist-add, .cns-month-notice { max-width: 520px; max-height: calc(100dvh - 2rem); overflow-y: auto; overscroll-behavior: contain; }
+.cns-waitlist-fields { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.cns-waitlist-fields label, .cns-waitlist-memo { display: flex; flex-direction: column; gap: .3rem; font-size: .8rem; font-weight: 600; color: var(--text-secondary); min-width: 0; }
+.cns-waitlist-fields input, .cns-waitlist-fields select, .cns-waitlist-memo textarea {
+    font: inherit; font-size: .95rem; font-weight: 400; color: var(--text); padding: .55rem .65rem; border: 1px solid var(--hairline); border-radius: var(--r-chip); background: var(--canvas); min-width: 0; }
+.cns-waitlist-freq { display: flex; flex-direction: column; gap: .3rem; font-size: .8rem; font-weight: 600; color: var(--text-secondary); }
+.cns-waitlist-freq > div { display: flex; gap: .35rem; }
+.cns-waitlist-freq button { flex: 1; min-height: 40px; border: 1px solid var(--hairline); border-radius: var(--r-chip); background: var(--canvas); font: inherit; font-size: .85rem; color: var(--text); cursor: pointer; }
+.cns-waitlist-freq button.selected { border-color: var(--accent); background: var(--accent-10); color: var(--accent-hover); font-weight: 700; }
+.cns-waitlist-grid-label { margin: 1rem 0 .4rem; font-size: .8rem; font-weight: 600; color: var(--text-secondary); }
+.cns-waitlist-grid-label span { font-weight: 400; color: var(--text-muted); }
+.cns-waitlist-grid { display: grid; grid-template-columns: 56px repeat(5, 1fr); gap: 3px; font-size: .75rem; }
+.cns-waitlist-day { text-align: center; font-weight: 700; padding: 4px 0; }
+.cns-waitlist-period { font-size: .7rem; color: var(--text-secondary); display: flex; align-items: center; }
+.cns-waitlist-cell { min-height: 36px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--canvas); font: inherit; font-size: .75rem; color: var(--text); cursor: pointer; padding: 0; }
+.cns-waitlist-cell.full { background: #EDBC401A; color: #92400e; }
+.cns-waitlist-cell.selected { border: 2px solid var(--accent); background: var(--accent-10); color: var(--accent-hover); font-weight: 700; }
+.cns-waitlist-cell:disabled { background: var(--canvas-tint); color: var(--text-muted); cursor: default; }
+.cns-waitlist-memo { margin-top: 1rem; }
+.cns-waitlist-error { color: var(--error); font-size: .85rem; margin: .75rem 0 0; }
+.cns-waitlist-add .cns-modal-actions, .cns-month-notice .cns-modal-actions { margin-top: 1rem; }
+
+.cns-month-notice-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+.cns-month-notice-list li { border: 1px solid var(--hairline); border-radius: var(--r-md); padding: .65rem .75rem; background: var(--surface); }
+.cns-month-notice-list li.has-seat { border-color: #31A5524D; background: #31A5520D; }
+.cns-month-notice-head { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.cns-month-notice-meta { font-size: .78rem; color: var(--text-secondary); }
+.cns-month-notice-head .cns-badge { margin-left: auto; }
+.cns-month-notice-slots { margin-top: .3rem; font-size: .78rem; color: var(--text-secondary); }
+
+@media (max-width: 420px) {
+    .cns-waitlist-fields { grid-template-columns: 1fr; }
+    .cns-waitlist-grid { grid-template-columns: 44px repeat(5, 1fr); }
+}
