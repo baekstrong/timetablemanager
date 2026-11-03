@@ -383,6 +383,11 @@
     margin-bottom: 0;
 }
 
+.reg-entrance-emphasis {
+    color: var(--error);
+    font-weight: 700;
+}
+
 /* 다른 날 문의 */
 .reg-entrance-inquiry {
     margin-top: 1rem;
