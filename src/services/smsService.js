@@ -255,13 +255,26 @@ export const sendCoachNewRegistrationSMS = async (studentName, details, studentP
 // ============================================
 // 수강생 안내문자 2: 신규 수강 승인 직후
 // ============================================
-/**
- * 수강생에게 승인 확인 문자 발송
- * "신규 수강이 승인되었습니다." + 준비물 안내 + 네이버 결제 링크
- */
-export const sendStudentApprovalSMS = async (studentPhone, studentName, details) => {
-  const settings = await getSmsSettings();
+// 등록 기간 표기: 'YYYY-MM-DD' 또는 시트의 'YYMMDD' → '2026.11.17(화)'. 못 읽으면 ''
+export const formatRegistrationDate = (value) => {
+  const str = String(value || '').trim();
+  let m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) {
+    const yy = str.match(/^(\d{2})(\d{2})(\d{2})$/);
+    if (yy) m = [str, `20${yy[1]}`, yy[2], yy[3]];
+  }
+  if (!m) return '';
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (isNaN(d.getTime()) || d.getMonth() !== Number(m[2]) - 1) return '';
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  return `${m[1]}.${m[2]}.${m[3]}(${dayNames[d.getDay()]})`;
+};
 
+/**
+ * 승인 문자 본문 (순수 함수 — 테스트용 분리)
+ * details: { paymentMethod, weeklyFrequency, scheduleString, entranceDate, entranceClassDate, startDate, endDate }
+ */
+export const buildStudentApprovalText = (studentName, details, settings) => {
   // 입학반 날짜/시간 포맷
   let entranceDateTimeStr = '';
   let entranceTimeRange = '';
@@ -292,14 +305,21 @@ export const sendStudentApprovalSMS = async (studentPhone, studentName, details)
 
   let text = `[근력학교] ${studentName}님, 신규 수강이 승인되었습니다.`;
 
-  // 정규 수업 시간표
-  if (scheduleStr) {
-    text += `\n\n정규 수업: ${scheduleStr} (주${details.weeklyFrequency}회)`;
+  // 입학반 정보 + 정규 수업 시작 안내
+  if (entranceDateTimeStr) {
+    text += `\n\n입학반: ${entranceDateTimeStr}`;
+    text += `\n입학반 수강 후 다음 주부터 정규 수업이 시작됩니다.`;
   }
 
-  // 입학반 정보
-  if (entranceDateTimeStr) {
-    text += `\n입학반: ${entranceDateTimeStr}`;
+  // 등록 시간·기간 (기간은 시트 G/H에 쓰는 시작·종료일. 입학반 미정이면 없음 → 줄 생략)
+  const startStr = formatRegistrationDate(details.startDate);
+  const endStr = formatRegistrationDate(details.endDate);
+  if (scheduleStr || (startStr && endStr)) text += `\n`;
+  if (scheduleStr) {
+    text += `\n등록 시간: ${scheduleStr} (주${details.weeklyFrequency}회)`;
+  }
+  if (startStr && endStr) {
+    text += `\n등록 기간: ${startStr} ~ ${endStr}`;
   }
 
   // 결제 안내
@@ -324,6 +344,17 @@ export const sendStudentApprovalSMS = async (studentPhone, studentName, details)
   text += `\n4교시 18:00 ~ 19:30`;
   text += `\n5교시 19:50 ~ 21:20`;
   text += `\n6교시 21:40 ~ 23:10`;
+
+  return text;
+};
+
+/**
+ * 수강생에게 승인 확인 문자 발송
+ * "신규 수강이 승인되었습니다." + 입학반·등록 시간/기간 + 네이버 결제 링크
+ */
+export const sendStudentApprovalSMS = async (studentPhone, studentName, details) => {
+  const settings = await getSmsSettings();
+  const text = buildStudentApprovalText(studentName, details, settings);
 
   try {
     await sendSMS(studentPhone, text);

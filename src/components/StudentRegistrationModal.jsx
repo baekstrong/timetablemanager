@@ -623,7 +623,9 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
                         weeklyFrequency: parseInt(form.주횟수) || 0,
                         scheduleString: form['요일 및 시간'] || '',
                         entranceDate: linkedEntrance ? linkedEntrance.date : '',
-                        entranceClassDate: linkedEntranceClassDate
+                        entranceClassDate: linkedEntranceClassDate,
+                        startDate: form.시작날짜,
+                        endDate: form.종료날짜
                     });
 
                     const failed = [];

@@ -439,7 +439,9 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                         weeklyFrequency: reg.weeklyFrequency,
                         scheduleString: reg.scheduleString || '',
                         entranceDate: finalEntranceDate,
-                        entranceClassDate: finalEntranceClassDate
+                        entranceClassDate: finalEntranceClassDate,
+                        startDate: plan.startDate,
+                        endDate: plan.endDate
                     });
                     const sent = [];
                     const failed = [];
@@ -639,6 +641,8 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                 scheduleString: reg.scheduleString || '',
                 entranceDate: reg.entranceDate,
                 entranceClassDate: reg.entranceClassDate,
+                startDate: reg.startDate,
+                endDate: reg.endDate,
             };
             if (typeKey === 'reception') {
                 const ok = await sendStudentRegistrationSMS(reg.phone, reg.name, reg.isWaitlist);
@@ -947,14 +951,15 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
         }
 
         // 3. 시트 시작/종료날짜 재계산 + 업데이트
+        let newStartDate = '', newEndDate = '';
         try {
             const { startDate } = calculateStartEndDates(newDate, slotsOf(reg));
+            newStartDate = startDate;
             const startYY = convertToYYMMDD(startDate);
             const weeklyFreq = parseInt(reg.weeklyFrequency) || 2;
             const endObj = calculateEndDateWithHolidays(new Date(startDate + 'T00:00:00'), weeklyFreq * 4, reg.scheduleString, holidays);
-            const endYY = endObj
-                ? convertToYYMMDD(`${endObj.getFullYear()}-${String(endObj.getMonth() + 1).padStart(2, '0')}-${String(endObj.getDate()).padStart(2, '0')}`)
-                : '';
+            if (endObj) newEndDate = `${endObj.getFullYear()}-${String(endObj.getMonth() + 1).padStart(2, '0')}-${String(endObj.getDate()).padStart(2, '0')}`;
+            const endYY = newEndDate ? convertToYYMMDD(newEndDate) : '';
             const { targetSheet, targetRow } = await findApprovedStudentRow(reg, batch?.sheetCache);
             if (targetRow > 0) {
                 const range = endYY ? `${targetSheet}!G${targetRow}:H${targetRow}` : `${targetSheet}!G${targetRow}`;
@@ -995,6 +1000,9 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
 
         // 5. Firestore 등록 문서 갱신
         const update = { entranceClassId: newEcId, entranceDate: newDate, entranceClassDate: classDateStr, entranceInquiry: '' };
+        // 승인문자 재발송의 등록 기간이 옛 날짜로 나가지 않도록 문서도 시트와 맞춘다
+        if (newStartDate) update.startDate = newStartDate;
+        if (newEndDate) update.endDate = newEndDate;
         if (reminderEntry) {
             update['smsLog.reminder'] = reminderEntry;
             update.reminderGroupId = newGroupId || '';
