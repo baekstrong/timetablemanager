@@ -69,17 +69,3 @@ describe('코치 첫 화면 종료 안내', () => {
         expect(renderToStaticMarkup(createElement(TaskSection, { coach: true, groups }))).toBe('');
     });
 });
-
-describe('신규 대기 할 일', () => {
-    it('먼저 신청한 순서로 순번·희망 월·자리 여부를 표시', async () => {
-        const { buildNewWaitlistGroup } = await import('./todayModel');
-        const group = buildNewWaitlistGroup([
-            { id: 'b', name: '나중', status: 'waitlist', weeklyFrequency: 2, recruitmentMonth: '2026-12', waitType: 'month', source: 'coach', createdAt: { toMillis: () => 2 }, requestedSlots: [{ day: '월', period: 4 }, { day: '수', period: 4 }] },
-            { id: 'a', name: '먼저', status: 'waitlist', weeklyFrequency: 2, recruitmentMonth: '2026-11', createdAt: { toMillis: () => 1 }, requestedSlots: [{ day: '화', period: 1 }, { day: '목', period: 1 }] },
-        ], { '월-4': 7 }, [], 7);
-        expect(group.items.map(item => [item.title, item.seat, item.description])).toEqual([
-            ['1. 먼저 (주2회)', true, '2026년 11월 희망 · 만석 대기'],
-            ['2. 나중 (주2회)', false, '2026년 12월 희망 · 모집 대기 · 코치 등록'],
-        ]);
-    });
-});

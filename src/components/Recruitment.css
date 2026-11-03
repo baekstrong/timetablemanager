@@ -17,7 +17,7 @@
 .recruitment-custom-notice { white-space: pre-wrap; }
 .recruitment-full { display: flex; justify-content: center; width: 100%; text-align: center; text-decoration: none; min-height: 48px; align-items: center; overflow-wrap: anywhere; }
 .recruitment-full:disabled { opacity: .6; cursor: not-allowed; }
-.recruitment-inquiry, .recruitment-waitlist { border-top: 1px solid var(--hairline); padding-top: 1.25rem; margin-top: 1.5rem; }
+.recruitment-inquiry { border-top: 1px solid var(--hairline); padding-top: 1.25rem; margin-top: 1.5rem; }
 .recruitment-contact, .recruitment-footnote { text-align: center; font-size: .8rem; }
 .recruitment-contact a { color: var(--accent-hover); }
 .recruitment-text-button { background: transparent; border: 0; color: var(--accent-hover); font: inherit; min-height: 44px; padding: .5rem; cursor: pointer; }

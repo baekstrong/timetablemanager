@@ -1,6 +1,6 @@
 export const RECRUITMENT_STATUSES = {
     open: '접수중',
-    inquiry: '문의 및 대기 가능',
+    inquiry: '문의만 가능',
     closed: '마감',
 };
 

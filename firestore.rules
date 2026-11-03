@@ -83,33 +83,10 @@ service cloud.firestore {
             && admissionDateAllowed(data.entranceInquiry, data.recruitmentMonth)
             && data.entranceInquiryReason is string && data.entranceInquiryReason.size() > 0));
     }
-    // '문의 및 대기 가능'(설정 없음 포함)인 달의 모집 대기(2026-11-03). 마감·접수중인 달은 받지 않는다.
-    // 입학반·결제 없이 희망 시간만 받으며 좌석을 예약하지 않는다.
-    function publicMonthWaitlistAllowed() {
-      let data = request.resource.data;
-      let config = /databases/$(database)/documents/recruitmentMonths/$(data.recruitmentMonth);
-      // 순번이 createdAt 순이므로 서버 시각만 허용(앞당기기 방지), 필드도 waitlistDoc이 쓰는 것만.
-      return data.keys().hasOnly(['recruitmentMonth', 'name', 'phone', 'weeklyFrequency', 'requestedSlots', 'scheduleString',
-          'entranceClassId', 'entranceDate', 'entranceClassDate', 'entranceInquiry', 'status', 'isWaitlist', 'coachSeen', 'questionSeen',
-          'createdAt', 'updatedAt', 'waitType', 'source', 'password', 'gender', 'occupation', 'referralSource',
-          'exerciseExperience', 'healthIssues', 'exerciseGoal', 'question'])
-        && data.createdAt == request.time && data.updatedAt == request.time
-        && data.status == 'waitlist' && data.waitType == 'month' && data.source == 'public'
-        && data.isWaitlist == true && data.coachSeen == false
-        && data.phone is string && data.phone.matches('010-?[0-9]{4}-?[0-9]{4}')
-        && data.recruitmentMonth is string && data.recruitmentMonth.matches('[0-9]{4}-(0[1-9]|1[0-2])')
-        && admissionDateAllowed(data.recruitmentMonth + '-31', data.recruitmentMonth)
-        && (!exists(config) || get(config).data.status == 'inquiry')
-        && data.weeklyFrequency in [2, 3]
-        && data.entranceClassId == null && data.entranceDate == '' && data.entranceInquiry == ''
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 50
-        && data.requestedSlots is list && data.requestedSlots.size() >= data.weeklyFrequency
-        && data.requestedSlots.size() <= 25;
-    }
-    // 신규 신청 공개 조회는 기존 경로 유지. 생성은 열린 모집월(또는 모집 대기)만, 이후 공개 갱신은 접수 문자 결과만 허용.
+    // 신규 신청 공개 조회는 기존 경로 유지. 생성은 열린 모집월만, 이후 공개 갱신은 접수 문자 결과만 허용.
     match /newStudentRegistrations/{id} {
       allow read: if true;
-      allow create: if isCoach() || publicRecruitmentAllowed() || publicMonthWaitlistAllowed();
+      allow create: if isCoach() || publicRecruitmentAllowed();
       allow update: if isCoach() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['smsLog', 'updatedAt']);
       allow delete: if isCoach();
     }

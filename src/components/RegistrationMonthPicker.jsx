@@ -5,7 +5,7 @@ import { recruitmentOptions, monthLabel, RECRUITMENT_STATUSES, inquirySmsLink, i
 import './Recruitment.css';
 import useKoreanMonth from '../hooks/useKoreanMonth';
 
-export default function RegistrationMonthPicker({ onStart, onWaitlist }) {
+export default function RegistrationMonthPicker({ onStart }) {
     const current = useKoreanMonth();
     const [options, setOptions] = useState([]);
     const [selected, setSelected] = useState('');
@@ -56,9 +56,6 @@ export default function RegistrationMonthPicker({ onStart, onWaitlist }) {
     const { inquiry, showInquiry, nextOpen } = recruitmentInquiryRoute(choice, options, phone);
     const inquiryPhone = inquiry?.inquiryPhone || phone;
     const smsLink = inquiry ? inquirySmsLink(inquiryPhone, inquiry.month, navigator.userAgent) : '';
-    // 대기는 '문의 및 대기 가능'인 달만. 마감된 달을 고르면 다음 '문의 및 대기 가능' 달 대기로 안내한다.
-    const waitMonth = choice?.status === 'inquiry' ? choice.month
-        : choice?.status === 'closed' && inquiry?.status === 'inquiry' ? inquiry.month : '';
     const start = async () => {
         if (!choice?.canApply || starting) return;
         setStarting(true);
@@ -92,22 +89,15 @@ export default function RegistrationMonthPicker({ onStart, onWaitlist }) {
                     </button>)}
                 </div>
                 <section className="recruitment-notice" aria-live="polite">
-                    <h2>{monthLabel(selected)} {choice.status === 'closed' ? '신규 모집 마감' : choice.status === 'open' ? '신규 수강 모집중' : '입학 문의·대기'}</h2>
+                    <h2>{monthLabel(selected)} {choice.status === 'closed' ? '신규 모집 마감' : choice.status === 'open' ? '신규 수강 모집중' : '입학 문의'}</h2>
                     <p>{choice.status === 'closed' ? '신청해주셔서 감사합니다. 이 달에는 신규 신청을 더 받지 않습니다.'
-                        : choice.status === 'open' ? '선택한 달의 입학반과 희망 수업 시간을 선택해 신청해주세요.' : '아직 신청을 받고 있지 않습니다. 대기 신청을 남기시거나 입학 일정을 문자로 문의해주세요.'}</p>
+                        : choice.status === 'open' ? '선택한 달의 입학반과 희망 수업 시간을 선택해 신청해주세요.' : '아직 신청을 받고 있지 않습니다. 입학 일정과 신청 가능 여부는 문자로 문의해주세요.'}</p>
                     {choice.notice && <p className="recruitment-custom-notice">{choice.notice}</p>}
                     {choice.entrances.length > 0 && <p className="recruitment-muted">입학반 {choice.entrances.map(ec => `${Number(ec.date.slice(5, 7))}/${Number(ec.date.slice(8))} ${ec.time || ''}`).join(' · ')}</p>}
                     {choice.status === 'open' && !choice.canApply && <p>현재 신청 가능한 입학반이 없습니다. 입학반이 추가되면 신청할 수 있습니다.</p>}
                 </section>
                 {choice.status !== 'inquiry' && <button className="reg-btn reg-btn-primary recruitment-full" disabled={!choice.canApply || starting}
                     onClick={start}>{starting ? '모집 상태 확인중...' : choice.status === 'closed' ? `${Number(selected.slice(5))}월 신청 마감` : `${Number(selected.slice(5))}월 수강 신청하기`}</button>}
-                {/* 문의 및 대기 가능한 달: 대기 명단에 올려두면 모집이 열리거나 자리가 날 때 코치가 연락한다 */}
-                {waitMonth && onWaitlist && <section className="recruitment-waitlist">
-                    <h2>{monthLabel(waitMonth)} 대기 신청</h2>
-                    <p className="recruitment-muted">{waitMonth !== selected && `${Number(selected.slice(5))}월은 마감되었습니다. `}가능한 요일·시간을 남겨주시면 모집이 시작되거나 자리가 날 때 코치가 먼저 연락드립니다.</p>
-                    <button className="reg-btn reg-btn-primary recruitment-full" disabled={starting} onClick={() => onWaitlist(waitMonth)}>{Number(waitMonth.slice(5))}월 대기 신청하기</button>
-                    <p className="recruitment-footnote">대기 신청은 자리 예약이나 등록 확정이 아닙니다.</p>
-                </section>}
                 {nextOpen && <button className="reg-btn reg-btn-secondary recruitment-full" onClick={() => { picked.current = true; setSelected(inquiry.month); }}>{Number(inquiry.month.slice(5))}월 신규 모집 보기</button>}
                 {showInquiry && <section className="recruitment-inquiry">
                     <h2>{inquiry.month === selected ? '입학 상담' : `${monthLabel(inquiry.month)} 입학 상담`}</h2>

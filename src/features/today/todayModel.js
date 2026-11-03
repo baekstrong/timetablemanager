@@ -1,23 +1,4 @@
 // Shared display rules. Data loading and writes belong to the calling screen.
-import { sortWaitlist, waitlistSeatStatus, waitTypeOf, WAIT_TYPES, isCoachWaitlist } from '../../utils/newStudentWaitlist';
-import { monthLabel } from '../../utils/recruitment';
-
-// 신규 대기(만석·모집 대기) — 먼저 신청한 순서. 자리 여부는 신규 신청 화면과 같은 점유 기준으로 계산한다.
-export function buildNewWaitlistGroup(waitlist = [], occupancy = {}, disabledClasses = [], maxCapacity = 7) {
-    return {
-        id: 'newWaitlist', title: '신규 대기',
-        items: sortWaitlist(waitlist.filter(reg => reg.status === 'waitlist')).map((reg, index) => {
-            const { hasSeat } = waitlistSeatStatus(reg, occupancy, disabledClasses, maxCapacity);
-            return {
-                id: `wait-${reg.id}`, type: 'newWaitlist', name: reg.name, actionLabel: '대기 보기', seat: hasSeat,
-                title: `${index + 1}. ${reg.name} (주${reg.weeklyFrequency}회)`,
-                description: [reg.recruitmentMonth && `${monthLabel(reg.recruitmentMonth)} 희망`, WAIT_TYPES[waitTypeOf(reg)],
-                    isCoachWaitlist(reg) && '코치 등록'].filter(Boolean).join(' · '),
-            };
-        }),
-    };
-}
-
 export function visibleTaskGroups(groups = []) {
     return groups.map(group => ({ ...group, items: group.items.filter(item => !item.completed) }))
         .filter(group => group.items.length > 0);

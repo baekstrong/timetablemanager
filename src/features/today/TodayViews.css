@@ -116,7 +116,6 @@
 
 .today-task-actions { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
 .today-task-unpaid { display: inline-block; margin-left: 6px; padding: 2px 5px; border-radius: var(--r-chip); color: var(--error); background: color-mix(in srgb, var(--error) 10%, transparent); font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
-.today-task-seat { display: inline-block; margin-left: 6px; padding: 2px 5px; border-radius: var(--r-chip); color: var(--success); background: #31A5521A; border: 1px solid #31A5524D; font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
 @media (max-width: 480px) {
     .today-tasks-coach .today-task-row { flex-wrap: wrap; }
     .today-tasks-coach .today-task-actions { width: 100%; }
