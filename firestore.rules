@@ -88,8 +88,17 @@ service cloud.firestore {
     function publicMonthWaitlistAllowed() {
       let data = request.resource.data;
       let config = /databases/$(database)/documents/recruitmentMonths/$(data.recruitmentMonth);
-      return data.status == 'waitlist' && data.waitType == 'month' && data.source == 'public'
+      // 순번이 createdAt 순이므로 서버 시각만 허용(앞당기기 방지), 필드도 waitlistDoc이 쓰는 것만.
+      return data.keys().hasOnly(['recruitmentMonth', 'name', 'phone', 'weeklyFrequency', 'requestedSlots', 'scheduleString',
+          'entranceClassId', 'entranceDate', 'entranceClassDate', 'entranceInquiry', 'status', 'isWaitlist', 'coachSeen', 'questionSeen',
+          'createdAt', 'updatedAt', 'waitType', 'source', 'password', 'gender', 'occupation', 'referralSource',
+          'exerciseExperience', 'healthIssues', 'exerciseGoal', 'question'])
+        && data.createdAt == request.time && data.updatedAt == request.time
+        && data.status == 'waitlist' && data.waitType == 'month' && data.source == 'public'
+        && data.isWaitlist == true && data.coachSeen == false
+        && data.phone is string && data.phone.matches('010-?[0-9]{4}-?[0-9]{4}')
         && data.recruitmentMonth is string && data.recruitmentMonth.matches('[0-9]{4}-(0[1-9]|1[0-2])')
+        && admissionDateAllowed(data.recruitmentMonth + '-31', data.recruitmentMonth)
         && (!exists(config) || get(config).data.status == 'inquiry')
         && data.weeklyFrequency in [2, 3]
         && data.entranceClassId == null && data.entranceDate == '' && data.entranceInquiry == ''
