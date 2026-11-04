@@ -10,21 +10,24 @@ export const registrationReceivedText = (name, isWaitlist = false) => (isWaitlis
 const PAYMENT_LABELS = { naver: '네이버', card: '현장 카드 결제' };
 
 /** 신규 신청 알림(코치에게). reg = 신청서 문서(name, phone, weeklyFrequency, scheduleString, ...). */
+// 공개 신청서의 자유 입력은 길이 제한이 없어 문자 한 통이 끝없이 길어지지 않게 자른다(전체 내용은 앱에서 본다).
+const clip = (value, max = 200) => { const text = String(value); return text.length > max ? `${text.slice(0, max)}…` : text; };
+
 export function coachNewRegistrationText(reg) {
     const lines = [reg.isWaitlist ? '[근력학교] 신규 수강 대기 신청이 접수되었습니다.' : '[근력학교] 신규 수강 신청이 접수되었습니다.'];
-    lines.push(`이름: ${reg.name}`);
+    lines.push(`이름: ${clip(reg.name, 30)}`);
     if (reg.phone) lines.push(`연락처: ${reg.phone}`);
     if (reg.gender) lines.push(`성별: ${reg.gender}`);
-    if (reg.occupation) lines.push(`직업: ${reg.occupation}`);
+    if (reg.occupation) lines.push(`직업: ${clip(reg.occupation)}`);
     lines.push(`주횟수: 주${reg.weeklyFrequency}회`);
     lines.push(`시간표: ${reg.scheduleString}`);
     lines.push(`결제방식: ${PAYMENT_LABELS[reg.paymentMethod] || '현장 계좌 이체'}`);
     if (reg.entranceClassDate) lines.push(`입학반: ${reg.entranceClassDate}`);
-    if (reg.exerciseExperience) lines.push(`운동 경력: ${reg.exerciseExperience}`);
-    if (reg.healthIssues) lines.push(`불편한 곳: ${reg.healthIssues}`);
-    if (reg.exerciseGoal) lines.push(`운동 목적: ${reg.exerciseGoal}`);
+    if (reg.exerciseExperience) lines.push(`운동 경력: ${clip(reg.exerciseExperience)}`);
+    if (reg.healthIssues) lines.push(`불편한 곳: ${clip(reg.healthIssues)}`);
+    if (reg.exerciseGoal) lines.push(`운동 목적: ${clip(reg.exerciseGoal)}`);
     if (reg.wantsConsultation) lines.push('* 상담 요청');
-    if (reg.question) lines.push(`질문: ${reg.question}`);
+    if (reg.question) lines.push(`질문: ${clip(reg.question)}`);
     return lines.join('\n');
 }
 

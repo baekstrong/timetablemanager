@@ -4,8 +4,8 @@ const crypto = require('crypto');
 
 // 임의 수신번호·문구 발송(/send, /send-batch)은 코치만(2026-11-04). 수강생·공개 신청 화면의 자동 안내는
 // /registration-received, /makeup-seat 가 문서를 읽어 정해진 문구로 보낸다.
-// 전환기: false면 거부하지 않고 기록만 한다(캐시에 남은 옛 앱이 문자를 못 보내는 일 방지). 새 앱 배포 뒤 true.
-const REQUIRE_COACH_FOR_FREE_TEXT = false;
+// 2026-11-04 잠금. false로 되돌리면 다시 누구나 학원 번호로 아무 문자나 보낸다.
+const REQUIRE_COACH_FOR_FREE_TEXT = true;
 
 async function freeTextDenied(event, body, path) {
   const denied = await requireCoach(event, body);
@@ -14,7 +14,7 @@ async function freeTextDenied(event, body, path) {
 }
 
 const json = (statusCode, headers, body) => ({ statusCode, headers, body: JSON.stringify(body) });
-const REQUEST_ERRORS = { 400: '잘못된 요청입니다.', 404: '대상을 찾을 수 없습니다.', 409: '이미 보낸 안내입니다.', 410: '안내 가능 시간이 지났습니다.' };
+const REQUEST_ERRORS = { 400: '잘못된 요청입니다.', 404: '대상을 찾을 수 없습니다.', 409: '이미 보낸 안내입니다.', 410: '안내 가능 시간이 지났습니다.', 429: '오늘 이 번호로 보낼 수 있는 안내를 모두 보냈습니다.' };
 
 const SOLAPI_API_URL = 'https://api.solapi.com';
 
