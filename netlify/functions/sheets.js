@@ -145,6 +145,11 @@ exports.handler = async (event, context) => {
             .where('studentName', '==', claims.name).where('status', '==', 'pending').get();
           const contract = snap.docs.map(d => d.data()).find(c => c.targetSheet === sheet);
           return contract ? contractRow(contract.registrationData || {}) : null;
+        }, async (sheet, expected) => {
+          const q = `'${sheet.replace(/'/g, "''")}'!B:G`;
+          const res = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: q });
+          const same = v => String(v ?? '').normalize('NFC').trim();
+          return (res.data.values || []).some(r => same(r[0]) === same(expected[1]) && same(r[4]) === '재등록' && same(r[5]) === same(expected[6]));
         });
       }
       if (denied) {
