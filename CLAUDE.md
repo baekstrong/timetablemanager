@@ -465,6 +465,17 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - 배포: Netlify sheets `6aeabd26…`(전환기: 증표 없으면 기록만) → 웹 배포 → `6aeabdf4…`(`REQUIRE_SIGN_IN = true`). 운영에서 증표 없음·무효·쓰기 시도 401, 테스트 계정 증표 200, `/occupancy` 공개 200 실측. **`REQUIRE_SIGN_IN`을 false로 되돌리지 말 것**(다시 누구나 명단을 읽고 쓴다). 번들·ZIP·digest 배포 스크립트는 Git 밖 `~/Library/Application Support/Codex/sheets-auth-2026-11-04/`.
 - Firestore `newStudentRegistrations` 읽기는 **코치만**(ruleset `38ecd249-…`, 운영 규칙과 3-way 병합). 공개 신청 화면은 생성·접수문자 결과 갱신만 하고 읽지 않는다. 비로그인 조회 거부 실측.
 
+### 문자·캘린더 서버 함수 잠금 (2026-11-04)
+
+- 운영 `sms`의 `/send`·`/send-batch`가 로그인 없이 열려 있어 누구나 학원 번호로 아무 번호에 아무 문구나 보낼 수 있었다. 이제 **코치 증표만** 허용(`REQUIRE_COACH_FOR_FREE_TEXT = true`, 헤더 Bearer 또는 body `idToken`). **false로 되돌리지 말 것.** `/settings`는 공개 유지.
+- 코치가 아닌 쪽의 자동 안내는 **문서 id만 받는 전용 창구**로 보낸다 — 수신번호·문구를 클라이언트에서 받지 않고 서버가 문서를 읽어 `src/utils/smsTexts.js`(앱과 공유하는 문구)로 만든다(`netlify/functions/_smsRequests.js`).
+  - `/registration-received {registrationId}`: 공개 신규 신청 직후 신청자 접수 확인 + 코치 알림. 로그인 불필요, 상태 pending/waitlist·**Firestore 문서 생성 시각**(클라이언트가 정하는 `createdAt` 아님) 15분 이내.
+  - `/makeup-seat {waitlistId}`: 보강 대기 자리 안내 SMS 폴백. 로그인 필요, `status=notified`·`notifiedAt` 70분 이내.
+  - 둘 다 **문서당 1회·같은 번호 하루 3회**. 보낸 기록은 클라이언트가 못 쓰는 `smsServerClaims`(규칙 어디에도 없어 기본 거부)에 둔다 — 대상 문서에 표시하면 수강생이 지우고 재발송시킬 수 있다. 이 컬렉션을 규칙의 signedIn 목록에 넣지 말 것.
+  - 남은 한계: 공개 신청서는 누구나 만들 수 있어 남의 번호로 정해진 접수 문구 1통은 갈 수 있다(번호당 하루 3회 상한). 코치 알림의 자유 입력은 200자로 자른다.
+- 운영 `calendar`도 인증 없던 옛 버전이었다 → 리포 버전(코치 증표 필수) 배포.
+- 운영 실측: sms `/send` 무증표 401·수강생 403, `/send-batch` 401, 새 창구 가짜 id 404, calendar 무증표 401·수강생 403. 코치 정상 발송·캘린더 정상 생성은 실발송이 되므로 따로 시험하지 않았다(앱에서 확인). 배포 sms `6aeac3ce…`, calendar `6aeac406…`.
+
 ### 이중 쓰기 패턴
 
 홀딩/결석 데이터는 **Firebase + Google Sheets** 두 곳에 동시 저장:
@@ -657,7 +668,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 | 승인 | 학생 | 승인 확인 + 입학반·"입학반 다음 주부터 정규 수업 시작" + 등록 시간 + 등록 기간(`2026.11.17(화) ~ 2026.12.10(목)`, 시트 G/H와 같은 값·입학반 미정이면 줄 생략) + 결제 링크 + 교시 안내. 본문은 순수 함수 `buildStudentApprovalText`(테스트 `approvalSms.test.js`). 재발송은 신청 문서의 `startDate/endDate`를 쓰며 승인 후 입학반 변경 때 함께 갱신한다(2026-11-03) |
 | 승인 (예약) | 학생 | 입학반 3일 전 오전 9시 리마인더 |
 | 수동 발송 | 코치가 선택한 수강생 | 수강생 관리 → 문자 보내기 (수신자별 성공/실패 상태창) |
-| 보강 대기 자리 발생 | 대기 1순위 수강생 | **푸시 우선, 실패 시 SMS 폴백** (1시간 데드라인이라 못 받으면 안 됨) |
+| 보강 대기 자리 발생 | 대기 1순위 수강생 | **푸시 우선, 실패 시 SMS 폴백** (1시간 데드라인이라 못 받으면 안 됨). 폴백은 `/makeup-seat`로 서버가 대기 문서에서 문구를 만든다 |
 
 ## 웹 푸시 알림 (FCM)
 
