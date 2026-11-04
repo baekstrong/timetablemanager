@@ -1,5 +1,20 @@
 const { requireCoach } = require('./_requireCoach');
+const { checkSignedIn, adminFirestore } = require('./_signedIn');
 const crypto = require('crypto');
+
+// 임의 수신번호·문구 발송(/send, /send-batch)은 코치만(2026-11-04). 수강생·공개 신청 화면의 자동 안내는
+// /registration-received, /makeup-seat 가 문서를 읽어 정해진 문구로 보낸다.
+// 전환기: false면 거부하지 않고 기록만 한다(캐시에 남은 옛 앱이 문자를 못 보내는 일 방지). 새 앱 배포 뒤 true.
+const REQUIRE_COACH_FOR_FREE_TEXT = false;
+
+async function freeTextDenied(event, body, path) {
+  const denied = await requireCoach(event, body);
+  if (denied) console.warn(`[sms] 코치 아닌 ${path} 요청 (${denied})${REQUIRE_COACH_FOR_FREE_TEXT ? ' — 거부' : ' — 전환기라 허용'}`);
+  return REQUIRE_COACH_FOR_FREE_TEXT ? denied : null;
+}
+
+const json = (statusCode, headers, body) => ({ statusCode, headers, body: JSON.stringify(body) });
+const REQUEST_ERRORS = { 400: '잘못된 요청입니다.', 404: '대상을 찾을 수 없습니다.', 409: '이미 보낸 안내입니다.', 410: '안내 가능 시간이 지났습니다.' };
 
 const SOLAPI_API_URL = 'https://api.solapi.com';
 
@@ -126,7 +141,10 @@ exports.handler = async (event, context) => {
         };
       }
 
-      const { to, text, scheduledDate } = JSON.parse(event.body);
+      const sendBody = JSON.parse(event.body || '{}');
+      const sendDenied = await freeTextDenied(event, sendBody, 'send');
+      if (sendDenied) return json(sendDenied, headers, { success: false, error: sendDenied === 401 ? '로그인이 필요합니다.' : '코치 권한이 필요합니다.' });
+      const { to, text, scheduledDate } = sendBody;
 
       if (!to || !text) {
         return {
@@ -158,7 +176,10 @@ exports.handler = async (event, context) => {
         };
       }
 
-      const { messages } = JSON.parse(event.body);
+      const batchBody = JSON.parse(event.body || '{}');
+      const batchDenied = await freeTextDenied(event, batchBody, 'send-batch');
+      if (batchDenied) return json(batchDenied, headers, { success: false, error: batchDenied === 401 ? '로그인이 필요합니다.' : '코치 권한이 필요합니다.' });
+      const { messages } = batchBody;
 
       if (!messages || !Array.isArray(messages) || messages.length === 0) {
         return {
@@ -186,6 +207,25 @@ exports.handler = async (event, context) => {
         headers,
         body: JSON.stringify({ success: true, results, errors })
       };
+    }
+
+    // POST /sms/registration-received {registrationId} — 공개 신규 신청 직후 접수 안내(신청자+코치). 신청서당 1회.
+    // POST /sms/makeup-seat {waitlistId} — 보강 대기 자리 안내 폴백. 로그인 필요, 대기 문서당 1회.
+    if (event.httpMethod === 'POST' && (path === 'registration-received' || path === 'makeup-seat')) {
+      let body;
+      try { body = JSON.parse(event.body || '{}'); } catch { return json(400, headers, { success: false, error: REQUEST_ERRORS[400] }); }
+      if (path === 'makeup-seat') {
+        const signed = await checkSignedIn(event);
+        if (signed !== 'ok') return json(401, headers, { success: false, error: '로그인이 필요합니다.' });
+      }
+      const { FieldValue } = require('firebase-admin/firestore');
+      const requests = require('./_smsRequests');
+      const common = { db: adminFirestore(), sendSMS: (to, text) => sendSMS(to, text), serverTimestamp: () => FieldValue.serverTimestamp() };
+      const outcome = path === 'makeup-seat'
+        ? await requests.makeupSeat({ ...common, waitlistId: body?.waitlistId })
+        : await requests.registrationReceived({ ...common, coachPhone: process.env.COACH_PHONE, registrationId: body?.registrationId });
+      return outcome.status === 200 ? json(200, headers, outcome.body)
+        : json(outcome.status, headers, { success: false, error: REQUEST_ERRORS[outcome.status] || '요청을 처리할 수 없습니다.' });
     }
 
     // POST /sms/settings - SMS 설정 정보 조회 (환경 변수 기반)

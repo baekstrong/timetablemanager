@@ -6,7 +6,7 @@ import { monthLabel, monthEntrances, isEntranceAvailable } from '../utils/recrui
 import RegistrationMonthPicker from './RegistrationMonthPicker';
 import ConsultationRequestForm from './ConsultationRequestForm';
 import useKoreanMonth from '../hooks/useKoreanMonth';
-import { sendRegistrationNotifications } from '../services/smsService';
+import { requestRegistrationReceivedSMS } from '../services/smsService';
 import { formatEntranceDate, calculateStartEndDates } from '../utils/dateUtils';
 import { PERIODS, DAYS, MAX_CAPACITY, PRICING, ENTRANCE_FEE } from '../data/mockData';
 import './NewStudentRegistration.css';
@@ -195,28 +195,15 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
             // 안내 문자 발송 (수강생 SMS 1 + 코치 SMS 1)
             // 실패해도 등록에 영향을 주지 않음
             try {
-                const smsResults = await sendRegistrationNotifications(phoneStr, name.trim(), {
-                    weeklyFrequency,
-                    scheduleString: getScheduleString(),
-                    paymentMethod,
-                    entranceClassDate: data.entranceClassDate,
-                    gender,
-                    occupation: occupation.trim(),
-                    exerciseExperience: exerciseExperience.trim(),
-                    healthIssues: healthIssues.trim(),
-                    exerciseGoal: exerciseGoal.trim(),
-                    wantsConsultation,
-                    question: question.trim(),
-                    isWaitlist: isWaitlistMode
+                if (!regId) throw new Error('신청서 번호 없음');
+                // 문구·수신번호는 서버가 신청서에서 만든다(2026-11-04)
+                const smsResults = await requestRegistrationReceivedSMS(regId);
+                await updateNewStudentRegistration(regId, {
+                    'smsLog.reception': {
+                        status: smsResults.studentSMS ? 'sent' : 'failed',
+                        at: Date.now(),
+                    },
                 });
-                if (regId) {
-                    await updateNewStudentRegistration(regId, {
-                        'smsLog.reception': {
-                            status: smsResults.studentSMS ? 'sent' : 'failed',
-                            at: Date.now(),
-                        },
-                    });
-                }
                 if (!smsResults.studentSMS || !smsResults.coachSMS) {
                     const failed = [];
                     if (!smsResults.studentSMS) failed.push('수강생');

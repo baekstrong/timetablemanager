@@ -1,4 +1,5 @@
 import { auth } from '../config/firebase';
+import { registrationReceivedText, coachNewRegistrationText, makeupSeatText } from '../utils/smsTexts';
 /**
  * Solapi 문자 발송 서비스
  * 신규 수강 접수/승인/입학반 알림 문자 발송
@@ -18,6 +19,12 @@ const getSmsBaseUrl = () => {
     return '/.netlify/functions/sms';
   }
   return 'http://localhost:5001/sms';
+};
+
+// 로그인한 사람의 증표. 자유 문구 발송(/send, /send-batch)은 서버가 코치만 허용한다(2026-11-04).
+const authHeaders = async () => {
+  const token = auth?.currentUser ? await auth.currentUser.getIdToken().catch(() => null) : null;
+  return token ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } : { 'Content-Type': 'application/json' };
 };
 
 // SMS 설정 캐시
@@ -65,7 +72,7 @@ const sendSMS = async (to, text, scheduledDate = null) => {
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({ to, text, scheduledDate })
     });
 
@@ -128,7 +135,7 @@ const sendBatchSMS = async (messages) => {
     const baseUrl = getSmsBaseUrl();
     const response = await fetch(`${baseUrl}/send-batch`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({ messages })
     });
 
@@ -165,9 +172,7 @@ const formatScheduleDate = (date) => {
  * "신규 수강 신청 내역이 코치에게 전달되었습니다. 수강이 승인되면 연락 드리겠습니다"
  */
 export const sendStudentRegistrationSMS = async (studentPhone, studentName, isWaitlist = false) => {
-  const text = isWaitlist
-    ? `[근력학교] ${studentName}님, 신규 수강 대기 신청 내역이 코치에게 전달되었습니다. 신청한 시간에 여석이 발생하면 연락드리겠습니다.`
-    : `[근력학교] ${studentName}님, 신규 수강 신청 내역이 코치에게 전달되었습니다. 수강이 승인되면 연락 드리겠습니다.`;
+  const text = registrationReceivedText(studentName, isWaitlist);
 
   try {
     await sendSMS(studentPhone, text);
@@ -201,46 +206,7 @@ export const sendCoachNewRegistrationSMS = async (studentName, details, studentP
     return false;
   }
 
-  const paymentLabel = details.paymentMethod === 'naver'
-    ? '네이버'
-    : details.paymentMethod === 'card'
-      ? '현장 카드 결제'
-      : '현장 계좌 이체';
-
-  let text = isWaitlist
-    ? `[근력학교] 신규 수강 대기 신청이 접수되었습니다.`
-    : `[근력학교] 신규 수강 신청이 접수되었습니다.`;
-  text += `\n이름: ${studentName}`;
-  if (studentPhone) {
-    text += `\n연락처: ${studentPhone}`;
-  }
-  if (details.gender) {
-    text += `\n성별: ${details.gender}`;
-  }
-  if (details.occupation) {
-    text += `\n직업: ${details.occupation}`;
-  }
-  text += `\n주횟수: 주${details.weeklyFrequency}회`;
-  text += `\n시간표: ${details.scheduleString}`;
-  text += `\n결제방식: ${paymentLabel}`;
-  if (details.entranceClassDate) {
-    text += `\n입학반: ${details.entranceClassDate}`;
-  }
-  if (details.exerciseExperience) {
-    text += `\n운동 경력: ${details.exerciseExperience}`;
-  }
-  if (details.healthIssues) {
-    text += `\n불편한 곳: ${details.healthIssues}`;
-  }
-  if (details.exerciseGoal) {
-    text += `\n운동 목적: ${details.exerciseGoal}`;
-  }
-  if (details.wantsConsultation) {
-    text += `\n* 상담 요청`;
-  }
-  if (details.question) {
-    text += `\n질문: ${details.question}`;
-  }
+  const text = coachNewRegistrationText({ ...details, name: studentName, phone: studentPhone, isWaitlist });
 
   try {
     await sendSMS(settings.coachPhone, text);
@@ -613,13 +579,44 @@ export const sendApprovalNotifications = async (studentPhone, studentName, detai
  * "1시간 내" + "앱 시간표에서 수락" 문구를 반드시 포함한다.
  */
 export const sendMakeupSeatAvailableSMS = async (studentPhone, studentName, dateText, periodLabel) => {
-  const text = `[근력학교] ${studentName}님, 대기 신청하신 ${dateText} ${periodLabel} 수업에 자리가 났습니다.\n1시간 내에 앱 시간표에서 [보강승인중] 칸을 눌러 수락해주세요.\n미응답 시 다음 대기자에게 순번이 넘어갑니다.`;
+  const text = makeupSeatText(studentName, dateText, periodLabel);
   try {
     await sendSMS(studentPhone, text);
     console.log('보강 대기 자리 안내 SMS 발송 완료:', studentName);
     return true;
   } catch (error) {
     console.error('보강 대기 자리 안내 SMS 발송 실패:', studentName, '-', error.message);
+    return false;
+  }
+};
+
+// ============================================
+// 코치가 아닌 쪽의 자동 안내(2026-11-04): 문서 id만 보내면 서버가 문서를 읽어 정해진 문구로 보낸다.
+// ============================================
+const requestTemplatedSMS = async (path, payload, withToken) => {
+  const response = await fetch(`${getSmsBaseUrl()}/${path}`, {
+    method: 'POST',
+    headers: withToken ? await authHeaders() : { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.success) throw new Error(data.error || `문자 요청 실패 (HTTP ${response.status})`);
+  return data;
+};
+
+/** 공개 신규 신청 직후 접수 안내(신청자 + 코치). 반환 {studentSMS, coachSMS}. */
+export const requestRegistrationReceivedSMS = async (registrationId) => {
+  const data = await requestTemplatedSMS('registration-received', { registrationId }, false);
+  return { studentSMS: !!data.studentSMS, coachSMS: !!data.coachSMS };
+};
+
+/** 보강 대기 자리 안내 문자(푸시 실패 시 폴백). 성공 여부 반환. */
+export const requestMakeupSeatSMS = async (waitlistId) => {
+  try {
+    await requestTemplatedSMS('makeup-seat', { waitlistId }, true);
+    return true;
+  } catch (error) {
+    console.error('보강 대기 자리 안내 SMS 요청 실패:', waitlistId, '-', error.message);
     return false;
   }
 };

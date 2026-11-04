@@ -4,7 +4,7 @@ import {
     notifyMakeupWaitlist,
     updateMakeupWaitlistStatus,
 } from './firebaseService';
-import { sendMakeupSeatAvailableSMS } from './smsService';
+import { requestMakeupSeatSMS } from './smsService';
 import { pushMakeupSeat } from './pushService';
 import { findWaitlistsReleasedByHolding, isReleasedByOriginalStart, resolveAfterSeatFreed, resolveToTarget } from '../utils/makeupWaitlist';
 import { parseScheduleString } from '../utils/scheduleUtils';
@@ -17,12 +17,6 @@ export function normalizeWaitlistEntry(entry) {
         createdAtMs: entry.createdAt?.toMillis?.() ?? 0,
         notifiedAtMs: entry.notifiedAt?.toMillis?.() ?? null,
     };
-}
-
-function formatDateText(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00');
-    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-    return `${d.getMonth() + 1}/${d.getDate()}(${dayNames[d.getDay()]})`;
 }
 
 /** cancel·expire 처리 + 다음 순번 notified 전환 + 푸시/SMS 발송. 알린 인원 수 반환. */
@@ -38,15 +32,13 @@ async function applyResolution({ toCancel = [], toExpire, toNotify }) {
     for (const e of toNotify) {
         try {
             await notifyMakeupWaitlist(e.id);
-            const periodInfo = PERIODS.find(p => p.id === e.period);
-            const dateText = formatDateText(e.date);
-            const periodLabel = periodInfo?.name || `${e.period}교시`;
             // 푸시 우선. 1시간 데드라인이 걸린 알림이라 토큰이 없거나(알림 미허용·기기 변경)
             // 발송 실패면 반드시 SMS로 폴백해야 한다.
             const pushed = await pushMakeupSeat(e.id);
             if (!pushed) {
                 if (e.phone) {
-                    await sendMakeupSeatAvailableSMS(e.phone, e.studentName, dateText, periodLabel);
+                    // 문구·수신번호는 서버가 대기 문서에서 만든다(2026-11-04)
+                    await requestMakeupSeatSMS(e.id);
                 } else {
                     console.warn('보강 대기 알림 실패 — 푸시 없음, 전화번호도 없음:', e.studentName);
                 }
