@@ -108,7 +108,7 @@ describe('공개 빈자리 계산', () => {
 describe('수강생 증표의 시트 쓰기', () => {
     function loadAs(claims, owner) {
         const client = { spreadsheets: { values: {
-            batchGet: vi.fn(async ({ ranges }) => ({ data: { valueRanges: ranges.map(() => ({ values: [[owner]] })) } })),
+            batchGet: vi.fn(async ({ ranges }) => ({ data: { valueRanges: ranges.map(() => ({ values: [['1', owner]] })) } })),
             batchUpdate: vi.fn(async () => ({ data: { totalUpdatedCells: 1 } })), update: vi.fn(async () => ({ data: {} })), append: vi.fn(),
         } } };
         const context = { exports: {}, process: { env: { GOOGLE_SHEETS_ID: 'synthetic' } }, console: { log() {}, warn() {}, error() {} },
@@ -119,7 +119,7 @@ describe('수강생 증표의 시트 쓰기', () => {
         return { handler: context.exports.handler, client };
     }
     const post = (path, body) => ({ httpMethod: 'POST', path: `/.netlify/functions/sheets/${path}`, body: JSON.stringify(body) });
-    const update = { data: [{ range: 'synthetic!H5', values: [['261231']] }] };
+    const update = { data: [{ range: '등록생 목록(26년11월)!H5', values: [['261231']] }] };
 
     it('남의 행이면 403, 쓰지 않는다', async () => {
         const { handler, client } = loadAs({ name: '김기안', isCoach: false }, '홍길동');

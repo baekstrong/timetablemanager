@@ -141,13 +141,24 @@ service cloud.firestore {
     match /studentMeta/{id} { allow read: if signedIn(); allow write: if isCoach(); }
     match /studentCountSnapshots/{id} { allow read: if signedIn(); allow write: if isCoach(); }
 
+    // 재등록 계약: 코치가 만들고, 수강생은 본인 대기 계약을 '동의'로 바꾸는 것만(2026-11-04).
+    // 시트 서버가 이 문서와 같은 값의 새 행만 수강생에게 허용하므로, 수강생이 내용(결제유무 등)을 고치면 안 된다.
+    // ⚠️ 아래 generic 목록에 'renewalContracts' 를 다시 넣지 말 것 — OR 시맨틱으로 이 잠금이 뚫린다.
+    match /renewalContracts/{id} {
+      allow read: if isCoach() || isSelf(resource.data.studentName);
+      allow create, delete: if isCoach();
+      allow update: if isCoach() || (isSelf(resource.data.studentName) && resource.data.status == 'pending'
+        && request.resource.data.status == 'agreed'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'agreedAt', 'updatedAt']));
+    }
+
     // ── 운영 + 훈련일지 컬렉션: 인증 사용자 read/write, 비인증 전면 차단 ──
     // ponytail: 우선 signedIn 으로 개방(락아웃 0 최우선). 소유자 단위 강화는 악용 시 별도 과제.
     // ⚠️ userSecrets/users 는 이 목록에 없어야 함(있으면 OR 시맨틱으로 위 차단이 뚫림).
     match /{collection}/{docId} {
       allow read, write: if signedIn() && collection in [
         'makeupRequests', 'holdingRequests', 'absenceRequests', 'waitlistRequests', 'makeupWaitlists',
-        'coachPinnedMemos', 'pinnedMemos', 'renewalContracts', 'studentTerminations',
+        'coachPinnedMemos', 'pinnedMemos', 'studentTerminations',
         'personalBests', 'monthlyStamps',
         'records', 'freeWorkoutAttendance', 'freeWorkoutRoster',
         'exercises', 'oneRMRecords', 'archivedMemos'

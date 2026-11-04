@@ -3,7 +3,7 @@ process.env.TZ = 'Asia/Seoul';
 // googleapis 전체(319개 API eager 로드)는 콜드스타트를 지배하므로 sheets 단독 패키지만 사용
 const { sheets: sheetsApi, auth: googleAuth } = require('@googleapis/sheets');
 const { readCaller, adminFirestore } = require('./_signedIn');
-const { checkStudentWrite } = require('./_sheetOwnership');
+const { checkStudentWrite, contractRow } = require('./_sheetOwnership');
 
 // 시트는 수강생 명단·연락처·결제 정보다. 로그인한 사람(코치·수강생)만 쓴다(2026-11-04).
 // 2026-11-04 앱이 증표를 보내도록 배포한 뒤 true로 전환. false로 되돌리면 다시 누구나 명단을 읽는다.
@@ -138,7 +138,13 @@ exports.handler = async (event, context) => {
           : { kind: 'format', items: Array.isArray(body.ranges) ? body.ranges.map(range => ({ range })) : [], sheetName: body.sheetName };
         denied = await checkStudentWrite(req, claims.name, async ranges => {
           const res = await sheets.spreadsheets.values.batchGet({ spreadsheetId: SPREADSHEET_ID, ranges });
-          return ranges.map((_, i) => res.data.valueRanges?.[i]?.values?.[0]?.[0] ?? '');
+          return ranges.map((_, i) => res.data.valueRanges?.[i]?.values?.[0] ?? []);
+        }, async sheet => {
+          // 코치가 만든 본인 대기 계약서(규칙상 수강생은 내용을 못 고친다)
+          const snap = await adminFirestore().collection('renewalContracts')
+            .where('studentName', '==', claims.name).where('status', '==', 'pending').get();
+          const contract = snap.docs.map(d => d.data()).find(c => c.targetSheet === sheet);
+          return contract ? contractRow(contract.registrationData || {}) : null;
         });
       }
       if (denied) {

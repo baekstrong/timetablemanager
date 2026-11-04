@@ -1,11 +1,15 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createRequire } from 'node:module';
-const { checkStudentWrite, parseRowRange } = createRequire(import.meta.url)('./_sheetOwnership.js');
+const { checkStudentWrite, parseRowRange, contractRow } = createRequire(import.meta.url)('./_sheetOwnership.js');
 
 const SHEET = '등록생 목록(26년11월)';
-// 5행 = 김기안, 6행 = 홍길동, 7행 = 빈 행
-const OWNERS = { 5: '김기안', 6: '홍길동', 7: '' };
-const readNames = vi.fn(async ranges => ranges.map(r => OWNERS[Number(r.match(/B(\d+)$/)[1])] ?? ''));
+// 5행 = 김기안, 6행 = 홍길동, 7행 = 빈 행, 8행 = 이름만 빈 행(다른 칸에 값)
+const ROWS = { 5: ['1', '김기안'], 6: ['2', '홍길동'], 7: [], 8: ['3', '', '2'] };
+const readNames = vi.fn(async ranges => ranges.map(r => ROWS[Number(r.match(/R(\d+)$/)[1])] ?? []));
+const CONTRACT = { 이름: '김기안', 주횟수: '2', '요일 및 시간': '월1수1', 특이사항: '', 시작날짜: '261201', 종료날짜: '261224',
+    결제금액: '31', 결제일: '', 결제유무: 'X', 결제방식: '', '홀딩 사용여부': 'X', 핸드폰: '010-0000-0000', 성별: '남', 직업: '' };
+const expected = async sheet => (sheet === SHEET ? contractRow(CONTRACT) : null);
+const agreedRow = (patch = {}) => { const row = contractRow({ ...CONTRACT, ...patch }); row[0] = '42'; return row; };
 const values = items => ({ kind: 'values', items });
 
 describe('수강생 시트 쓰기는 본인 행만', () => {
@@ -17,9 +21,22 @@ describe('수강생 시트 쓰기는 본인 행만', () => {
         expect(await checkStudentWrite(values(items), ' 김기안 ', readNames)).toBeNull();
     });
 
-    it('재등록 계약: 빈 행에 본인 이름으로 A:R 한 줄 → 허용', async () => {
-        const row = Array(18).fill(''); row[1] = '김기안';
-        expect(await checkStudentWrite(values([{ range: `${SHEET}!A7:R7`, values: [row] }]), '김기안', readNames)).toBeNull();
+    it('재등록 계약: 빈 행에 계약서와 같은 A:R 한 줄 → 허용', async () => {
+        expect(await checkStudentWrite(values([{ range: `${SHEET}!A7:R7`, values: [agreedRow()] }]), '김기안', readNames, expected)).toBeNull();
+    });
+
+    it.each([
+        ['결제유무를 O로 바꿈', agreedRow({ 결제유무: 'O' }), 7, SHEET],
+        ['계약서 없는 탭', agreedRow(), 7, '등록생 목록(26년10월)'],
+        ['이름만 빈 행(다른 칸 값 있음)', agreedRow(), 8, SHEET],
+    ])('재등록 계약 위조: %s → 거부', async (_label, row, r, sheet) => {
+        expect(await checkStudentWrite(values([{ range: `${sheet}!A${r}:R${r}`, values: [row] }]), '김기안', readNames, expected)).toEqual(expect.any(String));
+    });
+
+    it('수식·등록생 목록 밖 탭 → 거부', async () => {
+        expect(await checkStudentWrite(values([{ range: `${SHEET}!E5`, values: [['=IMPORTRANGE("x","A1")']] }]), '김기안', readNames)).toMatch('수식');
+        expect(await checkStudentWrite(values([{ range: `${SHEET}!E5`, values: [['-A1']] }]), '김기안', readNames)).toMatch('수식');
+        expect(await checkStudentWrite(values([{ range: '집계!H5', values: [['1']] }]), '김기안', readNames)).toMatch('탭');
     });
 
     it.each([
@@ -27,7 +44,7 @@ describe('수강생 시트 쓰기는 본인 행만', () => {
         ['본인 행 결제유무(K)', [{ range: `${SHEET}!K5`, values: [['O']] }]],
         ['본인 행 이름(B)', [{ range: `${SHEET}!B5`, values: [['홍길동']] }]],
         ['본인 행 연락처까지(A:R)', [{ range: `${SHEET}!A5:R5`, values: [Array(18).fill('')] }]],
-        ['빈 행에 남의 이름', [{ range: `${SHEET}!A7:R7`, values: [['', '홍길동']] }]],
+        ['빈 행에 남의 이름', [{ range: `${SHEET}!A7:R7`, values: [['1', '홍길동']] }]],
         ['빈 행 일부 칸', [{ range: `${SHEET}!H7`, values: [['261231']] }]],
         ['여러 행 범위', [{ range: `${SHEET}!H5:H6`, values: [['1'], ['2']] }]],
         ['열 전체', [{ range: `${SHEET}!A:R`, values: [] }]],
@@ -46,7 +63,7 @@ describe('수강생 시트 쓰기는 본인 행만', () => {
         readNames.mockClear();
         await checkStudentWrite(values([{ range: `${SHEET}!M5`, values: [['O']] }, { range: `${SHEET}!H5`, values: [['1']] }]), '김기안', readNames);
         expect(readNames).toHaveBeenCalledTimes(1);
-        expect(readNames.mock.calls[0][0]).toEqual([`'${SHEET}'!B5`]);
+        expect(readNames.mock.calls[0][0]).toEqual([`'${SHEET}'!A5:R5`]);
     });
 
     it('따옴표 시트 이름도 읽는다', () => {

@@ -461,8 +461,14 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - 앱은 `googleSheetsService.requestWithRetry`가 모든 요청에 `Authorization: Bearer`를 붙인다. 토큰 공급자는 `config/firebase.js`가 `setSheetsTokenProvider`로 등록한다 — **서비스 모듈이 firebase를 직접 import하면 서버 번들이 깨지므로 되돌리지 말 것.** `contractChangeService`도 `sheetsAuthHeaders()`를 쓴다. `GoogleSheetsContext`는 로그인(세션 복원) 뒤에만 시트를 읽는다.
 - 신규 신청 화면(로그인 없음)은 시트·신청서를 직접 읽지 않고 `getPublicSlotOccupancy()`(GET `/occupancy`)로 **칸별 숫자만** 받는다. 서버 `_publicOccupancy.js`가 앱의 `getAllStudentsFromAllSheets` + `computeSlotOccupancy`를 **그대로** 쓴다(`setSheetsTransport`로 fetch 대신 시트 API 직결, 읽기 전용 — 쓰기 경로는 거부). 코치 '신규 전용'과 같은 기준을 지키려는 것이니 서버에 계산을 따로 짜지 말 것. Lambda는 UTC라 `sheets.js` 맨 위에서 `TZ=Asia/Seoul`.
 - `sheets`는 이제 firebase-admin을 쓰므로 `bundle-netlify-fn.mjs`의 `NEEDS_ADMIN`에 포함(번들 5.7MB). 로컬 Express도 `/occupancy`를 esbuild 즉석 번들로 제공한다.
-- **수강생 증표의 시트 쓰기는 본인 행만**(2026-11-04, `_sheetOwnership.checkStudentWrite`, 운영 sheets `6aeac6a2…`). 서버가 쓰려는 행의 B열(이름)을 한 번에 읽어 증표 이름과 비교한다. 본인 행은 C·D·E·G·H·M·N·O열만(홀딩·보강 종료일·시간표 변경), 이름·결제(I~L)·연락처 등은 코치만. 빈 행은 재등록 계약 동의처럼 **B=본인 이름인 A:R 한 줄**만. 여러 행 범위·`append`·`contractChange`는 코치만. 색칠은 본인 행 어느 열이든. 수강생 쓰기 경로에 새 열이나 여러 행 범위를 넣으면 이 목록도 같이 고칠 것(안 그러면 운영에서 403). 운영 실측(김기안 증표): 남의 행 쓰기·색칠·행 추가·본인 행 K열 403, 본인 행 H 200. **읽기는 아직 전체 허용**(수강생 시간표 여석 계산이 전체 명단을 읽음) — 남의 연락처·결제가 수강생 증표로 읽히는 것은 다음 과제.
-- 남은 한계: 본인 행 안에서는 종료일·홀딩 값을 마음대로 바꿀 수 있다(앱 계산을 서버가 다시 하지 않음). 빈 행 새 등록의 결제 칸도 수강생이 정한 값이 들어갈 수 있다.
+- **수강생 증표의 시트 쓰기는 본인 행만**(2026-11-04, `_sheetOwnership.checkStudentWrite`, 운영 sheets `6aeac7bb…`). 서버가 쓰려는 행(A:R)을 한 번에 읽어 B열 이름과 증표 이름을 비교한다.
+  - 본인 행은 C·D·E·G·H·M·N·O열만(홀딩·보강 종료일·시간표 변경). 이름·결제(I~L)·연락처 등은 코치만. 색칠은 본인 행 어느 열이든.
+  - 빈 행(A~R 전부 빈칸)은 재등록 계약 동의만 — 그 탭의 **본인 대기 계약서(`renewalContracts`)와 B~R이 같은 값**이어야 한다(`contractRow`, ContractView 행 구성과 동일하게 유지할 것).
+  - `등록생 목록(YY년M월)` 탭만, `=`/`+`/`@`로 시작하는 값(수식) 금지, 여러 행 범위·`append`·`contractChange`는 코치만.
+  - 수강생 쓰기 경로에 새 열·여러 행 범위를 넣으면 이 목록도 같이 고칠 것(안 그러면 운영에서 403).
+  - `renewalContracts` 규칙(ruleset `279763f4-…`): 조회는 코치·본인, 생성·삭제 코치, 수강생은 본인 pending을 agreed로만. generic signedIn 목록에 다시 넣지 말 것(계약서를 위조해 결제유무 O인 행을 만들 수 있게 된다).
+  - 운영 실측(김기안 증표): 남의 행 쓰기·색칠·행 추가·본인 행 K열·위조 재등록 행·수식·목록 밖 탭 403, 본인 행 H 200. 규칙: 본인 계약 조회 허용, 남의/전체 조회·생성 거부. 정상 재등록 동의는 실데이터로 시험하지 않음(다음 재등록 때 확인).
+  - **읽기는 아직 전체 허용**(수강생 시간표 여석 계산이 전체 명단을 읽음) — 남의 연락처·결제가 수강생 증표로 읽히는 것은 다음 과제. 본인 행 안의 종료일·홀딩 값은 서버가 재계산하지 않는다.
 - `.env.local`의 `VITE_FUNCTIONS_URL`이 운영 Netlify를 가리킨다 — 로컬 개발 화면도 운영 함수를 부른다.
 - 배포: Netlify sheets `6aeabd26…`(전환기: 증표 없으면 기록만) → 웹 배포 → `6aeabdf4…`(`REQUIRE_SIGN_IN = true`). 운영에서 증표 없음·무효·쓰기 시도 401, 테스트 계정 증표 200, `/occupancy` 공개 200 실측. **`REQUIRE_SIGN_IN`을 false로 되돌리지 말 것**(다시 누구나 명단을 읽고 쓴다). 번들·ZIP·digest 배포 스크립트는 Git 밖 `~/Library/Application Support/Codex/sheets-auth-2026-11-04/`.
 - Firestore `newStudentRegistrations` 읽기는 **코치만**(ruleset `38ecd249-…`, 운영 규칙과 3-way 병합). 공개 신청 화면은 생성·접수문자 결과 갱신만 하고 읽지 않는다. 비로그인 조회 거부 실측.
