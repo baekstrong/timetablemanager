@@ -15,11 +15,25 @@ import { filterRecentStudentSheets } from '../utils/recentSheets';
 // Backend Functions URL
 // 로컬 테스트: http://localhost:5001
 // Production: VITE_FUNCTIONS_URL 환경 변수 사용 (GitHub Pages + Netlify Functions)
-const FUNCTIONS_BASE_URL = import.meta.env.VITE_FUNCTIONS_URL ||
-  (import.meta.env.PROD
+// import.meta.env가 없는 서버 번들(공개 빈자리 계산)에서도 이 모듈을 그대로 쓴다.
+const ENV = import.meta.env || {};
+const FUNCTIONS_BASE_URL = ENV.VITE_FUNCTIONS_URL ||
+  (ENV.PROD
     ? '/.netlify/functions/sheets'
     : 'http://localhost:5001');
-const SPREADSHEET_ID = import.meta.env.VITE_GOOGLE_SHEETS_ID;
+const SPREADSHEET_ID = ENV.VITE_GOOGLE_SHEETS_ID;
+
+// 시트 서버 함수는 로그인한 사람만 쓴다(2026-11-04). 로그인 증표(Firebase ID 토큰)는
+// config/firebase가 등록한 공급자에서 받는다 — 이 모듈이 firebase를 직접 import하면 서버 번들이 깨진다.
+let sheetsTokenProvider = null;
+export const setSheetsTokenProvider = (provider) => { sheetsTokenProvider = provider; };
+export const sheetsAuthHeaders = async () => {
+  const token = sheetsTokenProvider ? await sheetsTokenProvider() : null;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+// 서버 번들은 fetch 대신 시트 API를 직접 부르는 통로를 꽂는다({ get(path), post(path, body) }).
+let sheetsTransport = null;
+export const setSheetsTransport = (transport) => { sheetsTransport = transport; };
 
 // ─── 호환성 함수 (서비스 계정 방식에서는 불필요하나 GoogleSheetsContext에서 import) ───
 
@@ -68,6 +82,8 @@ async function requestWithRetry(url, options, errorContext) {
   let lastError;
   const deadline = Date.now() + REQUEST_TIMEOUT_MS;
   const isRead = !options?.method || /\/batchGet$/.test(url);
+  const token = sheetsTokenProvider ? await sheetsTokenProvider() : null;
+  if (token) options = { ...(options || {}), headers: { ...(options?.headers || {}), Authorization: `Bearer ${token}` } };
   for (let attempt = 0; attempt <= QUOTA_MAX_RETRIES; attempt++) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) throw lastError || new Error('요청 시간이 초과되었습니다. 잠시 후 다시 확인해주세요.');
@@ -110,8 +126,15 @@ async function requestWithRetry(url, options, errorContext) {
 }
 
 async function apiGet(path, errorContext) {
+  if (sheetsTransport) return sheetsTransport.get(path);
   return requestWithRetry(`${FUNCTIONS_BASE_URL}${path}`, undefined, errorContext);
 }
+
+/** 신규 신청 화면용 칸별 인원(`월-4` → 명). 로그인 없이 숫자만 받는다 — 이름·연락처는 오지 않는다. */
+export const getPublicSlotOccupancy = async () => {
+  const data = await apiGet('/occupancy', 'get slot occupancy');
+  return data.occupancy || {};
+};
 
 /**
  * 공통 API POST 호출
@@ -121,6 +144,7 @@ async function apiGet(path, errorContext) {
  * @returns {Promise<Object>} - 서버 응답의 data 객체
  */
 async function apiPost(path, body, errorContext) {
+  if (sheetsTransport) return sheetsTransport.post(path, body);
   return requestWithRetry(`${FUNCTIONS_BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

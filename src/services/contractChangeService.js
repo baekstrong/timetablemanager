@@ -1,4 +1,4 @@
-import { batchReadSheetData, getAllSheetNames, getStudentField as field, parseSheetDate, parseScheduleString,
+import { batchReadSheetData, getAllSheetNames, sheetsAuthHeaders, getStudentField as field, parseSheetDate, parseScheduleString,
     parseHoldingStatus, isHolidayDate, todaySessionDone, calculateEndDateWithHolidays, invalidateStudentSheetCache } from './googleSheetsService';
 import { parseAbsenceDatesFromNotes } from './holidayEndDateDelta';
 import { contractChangeNotes, readContractChange, scheduleOnDate } from '../utils/contractChange';
@@ -127,7 +127,7 @@ export async function saveContractChange(context, options, expectedPlan) {
     const plan = buildContractChangePlan({ ...options, entry, entries });
     if (JSON.stringify(plan.row) !== JSON.stringify(expectedPlan.row)) throw new Error('소진 횟수 또는 종료일이 변경됐습니다. 최신 계산을 다시 확인해주세요.');
     const base = import.meta.env.VITE_FUNCTIONS_URL || (import.meta.env.PROD ? '/.netlify/functions/sheets' : 'http://localhost:5001');
-    const response = await fetch(`${base}/contractChange`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(20000), body: JSON.stringify({
+    const response = await fetch(`${base}/contractChange`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await sheetsAuthHeaders()) }, signal: AbortSignal.timeout(20000), body: JSON.stringify({
         name: context.name, targetSheet: entry.sheetName, id: options.id, row: plan.row,
         retired: plan.retired.map(e => ({ sheetName: e.sheetName, rowIndex: e.rowIndex, expected: e.row,
             notes: `${field(e.student, '특이사항') || ''}\n${isoDay(options.now || new Date()).slice(2).replaceAll('-', '.')}에 주${field(e.student, '주횟수')}회 → 주${options.frequency}회로 수강 변경 함\n[이전시간표:${field(e.student, '요일 및 시간')}] [계약변경연결:${options.id}]`.trim() })),

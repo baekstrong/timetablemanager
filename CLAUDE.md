@@ -453,6 +453,15 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 | GET | `/info` | 시트 목록 조회 |
 | POST | `/batchUpdate` | 여러 범위 일괄 업데이트 |
 | POST | `/formatCells` | 셀 색상 하이라이트 |
+| GET | `/occupancy` | 신규 신청 화면용 칸별 인원(숫자만, **로그인 불필요**, 60초 캐시) |
+
+### 시트 서버 함수 로그인 필수 (2026-11-04)
+
+- 운영 `sheets` 함수가 로그인 없이 열려 있어 누구나 전 수강생 명단·연락처·결제 정보를 읽고 쓸 수 있었다(운영 실측). 이제 **로그인한 사람(코치·수강생)의 Firebase ID 토큰**이 있어야 응답한다(`_signedIn.checkSignedIn`, 서명·만료만 확인, 이름 클레임 필수). 수강생이 홀딩·보강으로 시트에 쓰므로 '본인 행만' 제한은 아직 없다(다음 과제).
+- 앱은 `googleSheetsService.requestWithRetry`가 모든 요청에 `Authorization: Bearer`를 붙인다. 토큰 공급자는 `config/firebase.js`가 `setSheetsTokenProvider`로 등록한다 — **서비스 모듈이 firebase를 직접 import하면 서버 번들이 깨지므로 되돌리지 말 것.** `contractChangeService`도 `sheetsAuthHeaders()`를 쓴다. `GoogleSheetsContext`는 로그인(세션 복원) 뒤에만 시트를 읽는다.
+- 신규 신청 화면(로그인 없음)은 시트·신청서를 직접 읽지 않고 `getPublicSlotOccupancy()`(GET `/occupancy`)로 **칸별 숫자만** 받는다. 서버 `_publicOccupancy.js`가 앱의 `getAllStudentsFromAllSheets` + `computeSlotOccupancy`를 **그대로** 쓴다(`setSheetsTransport`로 fetch 대신 시트 API 직결, 읽기 전용 — 쓰기 경로는 거부). 코치 '신규 전용'과 같은 기준을 지키려는 것이니 서버에 계산을 따로 짜지 말 것. Lambda는 UTC라 `sheets.js` 맨 위에서 `TZ=Asia/Seoul`.
+- `sheets`는 이제 firebase-admin을 쓰므로 `bundle-netlify-fn.mjs`의 `NEEDS_ADMIN`에 포함(번들 5.7MB). 로컬 Express도 `/occupancy`를 esbuild 즉석 번들로 제공한다.
+- `.env.local`의 `VITE_FUNCTIONS_URL`이 운영 Netlify를 가리킨다 — 로컬 개발 화면도 운영 함수를 부른다.
 
 ### 이중 쓰기 패턴
 

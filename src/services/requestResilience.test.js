@@ -86,3 +86,18 @@ it('쓰기 이전에 시작된 응답이 새 시트 캐시를 덮어쓰지 않�
     expect((await service.getAllStudents(2026, 9))[0]['이름']).toBe('new');
     expect(batchCalls).toBe(2);
 });
+
+// 2026-11-04: 시트 서버 함수는 로그인한 사람만 쓴다 — 로그인 증표를 모든 요청에 붙인다.
+it('로그인 상태면 조회·쓰기 요청에 로그인 증표를 붙이고, 로그인 전이면 붙이지 않는다', async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ success: true, values: [], occupancy: { '월-4': 3 } }));
+    vi.stubGlobal('fetch', fetch);
+    await service.getPublicSlotOccupancy();
+    expect(fetch.mock.calls[0][1]?.headers?.Authorization).toBeUndefined();
+
+    service.setSheetsTokenProvider(async () => 'id-token');
+    await service.readSheetData('test!A:R');
+    await service.writeSheetData('test!A1', [['x']]);
+    expect(fetch.mock.calls[1][1].headers.Authorization).toBe('Bearer id-token');
+    expect(fetch.mock.calls[2][1].headers).toEqual({ 'Content-Type': 'application/json', Authorization: 'Bearer id-token' });
+    expect(fetch.mock.calls[2][1].method).toBe('POST');
+});

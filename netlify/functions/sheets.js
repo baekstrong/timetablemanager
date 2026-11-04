@@ -1,5 +1,13 @@
+// 공개 빈자리 계산이 앱 코드의 '오늘'(로컬 날짜)을 쓰므로 한국 시간으로 맞춘다(Lambda 기본은 UTC).
+process.env.TZ = 'Asia/Seoul';
 // googleapis 전체(319개 API eager 로드)는 콜드스타트를 지배하므로 sheets 단독 패키지만 사용
 const { sheets: sheetsApi, auth: googleAuth } = require('@googleapis/sheets');
+const { checkSignedIn, adminFirestore } = require('./_signedIn');
+
+// 시트는 수강생 명단·연락처·결제 정보다. 로그인한 사람(코치·수강생)만 쓴다(2026-11-04).
+// 전환기: 앱이 로그인 증표를 보내도록 배포되기 전까지는 false(없으면 기록만), 그 뒤 true로 바꿔 배포한다.
+const REQUIRE_SIGN_IN = false;
+let occupancyLoader = null;
 
 // 모듈 스코프 캐시 — 웜 컨테이너에서 인증 클라이언트(액세스 토큰 포함)를 재사용해
 // 요청마다 발생하던 OAuth 토큰 교환 왕복(+150~400ms)을 없앤다
@@ -70,7 +78,7 @@ exports.handler = async (event, context) => {
   // Enable CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     // preflight(OPTIONS) 결과를 브라우저가 캐시하게 해 POST마다 왕복 2회가 되는 것을 방지
     'Access-Control-Max-Age': '86400',
@@ -96,6 +104,25 @@ exports.handler = async (event, context) => {
     console.log('Parsed Path:', path);
 
     const sheets = getGoogleSheetsClient();
+
+    // GET /sheets/occupancy — 로그인 없는 신규 신청 화면용 칸별 인원(숫자만).
+    if (event.httpMethod === 'GET' && path === 'occupancy') {
+      if (!occupancyLoader) {
+        const { createOccupancyLoader, readPendingRegistrations } = require('./_publicOccupancy');
+        occupancyLoader = createOccupancyLoader({ sheets, spreadsheetId: SPREADSHEET_ID,
+          readPending: () => readPendingRegistrations(adminFirestore()) });
+      }
+      const occupancy = await occupancyLoader();
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true, occupancy }) };
+    }
+
+    const caller = await checkSignedIn(event);
+    if (caller !== 'ok') {
+      console.warn('sheets: 로그인 증표 없음/무효', caller, event.httpMethod, path);
+      if (REQUIRE_SIGN_IN) {
+        return { statusCode: 401, headers, body: JSON.stringify({ success: false, error: '로그인이 필요합니다. 다시 로그인해주세요.' }) };
+      }
+    }
 
     // GET /sheets/read?range=...
     if (event.httpMethod === 'GET' && path === 'read') {

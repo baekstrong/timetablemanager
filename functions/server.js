@@ -190,6 +190,36 @@ app.get(['/getSheetInfo', '/info'], async (req, res) => {
 });
 
 /**
+ * GET /occupancy
+ * 신규 신청 화면용 칸별 인원(운영 Netlify sheets와 같은 계산, 숫자만).
+ * 앱 코드(ESM·확장자 없는 import)를 그대로 쓰려고 esbuild로 즉석 번들한다.
+ */
+let occupancyLoader = null;
+app.get('/occupancy', async (req, res) => {
+  try {
+    if (!occupancyLoader) {
+      const { buildSync } = require('esbuild');
+      const outfile = path.join(require('os').tmpdir(), 'timetable-public-occupancy.cjs');
+      buildSync({
+        entryPoints: [path.join(__dirname, '..', 'netlify', 'functions', '_publicOccupancy.js')],
+        bundle: true, platform: 'node', format: 'cjs', outfile, logLevel: 'silent',
+      });
+      const { createOccupancyLoader, readPendingRegistrations } = require(outfile);
+      const adminKey = path.join(__dirname, '..', 'firebase-admin-key.json');
+      const { initializeApp, getApps, cert } = require('firebase-admin/app');
+      const { getFirestore } = require('firebase-admin/firestore');
+      if (!getApps().length) initializeApp({ credential: cert(require(adminKey)) });
+      occupancyLoader = createOccupancyLoader({ sheets: await getGoogleSheetsClient(), spreadsheetId: SPREADSHEET_ID,
+        readPending: () => readPendingRegistrations(getFirestore()) });
+    }
+    res.json({ success: true, occupancy: await occupancyLoader() });
+  } catch (error) {
+    console.error('❌ Error computing occupancy:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /batchUpdateSheet
  * 여러 셀 일괄 업데이트
  */

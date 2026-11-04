@@ -12,6 +12,8 @@ import {
     requestHolding
 } from '../services/googleSheetsService';
 import { getHolidays as fetchHolidaysFromFirebase } from '../services/firebaseService';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../config/firebase';
 
 const GoogleSheetsContext = createContext();
 
@@ -57,8 +59,8 @@ export const GoogleSheetsProvider = ({ children }) => {
 
                 console.log('✅ Firebase Functions 연결 준비 완료');
 
-                // 초기 데이터 로드 (병렬)
-                await Promise.all([fetchAvailableSheets(), fetchStudents(), fetchHolidays()]);
+                // 휴일은 공개 데이터라 바로 읽는다. 시트는 로그인한 사람만 읽을 수 있다(아래).
+                await (auth ? fetchHolidays() : Promise.all([fetchAvailableSheets(), fetchStudents(), fetchHolidays()]));
             } catch (err) {
                 console.error('Failed to initialize:', err);
                 setError('초기화 실패');
@@ -66,6 +68,16 @@ export const GoogleSheetsProvider = ({ children }) => {
         };
 
         init();
+        if (!auth) return undefined;
+        // 시트 서버 함수는 로그인 증표가 있어야 응답한다 — 로그인(또는 세션 복원)될 때마다 읽는다.
+        // 로그인 전인 신규 신청 화면은 공개 빈자리 창구만 쓴다.
+        let lastUid = null;
+        return onAuthStateChanged(auth, user => {
+            const uid = user?.uid || null;
+            if (uid === lastUid) return;
+            lastUid = uid;
+            if (uid) Promise.all([fetchAvailableSheets(), fetchStudents()]);
+        });
     }, []);
 
     // Fetch available sheets from Google Sheets

@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { setSheetsTokenProvider } from '../services/googleSheetsService';
 
 // Firebase configuration
 // 훈련일지 프로젝트와 동일한 Firebase 프로젝트 사용
@@ -34,6 +35,14 @@ if (isFirebaseConfigured) {
     }
 } else {
     console.warn('⚠️ Firebase not configured - makeup class features will be disabled');
+}
+
+// 시트 서버 함수 요청에 로그인 증표를 붙인다. 로그인 전(신규 신청 화면)에는 붙이지 않는다.
+if (auth) {
+    setSheetsTokenProvider(async () => {
+        await auth.authStateReady();
+        return auth.currentUser ? auth.currentUser.getIdToken() : null;
+    });
 }
 
 export { db, auth };

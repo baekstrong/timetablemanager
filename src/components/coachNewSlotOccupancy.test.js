@@ -8,6 +8,7 @@ const read = (file) => readFileSync(new URL(file, import.meta.url), 'utf8');
 const core = read('./schedule/useScheduleCore.js');
 const weeklySchedule = read('./WeeklySchedule.jsx');
 const registration = read('./NewStudentRegistration.jsx');
+const publicOccupancy = read('../../netlify/functions/_publicOccupancy.js');
 
 describe('신규 여석 — 코치 신규 전용의 현재 시간표 기준', () => {
     it('공용 점유 계산에 학생·pending·시간표 파서를 함께 전달한다', () => {
@@ -17,11 +18,12 @@ describe('신규 여석 — 코치 신규 전용의 현재 시간표 기준', ()
         );
     });
 
-    it('외부 신규 신청 페이지도 같은 공용 점유 계산을 사용한다', () => {
-        expect(registration).toContain("import { computeSlotOccupancy } from '../utils/slotOccupancy'");
-        expect(registration).toMatch(
-            /computeSlotOccupancy\(students, pendingRegistrations, parseScheduleString\)/
-        );
+    // 2026-11-04: 외부 신규 신청 페이지는 로그인 없이 명단을 받지 않는다 — 서버가 같은 계산으로 숫자만 준다.
+    it('외부 신규 신청 페이지도 같은 공용 점유 계산을 사용한다(서버 공개 빈자리 창구)', () => {
+        expect(registration).toContain('getPublicSlotOccupancy().then(setSlotOccupancy)');
+        expect(registration).not.toContain('getNewStudentRegistrations');
+        expect(publicOccupancy).toContain('getAllStudentsFromAllSheets()');
+        expect(publicOccupancy).toMatch(/computeSlotOccupancy\(students, pending, parseScheduleString\)/);
     });
 
     it('코치 신규 전용은 공용 현재 점유율로 여석을 계산한다', () => {

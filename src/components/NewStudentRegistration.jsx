@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getDisabledClasses, updateNewStudentRegistration, getFAQs, getNewStudentRegistrations } from '../services/firebaseService';
+import { getDisabledClasses, updateNewStudentRegistration, getFAQs } from '../services/firebaseService';
+import { getPublicSlotOccupancy } from '../services/googleSheetsService';
 import { getRecruitmentOverview, submitRecruitmentRegistration } from '../services/recruitmentService';
 import { monthLabel, monthEntrances, isEntranceAvailable } from '../utils/recruitment';
 import RegistrationMonthPicker from './RegistrationMonthPicker';
@@ -9,41 +9,7 @@ import useKoreanMonth from '../hooks/useKoreanMonth';
 import { sendRegistrationNotifications } from '../services/smsService';
 import { formatEntranceDate, calculateStartEndDates } from '../utils/dateUtils';
 import { PERIODS, DAYS, MAX_CAPACITY, PRICING, ENTRANCE_FEE } from '../data/mockData';
-import { computeSlotOccupancy } from '../utils/slotOccupancy';
 import './NewStudentRegistration.css';
-
-/**
- * Parse schedule string from Google Sheets
- * Examples: "월5수5" → [{day: '월', period: 5}, {day: '수', period: 5}]
- */
-const parseScheduleString = (scheduleStr) => {
-    if (!scheduleStr || typeof scheduleStr !== 'string') return [];
-    const result = [];
-    const dayMap = { '월': '월', '화': '화', '수': '수', '목': '목', '금': '금' };
-    const chars = scheduleStr.replace(/\s/g, '');
-    let i = 0;
-    while (i < chars.length) {
-        const char = chars[i];
-        if (dayMap[char]) {
-            const day = char;
-            i++;
-            let periodStr = '';
-            while (i < chars.length && /\d/.test(chars[i])) {
-                periodStr += chars[i];
-                i++;
-            }
-            if (periodStr) {
-                const period = parseInt(periodStr);
-                if (period >= 1 && period <= 6) {
-                    result.push({ day, period });
-                }
-            }
-        } else {
-            i++;
-        }
-    }
-    return result;
-};
 
 const STEP_NAMES = ['일정', '정보', '입학반', '결제', '상담', '확인'];
 
@@ -73,19 +39,18 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
     // Step 3: 시간표
     const [selectedSlots, setSelectedSlots] = useState([]);
     const [disabledClasses, setDisabledClasses] = useState([]);
-    const [pendingRegistrations, setPendingRegistrations] = useState([]);
+    // 칸별 인원(현재 활성 시간표 + 승인 대기 신청). 서버가 숫자만 계산해 준다 — 명단·연락처는 받지 않는다.
+    const [slotOccupancy, setSlotOccupancy] = useState({});
     const [scheduleReady, setScheduleReady] = useState(false); // 시간표 데이터 3종 로드 완료 여부
     const [scheduleError, setScheduleError] = useState('');
-    const { students, refresh } = useGoogleSheets();
 
-    // 마운트 시 시간표 데이터 로드 (students 점유 + 비활성 슬롯 + 대기 신청).
-    // 3종이 다 로드돼야 그리드가 정확 — 그 전엔 기본값(7석) 목업 대신 '로딩중' 표시.
+    // 마운트 시 시간표 데이터 로드 (칸별 인원 + 비활성 슬롯).
+    // 둘 다 로드돼야 그리드가 정확 — 그 전엔 기본값(7석) 목업 대신 '로딩중' 표시.
     useEffect(() => {
         let active = true;
         Promise.all([
-            refresh(),
+            getPublicSlotOccupancy().then(setSlotOccupancy),
             getDisabledClasses().then(setDisabledClasses),
-            getNewStudentRegistrations('pending').then(setPendingRegistrations),
         ]).then(() => { if (active) setScheduleReady(true); })
             .catch(() => { if (active) setScheduleError('시간표 정보를 확인할 수 없습니다. 잠시 후 다시 신청해주세요.'); });
         return () => { active = false; };
@@ -131,13 +96,6 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
             getFAQs(true).then(setFaqs).catch(() => {});
         }
     }, [step]);
-
-    // 슬롯별 인원수 계산 (순수 로직은 utils/slotOccupancy).
-    // 코치 "신규 전용"과 동일하게 현재 활성 시간표 + pending 신청을 카운트.
-    const slotOccupancy = useMemo(
-        () => computeSlotOccupancy(students, pendingRegistrations, parseScheduleString),
-        [students, pendingRegistrations]
-    );
 
     // 만석인 셀 수 계산 (자율 교시 제외)
     const fullSlotCount = useMemo(() => {

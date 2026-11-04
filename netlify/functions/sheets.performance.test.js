@@ -13,6 +13,7 @@ function loadSheets() {
     class GoogleAuth { constructor() { authCount++; } }
     const context = { exports: {}, process: { env: { GOOGLE_SHEETS_ID: 'synthetic' } }, console: { log() {}, error() {} },
         require: module => {
+            if (module === './_signedIn') return { checkSignedIn: async () => 'ok', adminFirestore: () => null };
             expect(module).toBe('@googleapis/sheets');
             return { sheets: createClient, auth: { GoogleAuth } };
         } };
