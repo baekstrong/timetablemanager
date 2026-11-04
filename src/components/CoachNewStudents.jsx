@@ -16,7 +16,8 @@ import {
     deleteFAQ,
     getHolidays,
     updateWaitlistRequestedSlots,
-    getDisabledClasses
+    getDisabledClasses,
+    createNewStudentRegistration
 } from '../services/firebaseService';
 import {
     getCurrentSheetName,
@@ -42,6 +43,8 @@ import CoachConsultationCard from './CoachConsultationCard';
 import { getConsultations } from '../services/consultationService';
 import { monthLabel, koreanDate, isAdmissionDate } from '../utils/recruitment';
 import { buildNewRegistrationPlan } from '../utils/newRegistrationPlan';
+import { orderWaitlist } from '../utils/coachWaitlistEntry';
+import CoachWaitlistEntryModal from './CoachWaitlistEntryModal';
 import './CoachNewStudents.css';
 
 // 'YYYY-MM-DD' → '8/15' (헤더 칩용 짧은 표기)
@@ -102,6 +105,7 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
     const [reminderModal, setReminderModal] = useState(null); // 대상 reg
     const [reminderAt, setReminderAt] = useState('');         // datetime-local 값
     const [directRegEntrance, setDirectRegEntrance] = useState(null);
+    const [showWaitlistEntry, setShowWaitlistEntry] = useState(false); // 코치 대기 직접 등록
 
     // === FAQ 관리 ===
     const [faqList, setFaqList] = useState([]);
@@ -175,7 +179,9 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
             return;
         }
         try {
-            const data = await getNewStudentRegistrations(regFilter || null);
+            const fetched = await getNewStudentRegistrations(regFilter || null);
+            // 대기(만석)는 순번(먼저 등록한 사람 = 1번) 순으로 보여준다
+            const data = regFilter === 'waitlist' ? orderWaitlist(fetched) : fetched;
 
             // 승인된 건 중 입학반 날짜가 지난 건 자동 완료 처리
             const today = new Date();
@@ -720,6 +726,23 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
         } else {
             setEditSlots([...editSlots, { day, period }]);
         }
+    };
+
+    // 코치가 문의를 받고 대기를 직접 등록 (2026-11-04)
+    const handleWaitlistEntrySubmit = async (data, { sendSms }) => {
+        const created = await createNewStudentRegistration(data, 'waitlist');
+        // createNewStudentRegistration이 coachSeen:false로 덮으므로 코치가 직접 넣은 건 바로 확인 처리
+        await updateNewStudentRegistration(created.id, { coachSeen: true }).catch(() => {});
+        let smsNote = '';
+        if (sendSms) {
+            const ok = await sendStudentRegistrationSMS(data.phone, data.name, true).catch(() => false);
+            await updateNewStudentRegistration(created.id, { 'smsLog.reception': { status: ok ? 'sent' : 'failed', at: Date.now() } }).catch(() => {});
+            smsNote = ok ? '\n대기 접수 안내 문자를 보냈습니다.' : '\n⚠ 안내 문자 발송 실패 — 카드의 문자 상황판에서 재발송하세요.';
+        }
+        setShowWaitlistEntry(false);
+        alert(`"${data.name}" 대기를 등록했습니다.${smsNote}`);
+        if (regFilter !== 'waitlist') setRegFilter('waitlist');
+        else await loadRegistrations();
     };
 
     // 대기 삭제 + 취소 SMS
@@ -1552,6 +1575,14 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                 {activeTab === 'registrations' && (
                     <div className="cns-section">
 
+                        {regFilter === 'waitlist' && (
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+                                <button className="cns-action-btn" style={{ background: 'var(--accent)', color: '#fff' }} onClick={() => setShowWaitlistEntry(true)}>
+                                    + 대기 직접 등록
+                                </button>
+                            </div>
+                        )}
+
                         {loading ? (
                             <div className="cns-loading">불러오는 중...</div>
                         ) : regFilter === 'consultation' ? (
@@ -1585,6 +1616,8 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                             <span className="cns-reg-schedule">{formatScheduleDisplay(reg)}</span>
                                         </div>
                                         <div className="cns-reg-badges">
+                                            {regFilter === 'waitlist' && <span className="cns-badge" style={{ background: '#EDBC401A', border: '1px solid #EDBC404D', color: '#9a7a12', fontWeight: 700 }}>대기 {registrations.indexOf(reg) + 1}번</span>}
+                                            {reg.coachEntered && <span className="cns-badge" style={{ background: 'var(--accent-10)', border: '1px solid var(--accent-30)', color: 'var(--accent)' }}>코치 등록</span>}
                                             {reg.recruitmentMonth && <span className="cns-badge entrance">{monthLabel(reg.recruitmentMonth)} 모집</span>}
                                             {/* 신청한 입학반 날짜 — 승인 전에도 카드를 펼치지 않고 바로 보이게 */}
                                             {(reg.entranceDate || reg.entranceInquiry) && (
@@ -1608,6 +1641,12 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                                     {!collapsedRegs.has(reg.id) && (
                                         <div className="cns-reg-detail">
                                             <div className="cns-detail-grid">
+                                                {reg.coachMemo && (
+                                                    <div className="cns-detail-item full">
+                                                        <span className="cns-detail-label">코치 메모</span>
+                                                        <span className="cns-detail-value" style={{ whiteSpace: 'pre-wrap' }}>{reg.coachMemo}</span>
+                                                    </div>
+                                                )}
                                                 <div className="cns-detail-item">
                                                     <span className="cns-detail-label">시간표</span>
                                                     <span className="cns-detail-value">{formatScheduleDisplay(reg)}</span>
@@ -2419,6 +2458,19 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {showWaitlistEntry && (
+                <CoachWaitlistEntryModal
+                    slotOccupancy={slotOccupancy}
+                    disabledClasses={disabledClasses}
+                    existingNames={new Set([
+                        ...(allStudents || []).map(s => s['이름']).filter(Boolean),
+                        ...registrations.filter(r => ['pending', 'waitlist'].includes(r.status)).map(r => r.name),
+                    ])}
+                    onSubmit={handleWaitlistEntrySubmit}
+                    onClose={() => setShowWaitlistEntry(false)}
+                />
             )}
 
             {/* === 입학반 컨텍스트에서 열린 직접 등록 모달 === */}
