@@ -471,10 +471,10 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - 코치가 아닌 쪽의 자동 안내는 **문서 id만 받는 전용 창구**로 보낸다 — 수신번호·문구를 클라이언트에서 받지 않고 서버가 문서를 읽어 `src/utils/smsTexts.js`(앱과 공유하는 문구)로 만든다(`netlify/functions/_smsRequests.js`).
   - `/registration-received {registrationId}`: 공개 신규 신청 직후 신청자 접수 확인 + 코치 알림. 로그인 불필요, 상태 pending/waitlist·**Firestore 문서 생성 시각**(클라이언트가 정하는 `createdAt` 아님) 15분 이내.
   - `/makeup-seat {waitlistId}`: 보강 대기 자리 안내 SMS 폴백. 로그인 필요, `status=notified`·`notifiedAt` 70분 이내.
-  - 둘 다 **문서당 1회·같은 번호 하루 3회**. 보낸 기록은 클라이언트가 못 쓰는 `smsServerClaims`(규칙 어디에도 없어 기본 거부)에 둔다 — 대상 문서에 표시하면 수강생이 지우고 재발송시킬 수 있다. 이 컬렉션을 규칙의 signedIn 목록에 넣지 말 것.
+  - 둘 다 **문서당 1회·같은 번호 하루 3회·종류별 하루 전체 상한(접수 30·보강 60)** — 번호를 바꿔 신청서를 여러 개 만들어 코치 휴대폰을 폭주시키는 것 방지. 보낸 기록은 클라이언트가 못 쓰는 `smsServerClaims`(규칙 어디에도 없어 기본 거부)에 둔다 — 대상 문서에 표시하면 수강생이 지우고 재발송시킬 수 있다. 이 컬렉션을 규칙의 signedIn 목록에 넣지 말 것.
   - 남은 한계: 공개 신청서는 누구나 만들 수 있어 남의 번호로 정해진 접수 문구 1통은 갈 수 있다(번호당 하루 3회 상한). 코치 알림의 자유 입력은 200자로 자른다.
 - 운영 `calendar`도 인증 없던 옛 버전이었다 → 리포 버전(코치 증표 필수) 배포.
-- 운영 실측: sms `/send` 무증표 401·수강생 403, `/send-batch` 401, 새 창구 가짜 id 404, calendar 무증표 401·수강생 403. 코치 정상 발송·캘린더 정상 생성은 실발송이 되므로 따로 시험하지 않았다(앱에서 확인). 배포 sms `6aeac3ce…`, calendar `6aeac406…`.
+- 운영 실측: sms `/send` 무증표 401·수강생 403, `/send-batch` 401, 새 창구 가짜 id 404, calendar 무증표 401·수강생 403. 코치 정상 발송·캘린더 정상 생성은 실발송이 되므로 따로 시험하지 않았다(앱에서 확인). 배포 sms `6aeac456…`, calendar `6aeac406…`.
 
 ### 이중 쓰기 패턴
 

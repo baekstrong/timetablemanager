@@ -13,6 +13,9 @@ const millis = value => value?.toMillis?.() ?? (typeof value === 'number' ? valu
 // 대상 문서에 표시하면 로그인한 수강생이 지우고 다시 보내게 할 수 있다.
 const CLAIMS = 'smsServerClaims';
 const PER_PHONE_PER_DAY = 3; // 같은 번호로 하루에 보내는 이 종류 문자 상한(남의 번호로 문서를 여러 개 만들어 보내는 악용 제한)
+// 종류별 하루 전체 상한. 번호를 바꿔 가며 신청서를 만들면 번호당 상한은 피하므로 코치 휴대폰이 폭주하지 않게 막는다.
+// 실제 신규 신청·보강 자리 안내는 하루 몇 건이다.
+const DAILY_TOTAL = { reception: 30, seat: 60 };
 const kstDay = ms => new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10);
 
 /** 문서를 읽어 조건을 확인하고, 아직 안 보냈고 번호별 하루 상한 안이면 기록을 남긴 뒤 문서를 돌려준다. */
@@ -26,12 +29,18 @@ async function claimOnce(db, path, kind, check, { now, serverTimestamp, phoneOf 
         const problem = check(data, snap);
         if (problem) return { status: problem };
         const counterRef = db.doc(`${CLAIMS}/${kind}_phone_${String(phoneOf(data)).replace(/\D/g, '')}_${kstDay(now)}`);
-        const [claim, counter] = [await tx.get(claimRef), await tx.get(counterRef)];
+        const totalRef = db.doc(`${CLAIMS}/${kind}_total_${kstDay(now)}`);
+        const [claim, counter, total] = [await tx.get(claimRef), await tx.get(counterRef), await tx.get(totalRef)];
         if (claim.exists) return { status: 409 };
-        const count = counter.exists ? Number(counter.data().count) || 0 : 0;
-        if (count >= PER_PHONE_PER_DAY) return { status: 429 };
+        const countOf = doc => (doc.exists ? Number(doc.data().count) || 0 : 0);
+        if (countOf(counter) >= PER_PHONE_PER_DAY) return { status: 429 };
+        if (countOf(total) >= DAILY_TOTAL[kind]) {
+            console.warn(`[sms] ${kind} 하루 전체 상한(${DAILY_TOTAL[kind]}) 도달 — 발송 중단`);
+            return { status: 429 };
+        }
         tx.set(claimRef, { kind, path, at: serverTimestamp() });
-        tx.set(counterRef, { count: count + 1, at: serverTimestamp() });
+        tx.set(counterRef, { count: countOf(counter) + 1, at: serverTimestamp() });
+        tx.set(totalRef, { count: countOf(total) + 1, at: serverTimestamp() });
         return { data };
     });
 }

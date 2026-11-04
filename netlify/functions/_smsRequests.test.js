@@ -31,10 +31,17 @@ describe('공개 신규 신청 접수 문자', () => {
         expect(out).toEqual({ status: 200, body: { success: true, studentSMS: true, coachSMS: true } });
         expect(sendSMS).toHaveBeenCalledWith('010-1234-5678', expect.stringContaining('홍길동님, 신규 수강 신청 내역이'));
         expect(sendSMS).toHaveBeenCalledWith('010-0000-0000', expect.stringContaining('시간표: 월1수1'));
-        expect(db.writes).toEqual([`smsServerClaims/reception_${REG_ID}`, 'smsServerClaims/reception_phone_01012345678_2026-11-04']);
+        expect(db.writes).toEqual([`smsServerClaims/reception_${REG_ID}`, 'smsServerClaims/reception_phone_01012345678_2026-11-04', 'smsServerClaims/reception_total_2026-11-04']);
         // 같은 신청서로 다시 요청하면 보내지 않는다
         expect((await registrationReceived({ ...base(db, sendSMS), coachPhone: '010-0000-0000', registrationId: REG_ID })).status).toBe(409);
         expect(sendSMS).toHaveBeenCalledTimes(2);
+    });
+
+    it('번호를 바꿔도 하루 전체 30통에서 멈춘다(코치 휴대폰 폭주 방지)', async () => {
+        const db = fakeDb({ [`newStudentRegistrations/${REG_ID}`]: reg, 'smsServerClaims/reception_total_2026-11-04': { count: 30 } });
+        const sendSMS = vi.fn();
+        expect((await registrationReceived({ ...base(db, sendSMS), coachPhone: '010-0000-0000', registrationId: REG_ID })).status).toBe(429);
+        expect(sendSMS).not.toHaveBeenCalled();
     });
 
     it('같은 번호는 하루 3번까지만', async () => {
