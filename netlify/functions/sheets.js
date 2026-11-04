@@ -2,7 +2,8 @@
 process.env.TZ = 'Asia/Seoul';
 // googleapis 전체(319개 API eager 로드)는 콜드스타트를 지배하므로 sheets 단독 패키지만 사용
 const { sheets: sheetsApi, auth: googleAuth } = require('@googleapis/sheets');
-const { checkSignedIn, adminFirestore } = require('./_signedIn');
+const { readCaller, adminFirestore } = require('./_signedIn');
+const { checkStudentWrite } = require('./_sheetOwnership');
 
 // 시트는 수강생 명단·연락처·결제 정보다. 로그인한 사람(코치·수강생)만 쓴다(2026-11-04).
 // 2026-11-04 앱이 증표를 보내도록 배포한 뒤 true로 전환. false로 되돌리면 다시 누구나 명단을 읽는다.
@@ -116,11 +117,33 @@ exports.handler = async (event, context) => {
       return { statusCode: 200, headers, body: JSON.stringify({ success: true, occupancy }) };
     }
 
-    const caller = await checkSignedIn(event);
+    const { status: caller, claims } = await readCaller(event);
     if (caller !== 'ok') {
       console.warn('sheets: 로그인 증표 없음/무효', caller, event.httpMethod, path);
       if (REQUIRE_SIGN_IN) {
         return { statusCode: 401, headers, body: JSON.stringify({ success: false, error: '로그인이 필요합니다. 다시 로그인해주세요.' }) };
+      }
+    }
+
+    // 수강생 증표의 쓰기는 본인 행만(2026-11-04). 행 추가·계약변경은 코치만. 읽기는 그대로(시간표 여석 계산에 전체 명단이 필요).
+    if (caller === 'ok' && claims.isCoach !== true && event.httpMethod === 'POST'
+      && ['write', 'batchUpdate', 'formatCells', 'append', 'contractChange'].includes(path)) {
+      let denied = null;
+      if (path === 'append' || path === 'contractChange') denied = '코치만 할 수 있습니다';
+      else {
+        let body;
+        try { body = JSON.parse(event.body || '{}'); } catch { body = {}; }
+        const req = path === 'write' ? { kind: 'values', items: [{ range: body.range, values: body.values }] }
+          : path === 'batchUpdate' ? { kind: 'values', items: Array.isArray(body.data) ? body.data : [] }
+          : { kind: 'format', items: Array.isArray(body.ranges) ? body.ranges.map(range => ({ range })) : [], sheetName: body.sheetName };
+        denied = await checkStudentWrite(req, claims.name, async ranges => {
+          const res = await sheets.spreadsheets.values.batchGet({ spreadsheetId: SPREADSHEET_ID, ranges });
+          return ranges.map((_, i) => res.data.valueRanges?.[i]?.values?.[0]?.[0] ?? '');
+        });
+      }
+      if (denied) {
+        console.warn('sheets: 수강생 쓰기 거부', path, denied);
+        return { statusCode: 403, headers, body: JSON.stringify({ success: false, error: `권한이 없습니다: ${denied}` }) };
       }
     }
 

@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { createRequire } from 'node:module';
+const ownershipModule = createRequire(import.meta.url)('./_sheetOwnership.js');
 import { describe, expect, it, vi } from 'vitest';
 import { checkSignedIn } from './_signedIn.js';
 import { createOccupancyLoader, readOnlySheetsTransport } from './_publicOccupancy.js';
@@ -13,7 +15,8 @@ function loadSheets({ caller = 'ok', requireSignIn = true } = {}) {
     const occupancy = vi.fn(async () => ({ '월-4': 5 }));
     const context = { exports: {}, process: { env: { GOOGLE_SHEETS_ID: 'synthetic' } }, console: { log() {}, warn() {}, error() {} },
         require: module => {
-            if (module === './_signedIn') return { checkSignedIn: async () => caller, adminFirestore: () => null };
+            if (module === './_sheetOwnership') return ownershipModule;
+            if (module === './_signedIn') return { readCaller: async () => ({ status: caller, claims: { name: '코치', isCoach: true } }), adminFirestore: () => null };
             if (module === './_publicOccupancy') return { createOccupancyLoader: () => occupancy, readPendingRegistrations: async () => [] };
             return { sheets: () => client, auth: { GoogleAuth: class {} } };
         } };
@@ -99,5 +102,46 @@ describe('공개 빈자리 계산', () => {
         expect(readPending).toHaveBeenCalledTimes(1);
         t = 61000; await load();
         expect(readPending).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('수강생 증표의 시트 쓰기', () => {
+    function loadAs(claims, owner) {
+        const client = { spreadsheets: { values: {
+            batchGet: vi.fn(async ({ ranges }) => ({ data: { valueRanges: ranges.map(() => ({ values: [[owner]] })) } })),
+            batchUpdate: vi.fn(async () => ({ data: { totalUpdatedCells: 1 } })), update: vi.fn(async () => ({ data: {} })), append: vi.fn(),
+        } } };
+        const context = { exports: {}, process: { env: { GOOGLE_SHEETS_ID: 'synthetic' } }, console: { log() {}, warn() {}, error() {} },
+            require: module => module === './_sheetOwnership' ? ownershipModule
+                : module === './_signedIn' ? { readCaller: async () => ({ status: 'ok', claims }), adminFirestore: () => null }
+                : { sheets: () => client, auth: { GoogleAuth: class {} } } };
+        vm.runInNewContext(readFileSync(new URL('./sheets.js', import.meta.url), 'utf8'), context);
+        return { handler: context.exports.handler, client };
+    }
+    const post = (path, body) => ({ httpMethod: 'POST', path: `/.netlify/functions/sheets/${path}`, body: JSON.stringify(body) });
+    const update = { data: [{ range: 'synthetic!H5', values: [['261231']] }] };
+
+    it('남의 행이면 403, 쓰지 않는다', async () => {
+        const { handler, client } = loadAs({ name: '김기안', isCoach: false }, '홍길동');
+        expect((await handler(post('batchUpdate', update))).statusCode).toBe(403);
+        expect(client.spreadsheets.values.batchUpdate).not.toHaveBeenCalled();
+    });
+
+    it('본인 행이면 쓴다', async () => {
+        const { handler, client } = loadAs({ name: '김기안', isCoach: false }, '김기안');
+        expect((await handler(post('batchUpdate', update))).statusCode).toBe(200);
+        expect(client.spreadsheets.values.batchUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    it('행 추가는 코치만', async () => {
+        const { handler, client } = loadAs({ name: '김기안', isCoach: false }, '김기안');
+        expect((await handler(post('append', { range: 'synthetic!A:R', values: [['x']] }))).statusCode).toBe(403);
+        expect(client.spreadsheets.values.append).not.toHaveBeenCalled();
+    });
+
+    it('코치는 검사 없이 쓴다', async () => {
+        const { handler, client } = loadAs({ name: '코치', isCoach: true }, '홍길동');
+        expect((await handler(post('batchUpdate', update))).statusCode).toBe(200);
+        expect(client.spreadsheets.values.batchGet).not.toHaveBeenCalled();
     });
 });

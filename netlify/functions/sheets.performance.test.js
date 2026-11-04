@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { createRequire } from 'node:module';
+const ownershipModule = createRequire(import.meta.url)('./_sheetOwnership.js');
 import { expect, it, vi } from 'vitest';
 
 function loadSheets() {
@@ -13,7 +15,8 @@ function loadSheets() {
     class GoogleAuth { constructor() { authCount++; } }
     const context = { exports: {}, process: { env: { GOOGLE_SHEETS_ID: 'synthetic' } }, console: { log() {}, error() {} },
         require: module => {
-            if (module === './_signedIn') return { checkSignedIn: async () => 'ok', adminFirestore: () => null };
+            if (module === './_sheetOwnership') return ownershipModule;
+            if (module === './_signedIn') return { readCaller: async () => ({ status: 'ok', claims: { name: '코치', isCoach: true } }), adminFirestore: () => null };
             expect(module).toBe('@googleapis/sheets');
             return { sheets: createClient, auth: { GoogleAuth } };
         } };
