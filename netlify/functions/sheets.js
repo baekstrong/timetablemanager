@@ -3,7 +3,7 @@ process.env.TZ = 'Asia/Seoul';
 // googleapis 전체(319개 API eager 로드)는 콜드스타트를 지배하므로 sheets 단독 패키지만 사용
 const { sheets: sheetsApi, auth: googleAuth } = require('@googleapis/sheets');
 const { readCaller, adminFirestore } = require('./_signedIn');
-const { checkStudentWrite, contractRow } = require('./_sheetOwnership');
+const { checkStudentWrite, contractRow, redactForStudent } = require('./_sheetOwnership');
 
 // 시트는 수강생 명단·연락처·결제 정보다. 로그인한 사람(코치·수강생)만 쓴다(2026-11-04).
 // 2026-11-04 앱이 증표를 보내도록 배포한 뒤 true로 전환. false로 되돌리면 다시 누구나 명단을 읽는다.
@@ -125,7 +125,9 @@ exports.handler = async (event, context) => {
       }
     }
 
-    // 수강생 증표의 쓰기는 본인 행만(2026-11-04). 행 추가·계약변경은 코치만. 읽기는 그대로(시간표 여석 계산에 전체 명단이 필요).
+    // 수강생 증표의 쓰기는 본인 행만(2026-11-04). 행 추가·계약변경은 코치만.
+    // 읽기는 전체 명단을 주되 남의 행 결제·연락처·메모는 가린다(아래 read/batchGet의 redactForStudent).
+    const isStudent = caller === 'ok' && claims.isCoach !== true;
     if (caller === 'ok' && claims.isCoach !== true && event.httpMethod === 'POST'
       && ['write', 'batchUpdate', 'formatCells', 'append', 'contractChange'].includes(path)) {
       let denied = null;
@@ -173,13 +175,14 @@ exports.handler = async (event, context) => {
         spreadsheetId: SPREADSHEET_ID,
         range: range,
       });
+      const values = response.data.values || [];
 
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
           success: true,
-          values: response.data.values || [],
+          values: isStudent ? redactForStudent(response.data.range, values, claims.name) : values,
         }),
       };
     }
@@ -418,7 +421,7 @@ exports.handler = async (event, context) => {
           success: true,
           valueRanges: (response.data.valueRanges || []).map(v => ({
             range: v.range,
-            values: v.values || [],
+            values: isStudent ? redactForStudent(v.range, v.values || [], claims.name) : (v.values || []),
           })),
         }),
       };

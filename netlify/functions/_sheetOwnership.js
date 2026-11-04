@@ -96,3 +96,41 @@ exports.contractRow = data => [
 ];
 
 exports.parseRowRange = parseRowRange;
+
+// ─── 수강생 증표의 읽기: 남의 행 민감 정보 가리기 (2026-11-04) ───
+// 수강생 시간표는 여석·출석 계산에 전체 명단(이름·주횟수·시간표·날짜·홀딩)이 필요하지만 남의 결제(I~L)·연락처(P)·
+// 직업(R)은 쓰지 않는다. 성별(Q)은 수강생 랭킹의 남녀 구분에 쓰여 남긴다. 특이사항(E)은 계산에 쓰는 기계 태그([계약변경이력:…], [정지:…])와
+// 'YY.M.D 결석' 날짜만 남긴다(parseAgreedAbsenceDates·readContractChange·PAUSE_TAG_RE와 같은 형식).
+const HIDDEN_FOR_OTHERS = new Set([8, 9, 10, 11, 15, 17]); // I J K L P R
+const NOTES_COLUMN = 4; // E
+const KEEP_IN_NOTES = /\[계약변경이력:[^\]]+\]|\[정지:[^\]]*\]|(?:\d{2}\.\d{1,2}\.\d{1,2}(?:\s*,\s*)?)+\s*결석/g;
+const keepMachineNotes = notes => (String(notes ?? '').match(KEEP_IN_NOTES) || []).join(' ');
+
+/** Sheets 응답 범위 "'탭'!A1:R706" → { sheet, c1, r1 } */
+function parseReturnedRange(range) {
+  const m = String(range || '').match(/^(?:'((?:[^']|'')+)'|([^!']+))!([A-Z]{1,3})(\d+)?/);
+  if (!m) return null;
+  return { sheet: m[1] ? m[1].replace(/''/g, "'") : m[2], c1: colIndex(m[3]), r1: m[4] ? Number(m[4]) : 1 };
+}
+
+/**
+ * 수강생에게 돌려줄 값에서 남의 행 민감 칸을 비운다. 등록생 목록 탭이 아니면 빈 결과.
+ * @param {string} range Sheets가 돌려준 실제 범위
+ * @param {any[][]} values
+ * @param {string} name 증표 이름
+ */
+exports.redactForStudent = (range, values, name) => {
+  const at = parseReturnedRange(range);
+  if (!at || !ROSTER_SHEET.test(at.sheet) || !Array.isArray(values)) return [];
+  const me = norm(name);
+  const nameIdx = 1 - at.c1; // B열 위치(범위에 B가 없으면 음수 → 주인을 모르니 모두 남의 행으로 본다)
+  return values.map((row, i) => {
+    if (at.r1 + i < 3 || !Array.isArray(row)) return row; // 1·2행은 헤더
+    if (nameIdx >= 0 && norm(row[nameIdx]) === me) return row;
+    return row.map((value, j) => {
+      const col = at.c1 + j;
+      if (col === NOTES_COLUMN) return keepMachineNotes(value);
+      return HIDDEN_FOR_OTHERS.has(col) || col > colIndex(LAST_COLUMN) ? '' : value;
+    });
+  });
+};

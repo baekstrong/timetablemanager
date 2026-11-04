@@ -145,3 +145,19 @@ describe('수강생 증표의 시트 쓰기', () => {
         expect(client.spreadsheets.values.batchGet).not.toHaveBeenCalled();
     });
 });
+
+describe('수강생 증표의 시트 읽기', () => {
+    it('batchGet 응답에서 남의 연락처를 가린다, 코치는 그대로', async () => {
+        const rows = [[], ['번호', '이름'], ['1', '홍길동', '', '', '', '', '', '', '', '', '', '', '', '', '', '010-1111-2222']];
+        for (const [claims, phone] of [[{ name: '김기안', isCoach: false }, ''], [{ name: '코치', isCoach: true }, '010-1111-2222']]) {
+            const client = { spreadsheets: { values: { batchGet: vi.fn(async () => ({ data: { valueRanges: [{ range: "'등록생 목록(26년11월)'!A1:R3", values: rows }] } })) } } };
+            const context = { exports: {}, process: { env: { GOOGLE_SHEETS_ID: 'synthetic' } }, console: { log() {}, warn() {}, error() {} },
+                require: module => module === './_sheetOwnership' ? ownershipModule
+                    : module === './_signedIn' ? { readCaller: async () => ({ status: 'ok', claims }), adminFirestore: () => null }
+                    : { sheets: () => client, auth: { GoogleAuth: class {} } } };
+            vm.runInNewContext(readFileSync(new URL('./sheets.js', import.meta.url), 'utf8'), context);
+            const res = await context.exports.handler({ httpMethod: 'POST', path: '/.netlify/functions/sheets/batchGet', body: JSON.stringify({ ranges: ['등록생 목록(26년11월)!A:R'] }) });
+            expect(JSON.parse(res.body).valueRanges[0].values[2][15]).toBe(phone);
+        }
+    });
+});
