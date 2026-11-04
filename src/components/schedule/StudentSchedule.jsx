@@ -1,3 +1,4 @@
+import { isOwnTimetableSlot, OWN_TIMETABLE_SLOT_MESSAGE } from '../../utils/ownTimetableSlot';
 import { Fragment, useState, useMemo, useEffect, useRef } from 'react';
 import { PERIODS, DAYS, MAX_CAPACITY, KOREAN_HOLIDAYS } from '../../data/mockData';
 import {
@@ -238,6 +239,11 @@ function CurrentWeekStudentSchedule({
         setPersonalReload(value => value + 1);
         // 명단 오류도 복구해야 하므로 주간 Firestore 조회와 Sheets 조회를 함께 다시 한다.
         await Promise.allSettled([loadWeeklyData(), refreshStudents?.()]);
+    }
+
+    // 원래 시간표 칸(시트 D열 요일·교시)으로는 보강·대기 불가 — 등록 기간 밖 날짜 포함(2026-11-04)
+    function isOwnSlot(slot) {
+        return Boolean(slot) && isOwnTimetableSlot(studentData, slot.date, slot.day, slot.period);
     }
 
     function wouldDoubleBookStudent(original, day, date, makeups = activeMakeupRequests) {
@@ -495,6 +501,11 @@ function CurrentWeekStudentSchedule({
             return;
         }
 
+        if (isOwnSlot(selectedMakeupSlot)) {
+            alert(OWN_TIMETABLE_SLOT_MESSAGE);
+            return;
+        }
+
         // 이중 수강 방지: 다른 날 수업을 이미 정규 수업이 있는 요일로 옮기면 차단(같은 날 이동은 허용)
         if (wouldDoubleBookStudent(selectedOriginalClass, selectedMakeupSlot.day, selectedMakeupSlot.date)) {
             alert('보강 대상 요일에 이미 다른 정규 수업이 있어요.\n같은 날 다른 수업을 옮기거나, 다른 요일을 선택해주세요.');
@@ -610,6 +621,10 @@ function CurrentWeekStudentSchedule({
             alert('같은 수업으로 보강 신청할 수 없습니다.\n다른 시간을 선택해주세요.');
             return;
         }
+        if (isOwnSlot(newSlot)) {
+            alert(OWN_TIMETABLE_SLOT_MESSAGE);
+            return;
+        }
         // 옮기려는 보강 자신은 이중 수강 판정에서 제외 — 그 자리는 곧 비운다.
         const otherMakeups = activeMakeupRequests.filter(m => m.id !== target.id);
         if (wouldDoubleBookStudent(oc, newSlot.day, newSlot.date, otherMakeups)) {
@@ -680,6 +695,10 @@ function CurrentWeekStudentSchedule({
         if (readOnly) { alert('실데이터 조회 전용 화면에서는 신청·취소를 할 수 없습니다.'); return; }
         if (!waitlistOriginalClass || !waitlistSlot) return;
         if (!validateStudentOriginal(waitlistOriginalClass)) return;
+        if (isOwnSlot(waitlistSlot)) {
+            alert(OWN_TIMETABLE_SLOT_MESSAGE);
+            return;
+        }
         if (modernStudent && (isClassWithinMinutes(waitlistSlot.date, waitlistSlot.period, 0) || isSlotLocked(waitlistSlot.day, waitlistSlot.period) || isMyHoldingDate?.(waitlistSlot.date) || wouldDoubleBookStudent(waitlistOriginalClass, waitlistSlot.day, waitlistSlot.date))) {
             alert('선택한 수업은 지금 대기를 신청할 수 없어요. 다른 시간을 선택해주세요.');
             return;
@@ -795,6 +814,10 @@ function CurrentWeekStudentSchedule({
             alert('같은 수업으로 보강 신청할 수 없습니다.\n다른 시간을 선택해주세요.');
             return;
         }
+        if (isOwnSlot(slot)) {
+            alert(OWN_TIMETABLE_SLOT_MESSAGE);
+            return;
+        }
         if (wouldDoubleBookStudent(oc, slot.day, slot.date)) {
             alert('보강 대상 요일에 이미 다른 정규 수업이 있어요.\n다른 요일을 선택해주세요.');
             return;
@@ -901,6 +924,10 @@ function CurrentWeekStudentSchedule({
         );
         if (duplicateOriginal) {
             alert('이 원래 수업은 이미 다른 보강으로 옮겨져 있습니다.\n대기를 거절 처리해주세요.');
+            return;
+        }
+        if (isOwnSlot(entry)) {
+            alert('원래 수업 시간표(요일·교시)라 보강으로 수락할 수 없습니다.\n대기를 거절 처리해주세요.');
             return;
         }
         // 이중 수강 방지: 다른 날 수업을 이미 정규 수업이 있는 요일로 옮기는 수락은 차단(같은 날 이동은 허용)
@@ -1282,6 +1309,7 @@ function CurrentWeekStudentSchedule({
                 else if (isMyHoldingDate?.(date)) reason = label = '홀딩';
                 else if (classStartMs(slot) - now.getTime() <= (data.isFull && !convertingWait ? 0 : 120 * 60 * 1000)) reason = label = '마감';
                 else if (session && ['regular', 'makeup'].includes(session.type)) reason = label = session.type === 'makeup' ? '내 보강' : '내 수업';
+                else if (isOwnSlot(slot)) reason = label = '내 시간표';
                 else if (source && wouldDoubleBookStudent(source, day, date, otherMakeups)) reason = label = '선택 불가';
                 else if (myQuotaUsed >= makeupWeeklyLimit) reason = '이번 주 보강·대기 한도를 모두 사용했어요.';
                 if (existingWait) { reason = ''; label = existingWait.status === 'notified' ? '자리 도착' : '대기 중'; }
@@ -1301,7 +1329,7 @@ function CurrentWeekStudentSchedule({
     const flowSourceError = studentRequestDataError || (flowSourceSession ? sourceUnavailableReason(flowSourceSession, { now, quotaUsed: myWeekCommitments, quotaLimit: makeupWeeklyLimit, waits: validWaits }) : '옮길 수업을 선택해주세요.');
     const flowDoubleBooking = selectedOriginalClass && flowTarget && wouldDoubleBookStudent(selectedOriginalClass, flowTarget.day, flowTarget.date);
     const sameFlowSlot = selectedOriginalClass?.date === flowTarget?.date && selectedOriginalClass?.period === flowTarget?.period;
-    const flowTargetError = flowDoubleBooking ? '이날 이미 다른 수업이 있어요. 다른 시간을 선택해주세요.' : sameFlowSlot ? '원래 수업과 다른 시간을 선택해주세요.' : '';
+    const flowTargetError = isOwnSlot(flowTarget) ? '원래 수업 시간표에는 보강을 신청할 수 없어요. 다른 시간을 선택해주세요.' : flowDoubleBooking ? '이날 이미 다른 수업이 있어요. 다른 시간을 선택해주세요.' : sameFlowSlot ? '원래 수업과 다른 시간을 선택해주세요.' : '';
     const personalLoading = studentDataLoading || !weeklyDataLoaded || !personalDataReady;
     const personalError = weeklyDataError || (makeupDataState === 'error' ? '보강 정보를 불러오지 못했어요.' : '')
         || (!studentDataLoading && !studentData ? '수강 정보를 찾을 수 없어요. 등록 상태를 코치에게 확인해주세요.' : '');
