@@ -462,6 +462,8 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - 신규 신청 화면(로그인 없음)은 시트·신청서를 직접 읽지 않고 `getPublicSlotOccupancy()`(GET `/occupancy`)로 **칸별 숫자만** 받는다. 서버 `_publicOccupancy.js`가 앱의 `getAllStudentsFromAllSheets` + `computeSlotOccupancy`를 **그대로** 쓴다(`setSheetsTransport`로 fetch 대신 시트 API 직결, 읽기 전용 — 쓰기 경로는 거부). 코치 '신규 전용'과 같은 기준을 지키려는 것이니 서버에 계산을 따로 짜지 말 것. Lambda는 UTC라 `sheets.js` 맨 위에서 `TZ=Asia/Seoul`.
 - `sheets`는 이제 firebase-admin을 쓰므로 `bundle-netlify-fn.mjs`의 `NEEDS_ADMIN`에 포함(번들 5.7MB). 로컬 Express도 `/occupancy`를 esbuild 즉석 번들로 제공한다.
 - `.env.local`의 `VITE_FUNCTIONS_URL`이 운영 Netlify를 가리킨다 — 로컬 개발 화면도 운영 함수를 부른다.
+- 배포: Netlify sheets `6aeabd26…`(전환기: 증표 없으면 기록만) → 웹 배포 → `6aeabdf4…`(`REQUIRE_SIGN_IN = true`). 운영에서 증표 없음·무효·쓰기 시도 401, 테스트 계정 증표 200, `/occupancy` 공개 200 실측. **`REQUIRE_SIGN_IN`을 false로 되돌리지 말 것**(다시 누구나 명단을 읽고 쓴다). 번들·ZIP·digest 배포 스크립트는 Git 밖 `~/Library/Application Support/Codex/sheets-auth-2026-11-04/`.
+- Firestore `newStudentRegistrations` 읽기는 **코치만**(ruleset `38ecd249-…`, 운영 규칙과 3-way 병합). 공개 신청 화면은 생성·접수문자 결과 갱신만 하고 읽지 않는다. 비로그인 조회 거부 실측.
 
 ### 이중 쓰기 패턴
 

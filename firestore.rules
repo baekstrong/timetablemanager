@@ -83,9 +83,10 @@ service cloud.firestore {
             && admissionDateAllowed(data.entranceInquiry, data.recruitmentMonth)
             && data.entranceInquiryReason is string && data.entranceInquiryReason.size() > 0));
     }
-    // 신규 신청 공개 조회는 기존 경로 유지. 생성은 열린 모집월만, 이후 공개 갱신은 접수 문자 결과만 허용.
+    // 신청서에는 연락처·건강 정보가 있어 코치만 조회한다(2026-11-04). 공개 신청 화면은 서버 빈자리 창구(숫자)만 쓴다.
+    // 생성은 열린 모집월만, 이후 공개 갱신은 접수 문자 결과만 허용.
     match /newStudentRegistrations/{id} {
-      allow read: if true;
+      allow read: if isCoach();
       allow create: if isCoach() || publicRecruitmentAllowed();
       allow update: if isCoach() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['smsLog', 'updatedAt']);
       allow delete: if isCoach();

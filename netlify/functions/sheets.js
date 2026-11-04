@@ -5,8 +5,8 @@ const { sheets: sheetsApi, auth: googleAuth } = require('@googleapis/sheets');
 const { checkSignedIn, adminFirestore } = require('./_signedIn');
 
 // 시트는 수강생 명단·연락처·결제 정보다. 로그인한 사람(코치·수강생)만 쓴다(2026-11-04).
-// 전환기: 앱이 로그인 증표를 보내도록 배포되기 전까지는 false(없으면 기록만), 그 뒤 true로 바꿔 배포한다.
-const REQUIRE_SIGN_IN = false;
+// 2026-11-04 앱이 증표를 보내도록 배포한 뒤 true로 전환. false로 되돌리면 다시 누구나 명단을 읽는다.
+const REQUIRE_SIGN_IN = true;
 let occupancyLoader = null;
 
 // 모듈 스코프 캐시 — 웜 컨테이너에서 인증 클라이언트(액세스 토큰 포함)를 재사용해
