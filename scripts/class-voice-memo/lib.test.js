@@ -102,14 +102,3 @@ describe('수업 음성 메모 lib', () => {
         expect(dropRepeats('가\n가\n가\n나\n\n가')).toBe('가\n나\n가');
     });
 });
-
-import { coachNoteToChecklist } from './lib.mjs';
-describe('coachNoteToChecklist', () => {
-    it('원래 메모에 없던 새 줄만 체크리스트로 옮기고 운동을 추정한다', () => {
-        const s = { name: 'A', coachNote: { proposed: '옛 줄\n벤치프레스 어깨 걸림 -> 헤일로 3회\n무릎 통증 -> 레그컬' }, checklist: [{ exercise: '스쿼트', text: '아래로' }] };
-        const out = coachNoteToChecklist(s, '옛 줄', ['벤치프레스', '벤치', '스쿼트']);
-        expect(out.coachNote).toBe(null);
-        expect(out.checklist.map(i => [i.exercise, i.text])).toEqual([
-            ['스쿼트', '아래로'], ['벤치프레스', '벤치프레스 어깨 걸림 -> 헤일로 3회'], ['', '무릎 통증 -> 레그컬']]);
-    });
-});

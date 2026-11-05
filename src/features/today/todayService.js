@@ -1,6 +1,19 @@
-import { deleteField, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { readSheetData, writeSheetData } from '../../services/googleSheetsService';
+
+// Same protected document used by training-log. Never import/load this from student UI.
+export async function readCoachNotes() {
+    const snapshot = await getDoc(doc(db, 'coachNotes', 'notes'));
+    return snapshot.exists() ? snapshot.data().map || {} : {};
+}
+
+export async function saveCoachNote(name, note) {
+    if (!name) throw new Error('수강생을 선택해주세요.');
+    await setDoc(doc(db, 'coachNotes', 'notes'), {
+        map: { [name]: note.trim() }, updatedAt: serverTimestamp(),
+    }, { merge: true });
+}
 
 export async function confirmStudentPayment(student, date, method) {
     const sheet = student._foundSheetName;
@@ -18,28 +31,4 @@ export async function confirmStudentPayment(student, date, method) {
     }
     // Only J/K/L of the selected registration; never rewrite another month's row.
     await writeSheetData(`${sheet}!J${row}:L${row}`, [[date.slice(2).replaceAll('-', ''), 'O', method]]);
-}
-
-// 수강생 체크리스트(coachPinnedMemos/{이름}) — 코치 첫 화면 표시용. 이름당 문서 1개 읽기.
-export async function readCoachChecklists(names) {
-    const entries = await Promise.all([...new Set(names)].map(async name => {
-        const snapshot = await getDoc(doc(db, 'coachPinnedMemos', name));
-        return [name, snapshot.exists() ? snapshot.data().memos || [] : []];
-    }));
-    return Object.fromEntries(entries);
-}
-
-// 코치 첫 화면 체크는 수강생 목록과 독립(2026-11-05 사용자 결정): coachPinnedMemos는 건드리지 않고
-// 코치 전용 문서 coachNotes/checklistChecks = {map:{이름:{항목키: 체크시각ISO}}}에만 쓴다(규칙상 코치만 읽고 씀).
-export const checklistKey = item => item.id ? `id:${item.id}` : `t:${item.exercise || ''}::${item.text}`;
-export async function readCoachChecklistChecks() {
-    const snapshot = await getDoc(doc(db, 'coachNotes', 'checklistChecks'));
-    return snapshot.exists() ? snapshot.data().map || {} : {};
-}
-export async function setCoachChecklistCheck(name, item, done) {
-    const at = new Date().toISOString();
-    await setDoc(doc(db, 'coachNotes', 'checklistChecks'), {
-        map: { [name]: { [checklistKey(item)]: done ? at : deleteField() } }, updatedAt: serverTimestamp(),
-    }, { merge: true });
-    return done ? at : null;
 }

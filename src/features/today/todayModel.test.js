@@ -69,31 +69,3 @@ describe('코치 첫 화면 종료 안내', () => {
         expect(renderToStaticMarkup(createElement(TaskSection, { coach: true, groups }))).toBe('');
     });
 });
-
-describe('코치 첫 화면 수강생 체크리스트', () => {
-    it('운동별로 묶고, 체크 상태는 코치 체크만 쓴다(수강생 완료는 표시만)', async () => {
-        const { groupChecklistByExercise } = await import('./todayModel');
-        const now = new Date('2026-11-05T12:00:00');
-        const { groups, hiddenDone } = groupChecklistByExercise([
-            { id: '1', exercise: '스쿼트', memo: '무릎 발끝 방향' },
-            { id: '2', exercise: '스쿼트', memo: '엉덩이 아래로', done: true, doneAt: '2026-11-04T10:00:00' },
-            { id: '3', exercise: '벤치프레스', memo: '헤일로 3회' },
-            { id: '4', exercise: '데드리프트', memo: '옛 체크' },
-            { exercise: '', memo: '운동 미정' },
-            { exercise: '스쿼트', memo: '  ' },
-        ], now, { 'id:1': '2026-11-04T10:00:00', 'id:3': '2026-11-05T09:00:00', 'id:4': '2026-10-01T10:00:00' });
-        expect(hiddenDone).toBe(1);
-        expect(groups.map(g => g.exercise)).toEqual(['스쿼트', '기타', '벤치프레스']);
-        expect(groups[0].items.map(i => [i.text, i.done, i.studentDone])).toEqual([['엉덩이 아래로', false, true], ['무릎 발끝 방향', true, false]]);
-    });
-
-    it('카드는 불러오는 중·없음·운동별 체크 표시를 그린다', async () => {
-        const { ChecklistByExercise } = await import('./TodayViews');
-        expect(renderToStaticMarkup(createElement(ChecklistByExercise, {}))).toContain('불러오는 중');
-        expect(renderToStaticMarkup(createElement(ChecklistByExercise, { memos: [] }))).toContain('체크리스트 없음');
-        const html = renderToStaticMarkup(createElement(ChecklistByExercise, { memos: [{ exercise: '스쿼트', memo: '엉덩이 아래로', createdAt: '2026-11-03T10:00:00' }] }));
-        expect(html).toContain('스쿼트');
-        expect(html).toContain('type="checkbox"');
-        expect(html).toContain('11/3');
-    });
-});

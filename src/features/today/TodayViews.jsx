@@ -1,8 +1,8 @@
 import PushSettings from '../../components/PushSettings';
 import RefreshStatus from '../../components/RefreshStatus';
 import { StudentTag } from '../../components/schedule/ScheduleCell';
-import { useEffect, useId, useState } from 'react';
-import { visibleTaskGroups, currentLessonId, automaticLessonId, groupChecklistByExercise } from './todayModel';
+import { useId, useRef, useState } from 'react';
+import { visibleTaskGroups, currentLessonId, automaticLessonId } from './todayModel';
 import './TodayViews.css';
 
 export function ActionButton({ children, primary = false, pending = false, ...props }) {
@@ -70,14 +70,32 @@ export function StudentToday({ name, taskGroups, lessons, weekLabel, waiting, po
     </main>;
 }
 
-export function CoachToday({ scheduleTransfers, scheduleTransferCount = 0, user, hasNewPostNotification = false, onRefresh, refreshedAt, refreshing, refreshMessage, freeWorkout = null, dateLabel, lessons, minutes, taskGroups, checklists = {}, checklistChecks = {}, onLoadChecklists, onToggleChecklist, onAction, onNavigate }) {
+export function CoachToday({ scheduleTransfers, scheduleTransferCount = 0, user, hasNewPostNotification = false, onRefresh, refreshedAt, refreshing, refreshMessage, freeWorkout = null, dateLabel, lessons, minutes, taskGroups, notes, notesReady = true, onAction, onSaveNote, onNavigate }) {
     const [manualId, setManualId] = useState(null);
+    const [drafts, setDrafts] = useState({});
+    const [editingNotes, setEditingNotes] = useState({});
+    const [noteStatus, setNoteStatus] = useState({});
+    const savingNames = useRef(new Set());
+    async function saveNote(name) {
+        if (!notesReady || !onSaveNote || savingNames.current.has(name)) return;
+        const value = drafts[name] ?? notes[name] ?? '';
+        savingNames.current.add(name);
+        setNoteStatus(previous => ({ ...previous, [name]: 'saving' }));
+        try {
+            await onSaveNote(name, value);
+            setDrafts(previous => ({ ...previous, [name]: value.trim() }));
+            setNoteStatus(previous => ({ ...previous, [name]: 'saved' }));
+            setEditingNotes(previous => ({ ...previous, [name]: false }));
+        } catch {
+            setNoteStatus(previous => ({ ...previous, [name]: 'error' }));
+        } finally {
+            savingNames.current.delete(name);
+        }
+    }
+
     const currentId = currentLessonId(lessons, minutes);
     const selectedId = manualId ?? automaticLessonId(lessons, minutes);
     const selected = lessons.find(lesson => lesson.id === selectedId);
-    const attendeeKey = (selected?.attendees || []).join('\n');
-    // 고른 수업 참석자의 체크리스트만 읽는다(이미 읽은 사람은 CoachHome이 캐시).
-    useEffect(() => { if (attendeeKey && onLoadChecklists) onLoadChecklists(attendeeKey.split('\n')); }, [attendeeKey, onLoadChecklists]);
     return <main className="today-page today-coach">
         <header className="today-header"><div><div className="today-coach-identity"><h1 className="today-coach-title">근력학교 · {user?.username || '코치'}</h1><PushSettings user={user} /></div><span className="today-coach-date">{dateLabel}</span></div><div className="today-actions"><ActionButton onClick={() => onNavigate('dashboard')} aria-label={hasNewPostNotification ? '게시판 · 새 글 있음' : '게시판'}><span className="today-board-label">게시판{hasNewPostNotification && <span className="today-board-dot" aria-hidden="true" />}</span></ActionButton><button className="today-link" onClick={() => onNavigate('logout')}>로그아웃</button></div></header>
         <TaskSection coach groups={taskGroups} onAction={onAction} currentPeriod={currentId} extraGroup={scheduleTransfers} extraCount={scheduleTransferCount} />
@@ -95,48 +113,42 @@ export function CoachToday({ scheduleTransfers, scheduleTransferCount = 0, user,
                 </button>)}
             </section>
             <section className="today-card today-notes" aria-labelledby="today-notes-heading">
-                <div className="today-section-title"><h2 id="today-notes-heading">수강생 메모</h2>{manualId != null && <button className="today-link" onClick={() => setManualId(null)}>현재 수업으로</button>}</div>
+                <div className="today-section-title"><h2 id="today-notes-heading">코치 전용 메모</h2>{manualId != null && <button className="today-link" onClick={() => setManualId(null)}>현재 수업으로</button>}</div>
                 <p className="today-muted">{selected ? `${selected.id}교시 · ${selected.time} · 참석 예정 ${selected.attendees.length}명` : '오늘 수업이 모두 끝났습니다.'}{selected && selected.id !== currentId && (manualId == null ? ' · 다음 수업' : ' · 선택한 수업')}</p>
-                <div className="today-note-list">{selected?.attendees.map(name => <div className="today-note today-note-editor" key={name}>
-                    <div className="today-note-heading"><strong>{name}</strong></div>
-                    <ChecklistByExercise memos={checklists[name]} checks={checklistChecks[name]} onToggle={onToggleChecklist && ((item, done) => onToggleChecklist(name, item, done))} />
-                </div>)}</div>
+                <div className="today-note-list">{selected?.attendees.map(name => {
+                    const value = drafts[name] ?? notes[name] ?? '';
+                    const status = noteStatus[name];
+                    const saving = status === 'saving';
+                    const changed = value !== (notes[name] || '');
+                    return <div className="today-note today-note-editor" key={name}>
+                        <div className="today-note-heading"><strong>{name}</strong>{!editingNotes[name] && <button type="button" className="today-link" disabled={!notesReady} aria-label={`${name} 메모 수정`} onClick={() => {
+                            setDrafts(previous => ({ ...previous, [name]: notes[name] || '' }));
+                            setNoteStatus(previous => ({ ...previous, [name]: '' }));
+                            setEditingNotes(previous => ({ ...previous, [name]: true }));
+                        }}>{notes[name] ? '수정' : '메모 쓰기'}</button>}</div>
+                        {editingNotes[name] ? <><label className="today-field"><textarea
+                            aria-label={`${name} 코치 전용 메모`} rows={3} value={value}
+                            placeholder={notesReady ? '메모를 입력하세요.' : '메모를 불러오는 중…'}
+                            disabled={!notesReady || saving}
+                            onChange={event => {
+                                setDrafts(previous => ({ ...previous, [name]: event.target.value }));
+                                setNoteStatus(previous => ({ ...previous, [name]: '' }));
+                            }}
+                        /></label>
+                        <div className="today-note-actions">
+                            <span role={status === 'error' ? 'alert' : 'status'} className={status === 'error' ? 'today-note-error' : 'today-muted'}>
+                                {status === 'error' ? '저장하지 못했습니다. 다시 저장해주세요.' : saving ? '저장 중…' : changed ? '저장하지 않은 변경사항' : status === 'saved' ? '저장되었습니다.' : ''}
+                            </span>
+                            <div className="today-actions"><ActionButton disabled={saving} onClick={() => {
+                                setEditingNotes(previous => ({ ...previous, [name]: false }));
+                                setDrafts(previous => ({ ...previous, [name]: notes[name] || '' }));
+                                setNoteStatus(previous => ({ ...previous, [name]: '' }));
+                            }} aria-label={`${name} 메모 수정 취소`}>취소</ActionButton><ActionButton primary disabled={!notesReady || saving || !changed} onClick={() => saveNote(name)} aria-label={`${name} 메모 저장`}>{saving ? '저장 중…' : '저장'}</ActionButton></div>
+                        </div></> : <><p className={notes[name] ? '' : 'today-muted'}>{notesReady ? notes[name] || '등록된 메모가 없습니다.' : '메모를 불러오는 중…'}</p>{status === 'saved' && <span className="today-muted" role="status">저장되었습니다.</span>}</>}
+                    </div>;
+                })}</div>
                 {selected && <button className="today-link today-log-link" onClick={() => onNavigate('training-log', selected)}>이 수업 훈련일지 열기 →</button>}
             </section>
         </div>
     </main>;
-}
-
-// 수강생에게 넣은 코치 체크리스트를 운동별로 — 수강생 훈련일지 체크리스트와 같은 앰버 카드(2026-11-05).
-const monthDay = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? '' : `${date.getMonth() + 1}/${date.getDate()}`; };
-export function ChecklistByExercise({ memos, checks = {}, onToggle }) {
-    const [busy, setBusy] = useState(() => new Set());
-    const [failed, setFailed] = useState('');
-    async function toggle(item) {
-        const key = item.key;
-        if (!onToggle || busy.has(key)) return;
-        setBusy(previous => new Set(previous).add(key)); setFailed('');
-        try { await onToggle(item, !item.done); }
-        catch (reason) { setFailed(reason?.message || '저장하지 못했습니다. 다시 눌러주세요.'); }
-        finally { setBusy(previous => { const next = new Set(previous); next.delete(key); return next; }); }
-    }
-    if (memos === undefined) return <p className="today-muted">체크리스트 불러오는 중…</p>;
-    if (memos === null) return <p className="today-note-error">체크리스트를 불러오지 못했습니다.</p>;
-    const { groups, hiddenDone } = groupChecklistByExercise(memos, new Date(), checks);
-    if (!groups.length) return <p className="today-muted">체크리스트 없음{hiddenDone ? ` · 지난 완료 ${hiddenDone}개` : ''}</p>;
-    return <div className="today-checklist">
-        {groups.map(group => <div className="today-checklist-group" key={group.exercise}>
-            <h3>{group.exercise}</h3>
-            <ul>{group.items.map(item => <li key={item.key} className={item.done ? 'is-done' : ''}>
-                <label className="today-check-label">
-                    <input type="checkbox" className="today-check" checked={item.done} disabled={!onToggle || busy.has(item.key)} onChange={() => toggle(item)} />
-                    <span className="today-check-text">{item.text}</span>
-                </label>
-                {item.studentDone && <span className="today-check-student">수강생 완료</span>}
-                <span className="today-check-date">{item.done ? `완료 ${monthDay(item.doneAt)}` : monthDay(item.createdAt)}</span>
-            </li>)}</ul>
-        </div>)}
-        {hiddenDone > 0 && <p className="today-check-hidden">지난 완료 {hiddenDone}개 숨김</p>}
-        {failed && <p className="today-note-error" role="alert">{failed}</p>}
-    </div>;
 }

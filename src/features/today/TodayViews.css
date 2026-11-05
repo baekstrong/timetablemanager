@@ -101,6 +101,11 @@
 .today-student .today-header h1 { color: var(--accent); font-size: 22px; }
 
 .today-note-editor { cursor: default; }
+.today-note-editor .today-field { margin: 0 0 10px; }
+.today-note-editor textarea { box-sizing: border-box; min-height: 100px; line-height: 1.7; }
+.today-note-editor textarea:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.today-note-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.today-note-actions .today-button { flex-shrink: 0; }
 .today-note-error { color: var(--error); font-size: 12px; }
 
 .today-note-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
@@ -118,18 +123,3 @@
 
 .today-coach-identity { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
 .today-coach-identity .today-coach-title { margin-bottom: 0; }
-
-/* 수강생 체크리스트(운동별) — 훈련일지 코치 체크리스트와 같은 앰버 (2026-11-05) */
-.today-checklist { background: #FAEEDA; border: 1px solid #FAC775; border-radius: var(--r-md); padding: 10px 12px; }
-.today-checklist-group + .today-checklist-group { margin-top: 10px; padding-top: 10px; border-top: 1px solid #FAC77580; }
-.today-checklist h3 { font-size: 13px; font-weight: 700; color: #854F0B; margin: 0 0 4px; }
-.today-checklist ul { list-style: none; margin: 0; padding: 0; }
-.today-checklist li { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 1.6; padding: 2px 0; color: var(--text); }
-.today-checklist li.is-done { color: var(--text-muted); }
-.today-checklist li.is-done .today-check-text { text-decoration: line-through; }
-.today-check-label { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
-.today-check { flex-shrink: 0; width: 18px; height: 18px; margin: 3px 0 0; accent-color: #854F0B; cursor: pointer; }
-.today-check-text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.today-check-date { flex-shrink: 0; font-size: 11px; color: #854F0B; padding-top: 3px; }
-.today-check-student { flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--success); background: #31A5521A; border: 1px solid #31A5524D; border-radius: var(--r-chip); padding: 0 6px; margin-top: 2px; }
-.today-check-hidden { font-size: 12px; color: #854F0B; margin: 8px 0 0; }

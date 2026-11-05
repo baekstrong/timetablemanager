@@ -61,27 +61,3 @@ export function buildCoachTaskGroups({ lastDayStudents = [], delayedStudents = [
         { id: 'delayed', title: '수강 종료·미재등록', items: unique(delayedStudents).map(student => itemFor(student, true)) },
     ];
 }
-
-// 코치 첫 화면 '수강생 메모': 수강생에게 넣은 코치 체크리스트(coachPinnedMemos)를 운동별로 묶는다(2026-11-05).
-// 체크 상태는 코치 것(coachChecks: {항목키: 체크시각})만 쓴다 — 수강생 체크와 독립. 수강생 완료는 표시만(studentDone).
-// 미체크 + 최근 7일 안에 코치가 체크한 항목(줄 그음)을 보이고, 그보다 오래된 체크는 개수만 센다.
-export const CHECKLIST_DONE_DAYS = 7;
-const itemKey = (id, exercise, text) => id ? `id:${id}` : `t:${exercise || ''}::${text}`;
-export function groupChecklistByExercise(memos, now = new Date(), coachChecks = {}) {
-    const cutoff = now.getTime() - CHECKLIST_DONE_DAYS * 86_400_000;
-    const groups = new Map();
-    let hiddenDone = 0;
-    for (const memo of memos || []) {
-        if (!memo || !String(memo.memo || '').trim()) continue;
-        const key = itemKey(memo.id, memo.exercise, String(memo.memo));
-        const doneAt = coachChecks[key] || '';
-        if (doneAt && !(new Date(doneAt).getTime() >= cutoff)) { hiddenDone += 1; continue; }
-        const exercise = String(memo.exercise || '').trim() || '기타';
-        if (!groups.has(exercise)) groups.set(exercise, []);
-        groups.get(exercise).push({ id: memo.id || '', key, exercise: memo.exercise || '', text: String(memo.memo), done: !!doneAt, doneAt, studentDone: !!memo.done, createdAt: memo.createdAt || '' });
-    }
-    const list = [...groups].map(([exercise, items]) => ({ exercise, items: items.sort((a, b) => a.done - b.done) }));
-    // 할 게 남은 운동을 위로
-    list.sort((a, b) => a.items.every(item => item.done) - b.items.every(item => item.done));
-    return { groups: list, hiddenDone };
-}
