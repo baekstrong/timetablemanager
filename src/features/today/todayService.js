@@ -1,19 +1,6 @@
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { readSheetData, writeSheetData } from '../../services/googleSheetsService';
-
-// Same protected document used by training-log. Never import/load this from student UI.
-export async function readCoachNotes() {
-    const snapshot = await getDoc(doc(db, 'coachNotes', 'notes'));
-    return snapshot.exists() ? snapshot.data().map || {} : {};
-}
-
-export async function saveCoachNote(name, note) {
-    if (!name) throw new Error('수강생을 선택해주세요.');
-    await setDoc(doc(db, 'coachNotes', 'notes'), {
-        map: { [name]: note.trim() }, updatedAt: serverTimestamp(),
-    }, { merge: true });
-}
 
 export async function confirmStudentPayment(student, date, method) {
     const sheet = student._foundSheetName;
