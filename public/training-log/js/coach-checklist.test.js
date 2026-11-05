@@ -62,3 +62,26 @@ describe('내 운동 메모 체크리스트', () => {
         expect(memoText([{ text: 'a' }, { text: 'b' }])).toBe('a\nb');
     });
 });
+
+describe('기록 카드의 코치 체크리스트 (2026-11-05)', () => {
+    it('그 종목의 미완료·오늘 완료 항목만 읽기 전용으로 보인다', async () => {
+        const { coachChecklistListHTML } = await import('./modules/coach-checklist-card.js');
+        const memos = [
+            { id: 'a', exercise: '벤치프레스', memo: '마지막 구간 <천천히>', createdAt: '2026-10-22T10:00:00Z' },
+            { id: 'b', exercise: '벤치프레스', memo: '어제 완료', done: true, doneAt: '2026-10-23T10:00:00Z' },
+            { id: 'c', exercise: '벤치프레스', memo: '오늘 완료', done: true, doneAt: new Date().toISOString() },
+            { id: 'd', exercise: '백 스쿼트', memo: '박스 스쿼트로' },
+        ];
+        const html = coachChecklistListHTML(memos, '벤치프레스');
+        expect(html).toContain('코치 체크리스트');
+        expect(html).toContain('마지막 구간 &lt;천천히&gt;');
+        expect(html).toContain('10/22');
+        expect(html).toContain('오늘 완료');
+        expect(html).toContain('line-through');
+        expect(html).not.toContain('어제 완료');
+        expect(html).not.toContain('박스 스쿼트로');
+        expect(html).not.toContain('type="checkbox"');
+        expect(coachChecklistListHTML(memos, '데드리프트')).toBe('');
+        expect(coachChecklistListHTML(undefined, '벤치프레스')).toBe('');
+    });
+});

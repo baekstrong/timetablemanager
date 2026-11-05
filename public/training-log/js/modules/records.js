@@ -1,4 +1,5 @@
 import { localDate, escapeHTML } from './student-workspace-logic.js?v=20260925-student-ux';
+import { coachChecklistListHTML } from './coach-checklist-card.js?v=20261105-record-coach-checklist';
 import { state, db, firebaseInitialized, persistenceEnabled } from '../state.js';
 import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue, moveButtons, swapSets } from './sets.js?v=20260925-student-ux';
 import { renderEditModalContent, generatePinnedMemosHTML, memoItems, memoText, memoListHTML } from '../ui.js?v=20261028-checklist-undo';
@@ -578,6 +579,7 @@ function renderRecordsList(docs) {
                             </div>
                             <span class="text-xs text-gray-500">${time}</span>
                         </div>
+                        ${coachChecklistListHTML(state.coachPinnedMemos, data.exercise)}
                         ${memoListHTML(pinnedMemo, data.memo)}
                         
                         ${data.feedback ? `<div class="student-record-feedback"><strong>코치 피드백</strong><p>${escapeHTML(data.feedback)}</p></div>` : ''}

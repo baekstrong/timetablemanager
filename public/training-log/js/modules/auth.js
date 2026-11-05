@@ -1,7 +1,7 @@
 import { restoreSessionIdentity } from '../sessionRecovery.js?v=20261014-performance';
 import { state, db, firebaseInitialized } from '../state.js';
 import { saveLogin, loadSavedLogin, clearSavedLogin } from '../utils.js';
-import { loadPinnedExercisesFromStorage, loadArchivedMemosFromStorage, migrateLocalStorageToFirestore } from './records.js?v=20261028-checklist-undo';
+import { loadPinnedExercisesFromStorage, loadArchivedMemosFromStorage, migrateLocalStorageToFirestore } from './records.js?v=20261105-record-coach-checklist';
 import { FUNCTIONS_BASE } from '../config.js';
 
 let autoLoginPending = false;
