@@ -235,6 +235,7 @@ src/
 │   ├── CoachNewStudents.jsx         # 신규 신청 승인/거절
 │   ├── ContractView.jsx            # 재등록 계약 동의 페이지 (학생용)
 │   ├── ContractHistory.jsx         # 계약 이력 모달 (코치/학생 공용)
+│   ├── RenewalContractPopup.jsx    # 재등록 계약서 도착 팝업 (학생, 어느 화면이든)
 │   ├── NewStudentRegistration.jsx   # 신규 수강생 7단계 위자드 (외부 접근: ?register=true)
 │   ├── schedule/                    # 시간표 분리 컴포넌트 (CoachSchedule, StudentSchedule, MakeupModal, MakeupWaitlistModal=대기 수락/거절 모달, ScheduleCell 등)
 │   ├── MonthSelector.jsx            # 월 선택 드롭다운 (6개월전~3개월후)
@@ -992,6 +993,12 @@ Codex의 프로젝트 진입 지침은 `AGENTS.md`다. 공통 업무 규칙은 �
 - 종료일 당일 `오늘은 마지막 수업일입니다`, 종료일 다음날부터 `수강 기간이 만료되었습니다` 팝업을 수강생 첫 화면 `내 수업`에 표시한다. 본문은 `재등록을 원하시면 코치에게 문의해주세요.`, `확인`/닫기/ESC로 닫는다. 게시판의 두 배너와 전용 종료일/보강 조회를 제거했다.
 - 후속 사용자 결정: 첫 화면 재진입마다 표시하지 않고 앱을 닫고 새로 실행했을 때 다시 표시한다. `courseNoticeSession`이 수강생별 확인 상태를 앱 실행 동안 보존한다. 내부 메뉴/탭/시각 변경 및 훈련일지 복귀에는 다시 뜨지 않는다. `main.jsx`가 일반 시작·페이지 새로고침에서 확인 상태를 초기화하며 훈련일지의 기존 `quickReturn` 복귀는 sessionStorage에 저장한 상태를 이어 쓴다. 계정별로 구분해 다른 수강생의 안내까지 숨기지 않는다.
 - `StudentClassView`가 기존 현재+미리 등록 합산·보강 반영 최종 종료일을 사용한다. 로딩/조회 오류/종료일 없음은 표시하지 않고 현지 달력 날짜로 비교한다. `ReviewModal`의 포커스·스크롤 잠금·하단 메뉴 위 포털을 재사용하며 새 API 조회·운영 쓰기는 추가하지 않는다. 저장소 접근 실패 시에는 현재 문서의 메모리로 메뉴 이동 중 중복 안내를 막는다.
+
+### 재등록 계약서 도착 팝업 (2026-11-05)
+- 사용자 요청: 첫 화면·내 정보의 `재등록 계약서 확인` 버튼을 못 찾는 수강생이 많아, 코치가 계약서를 보내면(`renewalContracts` pending) **어느 화면이든** `RenewalContractPopup`을 띄운다. `나중에`(왼쪽)/`계약서 확인하기`(오른쪽 → `contractView`), 수강 주횟수·개월·기간 요약. 기존 버튼·빨간점은 유지.
+- App이 기존 학생 알림 조회(15분·화면 복귀, `getPendingContractForStudent`)의 계약서 객체를 `pendingContract`로 보관한다(추가 조회 없음). 그래서 앱이 열려 있으면 최대 15분 또는 앱 복귀 때 뜬다.
+- `나중에`는 `contractNoticeSession`(계약서 id별, `courseNoticeSession`과 같은 앱 실행 범위·별도 키)으로 이번 실행에만 숨기고 **재접속하면 다시 뜬다**. 훈련일지 `quickReturn` 복귀는 이어 쓴다. 동의하면 `ContractView`의 `onAgreed`로 즉시 사라진다.
+- 계약서 팝업이 떠 있는 동안 성장(티어·학년) 팝업은 미루고, 계약서가 대기 중이면 내 수업의 종료 안내 팝업(`suppressCourseNotice`)은 띄우지 않는다(두 팝업 겹침 방지). 훈련일지 서브앱 안에는 뜨지 않는다.
 
 ### 코치 시간표 중복 안내 제거 (2026-10-12)
 - 사용자 요청으로 코치 시간표의 `오늘 마지막 수업`·`재등록 지연` 배너와 `시간표 대기 현황` 패널을 제거한다. 해당 업무는 코치 첫 화면 `할 일`에서 처리한다. 사용처가 없어진 `CoachInfoSection`·`CoachWaitlistPanel`·전용 상태/props/섹션 스타일도 제거했다.

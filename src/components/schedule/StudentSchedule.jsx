@@ -67,6 +67,7 @@ export default function StudentSchedule(props) {
 
 function CurrentWeekStudentSchedule({
     user,
+    suppressCourseNotice = false,
     // scheduleCore 파생 데이터
     weekDates,
     weekAbsences,
@@ -1338,6 +1339,7 @@ function CurrentWeekStudentSchedule({
         <>
             {modernStudent && <StudentClassView
                 readOnly={readOnly}
+                suppressCourseNotice={suppressCourseNotice}
                 studentName={user?.username}
                 days={days} sessions={personalSessions} now={now} tab={studentTab} onTabChange={changeStudentTab}
                 loading={personalLoading} error={personalError} onRetry={retryStudentData}

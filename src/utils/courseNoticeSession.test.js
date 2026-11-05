@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createCourseNoticeSession, courseNoticeSession, startCourseNoticeSession } from './courseNoticeSession';
+import { createCourseNoticeSession, courseNoticeSession, contractNoticeSession, startCourseNoticeSession } from './courseNoticeSession';
 
 const createStorage = () => {
     const values = new Map();
@@ -48,5 +48,23 @@ describe('종료 팝업의 앱 실행 범위', () => {
         expect(session.isDismissed('수강생 A')).toBe(true);
         session.start();
         expect(session.isDismissed('수강생 A')).toBe(false);
+    });
+});
+
+describe('재등록 계약서 팝업의 앱 실행 범위', () => {
+    it('나중에는 이번 실행에서만 숨기고 재접속하면 다시 뜬다(종료 팝업과 저장 키 분리)', () => {
+        const storage = createStorage();
+        vi.stubGlobal('window', { sessionStorage: storage });
+        startCourseNoticeSession();
+        contractNoticeSession.dismiss('contract-1');
+        expect(contractNoticeSession.isDismissed('contract-1')).toBe(true);
+        expect(contractNoticeSession.isDismissed('contract-2')).toBe(false);
+        expect(courseNoticeSession.isDismissed('contract-1')).toBe(false);
+        storage.setItem('quickReturn', 'true');
+        startCourseNoticeSession();
+        expect(contractNoticeSession.isDismissed('contract-1')).toBe(true);
+        storage.removeItem('quickReturn');
+        startCourseNoticeSession();
+        expect(contractNoticeSession.isDismissed('contract-1')).toBe(false);
     });
 });

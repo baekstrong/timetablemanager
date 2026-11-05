@@ -13,7 +13,7 @@ function ClassStatusChip({ session, now, detail = false }) {
 }
 
 export default function StudentClassView({
-    days, sessions = [], now, tab, onTabChange, readOnly = false,
+    days, sessions = [], now, tab, onTabChange, readOnly = false, suppressCourseNotice = false,
     loading = false, error = '', onRetry, studentName, membership, source, quotaUsed, quotaLimit,
     requestUnavailableReason = '', requestError = '',
     waits = [], onWaitlist, onKeepWait, onConvertWait, onSourceChoose, onMakeup, onCancelMakeup, onNavigate, children,
@@ -29,7 +29,7 @@ export default function StudentClassView({
     const shortDate = date => date ? `${Number(date.slice(5, 7))}/${Number(date.slice(8))}` : '—';
     const endDate = membership?.endDate;
     const courseNoticeKey = endDate && endDate <= today ? `${endDate}/${today}` : '';
-    const showCourseNotice = !loading && !error && courseNoticeKey && studentName
+    const showCourseNotice = !suppressCourseNotice && !loading && !error && courseNoticeKey && studentName
         && dismissedCourseNotice !== studentName && !courseNoticeSession.isDismissed(studentName);
     const closeCourseNotice = () => {
         courseNoticeSession.dismiss(studentName);

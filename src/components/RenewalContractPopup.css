@@ -1,0 +1,10 @@
+.renewal-contract-popup { display:flex; flex-direction:column; gap:16px; color:var(--text); }
+.renewal-contract-popup p { margin:0; font-size:15px; line-height:1.6; word-break:keep-all; }
+.renewal-contract-popup dl { margin:0; padding:14px 16px; display:flex; flex-direction:column; gap:8px; border:1px solid var(--hairline); border-radius:var(--r-md); background:var(--canvas-tint); }
+.renewal-contract-popup dl>div { display:flex; gap:12px; font-size:14px; }
+.renewal-contract-popup dt { min-width:32px; color:var(--text-secondary); }
+.renewal-contract-popup dd { margin:0; font-weight:700; font-variant-numeric:tabular-nums; }
+.renewal-contract-popup-actions { display:flex; gap:8px; margin-top:4px; }
+.renewal-contract-popup-actions button { flex:1; min-height:48px; padding:11px 14px; border:1px solid var(--hairline); border-radius:var(--r-md); background:var(--canvas); color:var(--text); font-size:15px; font-family:inherit; cursor:pointer; }
+.renewal-contract-popup-actions button.primary { flex:1.6; background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700; }
+.renewal-contract-popup-actions button.primary:hover { background:var(--accent-hover); border-color:var(--accent-hover); }

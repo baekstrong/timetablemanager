@@ -22,6 +22,8 @@ import BottomNav from './components/BottomNav';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import UpdateBanner from './components/UpdateBanner';
 import StudentGrowthModal from './components/StudentGrowthModal';
+import RenewalContractPopup from './components/RenewalContractPopup';
+import { contractNoticeSession } from './utils/courseNoticeSession';
 import CoachRenewalReminder from './features/today/CoachRenewalReminder';
 import { useStudentGrowth } from './hooks/useStudentGrowth';
 import { startVersionCheck } from './utils/versionCheck';
@@ -71,7 +73,9 @@ function AppContent() {
   const [hasNewStudentNotification, setHasNewStudentNotification] = useState(false);
   const [studentTransfers, setStudentTransfers] = useState({ name: '', entries: [] });
   const hasWaitlistNotification = studentTransfers.name === user?.username && studentTransfers.entries.some(item => item.status === 'notified');
-  const [hasContractNotification, setHasContractNotification] = useState(false);
+  const [pendingContract, setPendingContract] = useState(null);
+  const [dismissedContractId, setDismissedContractId] = useState('');
+  const hasContractNotification = Boolean(pendingContract);
   const [hasNewPostNotification, setHasNewPostNotification] = useState(false);
   const [hasStampPendingNotification, setHasStampPendingNotification] = useState(false);
   const [isStudentDataLoading, setIsStudentDataLoading] = useState(false);
@@ -151,6 +155,7 @@ function AppContent() {
 
   // Poll for waitlist + contract notifications (student only)
   useEffect(() => {
+    setPendingContract(null);
     if (!user || user.role === 'coach') return;
 
     const checkStudentNotifications = async () => {
@@ -160,7 +165,7 @@ function AppContent() {
           getPendingContractForStudent(user.username)
         ]);
         setStudentTransfers({ name: user.username, entries: waitlist });
-        setHasContractNotification(!!contract);
+        setPendingContract(contract && contract.studentName === user.username ? contract : null);
       } catch {
         // ignore polling errors
       }
@@ -446,7 +451,7 @@ function AppContent() {
         return <CoachNewStudents key={newStudentFilter} initialFilter={newStudentFilter} user={user} onBack={handleBackToDashboard} />;
 
       case 'contractView':
-        return <ContractView user={user} onBack={handleBackToDashboard} />;
+        return <ContractView user={user} onBack={handleBackToDashboard} onAgreed={() => setPendingContract(null)} />;
 
       case 'ranking':
         return (
@@ -479,6 +484,16 @@ function AppContent() {
     }
   };
 
+  // 재등록 계약서: 어느 화면이든 팝업. '나중에'는 이번 실행 동안만 숨기고 재접속하면 다시 뜬다.
+  const showContractPopup = user?.role === 'student' && Boolean(pendingContract?.id)
+    && currentPage !== 'contractView' && currentPage !== 'login'
+    && dismissedContractId !== pendingContract.id && !contractNoticeSession.isDismissed(pendingContract.id);
+  const dismissContractPopup = () => {
+    if (!pendingContract?.id) return;
+    contractNoticeSession.dismiss(pendingContract.id);
+    setDismissedContractId(pendingContract.id);
+  };
+
   return (
     <div className={`app${user?.role === 'student' ? ' student-app' : ''}`}>
       {updateAvailable && <UpdateBanner />}
@@ -488,7 +503,11 @@ function AppContent() {
       <Suspense fallback={<PageLoading />}>
         {renderPage()}
       </Suspense>
-      {user?.role === 'student' && ['schedule', 'today'].includes(currentPage) && studentGrowth.showNotice && (
+      {showContractPopup && (
+        <RenewalContractPopup contract={pendingContract} onLater={dismissContractPopup}
+          onOpen={() => { dismissContractPopup(); handleNavigate('contractView'); }} />
+      )}
+      {!showContractPopup && user?.role === 'student' && ['schedule', 'today'].includes(currentPage) && studentGrowth.showNotice && (
         <StudentGrowthModal tierChange={studentGrowth.tierChange} gradeChange={studentGrowth.gradeChange}
           busy={studentGrowth.busy} error={studentGrowth.confirmError} onConfirm={studentGrowth.confirm} onLater={studentGrowth.later} />
       )}

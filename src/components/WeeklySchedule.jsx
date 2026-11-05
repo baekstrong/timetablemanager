@@ -705,6 +705,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
             {mode === 'student' && (
                 <StudentSchedule
                     user={user}
+                    suppressCourseNotice={hasContractNotification}
                     mode={mode}
                     students={students}
                     weekDates={weekDates}

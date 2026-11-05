@@ -13,7 +13,7 @@ const formatYYMMDD = (yymmdd) => {
     return `20${yy}-${mm}-${dd}`;
 };
 
-const ContractView = ({ user, onBack }) => {
+const ContractView = ({ user, onBack, onAgreed }) => {
     const [contract, setContract] = useState(null);
     const [loading, setLoading] = useState(true);
     const [agreed, setAgreed] = useState(false);
@@ -109,6 +109,7 @@ const ContractView = ({ user, onBack }) => {
 
             // 5. Firebase 상태 업데이트
             await agreeToContract(contract.id);
+            onAgreed?.(contract.id);
 
             alert('계약에 동의하였습니다. 등록이 완료되었습니다.');
             onBack();
