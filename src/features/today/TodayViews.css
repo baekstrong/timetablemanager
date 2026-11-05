@@ -123,3 +123,19 @@
 
 .today-coach-identity { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
 .today-coach-identity .today-coach-title { margin-bottom: 0; }
+
+/* 수강생 체크리스트(운동별) — 훈련일지 코치 체크리스트와 같은 앰버 (2026-11-05) */
+.today-checklist { background: #FAEEDA; border: 1px solid #FAC775; border-radius: var(--r-md); padding: 10px 12px; }
+.today-checklist-group + .today-checklist-group { margin-top: 10px; padding-top: 10px; border-top: 1px solid #FAC77580; }
+.today-checklist h3 { font-size: 13px; font-weight: 700; color: #854F0B; margin: 0 0 4px; }
+.today-checklist ul { list-style: none; margin: 0; padding: 0; }
+.today-checklist li { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 1.6; padding: 2px 0; color: var(--text); }
+.today-checklist li.is-done { opacity: .5; }
+.today-checklist li.is-done .today-check-text { text-decoration: line-through; }
+.today-check { color: #854F0B; flex-shrink: 0; }
+.today-check-text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.today-check-date { flex-shrink: 0; font-size: 11px; color: #854F0B; padding-top: 3px; }
+.today-check-hidden { font-size: 12px; color: #854F0B; margin: 8px 0 0; }
+.today-private-note { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+.today-private-note > span { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+.today-note .today-private-note p { margin-top: 4px; }

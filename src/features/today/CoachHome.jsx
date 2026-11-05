@@ -1,8 +1,8 @@
 import { publishRoster, publishLastClasses, publishReregX, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../../services/firebaseService';
 import { weekDateToISO } from '../../utils/scheduleUtils';
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { PERIODS, DAYS } from '../../data/mockData';
-import { readCoachNotes, saveCoachNote, confirmStudentPayment } from './todayService';
+import { readCoachNotes, readCoachChecklists, saveCoachNote, confirmStudentPayment } from './todayService';
 import { attendingNames, lessonRefreshId, buildCoachTaskGroups } from './todayModel';
 import { CoachToday, ActionButton } from './TodayViews';
 import ReviewModal from './ReviewModal';
@@ -20,6 +20,22 @@ export default function CoachHome({ user, freeWorkoutByDate = {}, hasNewPostNoti
     const [payment, setPayment] = useState(null);
     const [paymentDate, setPaymentDate] = useState(() => new Date().toLocaleDateString('sv-SE'));
     const [method, setMethod] = useState('카드');
+    // 수강생 체크리스트 캐시 {이름: memos | null(실패)}. 고른 수업 참석자만 읽고, 앱 복귀 때 읽은 사람을 다시 읽는다.
+    const [checklists, setChecklists] = useState({});
+    const checklistNames = useRef(new Set());
+    const loadChecklists = useCallback(async (names, force = false) => {
+        const targets = names.filter(name => force || !checklistNames.current.has(name));
+        if (!targets.length) return;
+        targets.forEach(name => checklistNames.current.add(name));
+        try {
+            const result = await readCoachChecklists(targets);
+            setChecklists(previous => ({ ...previous, ...result }));
+        } catch {
+            targets.forEach(name => checklistNames.current.delete(name));
+            if (!force) setChecklists(previous => ({ ...previous, ...Object.fromEntries(targets.map(name => [name, null])) }));
+        }
+    }, []);
+    const loadChecklistsRef = useRef(loadChecklists);
     const refreshRef = useRef(refresh);
     useEffect(() => { refreshRef.current = refresh; }, [refresh]);
     useEffect(() => {
@@ -31,6 +47,7 @@ export default function CoachHome({ user, freeWorkoutByDate = {}, hasNewPostNoti
         const refreshOnVisible = createVisibleTask(() => Promise.all([
             refreshRef.current(),
             readCoachNotes().then(value => { if (alive) setNotes(value); }).catch(() => {}),
+            loadChecklistsRef.current([...checklistNames.current], true),
         ]));
         const visible = () => { if (!document.hidden) { setNow(new Date()); void refreshOnVisible(); } };
         document.addEventListener('visibilitychange', visible);
@@ -124,7 +141,7 @@ export default function CoachHome({ user, freeWorkoutByDate = {}, hasNewPostNoti
     }
     return <>
         {error && <p className="today-error" role="alert">{error}</p>}
-        <CoachToday scheduleTransferCount={core.weekWaitlist.filter(item => ['waiting', 'notified'].includes(item.status)).length} scheduleTransfers={scheduleTransfers} user={user} hasNewPostNotification={hasNewPostNotification} onRefresh={refresh} refreshedAt={refreshedAt} refreshing={refreshing} refreshMessage={refreshMessage} freeWorkout={freeWorkout} dateLabel={now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })} lessons={lessons} minutes={minutes} taskGroups={groups} notes={notes} onAction={onAction} notesReady={notesReady} onSaveNote={saveNote} onNavigate={onNavigate} />
+        <CoachToday scheduleTransferCount={core.weekWaitlist.filter(item => ['waiting', 'notified'].includes(item.status)).length} scheduleTransfers={scheduleTransfers} user={user} hasNewPostNotification={hasNewPostNotification} onRefresh={refresh} refreshedAt={refreshedAt} refreshing={refreshing} refreshMessage={refreshMessage} freeWorkout={freeWorkout} dateLabel={now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })} lessons={lessons} minutes={minutes} taskGroups={groups} notes={notes} checklists={checklists} onLoadChecklists={loadChecklists} onAction={onAction} notesReady={notesReady} onSaveNote={saveNote} onNavigate={onNavigate} />
         {payment && <ReviewModal title={`${payment['이름']} · 결제 확인`} busy={busy} onClose={() => setPayment(null)}><p>{payment['요일 및 시간']} · {payment['결제금액']}만원</p><label className="today-field">결제일<input type="date" value={paymentDate} onChange={event => setPaymentDate(event.target.value)} /></label><label className="today-field">결제 방식<select value={method} onChange={event => setMethod(event.target.value)}>{['카드', '네이버', '제로페이', '계좌'].map(value => <option key={value}>{value}</option>)}</select></label>{error && <p role="alert">{error}</p>}<ActionButton primary disabled={busy || !paymentDate} onClick={savePayment}>{busy ? '저장 중…' : '결제 완료로 저장'}</ActionButton></ReviewModal>}
         {renewal && <Suspense fallback={<p role="status">등록 화면을 불러오는 중…</p>}><StudentRegistrationModal initialRenewalName={renewal} onClose={() => setRenewal(null)} onSuccess={async () => { setRenewal(null); await refresh(); }} /></Suspense>}
     </>;

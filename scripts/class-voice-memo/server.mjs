@@ -128,7 +128,8 @@ async function patch({ file, op, student, text, from, index, to, as }) {
         if (!u) throw new Error('항목을 찾을 수 없어요');
         const line = String(typeof u === 'string' ? u : u.line || '').trim(); // 예전 제안은 문자열
         const s = get(to);
-        if (as === 'checklist') await addChecklist(s, line);
+        // 2026-11-05 사용자 결정: 체크리스트로 일원화 — 코치 전용 메모로는 명시(as='coach')할 때만
+        if (as !== 'coach') await addChecklist(s, line);
         else appendLines(s, [line], (await notes())[to] ?? '');
         if (typeof u !== 'string' && u.why) s.evidence = [...(s.evidence || []), u.why];
         data.uncertain.splice(index, 1);

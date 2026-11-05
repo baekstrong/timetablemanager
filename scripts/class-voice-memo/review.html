@@ -141,10 +141,7 @@ function studentHTML(p, s, si) {
       ${(cn.removed || []).length ? `<div class="hint" style="margin-top:6px">빠지는 내용: ${cn.removed.map(esc).join(' / ')}</div>` : ''}
       <button class="link edit">직접 고치기</button>
       ${editor(cn.proposed)}
-    </div>` : cn ? '' : `<div class="sec sec-coach" data-kind="coach-new">
-      <button class="link edit">+ 코치 전용 메모 추가</button>
-      ${editor(s.currentCoachNote || '')}
-    </div>`}
+    </div>` : ''}
     ${left.length ? `<div class="sec sec-check" data-kind="check">
       <div class="sec-head"><h3 style="color:var(--amber-text)">✅ 수강생 체크리스트</h3><span class="hint" style="color:var(--amber-text)">훈련일지에서 보임</span></div>
       ${left.map(([it, ii]) => `<div class="row" data-index="${ii}">
@@ -180,13 +177,13 @@ function render({ proposals, exerciseNames }) {
        <div class="hint">녹음 ${p.minutes ? p.minutes + '분' : ''} · 후보 명단 ${esc((p.names || []).join(', ') || '없음')}</div>
        ${p.html}
        ${(p.uncertain || []).length ? `<div class="sec sec-coach unk">
-         <div class="sec-head"><h3>❓ 누군지 모르는 메모</h3><span class="hint">넣을 곳과 이름을 고르면 그 사람 아래로 옮겨져요 — 체크하고 확인 완료해야 저장</span></div>
+         <div class="sec-head"><h3>❓ 누군지 모르는 메모</h3><span class="hint">이름을 고르면 그 사람 체크리스트로 옮겨져요 — 운동을 고르고 체크한 뒤 확인 완료해야 저장</span></div>
          ${p.uncertain.map((u, ui) => { const o = typeof u === 'string' ? { line: u, candidates: [] } : u;
            const rest = (p.names || []).filter(n => !(o.candidates || []).includes(n));
            return `<div class="unk-row" data-index="${ui}">
              <div>${esc(o.line)}</div>
              ${o.why ? `<div class="hint">${esc(o.why)}</div>` : ''}
-             <select class="who unk-as" aria-label="어디에 넣을지"><option value="coach">코치 전용 메모</option><option value="checklist">수강생 체크리스트</option></select>
+             <input type="hidden" class="unk-as" value="checklist">
              <select class="who unk-who" aria-label="누구 메모인지"><option value="">누구? 이름 고르기</option>
                ${(o.candidates || []).length ? `<optgroup label="후보">${o.candidates.map(n => `<option>${esc(n)}</option>`).join('')}</optgroup>` : ''}
                <optgroup label="이 수업 명단">${rest.map(n => `<option>${esc(n)}</option>`).join('')}</optgroup></select>

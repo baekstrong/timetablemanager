@@ -124,9 +124,11 @@ async function propose(transcriptFile) {
         date: meta.context.date, period: meta.context.period, names, source: meta.context.source,
         recording: meta.recording, minutes: meta.minutes,
         baseNotes: meta.context.coachNotes, // 제안이 고쳐 쓴 원래 메모 — 나중에 메모가 바뀌면 이 기준으로 다시 얹는다(rebaseNote)
-        students: (parsed.students || []).filter(s => names.includes(s.name) || s.guessed), uncertain: parsed.uncertain || [],
+        // 2026-11-05 사용자 결정: 코치 전용 메모 제안은 끄고 체크리스트로 일원화 — 규칙을 어겨 와도 버린다
+        students: (parsed.students || []).filter(s => names.includes(s.name) || s.guessed)
+            .map(s => ({ ...s, coachNote: null })).filter(s => (s.checklist || []).length), uncertain: parsed.uncertain || [],
     }, null, 1));
-    return { label, date: meta.context.date, none: !(parsed.students || []).length && !(parsed.uncertain || []).length };
+    return { label, date: meta.context.date, none: !(parsed.students || []).some(s => (s.checklist || []).length) && !(parsed.uncertain || []).length };
 }
 
 const PAGE = 'http://127.0.0.1:5179';

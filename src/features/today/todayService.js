@@ -32,3 +32,12 @@ export async function confirmStudentPayment(student, date, method) {
     // Only J/K/L of the selected registration; never rewrite another month's row.
     await writeSheetData(`${sheet}!J${row}:L${row}`, [[date.slice(2).replaceAll('-', ''), 'O', method]]);
 }
+
+// 수강생 체크리스트(coachPinnedMemos/{이름}) — 코치 첫 화면 표시용. 이름당 문서 1개 읽기.
+export async function readCoachChecklists(names) {
+    const entries = await Promise.all([...new Set(names)].map(async name => {
+        const snapshot = await getDoc(doc(db, 'coachPinnedMemos', name));
+        return [name, snapshot.exists() ? snapshot.data().memos || [] : []];
+    }));
+    return Object.fromEntries(entries);
+}
