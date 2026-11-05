@@ -224,3 +224,18 @@ export function dropRepeats(text) {
     }
     return out.join('\n');
 }
+
+// 2026-11-05 체크리스트 일원화: 예전 제안의 코치 전용 메모 변경안을 체크리스트 항목으로 바꾼다.
+// 원래 메모(base)에 없던 새 줄만 옮기고, 운동은 문장 속 가장 긴 운동 이름으로 추정(못 찾으면 빈칸 → 코치가 고름).
+export function coachNoteToChecklist(student, base, exercises = []) {
+    if (!student?.coachNote) return student;
+    const have = new Set(String(base ?? '').split('\n').map(l => l.trim()).filter(Boolean));
+    const lines = String(student.coachNote.proposed || '').split('\n').map(l => l.trim()).filter(l => l && !have.has(l));
+    const checklist = [...(student.checklist || [])];
+    for (const text of lines) {
+        if (checklist.some(item => item.text === text)) continue;
+        const exercise = exercises.filter(n => text.includes(n)).sort((a, b) => b.length - a.length)[0] || '';
+        checklist.push({ exercise, text, fromCoach: true, exerciseUnknown: !exercise });
+    }
+    return { ...student, coachNote: null, checklist };
+}

@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, w
 import os from 'node:os';
 import path from 'node:path';
 import { addCoachExerciseMemos, readCoachExerciseMemos, readCoachNotesDoc, readExerciseNames, TEST_ACCOUNTS, writeCoachNote } from './firestore.mjs';
-import { rebaseNote } from './lib.mjs';
+import { coachNoteToChecklist, rebaseNote } from './lib.mjs';
 
 export const PORT = +process.env.CVM_PORT || 5179; // 테스트용으로만 바꾼다
 const STATE = path.join(os.homedir(), 'Library/Application Support/ClassVoiceMemo');
@@ -32,6 +32,12 @@ async function listProposals() {
         const raw = readFileSync(path.join(PROPOSALS, file), 'utf8');
         if (file.endsWith('.md')) { out.push({ file, legacy: true, raw }); continue; }
         const p = JSON.parse(raw);
+        // 2026-11-05 체크리스트 일원화: 예전에 만든 제안의 코치 전용 메모 변경안은 체크리스트 항목으로 바꿔 파일에 저장해 둔다
+        if ((p.students || []).some(s => s.coachNote)) {
+            p.students = p.students.map(s => coachNoteToChecklist(s, p.baseNotes?.[s.name], exerciseNames))
+                .filter(s => (s.checklist || []).length);
+            writeFileSync(path.join(PROPOSALS, file), JSON.stringify(p, null, 1), { mode: 0o600 });
+        }
         // 제안 이후 메모가 바뀌었을 수 있어 최신 값을 함께 보낸다(비교·충돌 확인용)
         for (const s of p.students || []) {
             s.currentCoachNote = notes[s.name] ?? '';
