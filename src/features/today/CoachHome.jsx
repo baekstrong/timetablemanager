@@ -2,7 +2,7 @@ import { publishRoster, publishLastClasses, publishReregX, syncStudentFrequencie
 import { weekDateToISO } from '../../utils/scheduleUtils';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { PERIODS, DAYS } from '../../data/mockData';
-import { readCoachChecklists, confirmStudentPayment } from './todayService';
+import { readCoachChecklists, setChecklistDone, confirmStudentPayment } from './todayService';
 import { attendingNames, lessonRefreshId, buildCoachTaskGroups } from './todayModel';
 import { CoachToday, ActionButton } from './TodayViews';
 import ReviewModal from './ReviewModal';
@@ -32,6 +32,10 @@ export default function CoachHome({ user, freeWorkoutByDate = {}, hasNewPostNoti
             targets.forEach(name => checklistNames.current.delete(name));
             if (!force) setChecklists(previous => ({ ...previous, ...Object.fromEntries(targets.map(name => [name, null])) }));
         }
+    }, []);
+    const toggleChecklist = useCallback(async (name, item, done) => {
+        const memos = await setChecklistDone(name, item, done);
+        setChecklists(previous => ({ ...previous, [name]: memos }));
     }, []);
     const loadChecklistsRef = useRef(loadChecklists);
     const refreshRef = useRef(refresh);
@@ -132,7 +136,7 @@ export default function CoachHome({ user, freeWorkoutByDate = {}, hasNewPostNoti
     }
     return <>
         {error && <p className="today-error" role="alert">{error}</p>}
-        <CoachToday scheduleTransferCount={core.weekWaitlist.filter(item => ['waiting', 'notified'].includes(item.status)).length} scheduleTransfers={scheduleTransfers} user={user} hasNewPostNotification={hasNewPostNotification} onRefresh={refresh} refreshedAt={refreshedAt} refreshing={refreshing} refreshMessage={refreshMessage} freeWorkout={freeWorkout} dateLabel={now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })} lessons={lessons} minutes={minutes} taskGroups={groups} checklists={checklists} onLoadChecklists={loadChecklists} onAction={onAction} onNavigate={onNavigate} />
+        <CoachToday scheduleTransferCount={core.weekWaitlist.filter(item => ['waiting', 'notified'].includes(item.status)).length} scheduleTransfers={scheduleTransfers} user={user} hasNewPostNotification={hasNewPostNotification} onRefresh={refresh} refreshedAt={refreshedAt} refreshing={refreshing} refreshMessage={refreshMessage} freeWorkout={freeWorkout} dateLabel={now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })} lessons={lessons} minutes={minutes} taskGroups={groups} checklists={checklists} onLoadChecklists={loadChecklists} onToggleChecklist={toggleChecklist} onAction={onAction} onNavigate={onNavigate} />
         {payment && <ReviewModal title={`${payment['이름']} · 결제 확인`} busy={busy} onClose={() => setPayment(null)}><p>{payment['요일 및 시간']} · {payment['결제금액']}만원</p><label className="today-field">결제일<input type="date" value={paymentDate} onChange={event => setPaymentDate(event.target.value)} /></label><label className="today-field">결제 방식<select value={method} onChange={event => setMethod(event.target.value)}>{['카드', '네이버', '제로페이', '계좌'].map(value => <option key={value}>{value}</option>)}</select></label>{error && <p role="alert">{error}</p>}<ActionButton primary disabled={busy || !paymentDate} onClick={savePayment}>{busy ? '저장 중…' : '결제 완료로 저장'}</ActionButton></ReviewModal>}
         {renewal && <Suspense fallback={<p role="status">등록 화면을 불러오는 중…</p>}><StudentRegistrationModal initialRenewalName={renewal} onClose={() => setRenewal(null)} onSuccess={async () => { setRenewal(null); await refresh(); }} /></Suspense>}
     </>;

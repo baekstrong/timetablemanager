@@ -1,4 +1,4 @@
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { readSheetData, writeSheetData } from '../../services/googleSheetsService';
 
@@ -27,4 +27,22 @@ export async function readCoachChecklists(names) {
         return [name, snapshot.exists() ? snapshot.data().memos || [] : []];
     }));
     return Object.fromEntries(entries);
+}
+
+// 코치 첫 화면에서 체크리스트 완료/취소 — 훈련일지 수강생 체크와 같은 모양(done, doneAt). 지우지 않는다.
+// 최신 문서를 트랜잭션으로 다시 읽어 그사이 수강생이 바꾼 다른 항목을 덮지 않는다. 예전 항목은 id가 없어 위치+문장으로 찾는다.
+export async function setChecklistDone(name, item, done) {
+    const ref = doc(db, 'coachPinnedMemos', name);
+    return runTransaction(db, async transaction => {
+        const snapshot = await transaction.get(ref);
+        const memos = snapshot.exists() ? [...(snapshot.data().memos || [])] : [];
+        const at = item.id ? memos.findIndex(memo => String(memo.id) === String(item.id))
+            : memos[item.index]?.memo === item.text ? item.index : memos.findIndex(memo => memo.memo === item.text && memo.exercise === item.exercise);
+        if (at < 0) throw new Error('항목이 바뀌었습니다. 새로고침해주세요.');
+        const next = { ...memos[at], done };
+        if (done) next.doneAt = new Date().toISOString(); else delete next.doneAt;
+        memos[at] = next;
+        transaction.set(ref, { userName: name, memos, updatedAt: serverTimestamp() }, { merge: true });
+        return memos;
+    });
 }

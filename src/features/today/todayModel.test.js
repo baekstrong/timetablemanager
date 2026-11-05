@@ -93,7 +93,7 @@ describe('코치 첫 화면 수강생 체크리스트', () => {
         expect(renderToStaticMarkup(createElement(ChecklistByExercise, { memos: [] }))).toContain('체크리스트 없음');
         const html = renderToStaticMarkup(createElement(ChecklistByExercise, { memos: [{ exercise: '스쿼트', memo: '엉덩이 아래로', createdAt: '2026-11-03T10:00:00' }] }));
         expect(html).toContain('스쿼트');
-        expect(html).toContain('☐');
+        expect(html).toContain('type="checkbox"');
         expect(html).toContain('11/3');
     });
 });

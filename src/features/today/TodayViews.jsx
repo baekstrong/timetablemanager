@@ -70,7 +70,7 @@ export function StudentToday({ name, taskGroups, lessons, weekLabel, waiting, po
     </main>;
 }
 
-export function CoachToday({ scheduleTransfers, scheduleTransferCount = 0, user, hasNewPostNotification = false, onRefresh, refreshedAt, refreshing, refreshMessage, freeWorkout = null, dateLabel, lessons, minutes, taskGroups, checklists = {}, onLoadChecklists, onAction, onNavigate }) {
+export function CoachToday({ scheduleTransfers, scheduleTransferCount = 0, user, hasNewPostNotification = false, onRefresh, refreshedAt, refreshing, refreshMessage, freeWorkout = null, dateLabel, lessons, minutes, taskGroups, checklists = {}, onLoadChecklists, onToggleChecklist, onAction, onNavigate }) {
     const [manualId, setManualId] = useState(null);
     const currentId = currentLessonId(lessons, minutes);
     const selectedId = manualId ?? automaticLessonId(lessons, minutes);
@@ -99,7 +99,7 @@ export function CoachToday({ scheduleTransfers, scheduleTransferCount = 0, user,
                 <p className="today-muted">{selected ? `${selected.id}교시 · ${selected.time} · 참석 예정 ${selected.attendees.length}명` : '오늘 수업이 모두 끝났습니다.'}{selected && selected.id !== currentId && (manualId == null ? ' · 다음 수업' : ' · 선택한 수업')}</p>
                 <div className="today-note-list">{selected?.attendees.map(name => <div className="today-note today-note-editor" key={name}>
                     <div className="today-note-heading"><strong>{name}</strong></div>
-                    <ChecklistByExercise memos={checklists[name]} />
+                    <ChecklistByExercise memos={checklists[name]} onToggle={onToggleChecklist && ((item, done) => onToggleChecklist(name, item, done))} />
                 </div>)}</div>
                 {selected && <button className="today-link today-log-link" onClick={() => onNavigate('training-log', selected)}>이 수업 훈련일지 열기 →</button>}
             </section>
@@ -109,7 +109,17 @@ export function CoachToday({ scheduleTransfers, scheduleTransferCount = 0, user,
 
 // 수강생에게 넣은 코치 체크리스트를 운동별로 — 수강생 훈련일지 체크리스트와 같은 앰버 카드(2026-11-05).
 const monthDay = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? '' : `${date.getMonth() + 1}/${date.getDate()}`; };
-export function ChecklistByExercise({ memos }) {
+export function ChecklistByExercise({ memos, onToggle }) {
+    const [busy, setBusy] = useState(() => new Set());
+    const [failed, setFailed] = useState('');
+    async function toggle(item) {
+        const key = item.id || `${item.index}`;
+        if (!onToggle || busy.has(key)) return;
+        setBusy(previous => new Set(previous).add(key)); setFailed('');
+        try { await onToggle(item, !item.done); }
+        catch (reason) { setFailed(reason?.message || '저장하지 못했습니다. 다시 눌러주세요.'); }
+        finally { setBusy(previous => { const next = new Set(previous); next.delete(key); return next; }); }
+    }
     if (memos === undefined) return <p className="today-muted">체크리스트 불러오는 중…</p>;
     if (memos === null) return <p className="today-note-error">체크리스트를 불러오지 못했습니다.</p>;
     const { groups, hiddenDone } = groupChecklistByExercise(memos);
@@ -117,12 +127,15 @@ export function ChecklistByExercise({ memos }) {
     return <div className="today-checklist">
         {groups.map(group => <div className="today-checklist-group" key={group.exercise}>
             <h3>{group.exercise}</h3>
-            <ul>{group.items.map((item, index) => <li key={item.id || index} className={item.done ? 'is-done' : ''}>
-                <span className="today-check" aria-hidden="true">{item.done ? '☑' : '☐'}</span>
-                <span className="today-check-text">{item.text}</span>
+            <ul>{group.items.map(item => <li key={item.id || item.index} className={item.done ? 'is-done' : ''}>
+                <label className="today-check-label">
+                    <input type="checkbox" className="today-check" checked={item.done} disabled={!onToggle || busy.has(item.id || `${item.index}`)} onChange={() => toggle(item)} />
+                    <span className="today-check-text">{item.text}</span>
+                </label>
                 <span className="today-check-date">{item.done ? `완료 ${monthDay(item.doneAt)}` : monthDay(item.createdAt)}</span>
             </li>)}</ul>
         </div>)}
         {hiddenDone > 0 && <p className="today-check-hidden">지난 완료 {hiddenDone}개 숨김</p>}
+        {failed && <p className="today-note-error" role="alert">{failed}</p>}
     </div>;
 }

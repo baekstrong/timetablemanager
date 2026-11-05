@@ -69,12 +69,12 @@ export function groupChecklistByExercise(memos, now = new Date()) {
     const cutoff = now.getTime() - CHECKLIST_DONE_DAYS * 86_400_000;
     const groups = new Map();
     let hiddenDone = 0;
-    for (const memo of memos || []) {
+    for (const [index, memo] of (memos || []).entries()) {
         if (!memo || !String(memo.memo || '').trim()) continue;
         if (memo.done && !(new Date(memo.doneAt).getTime() >= cutoff)) { hiddenDone += 1; continue; }
         const exercise = String(memo.exercise || '').trim() || '기타';
         if (!groups.has(exercise)) groups.set(exercise, []);
-        groups.get(exercise).push({ id: memo.id || '', text: String(memo.memo).trim(), done: !!memo.done, doneAt: memo.doneAt || '', createdAt: memo.createdAt || '' });
+        groups.get(exercise).push({ id: memo.id || '', index, exercise: memo.exercise || '', text: String(memo.memo), done: !!memo.done, doneAt: memo.doneAt || '', createdAt: memo.createdAt || '' });
     }
     const list = [...groups].map(([exercise, items]) => ({ exercise, items: items.sort((a, b) => a.done - b.done) }));
     // 할 게 남은 운동을 위로
