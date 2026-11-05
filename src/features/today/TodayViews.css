@@ -131,4 +131,5 @@
 .today-check { flex-shrink: 0; width: 18px; height: 18px; margin: 3px 0 0; accent-color: #854F0B; cursor: pointer; }
 .today-check-text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .today-check-date { flex-shrink: 0; font-size: 11px; color: #854F0B; padding-top: 3px; }
+.today-check-student { flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--success); background: #31A5521A; border: 1px solid #31A5524D; border-radius: var(--r-chip); padding: 0 6px; margin-top: 2px; }
 .today-check-hidden { font-size: 12px; color: #854F0B; margin: 8px 0 0; }

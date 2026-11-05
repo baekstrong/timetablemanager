@@ -19,9 +19,10 @@ it('코치홈 실제 복귀 이벤트는 60초·진행 중 중복을 막고 최�
     const refreshRef = { current: refresh };
     let cleanup;
     const loadChecklists = vi.fn().mockResolvedValue(undefined);
+    const readCoachChecklistChecks = vi.fn().mockResolvedValue({});
     const context = vm.createContext({
         useEffect: effect => { cleanup = effect(); }, document, Date, setInterval, clearInterval, Promise,
-        createVisibleTask, refreshRef,
+        createVisibleTask, refreshRef, readCoachChecklistChecks, setChecklistChecks: vi.fn(),
         setError: vi.fn(), setNow: vi.fn(),
         loadChecklistsRef: { current: loadChecklists }, checklistNames: { current: new Set(['정찬화']) },
     });
@@ -36,6 +37,7 @@ it('코치홈 실제 복귀 이벤트는 60초·진행 중 중복을 막고 최�
     expect(refresh).toHaveBeenCalledOnce();
     // 이미 읽은 수강생 체크리스트도 복귀 때 강제로 다시 읽는다
     expect(loadChecklists).toHaveBeenCalledWith(['정찬화'], true);
+    expect(readCoachChecklistChecks).toHaveBeenCalledTimes(2); // 마운트 1 + 복귀 1
     await vi.advanceTimersByTimeAsync(61_000);
     visible();
     expect(refresh).toHaveBeenCalledOnce(); // 60초가 지나도 이전 요청이 진행 중이면 합친다.

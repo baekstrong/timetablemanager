@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../config/firebase', () => ({ db: {} }));
-vi.mock('firebase/firestore', () => ({ doc: vi.fn((...parts) => parts.slice(1).join('/')), getDoc: vi.fn(), setDoc: vi.fn(), runTransaction: vi.fn((_db, fn) => globalThis.__tx(fn)), serverTimestamp: () => 'timestamp' }));
+vi.mock('firebase/firestore', () => ({ doc: vi.fn((...parts) => parts.slice(1).join('/')), getDoc: vi.fn(), setDoc: vi.fn(), deleteField: () => 'DELETE', serverTimestamp: () => 'timestamp' }));
 vi.mock('../../services/googleSheetsService', () => ({ readSheetData: vi.fn(), writeSheetData: vi.fn() }));
 import { readSheetData, writeSheetData } from '../../services/googleSheetsService';
 import { confirmStudentPayment } from './todayService';
@@ -35,16 +35,15 @@ it('선택 후 이미 결제된 등록은 다시 덮어쓰지 않는다', async 
 });
 
 describe('코치 첫 화면 체크리스트 체크', () => {
-    it('최신 문서에서 id로 찾아 done만 바꾸고 다른 항목은 그대로 둔다', async () => {
-        const memos = [{ id: 'a', exercise: '스쿼트', memo: '하나' }, { id: 'b', exercise: '벤치', memo: '둘' }];
-        const set = vi.fn();
-        globalThis.__tx = fn => fn({ get: async () => ({ exists: () => true, data: () => ({ memos }) }), set });
-        const { setChecklistDone } = await import('./todayService');
-        const next = await setChecklistDone('가상학생', { id: 'b', index: 1, text: '둘' }, true);
-        expect(next[0]).toEqual(memos[0]);
-        expect(next[1]).toMatchObject({ id: 'b', done: true });
-        expect(next[1].doneAt).toBeTruthy();
-        expect(set.mock.calls[0][0]).toBe('coachPinnedMemos/가상학생');
-        await expect(setChecklistDone('가상학생', { index: 5, text: '없음' }, true)).rejects.toThrow('바뀌었');
+    it('수강생 목록(coachPinnedMemos)은 건드리지 않고 코치 전용 문서에만 쓴다', async () => {
+        const { setDoc } = await import('firebase/firestore');
+        const { setCoachChecklistCheck, checklistKey } = await import('./todayService');
+        const at = await setCoachChecklistCheck('가상학생', { id: 'b', text: '둘' }, true);
+        expect(at).toBeTruthy();
+        expect(setDoc).toHaveBeenCalledWith('coachNotes/checklistChecks', { map: { 가상학생: { 'id:b': at } }, updatedAt: 'timestamp' }, { merge: true });
+        await setCoachChecklistCheck('가상학생', { id: 'b', text: '둘' }, false);
+        expect(setDoc).toHaveBeenLastCalledWith('coachNotes/checklistChecks', { map: { 가상학생: { 'id:b': 'DELETE' } }, updatedAt: 'timestamp' }, { merge: true });
+        expect(setDoc.mock.calls.every(call => !String(call[0]).startsWith('coachPinnedMemos'))).toBe(true);
+        expect(checklistKey({ exercise: '스쿼트', text: '아래로' })).toBe('t:스쿼트::아래로');
     });
 });

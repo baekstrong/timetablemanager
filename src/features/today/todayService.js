@@ -1,4 +1,4 @@
-import { doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { deleteField, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { readSheetData, writeSheetData } from '../../services/googleSheetsService';
 
@@ -29,20 +29,17 @@ export async function readCoachChecklists(names) {
     return Object.fromEntries(entries);
 }
 
-// 코치 첫 화면에서 체크리스트 완료/취소 — 훈련일지 수강생 체크와 같은 모양(done, doneAt). 지우지 않는다.
-// 최신 문서를 트랜잭션으로 다시 읽어 그사이 수강생이 바꾼 다른 항목을 덮지 않는다. 예전 항목은 id가 없어 위치+문장으로 찾는다.
-export async function setChecklistDone(name, item, done) {
-    const ref = doc(db, 'coachPinnedMemos', name);
-    return runTransaction(db, async transaction => {
-        const snapshot = await transaction.get(ref);
-        const memos = snapshot.exists() ? [...(snapshot.data().memos || [])] : [];
-        const at = item.id ? memos.findIndex(memo => String(memo.id) === String(item.id))
-            : memos[item.index]?.memo === item.text ? item.index : memos.findIndex(memo => memo.memo === item.text && memo.exercise === item.exercise);
-        if (at < 0) throw new Error('항목이 바뀌었습니다. 새로고침해주세요.');
-        const next = { ...memos[at], done };
-        if (done) next.doneAt = new Date().toISOString(); else delete next.doneAt;
-        memos[at] = next;
-        transaction.set(ref, { userName: name, memos, updatedAt: serverTimestamp() }, { merge: true });
-        return memos;
-    });
+// 코치 첫 화면 체크는 수강생 목록과 독립(2026-11-05 사용자 결정): coachPinnedMemos는 건드리지 않고
+// 코치 전용 문서 coachNotes/checklistChecks = {map:{이름:{항목키: 체크시각ISO}}}에만 쓴다(규칙상 코치만 읽고 씀).
+export const checklistKey = item => item.id ? `id:${item.id}` : `t:${item.exercise || ''}::${item.text}`;
+export async function readCoachChecklistChecks() {
+    const snapshot = await getDoc(doc(db, 'coachNotes', 'checklistChecks'));
+    return snapshot.exists() ? snapshot.data().map || {} : {};
+}
+export async function setCoachChecklistCheck(name, item, done) {
+    const at = new Date().toISOString();
+    await setDoc(doc(db, 'coachNotes', 'checklistChecks'), {
+        map: { [name]: { [checklistKey(item)]: done ? at : deleteField() } }, updatedAt: serverTimestamp(),
+    }, { merge: true });
+    return done ? at : null;
 }
