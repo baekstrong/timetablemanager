@@ -386,7 +386,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 
 | 컬렉션 | 용도 |
 | --- | --- |
-| `users` | 로그인 계정 `{password, isCoach, createdAt}`. 웹 푸시 토큰 `{fcmToken, fcmUpdatedAt}` — 본인 기기가 저장하고(직전 토큰과 같으면 write 생략), FCM이 `registration-token-not-registered`를 뱉으면 `push.js`가 지운다. 티어(출석 등급) 필드 `{tier, tierMonth('YYYY-MM'), prevTier, tierScore, tierIntroPending, tierUpdatedAt}` — 본인 접속 시 `refreshStudentTier`, 코치 접속 시 `backfillTiersForMonth`가 갱신 (아래 '티어 시스템' 참고) |
+| `users` | 로그인 계정 `{password, isCoach, createdAt}`. 웹 푸시 토큰 `{fcmToken, fcmUpdatedAt}` — 본인 기기가 저장하고(직전 토큰과 같으면 write 생략), FCM이 `registration-token-not-registered`를 뱉으면 `push.js`가 지운다. 티어(출석 등급) 필드 `{tier, tierMonth('YYYY-MM'), prevTier, tierScore, tierIntroPending, tierUpdatedAt}` — 본인 접속 시 `refreshStudentTier`, 코치 접속 시 `backfillTiersForMonth`가 갱신 (아래 '티어 시스템' 참고). 명예 졸업 `{graduated, graduatedAt}` — 코치만 씀 (아래 '명예 졸업' 참고) |
 | `makeupRequests` | 보강 신청 (status: active/completed/cancelled) |
 | `holdingRequests` | 홀딩 신청. `sheetsApplied` — 시트(M/N/O + 종료일)까지 반영됐는지. 생성 시 `false`, 시트 쓰기 성공 후 `markHoldingSheetsApplied`가 `true`. 필드가 아예 없는 옛 문서는 `==false` 쿼리에 안 걸려 소급 경보가 없다 (아래 '홀딩 신청 흐름' 참고) |
 | `absenceRequests` | 결석 신청 |
@@ -616,6 +616,13 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - **뱃지**: `TierBadge.jsx`. 게시판은 `getTierMap()`(이름→티어, 5분 캐시)을 Dashboard에서 읽어 PostList/PostDetail/CommentItem에 prop으로 전달. 코치는 뱃지 없음.
 - **팝업**: `StudentGrowthModal.jsx` — 내 수업에서 티어·학년 변경을 하나로 안내한다. App 수명에 상태를 유지하며 게시판에서 확인 이벤트를 소비하지 않는다. `studentGrowthService`의 트랜잭션으로 실제 확인한 월/티어와 최고 학년(`gradeSeen`)만 갱신한다. 나중에/닫기는 미확인 유지. 코치 빙의·실데이터 조회 전용 화면은 계산·확인 쓰기를 하지 않는다.
 - **훈련일지 학년 팝업**: 저장 직후 학년 상승 안내는 유지하며 확인 성공 시에만 `gradeSeen`을 올린다. 훈련일지에서 확인한 학년은 메인 내 수업에서 다시 안내하지 않는다. 동시·지연 응답으로 확인한 최고 학년을 낮추지 않는다.
+
+### 명예 졸업 (2026-11-06 사용자 요청)
+
+- 코치 수강생 관리 `종료` 모달에 `🎓 명예 졸업` 버튼(취소·보존 종료·명예 졸업·전부 삭제, 좁은 화면 2×2). 명예 졸업 = **기록 보존 종료와 같은 처리**(시간표 제거, `studentTerminations` reason `명예 졸업`) + `users/{이름}.graduated=true, graduatedAt`(`setStudentGraduated`). 계정 문서가 없으면 새로 만들지 않는다(비밀번호 없는 빈 계정 방지).
+- 게시판(PostList/PostDetail/CommentItem) 이름 앞에 `GraduateBadge` — 사용자 확정 시안 A: `--cta-dark` 꽉 찬 칩 + 흰 학사모 아이콘 `졸업`. 학년·티어 칩도 **함께 표시**(사용자 결정). 맵은 `getGraduatedMap`이 티어·학년과 같은 `getUsersMaps` 1회 스캔을 공유한다(따로 스캔 금지).
+- 취소: 코치 화면에서 졸업 칩을 누르면 확인 후 `graduated=false`. 종료 뒤 수강생 목록에서 사라진 사람은 게시판 칩으로, 재등록해 목록에 다시 보이면 목록 칩으로 취소한다. 수강 종료 자체는 되돌리지 않는다.
+- 규칙: 본인 users 문서 갱신에서 `graduated`·`graduatedAt`도 막는다(`isCoach`와 같이). 수강생이 스스로 졸업 칩을 달 수 없게. (리포 규칙만 수정, 운영 규칙 배포는 사용자 확인 대기 — 미배포여도 기능은 동작)
 
 ### WeeklySchedule 수강생 상태
 

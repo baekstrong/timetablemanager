@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets, pauseStudent, resumeStudent, getPausedStudentResumeInfo } from '../services/googleSheetsService';
-import { createHoldingRequest, markHoldingSheetsApplied, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, deleteAllStudentAppData, recordStudentCount, getGradeMap, ensureUserAccount, getUnappliedHoldings } from '../services/firebaseService';
+import { createHoldingRequest, markHoldingSheetsApplied, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, deleteAllStudentAppData, recordStudentCount, getGradeMap, getGraduatedMap, setStudentGraduated, ensureUserAccount, getUnappliedHoldings } from '../services/firebaseService';
 import { getCoachStudentListStatus, shouldShowInCoachStudentList, isPausedRegistration } from '../utils/studentList';
 import { cancelWaitlistsForHeldDates, onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import { setStudentPassword } from '../services/authService';
@@ -11,6 +11,7 @@ import ContractHistory from './ContractHistory';
 import ContractChangeModal from './ContractChangeModal';
 import SmsSendModal from './SmsSendModal';
 import GradeBadge from './GradeBadge';
+import GraduateBadge from './GraduateBadge';
 import ResumeStudentModal from './ResumeStudentModal';
 import AdjustPausedSessionsModal from './AdjustPausedSessionsModal';
 import './StudentManager.css';
@@ -61,6 +62,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     const [pwResetting, setPwResetting] = useState(''); // 비밀번호 초기화 중인 수강생 이름
     const [showSmsModal, setShowSmsModal] = useState(false);
     const [gradeMap, setGradeMap] = useState({}); // 이름→학년키 (수강생 레벨 표시용)
+    const [graduatedMap, setGraduatedMap] = useState({}); // 이름→true 명예 졸업 (게시판 졸업 칩)
     const [unappliedHoldings, setUnappliedHoldings] = useState([]); // 시트 미반영 홀딩(경고용)
     const [dismissingHolding, setDismissingHolding] = useState(''); // '확인함' 처리 중인 홀딩 id
 
@@ -68,6 +70,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
     useEffect(() => {
         let cancel = false;
         getGradeMap().then(map => { if (!cancel && map) setGradeMap(map); });
+        getGraduatedMap().then(map => { if (!cancel && map) setGraduatedMap(map); }).catch(() => {});
         return () => { cancel = true; };
     }, []);
 
@@ -134,23 +137,39 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
         }
     };
 
+    // 졸업 표시 취소 (재등록해서 목록에 다시 보이는 졸업생, 또는 실수로 누른 경우)
+    const handleGraduateCancel = async (name) => {
+        if (!confirm(`${name} 님의 명예 졸업 표시를 취소할까요?`)) return;
+        try {
+            await setStudentGraduated(name, false);
+            setGraduatedMap(prev => { const next = { ...prev }; delete next[name]; return next; });
+        } catch (err) {
+            console.error('졸업 취소 실패:', err);
+            alert('졸업 표시 취소에 실패했습니다.');
+        }
+    };
+
     // End class — 종료 방식(기록 보존 / 전부 삭제)을 고르는 모달을 연다
     const handleEndClass = (student) => setEndTarget(student);
 
     // 실제 종료 처리. wipe=true면 앱 기록 전부 삭제, false면 기록 보존(나중에 이어서).
-    const runEndClass = async (student, wipe) => {
+    // graduate=true(명예 졸업)는 기록 보존 종료 + users/{이름}.graduated → 게시판에 졸업 칩.
+    const runEndClass = async (student, wipe, graduate = false) => {
         const name = student['이름'];
         if (wipe && !confirm(`정말 ${name} 회원의 앱 기록을 전부 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`)) {
             return;
         }
+        if (graduate && !confirm(`${name} 님을 명예 졸업 처리할까요?\n\n- 기록 보존하고 수강 종료(시간표에서 제거)합니다.\n- 게시판 이름 앞에 졸업 칩이 붙습니다.`)) {
+            return;
+        }
         setEndTarget(null);
-        setActionProcessing(wipe ? '회원 기록 삭제 중...' : '수강 종료 처리 중...');
+        setActionProcessing(wipe ? '회원 기록 삭제 중...' : graduate ? '명예 졸업 처리 중...' : '수강 종료 처리 중...');
         try {
             // 모든 시트에서 스케줄 삭제 (시간표에서 제거) — 두 방식 공통
             await clearStudentScheduleAllSheets(name);
             // 이탈 통계용 종료 기록 (실패해도 종료 처리는 유지)
             try {
-                await createStudentTermination(name);
+                await createStudentTermination(name, graduate ? '명예 졸업' : '');
             } catch (recErr) {
                 console.warn('종료 기록 저장 실패:', recErr);
             }
@@ -158,7 +177,23 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             if (wipe) {
                 await deleteAllStudentAppData(name);
             }
+            // 명예 졸업 표시 (실패해도 종료는 유지 — 알림으로만 알린다)
+            let graduateNote = '';
+            if (graduate) {
+                try {
+                    const ok = await setStudentGraduated(name, true);
+                    if (ok) setGraduatedMap(prev => ({ ...prev, [name]: true }));
+                    else graduateNote = '\n(앱 계정이 없어 게시판 졸업 표시는 붙지 않았습니다)';
+                } catch (gErr) {
+                    console.warn('졸업 표시 저장 실패:', gErr);
+                    graduateNote = '\n(졸업 표시 저장에 실패했습니다. 다시 시도해주세요)';
+                }
+            }
             if (refresh) await refresh();
+            if (graduate) {
+                alert(`🎓 ${name} 님을 명예 졸업 처리했습니다.\n(시간표에서 제거, 기록 보존, 게시판 졸업 표시)${graduateNote}`);
+                return;
+            }
             alert(wipe
                 ? `${name} 회원의 앱 기록을 모두 삭제했습니다.\n(시트 등록·결제 이력, 게시판 글은 보존)`
                 : '수강 종료 처리되었습니다. (시간표에서 제거, 기록 보존)');
@@ -689,6 +724,7 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                                 {String(getStudentField(student, '결제유무') || '').trim().toUpperCase() === 'X' && (
                                                     <span className="student-status-badge unpaid">미결제</span>
                                                 )}
+                                                {student['이름'] && <GraduateBadge graduated={graduatedMap[student['이름']]} onCancel={() => handleGraduateCancel(student['이름'])} style={{ marginLeft: '4px', marginRight: 0 }} />}
                                                 {student['이름'] && <GradeBadge grade={gradeMap[student['이름']]} style={{ marginLeft: '4px', marginRight: 0 }} />}
                                                 {onNavigate && student['이름'] && (
                                                     <button
@@ -980,15 +1016,23 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                             <p>· 두 방식 모두 시간표에서 제거됩니다.</p>
                             <p>· <strong>기록 보존</strong>: 보강·훈련일지·계정 등을 남겨 나중에 이어서 할 수 있어요.</p>
                             <p>· <strong>전부 삭제</strong>: 앱 기록(계정·보강·홀딩·결석·대기·훈련일지·PR·1RM·도장·자율운동·고정메모)을 삭제합니다. 되돌릴 수 없어요.</p>
-                            <p>· 시트 등록·결제 이력과 게시판 글은 두 경우 모두 보존됩니다.</p>
+                            <p>· <strong>명예 졸업</strong>: 기록 보존 종료와 같고, 게시판 이름 앞에 졸업 칩이 붙어요. 칩을 눌러 취소할 수 있어요.</p>
+                            <p>· 시트 등록·결제 이력과 게시판 글은 모든 경우 보존됩니다.</p>
                         </div>
 
-                        <div className="absence-modal-actions">
+                        <div className="absence-modal-actions end-class-actions">
                             <button className="absence-cancel-btn" onClick={() => setEndTarget(null)}>
                                 취소
                             </button>
                             <button className="absence-submit-btn" onClick={() => runEndClass(endTarget, false)}>
                                 기록 보존하고 종료
+                            </button>
+                            <button
+                                className="absence-submit-btn"
+                                style={{ backgroundColor: 'var(--cta-dark)', borderColor: 'var(--cta-dark)', color: '#fff' }}
+                                onClick={() => runEndClass(endTarget, false, true)}
+                            >
+                                🎓 명예 졸업
                             </button>
                             <button
                                 className="absence-submit-btn"

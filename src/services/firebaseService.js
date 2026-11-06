@@ -1928,7 +1928,7 @@ export const refreshStudentTier = async ({ userName, deferSeen = false }) => {
 // 이름→티어/학년 맵(게시판 뱃지용). users 컬렉션 스캔 1회를 두 맵이 공유한다.
 // 이전엔 getTierMap/getGradeMap이 같은 컬렉션을 각자 전체 스캔(+각자 캐시)해
 // 대시보드 마운트마다 전체 유저 read가 2배로 나갔다. 5분 캐시 + in-flight dedup.
-let usersMapsCache = null; // { tierMap, gradeMap }
+let usersMapsCache = null; // { tierMap, gradeMap, graduatedMap }
 let usersMapsFetchedAt = 0;
 let usersMapsInflight = null;
 const getUsersMaps = async () => {
@@ -1939,12 +1939,14 @@ const getUsersMaps = async () => {
         const snap = await getDocs(collection(db, 'users'));
         const tierMap = {};
         const gradeMap = {};
+        const graduatedMap = {};
         snap.forEach(d => {
             const data = d.data() || {};
             if (data.tier) tierMap[d.id] = data.tier;
             if (data.grade) gradeMap[d.id] = data.grade;
+            if (data.graduated === true) graduatedMap[d.id] = true;
         });
-        usersMapsCache = { tierMap, gradeMap };
+        usersMapsCache = { tierMap, gradeMap, graduatedMap };
         usersMapsFetchedAt = Date.now();
         return usersMapsCache;
     })().finally(() => { usersMapsInflight = null; });
@@ -1953,6 +1955,32 @@ const getUsersMaps = async () => {
 
 export const getTierMap = async () => {
     return safeRead({}, async () => (await getUsersMaps()).tierMap);
+};
+
+// 이름→true 명예 졸업 맵(게시판 졸업 칩용). 티어·학년과 같은 users 스캔 1회를 공유한다.
+export const getGraduatedMap = async () => {
+    return safeRead({}, async () => (await getUsersMaps()).graduatedMap || {});
+};
+
+// 코치 전용: 명예 졸업 표시/취소. users/{이름}에 graduated·graduatedAt만 merge.
+// 계정 문서가 없으면(게시판 글을 쓸 수 없는 사람) 새로 만들지 않고 false를 돌려준다
+// — 비밀번호 없는 빈 계정 문서가 생기면 로그인 판정이 꼬인다.
+export const setStudentGraduated = async (name, graduated) => {
+    return safeWrite(async () => {
+        const userRef = doc(db, 'users', name);
+        const snap = await getDoc(userRef);
+        if (!snap.exists()) return false;
+        await updateDoc(userRef, graduated
+            ? { graduated: true, graduatedAt: serverTimestamp() }
+            : { graduated: false, graduatedAt: null });
+        // 캐시를 통째로 비우면 users 전체 재스캔 → 해당 항목만 제자리 갱신
+        if (usersMapsCache) {
+            const map = { ...(usersMapsCache.graduatedMap || {}) };
+            if (graduated) map[name] = true; else delete map[name];
+            usersMapsCache.graduatedMap = map;
+        }
+        return true;
+    });
 };
 
 // 전원 티어 백필 — 코치 진입 시 호출되지만 studentMeta/tierBackfill 잠금으로 그 달 첫 1회만 실제로 돈다.

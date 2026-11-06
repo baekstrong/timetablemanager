@@ -11,6 +11,7 @@ import { getNoticeRevision } from '../../utils/noticeState';
 import CommentItem from './CommentItem';
 import TierBadge from '../TierBadge';
 import GradeBadge from '../GradeBadge';
+import GraduateBadge from '../GraduateBadge';
 
 const formatDate = (timestamp) => {
     if (!timestamp) return '-';
@@ -23,7 +24,7 @@ const formatDate = (timestamp) => {
     return `${year}.${month}.${day} ${hours}:${minutes}`;
 };
 
-const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {} }) => {
+const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {}, graduatedMap = {}, onGraduateCancel }) => {
     const [post, setPost] = useState(null);
     const [comments, setComments] = useState([]);
     const [loadedFor, setLoadedFor] = useState(null);
@@ -251,6 +252,7 @@ const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {} 
                             {category.icon} {category.label}
                         </span>
                     )}
+                    {!post.isCoach && <GraduateBadge graduated={graduatedMap?.[post.author]} onCancel={onGraduateCancel && (() => onGraduateCancel(post.author))} />}
                     {!post.isCoach && <GradeBadge grade={gradeMap?.[post.author]} />}
                     {!post.isCoach && <TierBadge tier={tierMap[post.author]} />}
                     <span
@@ -364,6 +366,8 @@ const PostDetail = ({ postId, user, onBack, onEdit, tierMap = {}, gradeMap = {} 
                             repliesByParent={repliesByParent}
                             tierMap={tierMap}
                             gradeMap={gradeMap}
+                            graduatedMap={graduatedMap}
+                            onGraduateCancel={onGraduateCancel}
                         />
                     ))}
                 </div>

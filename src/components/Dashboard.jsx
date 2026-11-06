@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { createPost, updatePost, getPendingContractForStudent, getTierMap, backfillTiersForMonth, getGradeMap, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../services/firebaseService';
+import { createPost, updatePost, getPendingContractForStudent, getTierMap, backfillTiersForMonth, getGradeMap, getGraduatedMap, setStudentGraduated, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../services/firebaseService';
 import { pushNotice } from '../services/pushService';
 import { resolveInstallState } from '../utils/installState';
 import { shouldShowInCoachStudentList } from '../utils/studentList';
@@ -48,14 +48,28 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
     // 게시판 작성자 배지만 조회한다. 본인 성장 정보와 안내는 App의 내 수업에서 관리한다.
     const [tierMap, setTierMap] = useState({});
     const [gradeMap, setGradeMap] = useState({});
+    const [graduatedMap, setGraduatedMap] = useState({}); // 이름→true 명예 졸업 (같은 users 스캔 공유)
     // PR 축하 팝업 (코치 대리 입력 후 학생 첫 접속 시 1회)
     const [prCelebration, setPrCelebration] = useState(null);
 
     useEffect(() => {
         let cancel = false;
         getTierMap().then(map => { if (!cancel) setTierMap(map); });
+        getGraduatedMap().then(map => { if (!cancel && map) setGraduatedMap(map); }).catch(() => {});
         return () => { cancel = true; };
     }, []);
+
+    // 코치만: 게시판 졸업 칩을 눌러 졸업 표시 취소 (종료 후 수강생 목록에서 사라진 사람도 여기서 되돌린다)
+    const handleGraduateCancel = user?.role === 'coach' ? async (name) => {
+        if (!confirm(`${name} 님의 명예 졸업 표시를 취소할까요?\n(수강 종료 상태는 그대로입니다)`)) return;
+        try {
+            await setStudentGraduated(name, false);
+            setGraduatedMap(prev => { const next = { ...prev }; delete next[name]; return next; });
+        } catch (err) {
+            console.error('졸업 취소 실패:', err);
+            alert('졸업 표시 취소에 실패했습니다.');
+        }
+    } : undefined;
 
     // 홈 화면 추가 안내. 안드로이드는 beforeinstallprompt를 붙잡아 뒀다가 버튼으로 띄우고,
     // 아이폰은 그 이벤트가 없으므로 공유 시트 문구만 바로 보여준다.
@@ -268,6 +282,8 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
                         onPageChange={setBoardPage}
                         tierMap={tierMap}
                         gradeMap={gradeMap}
+                        graduatedMap={graduatedMap}
+                        onGraduateCancel={handleGraduateCancel}
                     />
                 ) : (
                     <PostDetail
@@ -277,6 +293,8 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
                         onEdit={handleEditPost}
                         tierMap={tierMap}
                         gradeMap={gradeMap}
+                        graduatedMap={graduatedMap}
+                        onGraduateCancel={handleGraduateCancel}
                     />
                 )}
 

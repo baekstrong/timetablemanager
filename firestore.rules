@@ -29,13 +29,13 @@ service cloud.firestore {
     }
 
     // ── 계정: 인증 사용자 broad read(게시판 뱃지 getDocs). ──
-    // 쓰기: 코치는 전체. 본인은 자기 문서에 티어/학년/PR플래그 등은 갱신하되 isCoach(권한)만 못 건드림.
+    // 쓰기: 코치는 전체. 본인은 자기 문서에 티어/학년/PR플래그 등은 갱신하되 isCoach(권한)·명예 졸업 표시는 못 건드림.
     //   (refreshStudentTier/refreshStudentXP/PR축하플래그 소비가 본인 users 문서에 merge 씀)
     match /users/{name} {
       allow read: if signedIn();
       allow create, delete: if isCoach();
       allow update: if isCoach() ||
-        (isSelf(name) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isCoach']));
+        (isSelf(name) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isCoach', 'graduated', 'graduatedAt']));
     }
 
     // ── 비로그인 신규등록 funnel + 컨텍스트 마운트: 공개 read ──

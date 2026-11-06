@@ -5,8 +5,9 @@ import { linkifyText } from '../../utils/linkify';
 import { formatLikeNames } from '../../utils/likeDisplay';
 import TierBadge from '../TierBadge';
 import GradeBadge from '../GradeBadge';
+import GraduateBadge from '../GraduateBadge';
 
-const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, replies = [], repliesByParent = {}, depth = 0, tierMap = {}, gradeMap = {} }) => {
+const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, replies = [], repliesByParent = {}, depth = 0, tierMap = {}, gradeMap = {}, graduatedMap = {}, onGraduateCancel }) => {
     const [showReplyInput, setShowReplyInput] = useState(false);
     const [replyText, setReplyText] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -148,6 +149,7 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                 <div className="comment-item-header">
                     <span className={`comment-author ${comment.isCoach ? 'comment-author-coach' : ''}`}>
                         {depth > 0 && <span style={{ color: '#9ca3af', marginRight: '4px' }}>↳</span>}
+                        {!comment.isCoach && <GraduateBadge graduated={graduatedMap?.[comment.author]} onCancel={onGraduateCancel && (() => onGraduateCancel(comment.author))} />}
                         {!comment.isCoach && <GradeBadge grade={gradeMap?.[comment.author]} />}
                         {!comment.isCoach && <TierBadge tier={tierMap[comment.author]} />}
                         {comment.author}
@@ -333,6 +335,8 @@ const CommentItem = ({ comment, user, onDelete, onReply, onToggleLike, onEdit, r
                     depth={depth + 1}
                     tierMap={tierMap}
                     gradeMap={gradeMap}
+                    graduatedMap={graduatedMap}
+                    onGraduateCancel={onGraduateCancel}
                 />
             ))}
         </>

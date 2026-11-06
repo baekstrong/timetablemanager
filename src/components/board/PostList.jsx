@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BOARD_CATEGORIES, CATEGORY_MAP } from '../../data/boardConstants';
 import TierBadge from '../TierBadge';
 import GradeBadge from '../GradeBadge';
+import GraduateBadge from '../GraduateBadge';
 
 const SEARCH_MODES = [
     { key: 'title', label: '제목' },
@@ -29,6 +30,8 @@ const PostList = ({
     onPageChange,
     tierMap = {},
     gradeMap = {},
+    graduatedMap = {},
+    onGraduateCancel,
 }) => {
     const [searchMode, setSearchMode] = useState('title');
     const [searchQuery, setSearchQuery] = useState('');
@@ -136,6 +139,7 @@ const PostList = ({
                         </div>
                         <div className="post-card-meta">
                             <span>
+                                {!post.isCoach && <GraduateBadge graduated={graduatedMap?.[post.author]} onCancel={onGraduateCancel && (() => onGraduateCancel(post.author))} />}
                                 {!post.isCoach && <GradeBadge grade={gradeMap?.[post.author]} />}
                                 {!post.isCoach && <TierBadge tier={tierMap[post.author]} />}
                                 <span style={post.isCoach ? { color: 'var(--accent)', fontWeight: 600 } : {}}>
