@@ -119,8 +119,29 @@ function renderStudentDraftList() {
     if (!container) return;
     const store = readStore();
     const drafts = [...Object.values(store.drafts), ...Object.entries(store.recoveries || {}).map(([recoveryId, draft]) => ({ ...draft, recoveryId }))].filter(draft => hasDraftContent(draft)).sort((a, b) => b.timestamp - a.timestamp);
-    container.innerHTML = drafts.length ? `<details><summary>보관한 초안 ${drafts.length}개</summary>${drafts.map(draft => `<button type="button" data-recovery-id="${escapeHTML(draft.recoveryId || '')}" data-draft-date="${escapeHTML(draft.date)}" data-draft-exercise="${escapeHTML(draft.exercise)}"><span>${escapeHTML(draft.date)} · ${escapeHTML(draft.exercise || '종목 선택 전')}</span>${draft.recoveryId ? '<small>저장 실패 · 입력 복구</small>' : draft.legacyDate ? '<small>이전 초안 · 작성일을 확인해주세요</small>' : ''}</button>`).join('')}</details>` : '';
-    container.querySelectorAll('[data-draft-date]').forEach(button => button.addEventListener('click', () => button.dataset.recoveryId ? recoverStudentDraft(button.dataset.recoveryId) : startStudentRecord(button.dataset.draftDate, button.dataset.draftExercise)));
+    const wasOpen = Boolean(container.querySelector('details')?.open);
+    container.innerHTML = drafts.length ? `<details${wasOpen ? ' open' : ''}><summary>보관한 초안 ${drafts.length}개</summary>${drafts.map(draft => `<div class="draft-row"><button type="button" class="draft-open" data-recovery-id="${escapeHTML(draft.recoveryId || '')}" data-draft-date="${escapeHTML(draft.date)}" data-draft-exercise="${escapeHTML(draft.exercise || '')}"><span>${escapeHTML(draft.date)} · ${escapeHTML(draft.exercise || '종목 선택 전')}</span>${draft.recoveryId ? '<small>저장 실패 · 입력 복구</small>' : draft.legacyDate ? '<small>이전 초안 · 작성일을 확인해주세요</small>' : ''}</button><button type="button" class="draft-delete" aria-label="${escapeHTML(draft.date)} ${escapeHTML(draft.exercise || '종목 선택 전')} 초안 삭제" data-recovery-id="${escapeHTML(draft.recoveryId || '')}" data-draft-date="${escapeHTML(draft.date)}" data-draft-exercise="${escapeHTML(draft.exercise || '')}">✕</button></div>`).join('')}</details>` : '';
+    container.querySelectorAll('.draft-open').forEach(button => button.addEventListener('click', () => button.dataset.recoveryId ? recoverStudentDraft(button.dataset.recoveryId) : startStudentRecord(button.dataset.draftDate, button.dataset.draftExercise)));
+    container.querySelectorAll('.draft-delete').forEach(button => button.addEventListener('click', () => deleteStudentDraft(button.dataset)));
+}
+// 보관한 초안을 이 기기에서 지운다(서버 기록과 무관). 지금 열린 초안이면 입력칸도 비워
+// 자동 보관이 같은 초안을 되살리지 않게 한다.
+function deleteStudentDraft({ recoveryId, draftDate: date, draftExercise: exercise = '' }) {
+    if (!confirm(`${date} · ${exercise || '종목 선택 전'} 초안을 삭제할까요?`)) return;
+    const store = readStore();
+    const isOpen = !recoveryId && date === (state.studentWriteDate || localDate()) && exercise === activeExercise;
+    if (recoveryId) delete store.recoveries?.[recoveryId];
+    else {
+        delete store.drafts[draftKey(date, exercise)];
+        if (store.lastByDate[date] === exercise) delete store.lastByDate[date];
+    }
+    if (!writeStore(store)) return;
+    if (isOpen) {
+        restoreDraft(date, '');
+        setStatus('');
+    }
+    updateStudentStartButton();
+    renderStudentDraftList();
 }
 export function startStudentRecord(date = state.selectedDate || localDate(), exercise, { skipSave = false } = {}) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > localDate()) return;

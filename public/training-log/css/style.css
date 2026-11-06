@@ -334,7 +334,10 @@ body.modal-open {
 #studentDraftList { margin-bottom:14px; font-size:12px; }
 #studentDraftList:empty { display:none; }
 #studentDraftList summary { min-height:44px; display:flex; align-items:center; color:#327AB8; cursor:pointer; }
-#studentDraftList button { display:flex; flex-direction:column; justify-content:center; width:100%; text-align:left; background:#fff; padding:10px; border-bottom:1px solid #EFEFF0; }
+#studentDraftList .draft-row { display:flex; align-items:stretch; background:#fff; border-bottom:1px solid #EFEFF0; }
+#studentDraftList .draft-open { display:flex; flex:1; min-width:0; flex-direction:column; justify-content:center; width:100%; text-align:left; background:#fff; padding:10px; }
+#studentDraftList .draft-delete { flex:none; width:44px; min-height:44px; background:none; color:#A7A7AA; font-size:16px; }
+#studentDraftList .draft-delete:hover { color:#E94E58; }
 #studentDraftList small { color:rgba(0,0,0,.6); margin-top:4px; }
 .student-calendar-card,.student-records-card,.student-record-form { background:#fff; border:1px solid #EFEFF0; border-radius:8px; }
 .student-calendar-card { padding:10px 0 0; margin-bottom:22px; }

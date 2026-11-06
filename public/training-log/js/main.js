@@ -11,7 +11,7 @@ import * as Calendar from './modules/calendar.js?v=20261023-memo-checklist';
 import * as Coach from './modules/coach.js?v=20261023-memo-list';
 import * as Stamp from './modules/stamp.js?v=20261014-analytics';
 import * as OneRM from './modules/onerm.js?v=20261014-performance';
-import * as StudentWorkspace from './modules/student-workspace.js?v=20261023-memo-checklist';
+import * as StudentWorkspace from './modules/student-workspace.js?v=20261106-draft-delete';
 import { syncCoachRenewalPush, stopCoachRenewalPush } from './coachRenewalPush.js?v=20261016-renewal-today-only';
 
 // ============================================
