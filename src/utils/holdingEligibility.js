@@ -68,3 +68,33 @@ export const getHoldingRequestDateError = ({ date, classInfo, requestType, holid
     }
     return null;
 };
+
+// 계약서: 주N회는 연속 N수업일까지 홀딩할 수 있다. 남은 수업이 N회보다 적으면
+// 종료일 뒤에 이어질 수업일까지 포함해야 N일을 채울 수 있으므로, 마지막 등록의
+// 실질 종료일(보강 포함) 뒤 정규 수업 요일을 최대 N-1일까지 '연장 홀딩일'로 연다.
+// 휴일은 건너뛰며, 이 날짜만 단독으로 홀딩할 수는 없다(검증은 HoldingManager).
+export const getHoldingExtensionClasses = (studentData, makeups = [], isOffDay = () => false) => {
+    const registrations = [['current', studentData], ['previous', studentData?._prevRegistration], ['next', studentData?._nextRegistration]]
+        .map(([key, registration]) => ({ key, registration, start: parseHoldingDate(registration?.['시작날짜']), end: parseHoldingDate(registration?.['종료날짜'] || registration?.['종료일'] || registration?.endDate) }))
+        .filter(item => item.start && item.end);
+    const last = registrations.sort((a, b) => b.end - a.end)[0];
+    const result = new Map();
+    if (!last) return result;
+    const schedule = holdingSchedule(last.registration);
+    const weeklyFrequency = Number.parseInt(last.registration['주횟수'], 10) || 2;
+    if (schedule.length === 0 || weeklyFrequency < 2) return result;
+    const active = makeups.filter(item => !item.status || ['active', 'completed'].includes(item.status));
+    const anchor = new Date(last.end);
+    for (const item of active) {
+        const day = parseHoldingDate(item.makeupClass?.date);
+        if (day && day > anchor) anchor.setTime(day.getTime());
+    }
+    const cursor = new Date(anchor);
+    for (let guard = 0; guard < 60 && result.size < weeklyFrequency - 1; guard++) {
+        cursor.setDate(cursor.getDate() + 1);
+        const slot = schedule.find(item => item.day === ['일', '월', '화', '수', '목', '금', '토'][cursor.getDay()]);
+        if (!slot || isOffDay(cursor)) continue;
+        result.set(holdingDateISO(cursor), { ...last, schedule, weeklyFrequency, period: slot.period, makeup: null, extension: true });
+    }
+    return result;
+};

@@ -246,3 +246,13 @@ describe('extendEndDateForHeldSessions', () => {
     expect(toISOd(r)).toBe('2026-07-08');
   });
 });
+
+describe('종료일을 넘는 연속 홀딩 (마지막 1회 남음)', () => {
+  it('화목 주2회, 마지막 9/29(화)+10/1(목) 홀딩 → 종료일 10/6(화)', () => {
+    const r = extendEndDateForHeldSessions({
+      endDate: new Date('2026-09-29T00:00:00'), startDate: new Date('2026-09-01T00:00:00'),
+      classDays: [2, 4], newHeldDates: ['2026-09-29', '2026-09-30', '2026-10-01'], isHoliday: () => false,
+    });
+    expect(r.toISOString().slice(0, 10)).toBe(new Date('2026-10-06T00:00:00').toISOString().slice(0, 10));
+  });
+});

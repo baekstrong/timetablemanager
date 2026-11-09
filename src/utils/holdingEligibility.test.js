@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getHoldingClass, getHoldingRegistration, getHoldingRequestDateError, isBeforeHoldingDeadline, parseHoldingDate } from './holdingEligibility';
+import { getHoldingClass, getHoldingExtensionClasses, getHoldingRegistration, getHoldingRequestDateError, isBeforeHoldingDeadline, parseHoldingDate } from './holdingEligibility';
 import { validateHoldingDates } from './holdingDates';
 
 const date = value => new Date(`${value}T00:00:00`);
@@ -63,5 +63,30 @@ describe('날짜 선택과 최종 확정의 공통 검증', () => {
         expect(isBeforeHoldingDeadline(date('2026-10-05'), 1, 60, new Date('2026-10-05T09:00:00'))).toBe(false);
         expect(isBeforeHoldingDeadline(date('2026-10-05'), 1, 0, new Date('2026-10-05T09:59:00'))).toBe(true);
         expect(isBeforeHoldingDeadline(date('2026-10-05'), null, 0, new Date('2026-10-05T09:59:00'))).toBe(false);
+    });
+});
+
+describe('남은 수업이 주횟수보다 적을 때 종료일 뒤 연장 홀딩일', () => {
+    // 주2회 화목, 마지막 수업 9/29(화) 하루 남음
+    const last = { '시작날짜': '260901', '종료날짜': '260929', '요일 및 시간': '화5목5', '주횟수': '2' };
+    it('주2회는 종료일 뒤 수업일 1일만 연다', () => {
+        const ext = getHoldingExtensionClasses(last);
+        expect([...ext.keys()]).toEqual(['2026-10-01']);
+        expect(ext.get('2026-10-01')).toMatchObject({ key: 'current', period: 5, extension: true });
+    });
+    it('마지막 수업 + 연장일 연속 2일 홀딩을 허용하고 중간을 건너뛰면 막는다', () => {
+        const ext = getHoldingExtensionClasses(last);
+        const isClass = day => !!(getHoldingClass(day, last) || ext.get(`${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`));
+        expect(validateHoldingDates(['2026-09-29', '2026-10-01'], 2, isClass)).toBeNull();
+        expect(validateHoldingDates(['2026-09-24', '2026-10-01'], 2, isClass)).toContain('연속');
+    });
+    it('주3회는 휴일을 건너뛰고 최대 2일, 미리 등록이 있으면 그 등록 뒤에서 연다', () => {
+        const three = { '시작날짜': '260901', '종료날짜': '260930', '요일 및 시간': '월1수1금1', '주횟수': '3' };
+        expect([...getHoldingExtensionClasses(three, [], d => d.getDate() === 2).keys()]).toEqual(['2026-10-05', '2026-10-07']);
+        expect([...getHoldingExtensionClasses(student).keys()]).toEqual(['2026-11-02', '2026-11-04']);
+    });
+    it('종료일 뒤 보강이 있으면 그 보강 다음부터 연다', () => {
+        const makeups = [{ status: 'active', originalClass: { date: '2026-09-24', period: 5 }, makeupClass: { date: '2026-10-02', period: 1 } }];
+        expect([...getHoldingExtensionClasses(last, makeups).keys()]).toEqual(['2026-10-06']);
     });
 });

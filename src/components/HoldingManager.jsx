@@ -17,7 +17,7 @@ import { cancelHoldingInSheets } from '../services/googleSheetsService';
 import { cancelWaitlistsForHeldDates, onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import { validateHoldingDates } from '../utils/holdingDates';
 import { isWithinRegisteredPeriod } from '../utils/membershipDates';
-import { parseHoldingDate, getHoldingClass, getHoldingRequestDateError, isBeforeHoldingDeadline } from '../utils/holdingEligibility';
+import { parseHoldingDate, getHoldingClass, getHoldingExtensionClasses, getHoldingRequestDateError, isBeforeHoldingDeadline } from '../utils/holdingEligibility';
 import './HoldingManager.css';
 
 const holdingServices = { createHoldingRequest, markHoldingSheetsApplied, createAbsenceRequest, getHoldingsByStudent, getAbsencesByStudent, cancelHolding, cancelAbsence, getHolidays, getActiveMakeupRequests, cancelHoldingInSheets, onSeatsFreedForDates, cancelWaitlistsForHeldDates };
@@ -303,7 +303,11 @@ const HoldingManager = ({ user, studentData, isLoading, initialDate = '', onBack
         return { year, month, dates };
     }, [calendarYear, calendarMonth]);
 
-    const getClassInfo = date => getHoldingClass(date, studentData, activeMakeups);
+    // 남은 수업이 주횟수보다 적어도 연속 N수업일을 채울 수 있게 종료일 뒤 수업일을 홀딩에만 연다.
+    const extensionClasses = useMemo(() => getHoldingExtensionClasses(studentData, activeMakeups,
+        date => !!(isHoliday(date) || coachHolidays[formatLocalDate(date)])), [studentData, activeMakeups, coachHolidays]);
+    const getClassInfo = date => getHoldingClass(date, studentData, activeMakeups)
+        || (requestType === 'holding' && date ? extensionClasses.get(formatLocalDate(date)) || null : null);
     const getTargetRegistrationForDate = date => getClassInfo(date)?.key || null;
 
     // 전체 표시 범위를 수강 자격으로 쓰면 재등록 사이 공백도 수업일이 된다.
@@ -358,6 +362,7 @@ const HoldingManager = ({ user, studentData, isLoading, initialDate = '', onBack
         const first = classes[0];
         if (!first || classes.some(item => !item)) return '수강 기간 내의 실제 수업일만 신청할 수 있습니다.';
         if (classes.some(item => item.key !== first.key)) return '하나의 홀딩 신청에는 같은 등록 기간의 날짜만 선택할 수 있습니다.';
+        if (first.extension) return '남은 수업일부터 이어서 선택해주세요. 종료일 뒤 수업일만 따로 홀딩할 수는 없습니다.';
         const info = parseHoldingStatus(getStudentField(first.registration, '홀딩 사용여부'));
         if (info.total - info.used <= 0) return `선택한 등록의 홀딩을 모두 사용하셨습니다. (${info.used}/${info.total}회 사용)`;
         return validateHoldingDates(dates, first.weeklyFrequency,
@@ -422,18 +427,6 @@ const HoldingManager = ({ user, studentData, isLoading, initialDate = '', onBack
                 // 홀딩 신청 - Firebase에 저장
                 const startDate = sortedDates[0];
                 const endDate = sortedDates[sortedDates.length - 1];
-
-                // 종료날짜 이후 홀딩 방지 (이중 검증)
-                if (membershipPeriod.end) {
-                    const holdEndObj = new Date(endDate + 'T00:00:00');
-                    const memberEnd = new Date(membershipPeriod.end);
-                    memberEnd.setHours(0, 0, 0, 0);
-                    if (holdEndObj > memberEnd) {
-                        alert('수강 종료일 이후에는 홀딩을 신청할 수 없습니다.');
-                        setIsSubmitting(false);
-                        return;
-                    }
-                }
 
                 const createdHolding = await createHoldingRequest(user.username, startDate, endDate, sortedDates);
                 createdHoldingId = createdHolding?.id || null;
@@ -888,7 +881,8 @@ const HoldingManager = ({ user, studentData, isLoading, initialDate = '', onBack
                                     return <div key={index} className="calendar-day empty"></div>;
                                 }
 
-                                const isInPeriod = isWithinMembershipPeriod(date);
+                                const isExtension = requestType === 'holding' && extensionClasses.has(formatLocalDate(date));
+                                const isInPeriod = isWithinMembershipPeriod(date) || isExtension;
                                 const isClass = isClassDay(date) && isInPeriod; // 수강 기간 내의 수업일만 표시
                                 const isMakeupDay = !!getMakeupForDate(date); // 보강 출석일
                                 const isHolding = isHoldingDate(date);
