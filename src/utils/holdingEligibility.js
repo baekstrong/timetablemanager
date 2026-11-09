@@ -89,6 +89,12 @@ export const getHoldingExtensionClasses = (studentData, makeups = [], isOffDay =
         const day = parseHoldingDate(item.makeupClass?.date);
         if (day && day > anchor) anchor.setTime(day.getTime());
     }
+    // 연장일은 이 마지막 실제 수업을 홀딩할 때만 이어서 열린다.
+    const back = new Date(anchor);
+    for (let guard = 0; guard < 21; guard++, back.setDate(back.getDate() - 1)) {
+        if (!isOffDay(back) && getHoldingClass(back, studentData, makeups)) { result.lastClass = holdingDateISO(back); break; }
+    }
+    if (!result.lastClass) return result;
     const cursor = new Date(anchor);
     for (let guard = 0; guard < 60 && result.size < weeklyFrequency - 1; guard++) {
         cursor.setDate(cursor.getDate() + 1);
@@ -97,4 +103,29 @@ export const getHoldingExtensionClasses = (studentData, makeups = [], isOffDay =
         result.set(holdingDateISO(cursor), { ...last, schedule, weeklyFrequency, period: slot.period, makeup: null, extension: true });
     }
     return result;
+};
+
+// 연장일을 한꺼번에 보여주면 종료일이 그만큼 늘어난 것처럼 보인다. 마지막 실제 수업을
+// 고르면 연장일 1개, 그것까지 고르면 다음 1개 식으로 주횟수에 닿을 때까지 하나씩 연다.
+export const visibleHoldingExtensions = (extensions, selectedDates = []) => {
+    const visible = new Set();
+    if (!extensions?.lastClass || !selectedDates.includes(extensions.lastClass)) return visible;
+    const limit = [...extensions.values()][0]?.weeklyFrequency || 0;
+    for (const iso of extensions.keys()) {
+        if (!selectedDates.includes(iso) && selectedDates.length >= limit) break;
+        visible.add(iso);
+        if (!selectedDates.includes(iso)) break;
+    }
+    return visible;
+};
+
+// 선택을 해제해 더는 열리지 않는 연장일은 선택에서도 뺀다.
+export const pruneHoldingExtensions = (extensions, selectedDates = []) => {
+    let current = [...selectedDates];
+    for (;;) {
+        const visible = visibleHoldingExtensions(extensions, current);
+        const next = current.filter(iso => !extensions?.has(iso) || visible.has(iso));
+        if (next.length === current.length) return next;
+        current = next;
+    }
 };

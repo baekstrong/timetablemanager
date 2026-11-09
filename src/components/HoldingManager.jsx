@@ -17,7 +17,7 @@ import { cancelHoldingInSheets } from '../services/googleSheetsService';
 import { cancelWaitlistsForHeldDates, onSeatsFreedForDates } from '../services/makeupWaitlistService';
 import { validateHoldingDates } from '../utils/holdingDates';
 import { isWithinRegisteredPeriod } from '../utils/membershipDates';
-import { parseHoldingDate, getHoldingClass, getHoldingExtensionClasses, getHoldingRequestDateError, isBeforeHoldingDeadline } from '../utils/holdingEligibility';
+import { parseHoldingDate, getHoldingClass, getHoldingExtensionClasses, visibleHoldingExtensions, pruneHoldingExtensions, getHoldingRequestDateError, isBeforeHoldingDeadline } from '../utils/holdingEligibility';
 import './HoldingManager.css';
 
 const holdingServices = { createHoldingRequest, markHoldingSheetsApplied, createAbsenceRequest, getHoldingsByStudent, getAbsencesByStudent, cancelHolding, cancelAbsence, getHolidays, getActiveMakeupRequests, cancelHoldingInSheets, onSeatsFreedForDates, cancelWaitlistsForHeldDates };
@@ -306,8 +306,9 @@ const HoldingManager = ({ user, studentData, isLoading, initialDate = '', onBack
     // 남은 수업이 주횟수보다 적어도 연속 N수업일을 채울 수 있게 종료일 뒤 수업일을 홀딩에만 연다.
     const extensionClasses = useMemo(() => getHoldingExtensionClasses(studentData, activeMakeups,
         date => !!(isHoliday(date) || coachHolidays[formatLocalDate(date)])), [studentData, activeMakeups, coachHolidays]);
-    const getClassInfo = date => getHoldingClass(date, studentData, activeMakeups)
-        || (requestType === 'holding' && date ? extensionClasses.get(formatLocalDate(date)) || null : null);
+    const visibleExtensions = requestType === 'holding' ? visibleHoldingExtensions(extensionClasses, selectedDates) : new Set();
+    const getExtensionInfo = date => (date && visibleExtensions.has(formatLocalDate(date)) ? extensionClasses.get(formatLocalDate(date)) : null);
+    const getClassInfo = date => getHoldingClass(date, studentData, activeMakeups) || getExtensionInfo(date);
     const getTargetRegistrationForDate = date => getClassInfo(date)?.key || null;
 
     // 전체 표시 범위를 수강 자격으로 쓰면 재등록 사이 공백도 수업일이 된다.
@@ -386,7 +387,7 @@ const HoldingManager = ({ user, studentData, isLoading, initialDate = '', onBack
         const dateStr = formatLocalDate(date);
         // 시간이 지나 선택 불가가 된 날짜도 해제할 수 있다.
         if (selectedDates.includes(dateStr)) {
-            setSelectedDates(selectedDates.filter(value => value !== dateStr));
+            setSelectedDates(pruneHoldingExtensions(extensionClasses, selectedDates.filter(value => value !== dateStr)));
             return;
         }
         const dateError = getDateRequestError(date);
@@ -881,7 +882,7 @@ const HoldingManager = ({ user, studentData, isLoading, initialDate = '', onBack
                                     return <div key={index} className="calendar-day empty"></div>;
                                 }
 
-                                const isExtension = requestType === 'holding' && extensionClasses.has(formatLocalDate(date));
+                                const isExtension = visibleExtensions.has(formatLocalDate(date));
                                 const isInPeriod = isWithinMembershipPeriod(date) || isExtension;
                                 const isClass = isClassDay(date) && isInPeriod; // 수강 기간 내의 수업일만 표시
                                 const isMakeupDay = !!getMakeupForDate(date); // 보강 출석일

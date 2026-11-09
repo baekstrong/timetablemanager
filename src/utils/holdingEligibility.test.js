@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getHoldingClass, getHoldingExtensionClasses, getHoldingRegistration, getHoldingRequestDateError, isBeforeHoldingDeadline, parseHoldingDate } from './holdingEligibility';
+import { getHoldingClass, getHoldingExtensionClasses, pruneHoldingExtensions, visibleHoldingExtensions, getHoldingRegistration, getHoldingRequestDateError, isBeforeHoldingDeadline, parseHoldingDate } from './holdingEligibility';
 import { validateHoldingDates } from './holdingDates';
 
 const date = value => new Date(`${value}T00:00:00`);
@@ -88,5 +88,28 @@ describe('남은 수업이 주횟수보다 적을 때 종료일 뒤 연장 홀�
     it('종료일 뒤 보강이 있으면 그 보강 다음부터 연다', () => {
         const makeups = [{ status: 'active', originalClass: { date: '2026-09-24', period: 5 }, makeupClass: { date: '2026-10-02', period: 1 } }];
         expect([...getHoldingExtensionClasses(last, makeups).keys()]).toEqual(['2026-10-06']);
+    });
+});
+
+describe('연장 홀딩일은 선택에 따라 하나씩 열린다', () => {
+    // 주3회 월수금, 마지막 수업 11/9(월) 하루 남음 → 연장 후보 11/11, 11/13
+    const three = { '시작날짜': '261012', '종료날짜': '261109', '요일 및 시간': '월1수1금1', '주횟수': '3' };
+    const ext = getHoldingExtensionClasses(three);
+    const shown = dates => [...visibleHoldingExtensions(ext, dates)];
+    it('마지막 수업을 고르기 전엔 아무것도 안 보인다', () => {
+        expect(ext.lastClass).toBe('2026-11-09');
+        expect(shown([])).toEqual([]);
+        expect(shown(['2026-11-06'])).toEqual([]);
+    });
+    it('마지막 수업 → 1개, 그것까지 → 다음 1개, 주횟수에 닿으면 더 안 연다', () => {
+        expect(shown(['2026-11-09'])).toEqual(['2026-11-11']);
+        expect(shown(['2026-11-09', '2026-11-11'])).toEqual(['2026-11-11', '2026-11-13']);
+        expect(shown(['2026-11-09', '2026-11-11', '2026-11-13'])).toEqual(['2026-11-11', '2026-11-13']);
+        expect(shown(['2026-11-06', '2026-11-09'])).toEqual(['2026-11-11']);
+        expect(shown(['2026-11-06', '2026-11-09', '2026-11-11'])).toEqual(['2026-11-11']);
+    });
+    it('선택을 풀면 뒤의 연장일도 같이 빠진다', () => {
+        expect(pruneHoldingExtensions(ext, ['2026-11-11', '2026-11-13'])).toEqual([]);
+        expect(pruneHoldingExtensions(ext, ['2026-11-09', '2026-11-13'])).toEqual(['2026-11-09']);
     });
 });
