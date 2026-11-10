@@ -2,7 +2,7 @@ import { localDate, escapeHTML } from './student-workspace-logic.js?v=20260925-s
 import { coachChecklistListHTML } from './coach-checklist-card.js?v=20261105-record-coach-checklist';
 import { state, db, firebaseInitialized, persistenceEnabled } from '../state.js';
 import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue, moveButtons, swapSets } from './sets.js?v=20260925-student-ux';
-import { renderEditModalContent, generatePinnedMemosHTML, memoItems, memoText, memoListHTML } from '../ui.js?v=20261028-checklist-undo';
+import { renderEditModalContent, generatePinnedMemosHTML, memoItems, memoText, memoListHTML } from '../ui.js?v=20261110-edit-memo-one';
 import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js?v=20260925-student-ux';
 import { evaluatePR, pastSetsFrom } from './pr-logic.js';
 import { xpToGrade, gradeRank, recordVolume, GRADES } from './grades.js';
@@ -775,7 +775,7 @@ export async function saveEdit(docId) {
     const recordUser = state.currentUser;
     const originalDate = state.editingOriginalDate || state.selectedDate;
     const exercise = document.getElementById('edit-exercise').value.trim();
-    const memo = document.getElementById('edit-memo').value.trim();
+    const memo = (document.getElementById('edit-memo')?.value || '').trim();
     const pain = document.getElementById('edit-pain').checked;
     const newDate = document.getElementById('edit-date') ? document.getElementById('edit-date').value : state.selectedDate;
 
@@ -1283,7 +1283,7 @@ export function clearAllPinnedMemos() {
 
 export function togglePinExerciseFromEdit() {
     const exercise = document.getElementById('edit-exercise').value.trim();
-    const memo = document.getElementById('edit-memo').value.trim();
+    const memo = (document.getElementById('edit-memo')?.value || '').trim();
 
     if (!exercise) {
         alert('운동 이름을 입력해주세요!');
