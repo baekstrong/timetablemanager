@@ -166,3 +166,16 @@ describe('buildMessage — 보강 맞교환 확정', () => {
     expect(verifyPathFor({ type: 'makeupSwap' })).toBeUndefined();
   });
 });
+
+describe('makeupSwap 날짜·교시 형식 검증', () => {
+  const base = { status: 'accepted', studentName: '가상A', swapWith: '가상B', date: '2099-11-19', period: 4, originalClass: { date: '2099-11-17', period: 5 } };
+  const req = { type: 'makeupSwap', waitlistId: 'w1' };
+  it('정상 문서는 통과', () => {
+    expect(buildMessage(req, { name: '가상B' }, base)).not.toBeNull();
+  });
+  it('날짜·교시에 임의 문구가 있으면 보내지 않는다', () => {
+    expect(buildMessage(req, { name: '가상B' }, { ...base, date: '피싱 링크 http://x' })).toBeNull();
+    expect(buildMessage(req, { name: '가상B' }, { ...base, period: '9 클릭하세요' })).toBeNull();
+    expect(buildMessage(req, { name: '가상B' }, { ...base, originalClass: { date: '2099-11-17', period: 'x' } })).toBeNull();
+  });
+});

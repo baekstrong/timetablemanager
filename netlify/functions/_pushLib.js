@@ -101,8 +101,12 @@ function buildMessage(req, caller, record) {
       const caller_ = String(caller.name || '').normalize('NFC').trim();
       const partner = String(record?.swapWith || '').normalize('NFC').trim();
       if (!record || record.status !== 'accepted' || !record.studentName || !partner || partner !== caller_) return null;
-      const label = (p) => PERIOD_LABELS[p] || `${p}교시`;
+      // 대기 문서는 로그인한 수강생이 쓸 수 있으므로 날짜·교시를 엄격히 확인해 임의 문구가 끼지 않게 한다.
       const from = record.originalClass || {};
+      const okDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));
+      const okPeriod = (p) => Object.prototype.hasOwnProperty.call(PERIOD_LABELS, String(p));
+      if (!okDate(from.date) || !okDate(record.date) || !okPeriod(from.period) || !okPeriod(record.period)) return null;
+      const label = (p) => PERIOD_LABELS[String(p)];
       return {
         names: [record.studentName],
         title: '보강 맞교환이 확정됐어요',
