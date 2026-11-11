@@ -112,7 +112,7 @@ export default function MakeupModal({
                                             return;
                                         }
                                         if (isDoubleBook) {
-                                            alert(`${selectedMakeupSlot.day}요일엔 이미 다른 정규 수업이 있어요.\n같은 날 다른 수업을 옮기거나, 다른 요일을 선택해주세요.`);
+                                            alert(`${selectedMakeupSlot.day}요일은 원래 수업이 있는 날이에요.\n그날 수업은 같은 날 다른 시간으로만 옮길 수 있어요.\n다른 요일을 선택해주세요.`);
                                             return;
                                         }
                                         setSelectedOriginalClass({

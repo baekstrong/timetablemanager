@@ -272,16 +272,11 @@ export function getWaitlistCountForSlot(day, periodId, weekWaitlist, newStudentW
 export function wouldDoubleBookDay(studentSchedule, activeMakeupRequests, originalClass, targetDay, targetDate) {
     // 같은 날 안에서 시간만 옮기는 경우 — 그 날 수강 수가 늘지 않으므로 허용
     if (originalClass && originalClass.day === targetDay) return false;
-    // 다른 날 수업을 옮겨오는 경우 — 대상 요일에 아직 출석하는 정규 수업이 있으면 이중 수강
-    return (studentSchedule || []).some(s => {
-        if (s.day !== targetDay) return false;
-        const movedAway = (activeMakeupRequests || []).some(m =>
-            m.originalClass?.day === s.day &&
-            m.originalClass?.period === s.period &&
-            m.originalClass?.date === targetDate
-        );
-        return !movedAway;
-    });
+    // 다른 날 수업을 정규 수업이 있는 요일로 옮기면 차단 — 그 요일 수업을 이미 다른 날로 옮겨 비웠어도 마찬가지.
+    // 예전엔 비운 날이면 허용해서 화1→월5, 목1→화5, 수5→목5처럼 서로 맞바꾸는 교차 이동이 됐다(차유미 사례, 2026-11-11 사용자 결정).
+    // 정규 수업이 있는 날로의 보강은 그 날 수업을 같은 날 다른 시간으로 옮기는 것만 허용한다.
+    void activeMakeupRequests; void targetDate; // 호출부 호환용 인자(판정에는 안 씀)
+    return (studentSchedule || []).some(s => s.day === targetDay);
 }
 
 /** 교시 종료 시각(분). time 문자열("19:50 ~ 21:20")의 끝 시간 기준, 파싱 실패 시 시작+90분. */

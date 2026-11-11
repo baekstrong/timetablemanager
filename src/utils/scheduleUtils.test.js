@@ -54,10 +54,22 @@ describe('wouldDoubleBookDay (보강 이중 수강 차단)', () => {
         const orig = { day: '월', period: 4 };
         expect(wouldDoubleBookDay(schedule, [], orig, '화', '2026-07-14')).toBe(false);
     });
-    it('대상 요일 정규 수업을 이미 보강으로 비운 날짜면 옮겨와도 허용 (월4→목4 재사용)', () => {
+    it('대상 요일 정규 수업을 이미 다른 날로 비웠어도 다른 날 수업은 못 옮겨온다 (교차 이동 차단)', () => {
         const orig = { day: '월', period: 4 };
         const moved = [{ originalClass: { day: '목', period: 4, date: '2026-07-16' } }];
-        expect(wouldDoubleBookDay(schedule, moved, orig, '목', '2026-07-16')).toBe(false);
+        expect(wouldDoubleBookDay(schedule, moved, orig, '목', '2026-07-16')).toBe(true);
+    });
+    it('차유미 사례: 화1→월5, 목1→화5, 수5→목5 중 정규 수업 요일로 가는 두 건은 차단', () => {
+        const chaSchedule = [{ day: '화', period: 1 }, { day: '수', period: 5 }, { day: '목', period: 1 }];
+        const moves = [
+            { originalClass: { day: '화', period: 1, date: '2026-11-10' } },
+            { originalClass: { day: '목', period: 1, date: '2026-11-12' } },
+        ];
+        expect(wouldDoubleBookDay(chaSchedule, [], { day: '화', period: 1 }, '월', '2026-11-09')).toBe(false);
+        expect(wouldDoubleBookDay(chaSchedule, moves, { day: '목', period: 1 }, '화', '2026-11-10')).toBe(true);
+        expect(wouldDoubleBookDay(chaSchedule, moves, { day: '수', period: 5 }, '목', '2026-11-12')).toBe(true);
+        // 상식적인 이동(목1→목5)은 허용
+        expect(wouldDoubleBookDay(chaSchedule, [], { day: '목', period: 1 }, '목', '2026-11-12')).toBe(false);
     });
     it('한 요일에 정규가 둘일 때 같은 날 이동은 허용 (목1↔목4 사이 이동)', () => {
         const twice = [{ day: '목', period: 1 }, { day: '목', period: 4 }];

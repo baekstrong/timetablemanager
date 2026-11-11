@@ -507,9 +507,9 @@ function CurrentWeekStudentSchedule({
             return;
         }
 
-        // 이중 수강 방지: 다른 날 수업을 이미 정규 수업이 있는 요일로 옮기면 차단(같은 날 이동은 허용)
+        // 이중·교차 수강 방지: 다른 날 수업을 정규 수업이 있는 요일로 옮기면 차단 — 그 요일 수업을 비웠어도(같은 날 이동만 허용)
         if (wouldDoubleBookStudent(selectedOriginalClass, selectedMakeupSlot.day, selectedMakeupSlot.date)) {
-            alert('보강 대상 요일에 이미 다른 정규 수업이 있어요.\n같은 날 다른 수업을 옮기거나, 다른 요일을 선택해주세요.');
+            alert('그 요일은 원래 수업이 있는 날이에요.\n그날 수업은 같은 날 다른 시간으로만 옮길 수 있어요.\n다른 요일을 선택해주세요.');
             return;
         }
 
@@ -629,7 +629,7 @@ function CurrentWeekStudentSchedule({
         // 옮기려는 보강 자신은 이중 수강 판정에서 제외 — 그 자리는 곧 비운다.
         const otherMakeups = activeMakeupRequests.filter(m => m.id !== target.id);
         if (wouldDoubleBookStudent(oc, newSlot.day, newSlot.date, otherMakeups)) {
-            alert('보강 대상 요일에 이미 다른 정규 수업이 있어요.\n다른 요일을 선택해주세요.');
+            alert('그 요일은 원래 수업이 있는 날이에요.\n그날 수업은 같은 날 다른 시간으로만 옮길 수 있어요.\n다른 요일을 선택해주세요.');
             return;
         }
         if (!confirmEndDateShift(oc, newSlot)) return;
@@ -820,7 +820,7 @@ function CurrentWeekStudentSchedule({
             return;
         }
         if (wouldDoubleBookStudent(oc, slot.day, slot.date)) {
-            alert('보강 대상 요일에 이미 다른 정규 수업이 있어요.\n다른 요일을 선택해주세요.');
+            alert('그 요일은 원래 수업이 있는 날이에요.\n그날 수업은 같은 날 다른 시간으로만 옮길 수 있어요.\n다른 요일을 선택해주세요.');
             return;
         }
         const duplicateOriginal = activeMakeupRequests.some(m =>
