@@ -30,6 +30,7 @@ function verifyPathFor(req) {
     case 'reply':
       return req.postId && req.parentId ? ['posts', req.postId, 'comments', req.parentId] : undefined;
     case 'makeupSeat':
+    case 'makeupSwap':
       return req.waitlistId ? ['makeupWaitlists', req.waitlistId] : undefined;
     default:
       return null; // 조회 불필요
@@ -91,6 +92,24 @@ function buildMessage(req, caller, record) {
         tag: 'makeup-seat',
         url: './?page=schedule',
         ttl: 3600, // 수락 데드라인과 같게 — 늦게 도착하면 이미 다음 순번으로 넘어갔다
+      };
+    }
+
+    case 'makeupSwap': {
+      // 맞교환 확정(2026-11-11) — 상대가 내 대기를 받아줬다. 받아준 사람(호출자)만 보낼 수 있고,
+      // 대상은 그 대기의 주인. 대기 문서가 accepted이고 swapWith가 호출자 이름이어야 한다.
+      const caller_ = String(caller.name || '').normalize('NFC').trim();
+      const partner = String(record?.swapWith || '').normalize('NFC').trim();
+      if (!record || record.status !== 'accepted' || !record.studentName || !partner || partner !== caller_) return null;
+      const label = (p) => PERIOD_LABELS[p] || `${p}교시`;
+      const from = record.originalClass || {};
+      return {
+        names: [record.studentName],
+        title: '보강 맞교환이 확정됐어요',
+        body: `${cut(record.swapWith, 20)}님과 자리를 바꿨어요. ${formatDateText(from.date)} ${label(from.period)} → ${formatDateText(record.date)} ${label(record.period)}`,
+        tag: 'makeup-swap',
+        url: './?page=schedule',
+        ttl: 86400,
       };
     }
 

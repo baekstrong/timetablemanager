@@ -1229,6 +1229,52 @@ export const acceptMakeupWaitlist = async (id) => {
     }));
 };
 
+/**
+ * 보강 맞교환 확정 (2026-11-11). 두 사람의 보강 기록을 한 트랜잭션으로 만든다 — 한쪽만 옮겨진 상태 금지.
+ * 요청자 대기(waitId)가 아직 waiting인지 트랜잭션 안에서 다시 읽어, 두 사람이 동시에 받아주는 경우 한 명만 성공.
+ * partnerWaitId가 있으면(자동 맞교환) 상대 대기도 waiting이어야 하며 함께 accepted로 바꾼다.
+ * 대기 문서에 swapWith(상대 이름)를 남긴다 — 서버가 확정 알림을 보낼 때 이 문서로 대상·호출자를 확인한다.
+ * @param {{ requester: object, partner: object }} makeups - buildSwapMakeups 결과
+ */
+export const confirmMakeupSwap = async ({ waitId, partnerWaitId = null, makeups }) => {
+    return safeWrite(() => runTransaction(db, async (tx) => {
+        const waitRef = doc(db, 'makeupWaitlists', waitId);
+        const partnerRef = partnerWaitId ? doc(db, 'makeupWaitlists', partnerWaitId) : null;
+        const waitSnap = await tx.get(waitRef);
+        const partnerSnap = partnerRef ? await tx.get(partnerRef) : null;
+        if (!waitSnap.exists() || waitSnap.data().status !== 'waiting') {
+            throw new Error('그 사이 상대의 교환 요청이 마감되었거나 다른 사람과 교환되었어요.');
+        }
+        if (partnerSnap && (!partnerSnap.exists() || partnerSnap.data().status !== 'waiting')) {
+            throw new Error('그 사이 상대의 대기가 바뀌었어요.');
+        }
+        const swapId = waitId;
+        const requesterRef = doc(collection(db, 'makeupRequests'));
+        const partnerMakeupRef = doc(collection(db, 'makeupRequests'));
+        for (const [ref, m] of [[requesterRef, makeups.requester], [partnerMakeupRef, makeups.partner]]) {
+            tx.set(ref, {
+                studentName: m.studentName,
+                originalClass: m.originalClass,
+                makeupClass: m.makeupClass,
+                status: 'active',
+                swapId,
+                swapWith: m.swapWith,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            });
+        }
+        const done = (swapWith) => ({ status: 'accepted', respondedAt: serverTimestamp(), swapWith, swapAt: serverTimestamp(), updatedAt: serverTimestamp() });
+        tx.update(waitRef, done(makeups.partner.studentName));
+        if (partnerRef) tx.update(partnerRef, done(makeups.requester.studentName));
+        return {
+            swapId,
+            requesterMakeupId: requesterRef.id,
+            partnerMakeupId: partnerMakeupRef.id,
+            keptAbsenceIds: [waitSnap.data().keptAbsenceId, partnerSnap?.data()?.keptAbsenceId].filter(Boolean),
+        };
+    }));
+};
+
 export const declineMakeupWaitlist = async (id) => {
     return safeWrite(() => updateDocStatus('makeupWaitlists', id, {
         status: 'declined', respondedAt: serverTimestamp(),

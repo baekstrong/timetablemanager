@@ -1,0 +1,18 @@
+.swap-board { border-top:1px solid var(--hairline); padding:20px 0 8px; }
+.swap-board-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.swap-board-head h2 { font-size:16px; margin:0; }
+.swap-board-head span { font-size:13px; color:var(--text-secondary); }
+.swap-board-help { font-size:12px; line-height:1.6; color:var(--text-secondary); margin:6px 0 14px; }
+.swap-board-card { border:1px solid var(--hairline); border-radius:var(--r-md); padding:14px; margin-bottom:10px; background:var(--canvas); }
+.swap-board-card.is-mine { border-color:var(--accent-30); background:var(--accent-10); }
+.swap-board-card.is-muted { background:var(--canvas-tint); }
+.swap-board-card p { font-size:12px; line-height:1.6; color:var(--text-secondary); margin:0; }
+.swap-board-card .student-class-button { width:100%; }
+.swap-board-chip { display:inline-block; border-radius:var(--r-chip); padding:3px 7px; background:var(--canvas); color:var(--accent-hover); font-size:11px; font-weight:700; }
+.swap-board-who { font-size:13px; color:var(--text-secondary); }
+.swap-board-who strong { color:var(--text); }
+.swap-board-move { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:8px 0 10px; font-size:15px; font-weight:700; }
+.swap-board-move span { color:var(--text-muted); font-weight:400; }
+.swap-board-empty { font-size:13px; color:var(--text-secondary); margin:0; padding:8px 0; }
+.swap-board-facts { margin:16px 0 0; padding-left:18px; font-size:13px; line-height:1.7; color:var(--text-secondary); }
+.swap-board-facts strong { color:var(--text); }

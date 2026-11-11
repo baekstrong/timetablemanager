@@ -116,3 +116,6 @@ export const pushReply = (postId, parentId, parent) => callPush({ type: 'reply',
 
 /** 보강 대기 자리 발생 — 서버가 makeupWaitlists/{id}가 notified인지 확인하고 그 문서로 문구를 만든다 */
 export const pushMakeupSeat = (waitlistId) => callPush({ type: 'makeupSeat', waitlistId });
+
+/** 보강 맞교환 확정 — 서버가 makeupWaitlists/{id}가 accepted이고 swapWith가 호출자인지 확인한 뒤 대기 주인에게 보낸다 */
+export const pushMakeupSwap = (waitlistId) => callPush({ type: 'makeupSwap', waitlistId });

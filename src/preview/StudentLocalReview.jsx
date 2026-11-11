@@ -75,7 +75,10 @@ export default function StudentLocalReview() {
                 fixtures.showStatusExamples(); setMountKey(value => value + 1);
                 setNotice('출석·보강이동·보강·홀딩·결석 표시 예시입니다. 예시 초기화로 원래 일정으로 돌아갈 수 있어요.');
                 window.scrollTo(0, 0);
-            }}>출석·보강·결석 예시 보기</button><button onClick={() => setGrowthExample(true)}>티어·학년 변경 팝업 예시</button><p>보강·홀딩·결석은 메모리에서만 바뀌며 새로고침하면 초기화됩니다.</p></details>
+            }}>출석·보강·결석 예시 보기</button><button onClick={() => {
+                fixtures.showSwapExamples(); setMountKey(value => value + 1);
+                setNotice('다른 수강생의 맞교환 요청 예시입니다. 내 수업 아래 이번 주 맞교환에서 확인하세요.');
+            }}>맞교환 요청 예시 보기</button><button onClick={() => setGrowthExample(true)}>티어·학년 변경 팝업 예시</button><p>보강·홀딩·결석은 메모리에서만 바뀌며 새로고침하면 초기화됩니다.</p></details>
         </div>}
         {page === 'holding' && <HoldingManager user={reviewUser} studentData={student} initialDate={holdingDate}
             services={fixtures.services} isLoading={false} onBack={() => navigate('schedule')} />}

@@ -146,3 +146,23 @@ describe('본인 답글·같은 기기 알림 방지', () => {
     expect(filterTargets({ type: 'reply' }, targets, null)).toEqual(targets);
   });
 });
+
+describe('buildMessage — 보강 맞교환 확정', () => {
+  const record = {
+    status: 'accepted', studentName: '가상A', swapWith: '김수강',
+    date: '2026-09-03', period: 4, originalClass: { date: '2026-09-01', period: 5 },
+  };
+  it('받아준 사람(호출자)이 대기 주인에게 보낸다', () => {
+    expect(verifyPathFor({ type: 'makeupSwap', waitlistId: 'w1' })).toEqual(['makeupWaitlists', 'w1']);
+    const m = buildMessage({ type: 'makeupSwap', waitlistId: 'w1' }, student, record);
+    expect(m.names).toEqual(['가상A']);
+    expect(m.title).toBe('보강 맞교환이 확정됐어요');
+    expect(m.body).toBe('김수강님과 자리를 바꿨어요. 9/1(화) 5교시 → 9/3(목) 4교시');
+  });
+  it('확정되지 않았거나 호출자가 교환 상대가 아니면 보내지 않는다', () => {
+    expect(buildMessage({ type: 'makeupSwap', waitlistId: 'w1' }, student, { ...record, status: 'waiting' })).toBeNull();
+    expect(buildMessage({ type: 'makeupSwap', waitlistId: 'w1' }, { name: '다른사람', isCoach: false }, record)).toBeNull();
+    expect(buildMessage({ type: 'makeupSwap', waitlistId: 'w1' }, student, null)).toBeNull();
+    expect(verifyPathFor({ type: 'makeupSwap' })).toBeUndefined();
+  });
+});

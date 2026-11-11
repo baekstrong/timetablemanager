@@ -1,6 +1,7 @@
 import { shiftEndDateBySessions } from '../services/holidayEndDateDelta';
 import { isHolidayDate } from '../services/googleSheetsService';
 import { getNoticeRevision } from '../utils/noticeState';
+import { buildSwapMakeups, findMutualSwap } from '../utils/makeupSwap';
 const clone = value => structuredClone(value);
 export const reviewUser = { username: '예시 수강생', role: 'student' };
 export const reviewStudent = {
@@ -80,6 +81,26 @@ export function createStudentReviewServices(onChange) {
         acceptMakeupWaitlist: async id => update(waitlists, id, { status: 'accepted' }),
         declineMakeupWaitlist: async id => update(waitlists, id, { status: 'declined' }),
         onSeatFreed: async () => {},
+        // 맞교환 — 실제 서비스와 같은 순수 로직으로 메모리에 두 보강을 만든다(외부 호출 없음)
+        acceptSwapRequest: async (entry, myName) => {
+            const row = waitlists.find(w => w.id === entry.id);
+            if (!row || row.status !== 'waiting') throw new Error('그 사이 상대의 교환 요청이 마감되었거나 다른 사람과 교환되었어요.');
+            const m = buildSwapMakeups(row, myName);
+            for (const x of [m.requester, m.partner]) makeups.push({ id: `review-makeup-${++sequence}`, ...clone(x), status: 'active' });
+            Object.assign(row, { status: 'accepted', swapWith: myName });
+            onChange(); return { makeups: m };
+        },
+        tryAutoSwap: async (id, myName) => {
+            const all = waitlists.map(w => ({ ...w, createdAtMs: w.createdAtMs ?? (w.createdAt?.seconds || 0) * 1000 }));
+            const mine = all.find(w => w.id === id);
+            const partner = mine && findMutualSwap(mine, all, new Date());
+            if (!partner) return null;
+            const m = buildSwapMakeups(partner, myName);
+            for (const x of [m.requester, m.partner]) makeups.push({ id: `review-makeup-${++sequence}`, ...clone(x), status: 'active' });
+            Object.assign(waitlists.find(w => w.id === partner.id), { status: 'accepted', swapWith: myName });
+            Object.assign(waitlists.find(w => w.id === id), { status: 'accepted', swapWith: partner.studentName });
+            onChange(); return { makeups: m, partner };
+        },
         processHolidayMakeupEndDate: async () => ({ success: true, updated: false }),
     };
     return {
@@ -117,6 +138,17 @@ export function createStudentReviewServices(onChange) {
             absences.splice(0, absences.length, { id: 'review-status-absence', studentName: reviewUser.username, status: 'active', date: '2026-09-18' });
             freeWorkouts.splice(0, freeWorkouts.length, { id: 'review-status-attendance', studentName: reviewUser.username, date: '2026-09-14' });
             waitlists.length = 0;
+            onChange();
+        },
+        // 다른 수강생들의 맞교환 요청(가상 인물). 예시 수강생은 화5·목5 수강.
+        showSwapExamples() {
+            const c = (date, day, period) => ({ date, day, period, periodName: `${period}교시` });
+            waitlists.push(
+                { id: 'review-swap-1', studentName: '가상 이지훈', ...c('2026-09-17', '목', 5), originalClass: c('2026-09-18', '금', 4), status: 'waiting', createdAtMs: 1 },
+                { id: 'review-swap-2', studentName: '가상 박서연', ...c('2026-09-17', '목', 5), originalClass: c('2026-09-18', '금', 1), status: 'waiting', createdAtMs: 2 },
+                { id: 'review-swap-3', studentName: '가상 최민준', ...c('2026-09-18', '금', 2), originalClass: c('2026-09-17', '목', 1), status: 'waiting', createdAtMs: 3 },
+                { id: 'review-swap-4', studentName: '가상 김도윤', ...c('2026-09-17', '목', 5), originalClass: c('2026-09-18', '금', 5), status: 'waiting', createdAtMs: 4 },
+            );
             onChange();
         },
         get makeups() { return makeups; },

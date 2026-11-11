@@ -16,7 +16,7 @@ export default function StudentClassView({
     days, sessions = [], now, tab, onTabChange, readOnly = false, suppressCourseNotice = false,
     loading = false, error = '', onRetry, studentName, membership, source, quotaUsed, quotaLimit,
     requestUnavailableReason = '', requestError = '',
-    waits = [], onWaitlist, onKeepWait, onConvertWait, onSourceChoose, onMakeup, onCancelMakeup, onNavigate, children,
+    waits = [], onWaitlist, onKeepWait, onConvertWait, onSourceChoose, onMakeup, onCancelMakeup, onNavigate, swapBoard = null, children,
 }) {
     const [selection, setSelection] = useState(null);
     const [dismissedCourseNotice, setDismissedCourseNotice] = useState('');
@@ -69,11 +69,12 @@ export default function StudentClassView({
                 {focus.length ? focus.map(session => {
                     const past = classStartMs(session) <= now.getTime();
                     const unavailable = requestUnavailableReason || sourceUnavailableReason(session, { now, quotaUsed, quotaLimit, waits });
-                    const canCancel = session.type === 'makeup' && classStartMs(session) - now.getTime() > 60 * 60 * 1000;
+                    const swapped = session.type === 'makeup' && Boolean(session.makeup?.swapWith);
+                    const canCancel = session.type === 'makeup' && !swapped && classStartMs(session) - now.getTime() > 60 * 60 * 1000;
                     return <div className="student-class-session" key={`${session.date}-${session.period}`}>
                         <div className="student-class-eyebrow">{selectedDate ? '선택한 수업' : '이 주의 다음 수업'}<ClassStatusChip session={session} now={now} detail /></div>
                         <div className="student-class-time">{classTime(session)}</div><p className="student-class-date">{classLabel(session).split(' ')[0]} · {session.periodName}</p>
-                        {session.type === 'makeup' && <p className="student-class-help">{classLabel(session.origin)} 수업을 옮겼어요.</p>}
+                        {session.type === 'makeup' && <p className="student-class-help">{classLabel(session.origin)} 수업을 옮겼어요.{swapped && ` ${session.makeup.swapWith}님과 맞교환했어요.`}</p>}
                         {session.type === 'moved' && <p className="student-class-help">{classLabel(session.makeup?.makeupClass)} 보강으로 이동했어요.</p>}
                         {session.type === 'holding' && <p className="student-class-help">홀딩한 수업이에요. 수강 기간 연장은 내 정보에서 확인할 수 있어요.</p>}
                         {session.type === 'absence' && <p className="student-class-help">결석 신청한 수업이에요. 수강 횟수는 사용하고 기간은 유지돼요.</p>}
@@ -82,7 +83,7 @@ export default function StudentClassView({
                         {!past && ['regular', 'holiday', 'makeup'].includes(session.type) && <>
                             {session.type !== 'makeup' && unavailable && <p className="student-class-help">{unavailable}</p>}
                             <div className="student-class-actions">{session.type === 'makeup' ? <button type="button" className="student-class-button primary" disabled={readOnly || !canCancel || Boolean(requestUnavailableReason)} onClick={() => onCancelMakeup(session.makeup.id)}>보강 취소</button> : <button type="button" className="student-class-button primary" disabled={readOnly || Boolean(unavailable)} onClick={() => onMakeup(session)}>보강 신청</button>}{session.type !== 'holiday' && <button type="button" className="student-class-button" onClick={() => onNavigate?.('holding', session.date)}>홀딩·결석</button>}</div>
-                            {session.type === 'makeup' && !canCancel && <p className="student-class-help">보강 수업 시작 1시간 전까지 취소할 수 있어요.</p>}
+                            {session.type === 'makeup' && !canCancel && <p className="student-class-help">{swapped ? '맞교환한 수업은 취소할 수 없어요.' : '보강 수업 시작 1시간 전까지 취소할 수 있어요.'}</p>}
                         </>}
                         {past && <p className="student-class-help">이미 시작했거나 지난 수업이에요.</p>}
                     </div>;
@@ -101,9 +102,10 @@ export default function StudentClassView({
                     </div>}
                 </div><button type="button" className="student-class-link" disabled={readOnly || Boolean(requestUnavailableReason)} onClick={() => onWaitlist(entry)}>대기 취소</button></div>;
             })}
-            <div className="student-class-membership"><div><span>남은 수업</span><strong>{membership?.remainingSessions ?? '—'}<small>회</small></strong></div><div><span>수강 종료일</span><strong>{shortDate(membership?.endDate)}</strong></div><button type="button" aria-label="수강권 자세히 보기" onClick={() => onNavigate?.('myinfo')}>›</button></div>
-            <button type="button" className="student-class-training" onClick={() => onNavigate?.('training-log')}><span><strong>지난 수업, 어떻게 했더라?</strong><small>훈련일지에서 내 기록 이어보기</small></span><span aria-hidden="true">›</span></button>
-            <button type="button" className="student-class-link" onClick={() => onNavigate?.('holding')}>홀딩·결석 신청 및 내역 ›</button>
+            {/* 남은 수업·훈련일지·홀딩 내역 링크는 첫 화면에서 뺐다(2026-11-11 사용자 요청). 이번 주 남은 수업이 없으면
+                홀딩·결석 버튼도 없으므로 그때만 내역으로 가는 길을 남긴다. */}
+            {!focus.length && <button type="button" className="student-class-link" onClick={() => onNavigate?.('holding')}>홀딩·결석 신청 및 내역 ›</button>}
+            {swapBoard}
         </> : requestUnavailableReason ? null : <>
             <button type="button" className="student-class-source" onClick={onSourceChoose}><span><small>옮길 수업</small><strong>{source ? classLabel(source) : '내 수업을 먼저 선택하세요'}</strong></span><span>{source ? '변경' : '선택'} ›</span></button>
             <div className="student-class-grid-heading"><p>{source ? '원하는 시간을 선택하세요' : '이번 주 보강 가능한 시간'}</p><span>{quotaUsed}/{quotaLimit}회 사용</span></div>

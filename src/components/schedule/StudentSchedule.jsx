@@ -34,16 +34,19 @@ import MakeupModal from './MakeupModal';
 import MakeupWaitlistResponseModal from './MakeupWaitlistModal';
 import { StudentTag, AvailableSeatsCell, HolidayCell } from './ScheduleCell';
 import StudentClassView from './StudentClassView';
+import MakeupSwapBoard from './MakeupSwapBoard';
+import { swapBoardEntries, mySessionForSwap } from '../../utils/makeupSwap';
+import { acceptSwapRequest, tryAutoSwap } from '../../services/makeupSwapService';
 import StudentMakeupSlot from './StudentMakeupSlot';
 import ReviewModal from '../../features/today/ReviewModal';
 import { getPushPermission, initPush, isPushAvailable } from '../../services/pushService';
 import { pushBlockedGuide, resolvePushState } from '../../utils/pushStatus';
 import { buildStudentWeek, studentWeekDays, classLabel, classStartMs, sourceUnavailableReason, studentDateISO } from './studentClassModel';
 
-const DEFAULT_SERVICES = { getActiveMakeupRequests, getWeekMakeupRequests, createMakeupRequest, cancelMakeupRequest, completeMakeupRequest, getHolidays, createMakeupWaitlist, getActiveMakeupWaitlists, updateMakeupWaitlistStatus, acceptMakeupWaitlist, declineMakeupWaitlist, onSeatFreed, processHolidayMakeupEndDate, keepMakeupWaitlistAfterOriginal, cancelAbsence, onSeatsFreedForDates };
+const DEFAULT_SERVICES = { getActiveMakeupRequests, getWeekMakeupRequests, createMakeupRequest, cancelMakeupRequest, completeMakeupRequest, getHolidays, createMakeupWaitlist, getActiveMakeupWaitlists, updateMakeupWaitlistStatus, acceptMakeupWaitlist, declineMakeupWaitlist, onSeatFreed, processHolidayMakeupEndDate, keepMakeupWaitlistAfterOriginal, cancelAbsence, onSeatsFreedForDates, acceptSwapRequest, tryAutoSwap };
 const EMPTY_LIST = [];
 const denyReadOnlyWrite = async () => { throw new Error('실데이터 조회 전용 화면에서는 신청·취소를 할 수 없습니다.'); };
-const READ_ONLY_WRITES = { createMakeupRequest: denyReadOnlyWrite, cancelMakeupRequest: denyReadOnlyWrite, completeMakeupRequest: denyReadOnlyWrite, createMakeupWaitlist: denyReadOnlyWrite, updateMakeupWaitlistStatus: denyReadOnlyWrite, acceptMakeupWaitlist: denyReadOnlyWrite, declineMakeupWaitlist: denyReadOnlyWrite, onSeatFreed: denyReadOnlyWrite, processHolidayMakeupEndDate: denyReadOnlyWrite, keepMakeupWaitlistAfterOriginal: denyReadOnlyWrite, cancelAbsence: denyReadOnlyWrite, onSeatsFreedForDates: denyReadOnlyWrite };
+const READ_ONLY_WRITES = { createMakeupRequest: denyReadOnlyWrite, cancelMakeupRequest: denyReadOnlyWrite, completeMakeupRequest: denyReadOnlyWrite, createMakeupWaitlist: denyReadOnlyWrite, updateMakeupWaitlistStatus: denyReadOnlyWrite, acceptMakeupWaitlist: denyReadOnlyWrite, declineMakeupWaitlist: denyReadOnlyWrite, onSeatFreed: denyReadOnlyWrite, processHolidayMakeupEndDate: denyReadOnlyWrite, keepMakeupWaitlistAfterOriginal: denyReadOnlyWrite, cancelAbsence: denyReadOnlyWrite, onSeatsFreedForDates: denyReadOnlyWrite, acceptSwapRequest: denyReadOnlyWrite, tryAutoSwap: denyReadOnlyWrite };
 
 const KOR_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 // "2026-06-24" → "6월 24일(수)"
@@ -106,7 +109,7 @@ function CurrentWeekStudentSchedule({
     initialTab = 'mine',
 }) {
     const effectiveServices = readOnly ? { ...services, ...READ_ONLY_WRITES } : services;
-    const { getActiveMakeupRequests, getWeekMakeupRequests, createMakeupRequest, cancelMakeupRequest, completeMakeupRequest, getHolidays, createMakeupWaitlist, getActiveMakeupWaitlists, updateMakeupWaitlistStatus, acceptMakeupWaitlist, declineMakeupWaitlist, onSeatFreed, processHolidayMakeupEndDate, keepMakeupWaitlistAfterOriginal, cancelAbsence, onSeatsFreedForDates } = effectiveServices;
+    const { getActiveMakeupRequests, getWeekMakeupRequests, createMakeupRequest, cancelMakeupRequest, completeMakeupRequest, getHolidays, createMakeupWaitlist, getActiveMakeupWaitlists, updateMakeupWaitlistStatus, acceptMakeupWaitlist, declineMakeupWaitlist, onSeatFreed, processHolidayMakeupEndDate, keepMakeupWaitlistAfterOriginal, cancelAbsence, onSeatsFreedForDates, acceptSwapRequest, tryAutoSwap } = effectiveServices;
     const [clockNow, setClockNow] = useState(() => new Date());
     const now = suppliedNow || clockNow;
     const [studentTab, setStudentTab] = useState(initialTab === 'all' ? 'all' : 'mine');
@@ -238,6 +241,40 @@ function CurrentWeekStudentSchedule({
     // 원래 시간표 칸(시트 D열 요일·교시)으로는 보강·대기 불가 — 등록 기간 밖 날짜 포함(2026-11-04)
     function isOwnSlot(slot) {
         return Boolean(slot) && isOwnTimetableSlot(studentData, slot.date, slot.day, slot.period);
+    }
+
+    // ── 보강 맞교환 (2026-11-11) ──
+    // 현황판에서 내가 이 요청을 받아줄 수 있는가. 요청자 쪽 규칙은 대기를 걸 때 이미 확인됐다.
+    function checkSwap(entry) {
+        const session = mySessionForSwap(entry, personalSessions);
+        if (!session) return { session: null, reason: '' };
+        const target = entry.originalClass;
+        const reason = sourceUnavailableReason(session, { now, quotaUsed: myQuotaUsed, quotaLimit: makeupWeeklyLimit, waits: validWaits })
+            || (isOwnSlot(target) ? '내 원래 시간표 칸이라 받을 수 없어요.' : '')
+            || (personalSessions.some(s => s.date === target.date && Number(s.period) === Number(target.period) && ['regular', 'makeup'].includes(s.type)) ? '그 시간엔 이미 내 수업이 있어요.' : '')
+            || (wouldDoubleBookStudent(session, target.day, target.date) ? `${target.day}요일엔 정규 수업이 있어 그 시간으로 갈 수 없어요.` : '')
+            || (isSlotLocked(target.day, Number(target.period)) ? '코치가 보강을 막아 둔 시간이에요.' : '')
+            || (isMyHoldingDate?.(target.date) ? '홀딩 기간이라 받을 수 없어요.' : '');
+        return { session, reason };
+    }
+
+    async function handleSwapAccept(entry, session) {
+        if (readOnly) { alert('실데이터 조회 전용 화면에서는 신청·취소를 할 수 없습니다.'); return false; }
+        if (!validateStudentDataReady()) return false;
+        const { reason } = checkSwap(entry);
+        if (reason) { alert(reason); return false; }
+        if (!confirmEndDateShift(session, entry.originalClass)) return false;
+        try {
+            await acceptSwapRequest(entry, user.username);
+            alert(`맞교환 완료!\n${classLabel(session)} → ${classLabel(entry.originalClass)}\n${entry.studentName}님에게 알림을 보냈어요.`);
+            setStudentTab('mine');
+            await Promise.all([reloadMyWaitlists(), reloadStudentMakeups(), loadWeeklyData()]);
+            return true;
+        } catch (error) {
+            alert(`맞교환 실패: ${error.message}`);
+            await reloadMyWaitlists().catch(() => {});
+            return false;
+        }
     }
 
     function wouldDoubleBookStudent(original, day, date, makeups = activeMakeupRequests) {
@@ -555,6 +592,11 @@ function CurrentWeekStudentSchedule({
         if (!validateStudentDataReady()) return;
         if (!makeupId) return;
         const makeup = activeMakeupRequests.find(m => m.id === makeupId);
+        // 맞교환한 보강은 상대가 이미 내 자리에 들어와 있어 취소하면 정원을 넘긴다(2026-11-11 사용자 결정)
+        if (!forceMode && makeup?.swapWith) {
+            alert(`${makeup.swapWith}님과 맞교환한 수업이라 취소하거나 바꿀 수 없어요.`);
+            return;
+        }
         if (!forceMode && makeup && isClassWithinMinutes(makeup.makeupClass.date, makeup.makeupClass.period, 60)) {
             alert('보강 수업 시작 1시간 전부터는 보강 취소가 불가합니다.');
             return;
@@ -700,10 +742,24 @@ function CurrentWeekStudentSchedule({
         setIsSubmittingWaitlist(true);
         try {
             const phone = String(getStudentField(studentData, '핸드폰') || '').trim();
-            await createMakeupWaitlist(user.username, phone, waitlistSlot, waitlistOriginalClass, makeupWeeklyLimit);
-            const pushState = await currentPushState();
-            if (pushState === 'on') alert('보강 대기 신청 완료!\n자리가 나면 앱 알림으로 안내드립니다 (선착순).');
-            else setPushPrompt(pushState);
+            const created = await createMakeupWaitlist(user.username, phone, waitlistSlot, waitlistOriginalClass, makeupWeeklyLimit);
+            // 서로 상대 칸을 원하는 대기가 이미 있으면 바로 맞교환(자동 맞교환). 실패해도 대기는 그대로 둔다.
+            let swapped = null;
+            try {
+                const createdId = typeof created === 'string' ? created : created?.id;
+                swapped = createdId && tryAutoSwap ? await tryAutoSwap(createdId, user.username) : null;
+            } catch (swapError) {
+                console.error('자동 맞교환 실패(대기는 유지):', swapError);
+            }
+            if (swapped) {
+                alert(`맞교환 완료!\n${classLabel(waitlistOriginalClass)} → ${classLabel(waitlistSlot)}\n같은 자리를 바꾸고 싶던 ${swapped.partner.studentName}님과 바로 자리를 바꿨어요.`);
+                await reloadStudentMakeups().catch(() => {});
+                loadWeeklyData?.()?.catch?.(() => {});
+            } else {
+                const pushState = await currentPushState();
+                if (pushState === 'on') alert('보강 대기 신청 완료!\n자리가 나면 앱 알림으로 안내드립니다 (선착순).\n이번 주 맞교환 목록에도 올라가요.');
+                else setPushPrompt(pushState);
+            }
             setShowWaitlistRequest(false);
             setWaitlistSlot(null);
             setWaitlistOriginalClass(null);
@@ -1325,6 +1381,8 @@ function CurrentWeekStudentSchedule({
     const sameFlowSlot = selectedOriginalClass?.date === flowTarget?.date && selectedOriginalClass?.period === flowTarget?.period;
     const flowTargetError = isOwnSlot(flowTarget) ? '원래 수업 시간표에는 보강을 신청할 수 없어요. 다른 시간을 선택해주세요.' : flowDoubleBooking ? '이날 이미 다른 수업이 있어요. 다른 시간을 선택해주세요.' : sameFlowSlot ? '원래 수업과 다른 시간을 선택해주세요.' : '';
     const personalLoading = studentDataLoading || !weeklyDataLoaded || !personalDataReady;
+    const swapWeek = getThisWeekRange(now);
+    const swapEntries = swapBoardEntries(activeWaitlists, { weekStart: swapWeek.start, weekEnd: swapWeek.end, now });
     const personalError = weeklyDataError || (makeupDataState === 'error' ? '보강 정보를 불러오지 못했어요.' : '')
         || (!studentDataLoading && !studentData ? '수강 정보를 찾을 수 없어요. 등록 상태를 코치에게 확인해주세요.' : '');
 
@@ -1340,6 +1398,9 @@ function CurrentWeekStudentSchedule({
                 membership={membership} source={changingMakeup?.originalClass || convertingWait?.originalClass || selectedOriginalClass} quotaUsed={myQuotaUsed} quotaLimit={makeupWeeklyLimit}
                 waits={validWaits} onWaitlist={handleWaitlistChipClick} onKeepWait={handleKeepAfterOriginal} onConvertWait={startWaitConversion} onSourceChoose={() => { if (changingMakeup || convertingWait) return; setFlowTarget(null); setFlowStep('source'); }}
                 onMakeup={startStudentMakeup} onCancelMakeup={handleMakeupCancel} onNavigate={onNavigate}
+                swapBoard={acceptSwapRequest && <MakeupSwapBoard entries={swapEntries}
+                    myName={user?.username} check={checkSwap} onAccept={handleSwapAccept} quotaUsed={myQuotaUsed} quotaLimit={makeupWeeklyLimit}
+                    readOnly={readOnly} disabledReason={studentRequestDataError} />}
             >
                 {changingMakeup && <div className="student-class-notice"><strong>보강 시간 변경 중</strong><p>원래 수업이 만석이에요. 다른 빈자리를 선택해주세요.</p><button type="button" className="student-class-link" onClick={() => setChangingMakeup(null)}>변경 그만두기</button></div>}
                 {convertingWait && <div className="student-class-notice"><strong>대기를 보강으로 변경 중</strong><p>{classLabel(convertingWait.originalClass)} 수업을 옮길 빈자리를 선택해주세요. 고르면 {classLabel(convertingWait)} 대기는 취소돼요.</p><button type="button" className="student-class-link" onClick={() => setConvertingWait(null)}>변경 그만두기</button></div>}
