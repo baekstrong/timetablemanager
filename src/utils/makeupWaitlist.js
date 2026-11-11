@@ -116,7 +116,8 @@ export function resolveAfterSeatFreed(entries, now = new Date(), freedSeats = 1)
     // 자리 안내를 받았다가 취소되는 대기도 쥐고 있던 자리를 반납한다.
     const released = toExpire.length + toCancel.filter(e => e.status === 'notified').length;
     const claimable = Math.max(0, freedSeats) + released;
-    return { toCancel, toExpire, toNotify: waiting.slice(0, claimable) };
+    // backup: 앞 순번이 보강 횟수를 다 써 안내할 수 없으면 이어서 알릴 다음 순번들
+    return { toCancel, toExpire, toNotify: waiting.slice(0, claimable), backup: waiting.slice(claimable) };
 }
 
 /**
@@ -126,7 +127,7 @@ export function resolveAfterSeatFreed(entries, now = new Date(), freedSeats = 1)
 export function resolveToTarget(entries, now = new Date(), availableSeats = 0) {
     const { toCancel, toExpire, activeNotifiedCount, waiting } = splitQueue(entries, now);
     const claimable = Math.max(0, availableSeats - activeNotifiedCount);
-    return { toCancel, toExpire, toNotify: waiting.slice(0, claimable) };
+    return { toCancel, toExpire, toNotify: waiting.slice(0, claimable), backup: waiting.slice(claimable) };
 }
 
 /**

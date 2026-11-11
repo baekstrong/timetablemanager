@@ -136,6 +136,6 @@ export function sourceUnavailableReason(session, { now = new Date(), quotaUsed =
     if (session.makeup && ['active', 'completed'].includes(session.makeup.status)) return '이미 보강 신청 내역이 있는 수업이에요.';
     if (classStartMs(session) - now.getTime() <= 120 * 60 * 1000) return '원래 수업 시작 2시간 전까지 신청할 수 있어요.';
     if (waits.some(item => ['waiting', 'notified'].includes(item.status) && item.originalClass?.date === session.date && Number(item.originalClass?.period) === Number(session.period))) return '이 수업은 보강 대기 중이에요.';
-    if (quotaUsed >= quotaLimit) return '이번 주 보강·대기 한도를 모두 사용했어요.';
+    if (quotaUsed >= quotaLimit) return '이번 주 보강 횟수를 모두 사용했어요.';
     return '';
 }

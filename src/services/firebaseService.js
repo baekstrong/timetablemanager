@@ -1149,7 +1149,7 @@ export const cancelContract = async (contractId) => {
 // ============================================
 // status: waiting → notified → accepted | declined | expired | cancelled
 
-export const createMakeupWaitlist = async (studentName, phone, slot, originalClass) => {
+export const createMakeupWaitlist = async (studentName, phone, slot, originalClass, weeklyLimit = null) => {
     return safeWrite(async () => {
         const existing = await queryDocs('makeupWaitlists',
             where('studentName', '==', studentName),
@@ -1172,6 +1172,8 @@ export const createMakeupWaitlist = async (studentName, phone, slot, originalCla
                 periodName: originalClass.periodName,
             },
             status: 'waiting',
+            // 신청 때 주간 보강 한도 — 자리 안내 직전에 남은 횟수 확인용(대기는 성공해야 1회, 2026-11-11)
+            ...(Number.isFinite(Number(weeklyLimit)) && Number(weeklyLimit) >= 1 ? { weeklyLimit: Number(weeklyLimit) } : {}),
             notifiedAt: null,
             respondedAt: null,
             updatedAt: serverTimestamp(),

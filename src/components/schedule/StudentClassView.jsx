@@ -107,10 +107,10 @@ export default function StudentClassView({
         </> : requestUnavailableReason ? null : <>
             <button type="button" className="student-class-source" onClick={onSourceChoose}><span><small>옮길 수업</small><strong>{source ? classLabel(source) : '내 수업을 먼저 선택하세요'}</strong></span><span>{source ? '변경' : '선택'} ›</span></button>
             <div className="student-class-grid-heading"><p>{source ? '원하는 시간을 선택하세요' : '이번 주 보강 가능한 시간'}</p><span>{quotaUsed}/{quotaLimit}회 사용</span></div>
-            {quotaUsed >= quotaLimit && <p className="student-class-notice">이번 주 보강·대기 한도를 모두 사용했어요.</p>}
+            {quotaUsed >= quotaLimit && <p className="student-class-notice">이번 주 보강 횟수를 모두 사용했어요.{waits.length > 0 && ' 걸어 둔 대기는 자리가 나도 안내되지 않고 취소돼요.'}</p>}
             {children}
             <p className="student-class-help">대기 신청만으로 수업이 이동하지 않아요. 자리가 나면 직접 수락해요.</p>
-            <details className="student-class-policy"><summary>보강 신청·취소 기준</summary><p>원래 수업과 보강 수업 모두 시작 2시간 전까지 신청할 수 있어요. 취소는 보강 수업 시작 1시간 전까지 가능해요.</p><p>보강 대기 중인 수업은 원래 수업 시작 전까지 내 일정의 대기 카드에서 다른 시간 보강으로 바꿀 수 있어요.</p><p>이번 주 신청 한도는 {quotaLimit}회예요. 취소한 보강도 사용 횟수에 포함되며, 대기 중인 신청도 한도를 차지해요.</p><p>원래 수업이 만석이면 취소로 돌아갈 수 없어요. 남은 횟수가 있으면 다른 시간으로 변경할 수 있어요.</p></details>
+            <details className="student-class-policy"><summary>보강 신청·취소 기준</summary><p>원래 수업과 보강 수업 모두 시작 2시간 전까지 신청할 수 있어요. 취소는 보강 수업 시작 1시간 전까지 가능해요.</p><p>보강 대기 중인 수업은 원래 수업 시작 전까지 내 일정의 대기 카드에서 다른 시간 보강으로 바꿀 수 있어요.</p><p>이번 주 신청 한도는 {quotaLimit}회예요. 취소한 보강도 사용 횟수에 포함돼요. 대기는 보강이 확정될 때 1회로 세요. 단, 자리가 났을 때 이번 주 횟수를 다 썼다면 안내 없이 대기가 취소돼요.</p><p>원래 수업이 만석이면 취소로 돌아갈 수 없어요. 남은 횟수가 있으면 다른 시간으로 변경할 수 있어요.</p></details>
         </>}
     </div>;
 }

@@ -28,7 +28,7 @@ import {
     formatDateISO,
     wouldDoubleBookDay,
 } from '../../utils/scheduleUtils';
-import { getMakeupWeeklyLimit, countWeekMakeupCommitments } from '../../utils/makeupQuota';
+import { getMakeupWeeklyLimit, countWeekMakeupUsage } from '../../utils/makeupQuota';
 import { secondClassDayISO, cappedEndForFirstClassMove } from '../../utils/makeupEndDate';
 import MakeupModal from './MakeupModal';
 import MakeupWaitlistResponseModal from './MakeupWaitlistModal';
@@ -170,19 +170,9 @@ function CurrentWeekStudentSchedule({
         [activeWaitlists, user]
     );
 
-    // 이번 주 보강 '약속' 건수(보강 이력 + 활성 대기) — 대기도 수락 시 보강이 되므로 미리 횟수에 포함
-    const myWeekCommitments = useMemo(() => {
-        const { start, end } = getThisWeekRange(now);
-        const valid = myWaitlists.filter(entry => isLiveWaitlist(entry, now));
-        return countWeekMakeupCommitments(myWeekMakeupHistory, valid, start, end);
-    }, [myWeekMakeupHistory, myWaitlists, now]);
-    // 대기를 보강으로 바꾸는 중이면 그 대기가 차지한 1회는 새 보강이 이어받으므로 빼고 센다
-    const convertingCountsThisWeek = (() => {
-        if (!convertingWait || !isLiveWaitlist(convertingWait, now)) return false;
-        const { start, end } = getThisWeekRange(now);
-        return convertingWait.date >= start && convertingWait.date <= end;
-    })();
-    const myQuotaUsed = myWeekCommitments - (convertingCountsThisWeek ? 1 : 0);
+    // 이번 주 보강 사용 횟수(취소 포함). 대기는 성공해야 1회로 센다(2026-11-11 사용자 결정).
+    const myWeekCommitments = useMemo(() => countWeekMakeupUsage(myWeekMakeupHistory), [myWeekMakeupHistory]);
+    const myQuotaUsed = myWeekCommitments;
 
     const allHolidays = [...Object.entries(KOREAN_HOLIDAYS).map(([date, reason]) => ({ date, reason })), ...weekHolidays];
     // Sheets의 현재 홀딩도 보존하되 실제 선택 날짜가 있는 Firebase 홀딩을 먼저 쓴다.
@@ -428,9 +418,9 @@ function CurrentWeekStudentSchedule({
             return;
         }
 
-        // 주 수강 횟수만큼 당주 보강 신청 가능 (취소 내역·활성 대기도 소진으로 간주)
+        // 주 수강 횟수만큼 당주 보강 신청 가능 (취소 내역도 소진으로 간주, 대기는 성공해야 1회)
         if (!forceMode && myQuotaUsed >= makeupWeeklyLimit) {
-            alert(`보강은 주 ${makeupWeeklyLimit}회까지 신청 가능합니다.\n이번 주 보강·대기 신청 내역(취소 포함)이 있어 추가 신청이 불가합니다.`);
+            alert(`보강은 주 ${makeupWeeklyLimit}회까지 신청 가능합니다.\n이번 주 보강 신청 내역(취소 포함)이 있어 추가 신청이 불가합니다.`);
             return;
         }
 
@@ -677,9 +667,9 @@ function CurrentWeekStudentSchedule({
             alert('이미 시작된 수업입니다.');
             return;
         }
-        // 보강+대기를 합쳐 주 수강 횟수까지만 신청 가능. 이미 다 썼으면 대기해도 수락이 안 되므로 미리 차단.
+        // 대기는 성공해야 1회지만, 이미 다 썼으면 자리가 나도 수락할 수 없으므로 미리 차단.
         if (!forceMode && myWeekCommitments >= makeupWeeklyLimit) {
-            alert(`이번 주 보강 횟수를 모두 사용하셔서 대기 신청을 할 수 없어요.\n(보강 신청과 대기 신청을 합쳐 주 ${makeupWeeklyLimit}회까지)`);
+            alert(`이번 주 보강 횟수(주 ${makeupWeeklyLimit}회)를 모두 사용하셔서 대기 신청을 할 수 없어요.`);
             return;
         }
         // 이중 수강 차단은 원래 수업 선택 후(대기 모달·수락 단계)에서 처리 — 같은 날 이동은 허용해야 하므로.
@@ -710,7 +700,7 @@ function CurrentWeekStudentSchedule({
         setIsSubmittingWaitlist(true);
         try {
             const phone = String(getStudentField(studentData, '핸드폰') || '').trim();
-            await createMakeupWaitlist(user.username, phone, waitlistSlot, waitlistOriginalClass);
+            await createMakeupWaitlist(user.username, phone, waitlistSlot, waitlistOriginalClass, makeupWeeklyLimit);
             const pushState = await currentPushState();
             if (pushState === 'on') alert('보강 대기 신청 완료!\n자리가 나면 앱 알림으로 안내드립니다 (선착순).');
             else setPushPrompt(pushState);
@@ -1315,7 +1305,7 @@ function CurrentWeekStudentSchedule({
                 else if (session && ['regular', 'makeup'].includes(session.type)) reason = label = session.type === 'makeup' ? '내 보강' : '내 수업';
                 else if (isOwnSlot(slot)) reason = label = '내 시간표';
                 else if (source && wouldDoubleBookStudent(source, day, date, otherMakeups)) reason = label = '선택 불가';
-                else if (myQuotaUsed >= makeupWeeklyLimit) reason = '이번 주 보강·대기 한도를 모두 사용했어요.';
+                else if (myQuotaUsed >= makeupWeeklyLimit) reason = '이번 주 보강 횟수를 모두 사용했어요.';
                 if (existingWait) { reason = ''; label = existingWait.status === 'notified' ? '자리 도착' : '대기 중'; }
                 if (convertingWait && data.isFull && !reason) reason = existingWait ? label : (label = '만석');
                 return <StudentMakeupSlot key={date} session={session} now={now} label={label} reason={reason}
@@ -1506,7 +1496,7 @@ function CurrentWeekStudentSchedule({
                         <div className="student-class-route"><div><span>원래 수업</span><strong>{classLabel(selectedOriginalClass)}</strong></div><span aria-hidden="true">↓</span><div><span>{flowWaiting ? '대기할 수업' : '보강 수업'}</span><strong>{classLabel(flowTarget)}</strong></div></div>
                         <p className="student-class-help">{flowWaiting ? '자리를 수락하기 전까지 원래 수업은 유지돼요.' : '확정하면 원래 수업 대신 선택한 시간에 참석해요.'}</p>
                         {flowSourceSession?.type === 'holiday' && <p className="student-class-notice">휴일 수업을 미리 수강하면 수강 종료일이 앞당겨질 수 있어요.</p>}
-                        <p className="student-class-help">신청 후 이번 주 보강·대기 {myWeekCommitments + 1}/{makeupWeeklyLimit}회<br />{flowWaiting ? '대기를 취소하면 대기 한도는 돌아와요.' : '보강을 취소해도 사용 횟수는 돌아오지 않아요.'}</p>
+                        <p className="student-class-help">{flowWaiting ? <>대기는 보강이 확정될 때 1회를 써요 (지금 {myWeekCommitments}/{makeupWeeklyLimit}회)<br />그 전에 보강 횟수를 다 쓰면 자리가 나도 안내되지 않고 대기가 취소돼요.</> : <>신청 후 이번 주 보강 {myWeekCommitments + 1}/{makeupWeeklyLimit}회<br />보강을 취소해도 사용 횟수는 돌아오지 않아요.</>}</p>
                         {(flowSourceError || flowTargetError) && <p className="student-class-notice" role="alert">{flowSourceError || flowTargetError}</p>}
                         <div className="student-class-actions"><button type="button" className="student-class-button" disabled={isSubmittingMakeup || isSubmittingWaitlist} onClick={closeStudentFlow}>다른 시간 선택</button><button type="button" className="student-class-button primary" disabled={readOnly || Boolean(flowSourceError || flowTargetError) || isSubmittingMakeup || isSubmittingWaitlist} onClick={flowWaiting ? handleWaitlistRequestSubmit : handleMakeupSubmit}>{readOnly ? '실데이터 조회 전용' : isSubmittingMakeup || isSubmittingWaitlist ? '신청 중…' : flowWaiting ? '대기 신청' : '보강 확정'}</button></div>
                     </>}

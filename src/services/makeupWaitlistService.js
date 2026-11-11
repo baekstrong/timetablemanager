@@ -1,5 +1,6 @@
 import {
     getActiveMakeupWaitlists,
+    getWeekMakeupRequests,
     getMakeupWaitlistsByStudent,
     notifyMakeupWaitlist,
     updateMakeupWaitlistStatus,
@@ -7,8 +8,9 @@ import {
 import { requestMakeupSeatSMS } from './smsService';
 import { pushMakeupSeat } from './pushService';
 import { findWaitlistsReleasedByHolding, isReleasedByOriginalStart, resolveAfterSeatFreed, resolveToTarget } from '../utils/makeupWaitlist';
-import { parseScheduleString } from '../utils/scheduleUtils';
+import { getThisWeekRange, parseScheduleString } from '../utils/scheduleUtils';
 import { PERIODS } from '../data/mockData';
+import { hasMakeupQuotaLeft } from '../utils/makeupQuota';
 
 /** Firestore 문서 → 순수 로직용 정규화 (Timestamp → ms) */
 export function normalizeWaitlistEntry(entry) {
@@ -19,8 +21,36 @@ export function normalizeWaitlistEntry(entry) {
     };
 }
 
+/**
+ * 자리 안내 직전 남은 보강 횟수 확인 (2026-11-11 사용자 결정: 대기는 성공해야 1회).
+ * 대기를 건 뒤 다른 보강으로 횟수를 다 썼으면 수락할 수 없으므로, 안내하지 않고 대기를 취소한다 —
+ * 안내가 간 자리는 수락 시간 동안 찬 자리로 묶이기 때문이다.
+ * 조회 실패(safeRead가 [] 반환)나 한도 없는 예전 대기는 막지 않는다(종전 동작).
+ */
+async function canReceiveSeat(entry) {
+    if (!entry.weeklyLimit) return true;
+    const { start, end } = getThisWeekRange(new Date(`${entry.date}T00:00:00`));
+    const weekMakeups = await getWeekMakeupRequests(entry.studentName, start, end);
+    return hasMakeupQuotaLeft(entry, weekMakeups);
+}
+
+/** 앞 순번부터 안내 가능한 사람을 slots명 고른다. 횟수를 다 쓴 사람은 취소 목록으로. */
+export async function pickNotifiable(toNotify = [], backup = [], check = canReceiveSeat) {
+    const slots = toNotify.length;
+    const chosen = [];
+    const exhausted = [];
+    for (const entry of [...toNotify, ...backup]) {
+        if (chosen.length >= slots) break;
+        if (await check(entry)) chosen.push(entry);
+        else exhausted.push(entry);
+    }
+    return { chosen, exhausted };
+}
+
 /** cancel·expire 처리 + 다음 순번 notified 전환 + 푸시/SMS 발송. 알린 인원 수 반환. */
-async function applyResolution({ toCancel = [], toExpire, toNotify }) {
+async function applyResolution({ toCancel = [], toExpire, toNotify: candidates, backup = [] }) {
+    const { chosen: toNotify, exhausted } = await pickNotifiable(candidates, backup);
+    toCancel = [...toCancel, ...exhausted];
     for (const e of toCancel) {
         await updateMakeupWaitlistStatus(e.id, 'cancelled')
             .catch(err => console.error('보강 대기 자동 취소 실패:', e.id, err));
