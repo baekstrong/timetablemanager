@@ -1,7 +1,15 @@
 import { useState } from 'react';
 import ReviewModal from '../../features/today/ReviewModal';
-import { classLabel } from './studentClassModel';
+import { classTime } from './studentClassModel';
 import './MakeupSwapBoard.css';
+
+/** 11/19(목) 6교시(21:40) — 맞교환은 교시로 말하므로 교시를 앞에 (2026-11-11 사용자 요청) */
+function classLabel(session) {
+    if (!session?.date) return '';
+    const period = Number(session.period);
+    const time = classTime(session);
+    return `${Number(session.date.slice(5, 7))}/${Number(session.date.slice(8))}(${session.day}) ${period}교시${time ? `(${time})` : ''}`;
+}
 
 /**
  * 이번 주 맞교환 현황판 (2026-11-11 사용자 결정, docs/makeup-swap-2026-11-11.md).
