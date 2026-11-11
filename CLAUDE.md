@@ -590,6 +590,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 ### 보강 시스템
 
 - 학생이 WeeklySchedule에서 원래 수업 → 보강 날짜/교시 선택
+- 수강생 보강 시간표에서 **옮길 수업은 시간표의 `내 수업` 칸을 눌러 고른다**(`눌러서 선택` → `옮길 수업 ✓` 테두리, 2026-11-11 사용자 요청). 위에 따로 있던 `옮길 수업 … 변경` 카드는 뺐고, 고른 수업은 시간표 위 안내 줄에 `9/17(목) 19:50 → 원하는 시간을 선택하세요`로 보인다. 고를 수 있는 칸은 `sourceUnavailableReason`을 통과한 정규 수업뿐(시간 변경·대기 전환 중엔 원래 수업이 정해져 있어 선택 불가). 수업을 안 고르고 빈자리를 누르면 예전처럼 옮길 수업 선택 창이 뜬다
 - Firebase `makeupRequests` 생성 (status: active)
 - 당주 최대 보강 횟수 = `weeklyFrequency`
 - 향후 14일 이내 선택 가능

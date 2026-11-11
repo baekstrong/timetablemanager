@@ -1349,6 +1349,10 @@ function CurrentWeekStudentSchedule({
                 const existingWait = validWaits.find(item => item.date === date && Number(item.period) === period.id);
                 const session = personalSessions.find(item => item.date === date && item.period === period.id);
                 const source = changingMakeup?.originalClass || convertingWait?.originalClass || selectedOriginalClass;
+                // 옮길 수업은 시간표의 내 수업 칸을 눌러 고른다(2026-11-11 사용자 요청, 위의 '옮길 수업' 카드 제거)
+                const pickable = !changingMakeup && !convertingWait && session?.type === 'regular' && !studentRequestDataError
+                    && !sourceUnavailableReason(session, { now, quotaUsed: myWeekCommitments, quotaLimit: makeupWeeklyLimit, waits: validWaits });
+                const isPickedSource = Boolean(source) && source.date === date && Number(source.period) === period.id;
                 const otherMakeups = changingMakeup ? activeMakeupRequests.filter(item => item.id !== changingMakeup.id) : activeMakeupRequests;
                 let reason = '';
                 let label = data.isFull ? '대기 가능' : `${data.availableSeats}자리`;
@@ -1358,6 +1362,7 @@ function CurrentWeekStudentSchedule({
                 else if (isSlotLocked(day, period.id)) reason = label = '신청 불가';
                 else if (isMyHoldingDate?.(date)) reason = label = '홀딩';
                 else if (classStartMs(slot) - now.getTime() <= (data.isFull && !convertingWait ? 0 : 120 * 60 * 1000)) reason = label = '마감';
+                else if (pickable) label = isPickedSource ? '옮길 수업 ✓' : '눌러서 선택';
                 else if (session && ['regular', 'makeup'].includes(session.type)) reason = label = session.type === 'makeup' ? '내 보강' : '내 수업';
                 else if (isOwnSlot(slot)) reason = label = '내 시간표';
                 else if (source && wouldDoubleBookStudent(source, day, date, otherMakeups)) reason = label = '선택 불가';
@@ -1367,10 +1372,10 @@ function CurrentWeekStudentSchedule({
                 return <StudentMakeupSlot key={date} session={session} now={now} label={label} reason={reason}
                     isFull={data.isFull} existingWait={existingWait}
                     waitCount={data.isFull && !reason ? getSeatWaitCount(date, day, period.id) : 0}
-                    className={`slot-kind-${getHolidayInfo(day) !== null || isClassDisabled(day, period.id) ? 'empty' : period.type === 'free' ? 'free' : 'lesson'}`}
+                    className={`slot-kind-${getHolidayInfo(day) !== null || isClassDisabled(day, period.id) ? 'empty' : period.type === 'free' ? 'free' : 'lesson'}${isPickedSource ? ' is-source' : ''}`}
                     disabled={Boolean(reason) || isSubmittingMakeup || isSubmittingWaitlist}
                     ariaLabel={`${classLabel(slot)} ${label}${reason && reason !== label ? ` · ${reason}` : ''}`}
-                    onClick={() => existingWait ? handleWaitlistChipClick(existingWait) : handleCellClick(day, period, data)} />;
+                    onClick={() => pickable ? chooseOriginal(session) : existingWait ? handleWaitlistChipClick(existingWait) : handleCellClick(day, period, data)} />;
             })}</Fragment>)}
         </div></>;
     }
@@ -1396,7 +1401,7 @@ function CurrentWeekStudentSchedule({
                 loading={personalLoading} error={personalError} onRetry={retryStudentData}
                 requestUnavailableReason={studentRequestDataError} requestError={requestDataError}
                 membership={membership} source={changingMakeup?.originalClass || convertingWait?.originalClass || selectedOriginalClass} quotaUsed={myQuotaUsed} quotaLimit={makeupWeeklyLimit}
-                waits={validWaits} onWaitlist={handleWaitlistChipClick} onKeepWait={handleKeepAfterOriginal} onConvertWait={startWaitConversion} onSourceChoose={() => { if (changingMakeup || convertingWait) return; setFlowTarget(null); setFlowStep('source'); }}
+                waits={validWaits} onWaitlist={handleWaitlistChipClick} onKeepWait={handleKeepAfterOriginal} onConvertWait={startWaitConversion}
                 onMakeup={startStudentMakeup} onCancelMakeup={handleMakeupCancel} onNavigate={onNavigate}
                 swapBoard={acceptSwapRequest && <MakeupSwapBoard entries={swapEntries}
                     myName={user?.username} check={checkSwap} onAccept={handleSwapAccept} quotaUsed={myQuotaUsed} quotaLimit={makeupWeeklyLimit}

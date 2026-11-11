@@ -16,7 +16,7 @@ export default function StudentClassView({
     days, sessions = [], now, tab, onTabChange, readOnly = false, suppressCourseNotice = false,
     loading = false, error = '', onRetry, studentName, membership, source, quotaUsed, quotaLimit,
     requestUnavailableReason = '', requestError = '',
-    waits = [], onWaitlist, onKeepWait, onConvertWait, onSourceChoose, onMakeup, onCancelMakeup, onNavigate, swapBoard = null, children,
+    waits = [], onWaitlist, onKeepWait, onConvertWait, onMakeup, onCancelMakeup, onNavigate, swapBoard = null, children,
 }) {
     const [selection, setSelection] = useState(null);
     const [dismissedCourseNotice, setDismissedCourseNotice] = useState('');
@@ -107,8 +107,7 @@ export default function StudentClassView({
             {!focus.length && <button type="button" className="student-class-link" onClick={() => onNavigate?.('holding')}>홀딩·결석 신청 및 내역 ›</button>}
             {swapBoard}
         </> : requestUnavailableReason ? null : <>
-            <button type="button" className="student-class-source" onClick={onSourceChoose}><span><small>옮길 수업</small><strong>{source ? classLabel(source) : '내 수업을 먼저 선택하세요'}</strong></span><span>{source ? '변경' : '선택'} ›</span></button>
-            <div className="student-class-grid-heading"><p>{source ? '원하는 시간을 선택하세요' : '이번 주 보강 가능한 시간'}</p><span>{quotaUsed}/{quotaLimit}회 사용</span></div>
+            <div className="student-class-grid-heading"><p>{source ? <><strong>{classLabel(source)}</strong> → 원하는 시간을 선택하세요</> : '옮길 내 수업 칸을 먼저 누르세요'}</p><span>{quotaUsed}/{quotaLimit}회 사용</span></div>
             {quotaUsed >= quotaLimit && <p className="student-class-notice">이번 주 보강 횟수를 모두 사용했어요.{waits.length > 0 && ' 걸어 둔 대기는 자리가 나도 안내되지 않고 취소돼요.'}</p>}
             {children}
             <p className="student-class-help">대기 신청만으로 수업이 이동하지 않아요. 자리가 나면 직접 수락해요.</p>
