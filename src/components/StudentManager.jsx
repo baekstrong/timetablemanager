@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
-import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets, pauseStudent, resumeStudent, getPausedStudentResumeInfo } from '../services/googleSheetsService';
+import { getStudentField, clearStudentScheduleAllSheets, processStudentAbsence, processCoachHolding, cancelHoldingInSheets, pauseStudent, resumeStudent, getPausedStudentResumeInfo, setFreeOnlyPause } from '../services/googleSheetsService';
 import { createHoldingRequest, markHoldingSheetsApplied, getHoldingsByStudent, cancelHolding, getActiveMakeupRequests, createStudentTermination, deleteAllStudentAppData, recordStudentCount, getGradeMap, getGraduatedMap, setStudentGraduated, ensureUserAccount, getUnappliedHoldings } from '../services/firebaseService';
 import { getCoachStudentListStatus, shouldShowInCoachStudentList, isPausedRegistration } from '../utils/studentList';
 import { cancelWaitlistsForHeldDates, onSeatsFreedForDates } from '../services/makeupWaitlistService';
@@ -238,6 +238,31 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
             setResumeInfoError(err.message || '정지된 수강 정보를 불러오지 못했습니다.');
         } finally {
             setResumeInfoLoading(false);
+        }
+    };
+
+    // 자율 전용: 정지 상태로 두고 매주 월요일 1회씩 자동 차감 (출석 안 셈)
+    const handleToggleFreeOnly = async (student) => {
+        const name = student['이름'];
+        const on = Boolean(student._freeOnly);
+        const message = on
+            ? `${name}님의 자율 전용을 해제할까요?\n\n지금까지 차감된 횟수를 시트에 기록하고 일반 정지로 돌아갑니다.`
+            : `${name}님을 자율 전용으로 설정할까요?\n\n정지 상태는 그대로 두고, 다가오는 월요일부터 1주가 지날 때마다 남은 횟수를 1회씩 줄입니다.\n(출석은 세지 않습니다)`;
+        if (!window.confirm(message)) return;
+        setActionProcessing(on ? '자율 전용 해제 중...' : '자율 전용 설정 중...');
+        try {
+            const result = await setFreeOnlyPause(name, !on);
+            if (refresh) {
+                try { await refresh(); } catch (refreshError) { console.warn('자율 전용 후 목록 새로고침 실패:', refreshError); }
+            }
+            alert(on
+                ? `자율 전용을 해제했습니다. 남은 횟수 ${result.total}회`
+                : `자율 전용으로 설정했습니다.\n남은 ${result.total}회, ${result.anchor.getMonth() + 1}/${result.anchor.getDate()}(월)부터 매주 1회씩 차감됩니다.`);
+        } catch (err) {
+            console.error('자율 전용 설정 실패:', err);
+            alert('자율 전용 설정에 실패했습니다: ' + err.message);
+        } finally {
+            setActionProcessing('');
         }
     };
 
@@ -774,6 +799,11 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                                 {isPausedRegistration(student) && (
                                                     <span className="student-status-badge paused">일시정지</span>
                                                 )}
+                                                {isPausedRegistration(student) && student._freeOnly && (
+                                                    <span className="student-status-badge paused" title={student._freeOnly.nextDeduction ? `다음 차감 ${student._freeOnly.nextDeduction.getMonth() + 1}/${student._freeOnly.nextDeduction.getDate()}` : '소진 완료'}>
+                                                        자율 전용 · 매주 1회
+                                                    </span>
+                                                )}
                                                 {getCoachStudentListStatus(student) === 'expired' && (
                                                     <span className="student-status-badge expired">종료일 지남</span>
                                                 )}
@@ -858,6 +888,9 @@ const StudentManager = ({ onImpersonate, onNavigate }) => {
                                                             <>
                                                                 <button onClick={() => handleResume(student)} className="resume-btn" title="재개 (정지 해제 + 종료날짜 재계산)">재개</button>
                                                                 <button onClick={() => setAdjustmentTarget(student['이름'])} className="resume-btn">잔여 조정</button>
+                                                                <button onClick={() => handleToggleFreeOnly(student)} className="resume-btn" title="정지 상태로 두고 매주 월요일 1회씩 자동 차감">
+                                                                    {student._freeOnly ? '자율 전용 해제' : '자율 전용'}
+                                                                </button>
                                                             </>
                                                         ) : (
                                                             <button onClick={() => handlePause(student)} className="pause-btn" title="일시정지 (남은 횟수 기록 후 시간표에서 제거)">

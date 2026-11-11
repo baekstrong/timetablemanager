@@ -3,6 +3,9 @@ import { getMembershipRegistrations, getRegistrationHoldings } from '../utils/me
 import { isPausedRegistration } from '../utils/studentList';
 import { planPausedSessionAdjustment, pausedRegistrationSnapshot } from '../utils/pausedSessions';
 import {
+  applyFreeOnlyDecay, replaceFreeOnlyTag, addWeeks, nextMondayOnOrAfter, FREE_ONLY_TAG_RE,
+} from '../utils/freeOnlyPause';
+import {
   parseAbsenceDatesFromNotes,
   isHolidayRelevantToStudent,
   shiftEndDateBySessions,
@@ -1252,6 +1255,16 @@ export const findStudentAcrossSheets = async (studentName, { requireActive = tru
     console.log(`✅ 전체 시트 스캔 후 "${studentName}" 등록 ${allMatches.length}건 확보`);
   }
 
+  // 정지 중(오늘 수강 중인 등록 없음)이면 정지 등록 전체 합계를 대표 행에 실어 준다.
+  // 예전엔 정지 행 하나가 그대로 넘어가 수강생 화면에 엉뚱한 기간·횟수가 보였다.
+  const pausedMatches = allMatches.filter(m => isPausedRegistration(m.student));
+  if (pausedMatches.length && !allMatches.some(m => studentRegistrationCoversDate(m.student, today))) {
+    const summary = summarizePausedRegistrations(pausedMatches.map(m => m.student), today);
+    const info = pausedMatches.find(m => m.student === summary._pausedBase) || pausedMatches[0];
+    delete summary._pausedBase;
+    return { student: summary, year: info.year, month: info.month, foundSheetName: info.foundSheetName };
+  }
+
   if (allMatches.length === 1) {
     console.log(`✅ Found student "${studentName}" in ${allMatches[0].foundSheetName}`);
     return allMatches[0];
@@ -1343,11 +1356,9 @@ export const getAllStudentsFromAllSheets = async () => {
     const paused = registrations.filter(isPausedRegistration);
     if (paused.length && !registrations.some(row => studentRegistrationCoversDate(row, today))) {
       // 원본 H는 유지한다. 합계를 등록별 편집 입력에 섞지 않는다.
-      latestByName[name] = {
-        ...paused[0],
-        _pausedTotal: paused.reduce((sum, row) => sum + parseInt(getStudentField(row, '종료날짜'), 10), 0),
-        _pausedCount: paused.length,
-      };
+      const summary = summarizePausedRegistrations(paused, today);
+      delete summary._pausedBase;
+      latestByName[name] = summary;
       return;
     }
     registrations = preferScheduledRegistrations(registrations, getStudentField);
@@ -1772,6 +1783,26 @@ const fmtYYMMDD = (d) => {
 // 정지 시 원래 일정을 특이사항(E)에 보존하는 태그: [정지:주횟수/요일및시간/원래시작YYMMDD]
 const PAUSE_TAG_RE = /\s*\[정지:([^/\]]*)\/([^/\]]*)\/([^\]]*)\]/;
 
+/**
+ * 같은 사람의 정지 행들(파싱된 학생 객체)을 원래 시작일 순으로 묶어 대표 객체 하나로 만든다.
+ * `_pausedTotal`은 자율 전용 주간 차감까지 반영한 남은 횟수. 원본 H(종료날짜)는 건드리지 않는다.
+ */
+const summarizePausedRegistrations = (pausedRows, today = new Date()) => {
+  const startKey = row => (String(getStudentField(row, '특이사항') || '').match(PAUSE_TAG_RE)?.[3]) || '99999999';
+  const sorted = [...pausedRows].sort((a, b) => startKey(a).localeCompare(startKey(b)));
+  const decay = applyFreeOnlyDecay(sorted.map(row => ({
+    n: parseInt(getStudentField(row, '종료날짜'), 10) || 0,
+    notes: String(getStudentField(row, '특이사항') || ''),
+  })), today);
+  return {
+    ...sorted[0],
+    _pausedBase: sorted[0],
+    _pausedTotal: decay.total,
+    _pausedCount: sorted.length,
+    _freeOnly: decay.anchor ? { anchor: decay.anchor, nextDeduction: decay.nextDeduction, weeks: decay.weeks } : null,
+  };
+};
+
 const normalizeResumeSchedule = (scheduleStr) => {
   const dayOrder = ['월', '화', '수', '목', '금'];
   const slots = parseScheduleString(scheduleStr)
@@ -1852,9 +1883,66 @@ const collectPausedStudentRows = async (studentName) => {
   return collected;
 };
 
+/**
+ * 정지 행 + 자율 전용 정산. 쓰기 경로(잔여 조정·재개·자율 전용 해제)는 이걸 쓴다.
+ * 반환 rows의 n은 오늘까지의 주간 차감을 뺀 값, notes는 정산 후 특이사항(기준일을 이번 주로 당김).
+ * 0회가 된 행은 rows에서 빠지고 settleUpdates로 '0회' + 태그 제거가 기록된다.
+ * settleUpdates를 다른 쓰기와 같은 batchUpdate에 실어야 차감분이 사라지거나 두 번 빠지지 않는다.
+ */
+const collectPausedRowsSettled = async (studentName, today = new Date()) => {
+  const collected = await collectPausedStudentRows(studentName);
+  const decay = applyFreeOnlyDecay(collected, today);
+  if (!decay.anchor || decay.weeks === 0) return { rows: collected, settleUpdates: [], freeOnly: decay.anchor };
+
+  const date = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(today);
+  const newAnchor = addWeeks(decay.anchor, decay.weeks);
+  const settleUpdates = [];
+  const rows = [];
+  for (const row of decay.rows) {
+    const cell = (i, v) => ({ range: `${row.sheetName}!${getColumnLetter(row.idx[i])}${row.sheetRow}`, values: [[v]] });
+    if (row.idx.end < 0 || row.idx.notes < 0) throw new Error('잔여 횟수·특이사항 열을 찾지 못했습니다.');
+    const audit = row.consumed > 0 ? ` ${date} 자율전용 ${row.consumed}주 차감 ${row.rawN}→${row.n}회` : '';
+    if (row.n === 0) {
+      const notes = replaceFreeOnlyTag(row.restNotes, null) + audit + ' / 소진 완료';
+      settleUpdates.push(cell('end', '0회'), cell('notes', notes.trim()));
+      continue;
+    }
+    const notes = replaceFreeOnlyTag(row.notes, newAnchor) + audit;
+    if (row.consumed > 0) settleUpdates.push(cell('end', `${row.n}회`));
+    settleUpdates.push(cell('notes', notes));
+    rows.push({ ...row, notes, restNotes: notes.replace(PAUSE_TAG_RE, '').trim() });
+  }
+  return { rows, settleUpdates, freeOnly: newAnchor };
+};
+
+/** 같은 셀을 두 번 쓰면 뒤의 값이 남도록 합친다. */
+const mergeCellUpdates = (...lists) => {
+  const byRange = new Map();
+  lists.flat().forEach(update => byRange.set(update.range, update));
+  return [...byRange.values()];
+};
+
+/**
+ * 자율 전용 켜기/끄기. 켜면 모든 정지 행에 같은 기준일(기본: 다가오는 월요일) 태그를 붙인다.
+ * 끄면 오늘까지의 차감을 시트에 기록하고 태그를 지운다(일반 정지로 돌아감).
+ */
+export const setFreeOnlyPause = async (studentName, enable, startDate = null) => {
+  const { rows, settleUpdates } = await collectPausedRowsSettled(studentName);
+  if (!rows.length) throw new Error('정지 중인 등록을 찾지 못했습니다.');
+  const anchor = enable ? (startDate ? new Date(startDate) : nextMondayOnOrAfter(new Date())) : null;
+  if (enable && Number.isNaN(anchor.getTime())) throw new Error('시작일을 확인해주세요.');
+  const tagUpdates = rows.map(row => ({
+    range: `${row.sheetName}!${getColumnLetter(row.idx.notes)}${row.sheetRow}`,
+    values: [[replaceFreeOnlyTag(row.notes, anchor)]],
+  }));
+  await batchUpdateSheet(mergeCellUpdates(settleUpdates, tagUpdates));
+  invalidateStudentSheetCache();
+  return { total: rows.reduce((sum, row) => sum + row.n, 0), anchor };
+};
+
 /** 최신 원본과 미리보기 스냅샷을 비교한 뒤 등록별 잔여·사유를 한 번에 저장한다. */
 export const getPausedStudentAdjustmentInfo = async (studentName) => {
-  const rows = await collectPausedStudentRows(studentName);
+  const { rows } = await collectPausedRowsSettled(studentName);
   if (!rows.length) throw new Error('조정할 일시정지 등록을 찾지 못했습니다.');
   return {
     snapshot: pausedRegistrationSnapshot(rows),
@@ -1867,7 +1955,7 @@ export const adjustPausedStudentSessions = async (studentName, targetTotal, reas
   if (!cleanReason || cleanReason.length > 300 || /[\r\n[\]]/.test(cleanReason)) {
     throw new Error('조정 사유를 대괄호·줄바꿈 없이 1~300자로 입력해주세요.');
   }
-  const rows = await collectPausedStudentRows(studentName);
+  const { rows, settleUpdates } = await collectPausedRowsSettled(studentName);
   if (!expectedSnapshot || pausedRegistrationSnapshot(rows) !== expectedSnapshot) {
     throw new Error('등록 정보가 변경되었습니다. 창을 닫고 다시 열어 확인해주세요.');
   }
@@ -1884,7 +1972,7 @@ export const adjustPausedStudentSessions = async (studentName, targetTotal, reas
       { range: `${row.sheetName}!${getColumnLetter(row.idx.notes)}${row.sheetRow}`, values: [[`${notes}${notes ? ' ' : ''}${audit}`]] },
     ];
   });
-  await batchUpdateSheet(updates);
+  await batchUpdateSheet(mergeCellUpdates(settleUpdates, updates));
   return plan.map(({ sheetName, sheetRow, before, after, deducted }) => ({ sheetName, sheetRow, before, after, deducted }));
 };
 
@@ -1968,7 +2056,7 @@ const planPausedRegistrations = (
  * 재개 모달용 정지 등록 정보. 쓰기 없이 모든 월 시트를 1회 batchGet으로 읽는다.
  */
 export const getPausedStudentResumeInfo = async (studentName) => {
-  const collected = await collectPausedStudentRows(studentName);
+  const { rows: collected } = await collectPausedRowsSettled(studentName);
   if (!collected.length) throw new Error('재개할 정지 등록을 찾지 못했습니다.');
   return collected.map(({ n, origWeekly, origSchedule, origStartDigits }) => ({
     n, origWeekly, origSchedule, origStartDigits,
@@ -2052,7 +2140,7 @@ export const resumeStudent = async (
   studentName, restartDate, scheduleOrHolidays, firebaseHolidays = [],
   weeklyFrequency = null, endDateOverride = null
 ) => {
-  const collected = await collectPausedStudentRows(studentName);
+  const { rows: collected, settleUpdates } = await collectPausedRowsSettled(studentName);
 
   if (!collected.length) throw new Error('재개할 정지 등록을 찾지 못했습니다.');
   // 이전 호출부(resumeStudent(name, date, holidays))도 정지 당시 시간표 복원 방식으로 호환한다.
@@ -2075,10 +2163,11 @@ export const resumeStudent = async (
     if (c.idx.weekly !== -1) updates.push(cell(c.idx.weekly, c.weekly));
     if (c.idx.start !== -1) updates.push(cell(c.idx.start, c.start));
     if (c.idx.end !== -1) updates.push(cell(c.idx.end, c.end));
-    if (c.idx.notes !== -1) updates.push(cell(c.idx.notes, c.restNotes));
+    // 재개하면 정규 수업으로 돌아가므로 자율 전용 태그도 지운다.
+    if (c.idx.notes !== -1) updates.push(cell(c.idx.notes, c.restNotes.replace(FREE_ONLY_TAG_RE, '').trim()));
     allUpdates.push(...updates);
   }
-  await batchUpdateSheet(allUpdates);
+  await batchUpdateSheet(mergeCellUpdates(settleUpdates, allUpdates));
   return planned.map(({ start, end, n, schedule, weekly }) => ({ start, end, n, schedule, weekly }));
 };
 

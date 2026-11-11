@@ -182,6 +182,43 @@ const StudentInfo = ({ user, studentData, isLoading = false, isImpersonating = f
                     </div>
                     {!readOnly && !isImpersonating && <PasswordChangeCard userName={user.username} />}
                 </div>
+            ) : (!stillLoading && studentData?._pausedTotal !== undefined) ? (
+                /* 정지 중: 기간·진행률 대신 남은 횟수만 보여준다 (자율 전용이면 주간 차감 안내) */
+                <div className="student-info-content">
+                    <div className="membership-card">
+                        <div className="card-header">
+                            <h2>수강 정보</h2>
+                        </div>
+                        <div className="membership-details">
+                            <div className="detail-row">
+                                <span className="detail-label">수강생</span>
+                                <span className="detail-value">{user.username}</span>
+                            </div>
+                            <div className="detail-row">
+                                <span className="detail-label">상태</span>
+                                <span className="detail-value">{studentData._freeOnly ? '일시정지 (자율운동 이용)' : '일시정지'}</span>
+                            </div>
+                            <div className="detail-row">
+                                <span className="detail-label">남은 횟수</span>
+                                <span className="detail-value highlight">{studentData._pausedTotal}회</span>
+                            </div>
+                            {studentData._freeOnly?.nextDeduction && (
+                                <div className="detail-row">
+                                    <span className="detail-label">다음 차감</span>
+                                    <span className="detail-value">
+                                        {studentData._freeOnly.nextDeduction.getMonth() + 1}월 {studentData._freeOnly.nextDeduction.getDate()}일 (매주 1회)
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7, margin: '0.75rem 0 0', fontSize: '0.9em' }}>
+                            {studentData._freeOnly
+                                ? '정규 수업 대신 자율운동으로 이용 중이라 일주일마다 1회씩 차감됩니다. 수업 재개는 코치에게 문의해주세요.'
+                                : '수강이 일시정지된 상태입니다. 재개는 코치에게 문의해주세요.'}
+                        </p>
+                    </div>
+                    {!readOnly && !isImpersonating && <PasswordChangeCard userName={user.username} />}
+                </div>
             ) : (
             <div className="student-info-content">
                 {/* 수강권 정보 카드 */}

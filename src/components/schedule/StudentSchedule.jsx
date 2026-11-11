@@ -193,7 +193,10 @@ function CurrentWeekStudentSchedule({
         if (startDate && endDate && String(registration['홀딩 사용여부'] || '').startsWith('O') && !personalHoldings.some(item => item.studentName === user?.username && item.startDate === startDate && item.endDate === endDate)) personalHoldings.push({ studentName: user?.username, startDate, endDate });
     }
     const personalSessions = buildStudentWeek({ days, studentData, studentName: user?.username, makeups: myWeekMakeupHistory, holdings: personalHoldings, absences: weekAbsences, holidays: allHolidays, isClassDisabled, freeWorkoutByDate });
-    const membership = studentData && studentDateISO(getStudentField(studentData, '종료날짜')) ? calculateMembershipStats(studentData, weekHolidays) : null;
+    // 정지 중이면 종료일 없이 남은 횟수(자율 전용 주간 차감 반영)만 보여준다.
+    const membership = studentData?._pausedTotal !== undefined
+        ? { remainingSessions: studentData._pausedTotal, endDate: null }
+        : studentData && studentDateISO(getStudentField(studentData, '종료날짜')) ? calculateMembershipStats(studentData, weekHolidays) : null;
     if (membership?.endDate && getEffectiveEndDate) {
         const effective = getEffectiveEndDate(studentData, new Date(`${membership.endDate}T00:00:00`));
         if (effective) membership.endDate = formatDateISO(effective);
