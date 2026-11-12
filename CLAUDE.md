@@ -618,6 +618,12 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - **알림**: 받아준 사람이 푸시 `makeupSwap`(`_pushLib`: 대기 문서가 accepted이고 `swapWith`가 호출자일 때만 대기 주인에게)로 상대에게 보낸다. 문자 폴백 없음. ⚠️ Netlify push 함수 재배포가 필요하다(main 푸시로는 반영 안 됨).
 - 수강생 첫 화면에서 남은 수업·종료일 카드, 훈련일지 바로가기, `홀딩·결석 신청 및 내역` 링크를 뺐다(2026-11-11 사용자 요청). 이번 주 남은 수업이 없어 `홀딩·결석` 버튼이 안 보일 때만 내역 링크를 남긴다.
 - 로컬 검토: `student-local-review.html`의 `예시 상황 바꾸기 → 맞교환 요청 예시 보기`(가상 인물, 메모리만).
+- **대기 여러 칸(2026-11-12 사용자 결정, Fable 제안 1·2·3·5 채택)**: 보강 시간표에서 옮길 내 수업을 고른 뒤 만석 칸을 누르면 `대기 선택 ✓`로 최대 `MAX_WAIT_TARGETS`(3)곳까지 골라 `N곳 대기 걸기`로 한 번에 건다. 칸마다 대기 문서 하나, **같은 사람·같은 원래 수업 = 한 묶음**(`waitGroupKey`, 저장 필드 없음). 묶음 중 하나만 성사되고 보강 1회. `sourceUnavailableReason(..., { forWait, adding })` — 대기 경로만 3곳까지 허용, 보강 신청·맞교환 받기는 대기가 걸린 수업이면 여전히 막는다.
+  - 성사되면 나머지 칸 대기는 취소: 맞교환은 `confirmMakeupSwap`의 `cancelIds`로 **같은 트랜잭션**에서, 자리 수락·다른 시간 보강 변경은 `releaseSiblingWaits`. 자리 안내 중(notified)이던 칸은 `onSeatFreed`로 다음 순번에게.
+  - **이중 이동 잠금**: 맞교환 보강 문서 id를 `swapLockId(이름, 원래 수업)` = `swap__이름__날짜__교시`로 고정하고 트랜잭션에서 읽는다(취소된 것 외에 있으면 거부). 규칙 변경 불필요(makeupRequests는 signedIn 쓰기).
+  - 확정 직전 **요청자·받는 사람 둘 다** 그 주 보강 이력으로 남은 횟수 확인(`acceptSwapRequest(..., { myLimit })`, `tryAutoSwap`도 양쪽). 트랜잭션 안에서 쿼리는 못 해 직전 확인이다.
+  - 대기 카드는 묶음 한 장(`N곳 중 한 곳`, 칸별 `취소`·`전체 취소`). '대기 유지'는 묶음 전체에 같은 결석 id(`keepMakeupWaitlistAfterOriginal(entry, siblingIds)`), 모든 칸이 원래 수업보다 뒤일 때만. 칸 하나 취소 시 남은 칸이 있으면 결석 유지.
+  - 현황판은 묶음 카드(`목5 · 수6 중 한 곳`), 내가 받을 수 있는 카드(`내가 바꿀 수 있어요`)를 위로. 첫 화면 위에 한 줄 안내 `○○님 외 N명이 내 수업과 바꾸고 싶어해요`(`swapOffersFor`, 누르면 현황판으로) — 푸시 아님. 확정 알림 문자 폴백은 넣지 않음(사용자 미선택).
 
 ### 월간 도장 시스템 (훈련일지 — 코치가 학생을 보고 있다는 신호)
 
@@ -721,6 +727,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 문자비 없이 보내는 알림. **아이폰은 홈 화면에 추가한(설치된) 경우에만 수신**되며, 안드로이드/크롬은 그냥 된다.
 
 - **토큰**: `pushService.initPush(이름, ask)` → `users/{이름}.fcmToken`. `ask=true`는 권한 팝업을 띄우는데 **아이폰은 사용자 제스처 안에서만 통하므로 버튼 클릭 핸들러에서만 true로 부를 것.** 이미 허용한 사람은 마운트 시 조용히 갱신하고, 직전 토큰과 같으면 write를 생략한다(접속마다 write 방지). `navigator.serviceWorker.ready`는 SW 등록 실패 시 reject가 아니라 **영원히 대기**하므로 5초 타임아웃을 걸어 실패로 떨어뜨린다(안 그러면 '알림 켜기'가 먹통).
+- **첫 화면 '알림을 꼭 켜주세요' 카드 (2026-11-12 사용자 요청)**: `PushNudge`가 수강생 첫 화면(성장 카드 아래)에 알림이 켜질 때까지 매 실행 뜬다(`나중에` = 이번 실행만, sessionStorage). 켤 수 있으면 `알림 켜기`, 아이폰이 홈 화면 미설치면 `공유 → 홈 화면에 추가 → 아이콘으로 열고 알림 켜기` 3단계(인앱 브라우저면 '사파리로 열기' 단계 추가), 차단이면 설정 안내, 안드로이드는 `홈 화면에 추가` 버튼도. 켜면 `push-state-changed` 이벤트로 종 버튼도 갱신. 안드로이드 `beforeinstallprompt`는 앱 시작 때 `utils/installPrompt.captureInstallPrompt`(main.jsx)가 붙잡는다 — 화면이 늦게 마운트되면 놓치므로 컴포넌트에서 따로 듣지 말 것(게시판 설치 줄도 이걸 쓴다). 로컬 검토 `student-local-review.html?push=off|denied|ios-safari|ios-other|android`.
 - **첫 화면 이름 옆 알림 버튼**(`PushSettings` + `src/utils/pushStatus.js`): 수강생 `StudentGrowthHeader`·코치 `CoachToday`에 작은 종/상태 버튼을 표시한다. `on`(알림 켜짐) / `off`(알림 켜기·토큰 실패 재시도) / `denied`(브라우저/아이폰 설정 안내) / `unsupported`(홈 화면 추가/크롬 안내) 네 상태를 모두 제공한다. 판정 전에는 비활성 확인 중 버튼, 설정 중 중복 클릭 차단. **켜짐은 권한이 아니라 실제 토큰 등록 성공으로 판정**한다. Dashboard의 기존 알림줄은 제거했고 홈 화면 추가 안내는 유지한다. 버튼은 성장 보기와 별도의 형제 요소로 두어 버튼 중첩을 피한다. 빙의 중 숨기며 `initPush`도 인증 클레임 이름과 등록 대상이 일치할 때만 토큰을 저장한다.
 - **발송**: 클라이언트 → `netlify/functions/push.js`. Firebase **ID 토큰을 `Authorization: Bearer`로 검증**하고 클레임의 `name`/`isCoach`를 쓴다.
 - ⚠️ **클라이언트가 준 텍스트·수신자를 그대로 쓰지 말 것.** 로그인한 수강생 아무나 `/push`를 부를 수 있으므로, 자유 텍스트를 받으면 남의 잠금화면에 임의 문구를 띄우는 통로가 된다(게시판과 달리 코치 눈에 안 보인다). 그래서 `_pushLib`는 두 단계로 나뉜다:

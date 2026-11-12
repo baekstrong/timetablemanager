@@ -25,7 +25,7 @@ vi.mock('../../services/firebaseService', () => ({
     createMakeupWaitlist: vi.fn(), getActiveMakeupWaitlists: vi.fn(), updateMakeupWaitlistStatus: vi.fn(),
     acceptMakeupWaitlist: vi.fn(), declineMakeupWaitlist: vi.fn(), keepMakeupWaitlistAfterOriginal: vi.fn(), cancelAbsence: vi.fn(),
 }));
-vi.mock('../../services/makeupWaitlistService', () => ({ normalizeWaitlistEntry: entry => entry, onSeatFreed: vi.fn(), onSeatsFreedForDates: vi.fn() }));
+vi.mock('../../services/makeupWaitlistService', () => ({ normalizeWaitlistEntry: entry => entry, onSeatFreed: vi.fn(), onSeatsFreedForDates: vi.fn(), releaseSiblingWaits: vi.fn() }));
 import StudentSchedule from './StudentSchedule';
 import StudentClassView from './StudentClassView';
 

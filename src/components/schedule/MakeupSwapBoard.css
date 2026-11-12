@@ -16,3 +16,5 @@
 .swap-board-empty { font-size:13px; color:var(--text-secondary); margin:0; padding:8px 0; }
 .swap-board-facts { margin:16px 0 0; padding-left:18px; font-size:13px; line-height:1.7; color:var(--text-secondary); }
 .swap-board-facts strong { color:var(--text); }
+.swap-board-card.is-actionable { border:2px solid var(--accent); }
+.swap-board-card.is-actionable .swap-board-chip { margin-left:8px; background:var(--accent-10); }

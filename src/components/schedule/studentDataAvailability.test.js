@@ -26,7 +26,7 @@ vi.mock('../../services/firebaseService', () => ({
     removeFreeWorkout: vi.fn(), addFreeWorkoutRosterMember: vi.fn(), removeFreeWorkoutRosterMember: vi.fn(),
 }));
 vi.mock('../../services/makeupWaitlistService', () => ({
-    normalizeWaitlistEntry: entry => entry, onSeatFreed: vi.fn(), onSeatsFreedForDates: vi.fn(), syncMakeupWaitlists: vi.fn(),
+    normalizeWaitlistEntry: entry => entry, onSeatFreed: vi.fn(), onSeatsFreedForDates: vi.fn(), syncMakeupWaitlists: vi.fn(), releaseSiblingWaits: vi.fn(),
 }));
 vi.mock('../../features/today/CoachHome', () => ({ default: () => null }));
 vi.mock('./FreeWorkoutModal', () => ({ default: () => null }));

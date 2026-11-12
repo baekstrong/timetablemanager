@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { classLabel, classTime, classStartMs, CLASS_LABELS, classStatusLabel, nextStudentClass, sourceUnavailableReason } from './studentClassModel';
+import { classLabel, classTime, classStartMs, periodClassLabel, CLASS_LABELS, classStatusLabel, nextStudentClass, sourceUnavailableReason } from './studentClassModel';
 import { canKeepAfterOriginal, canConvertWaitToMakeup, getNotificationDeadline } from '../../utils/makeupWaitlist';
 import { ScheduleStatusBadge } from './ScheduleCell';
 import ReviewModal from '../../features/today/ReviewModal';
 import { courseNoticeSession } from '../../utils/courseNoticeSession';
+import { groupWaits } from '../../utils/makeupSwap';
 import './StudentClassView.css';
 
 const STATUS_TAGS = { makeup: 'makeup', moved: 'makeupMoved', absence: 'absent', holding: 'holding' };
@@ -16,7 +17,7 @@ export default function StudentClassView({
     days, sessions = [], now, tab, onTabChange, readOnly = false, suppressCourseNotice = false,
     loading = false, error = '', onRetry, studentName, membership, source, quotaUsed, quotaLimit,
     requestUnavailableReason = '', requestError = '',
-    waits = [], onWaitlist, onKeepWait, onConvertWait, onMakeup, onCancelMakeup, onNavigate, swapBoard = null, children,
+    waits = [], onWaitlist, onKeepWait, onConvertWait, onCancelWaitGroup, onMakeup, onCancelMakeup, onNavigate, swapBoard = null, swapOffers = [], topNotice = null, children,
 }) {
     const [selection, setSelection] = useState(null);
     const [dismissedCourseNotice, setDismissedCourseNotice] = useState('');
@@ -36,7 +37,14 @@ export default function StudentClassView({
         setDismissedCourseNotice(studentName);
     };
 
+    const waitGroups = groupWaits(waiting);
+    const showSwapBoard = () => {
+        onTabChange('mine');
+        requestAnimationFrame(() => document.getElementById('swap-board-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    };
+
     return <div className="student-classes">
+        {topNotice}
         {showCourseNotice && <ReviewModal title={endDate < today ? '수강 기간이 만료되었습니다' : '오늘은 마지막 수업일입니다'} onClose={closeCourseNotice}>
             <p>재등록을 원하시면 코치에게 문의해주세요.</p>
             <div className="today-actions student-course-notice-actions"><button type="button" className="student-class-button primary" onClick={closeCourseNotice}>확인</button></div>
@@ -47,6 +55,10 @@ export default function StudentClassView({
                 <span><strong>기다리던 자리가 났어요</strong><small>{classLabel(entry)} · {deadline?.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}까지 수락</small></span><span aria-hidden="true">›</span>
             </button>;
         })}
+        {/* 내가 받아줄 수 있는 맞교환 요청 (2026-11-12) — 현황판이 아래에 있어 놓치기 쉬워 위에 한 줄로 */}
+        {swapOffers.length > 0 && <button type="button" className="student-class-offer is-swap" onClick={showSwapBoard}>
+            <span><strong>{swapOffers[0].studentName}님{swapOffers.length > 1 ? ` 외 ${swapOffers.length - 1}명` : ''}이 내 수업과 바꾸고 싶어해요</strong><small>내 {periodClassLabel(swapOffers[0].session)} ↔ {periodClassLabel(swapOffers[0].originalClass)} · 눌러서 맞교환 보기</small></span><span aria-hidden="true">›</span>
+        </button>}
         <div className="student-class-tabs" aria-label="수업 보기">
             <button type="button" aria-pressed={tab === 'mine'} onClick={() => onTabChange('mine')}>내 일정</button>
             <button type="button" aria-pressed={tab === 'all'} onClick={() => onTabChange('all')}>보강 시간표</button>
@@ -89,18 +101,26 @@ export default function StudentClassView({
                     </div>;
                 }) : <div className="student-class-empty"><h3>{selectedDate ? '이날은 수업이 없어요' : '이 주에 남은 수업이 없어요'}</h3><p>다른 날짜를 선택해 수업 내역을 확인해보세요.</p>{selectedDate && next && <button type="button" className="student-class-link" onClick={() => setSelection(next.date)}>다음 수업 보기 · {classLabel(next)} ›</button>}</div>}
             </section>
-            {waiting.map(entry => {
-                const canKeep = onKeepWait && canKeepAfterOriginal(entry, now);
-                const canConvert = onConvertWait && canConvertWaitToMakeup(entry, now);
-                return <div key={entry.id} className="student-class-wait"><div><span className="student-class-chip">보강 대기 중</span><strong>{classLabel(entry)}</strong>
-                    {entry.keepAfterOriginal
-                        ? <p>원래 수업 · {classLabel(entry.originalClass)} (결석 처리됨)<br />자리가 안 나면 원래 수업은 소진돼요.</p>
-                        : <p>원래 수업 · {classLabel(entry.originalClass)}<br />{canKeep ? '원래 수업이 시작되면 대기는 자동 취소돼요.' : '수락 전까지 원래 수업은 유지돼요.'}</p>}
+            {waitGroups.map(group => {
+                const first = group.entries[0];
+                // '대기 유지'는 원래 수업이 모든 대기 칸보다 먼저일 때만(묶음이 결석 하나를 함께 쓴다)
+                const canKeep = onKeepWait && group.entries.every(entry => canKeepAfterOriginal(entry, now));
+                const canConvert = onConvertWait && canConvertWaitToMakeup(first, now);
+                const many = group.entries.length > 1;
+                const blocked = readOnly || Boolean(requestUnavailableReason);
+                return <div key={group.key} className="student-class-wait"><div><span className="student-class-chip">{many ? `보강 대기 중 · ${group.entries.length}곳 중 한 곳` : '보강 대기 중'}</span>
+                    {many ? <ul className="student-class-wait-targets">{group.entries.map(entry => <li key={entry.id}><strong>{classLabel(entry)}</strong><button type="button" className="student-class-link" disabled={blocked} onClick={() => onWaitlist(entry)} aria-label={`${classLabel(entry)} 대기 취소`}>취소</button></li>)}</ul>
+                        : <strong>{classLabel(first)}</strong>}
+                    {first.keepAfterOriginal
+                        ? <p>원래 수업 · {classLabel(first.originalClass)} (결석 처리됨)<br />자리가 안 나면 원래 수업은 소진돼요.</p>
+                        : <p>원래 수업 · {classLabel(first.originalClass)}<br />{many ? '먼저 성사되는 한 곳으로 옮겨지고 나머지는 자동 취소돼요. ' : ''}{canKeep ? '원래 수업이 시작되면 대기는 자동 취소돼요.' : '수락 전까지 원래 수업은 유지돼요.'}</p>}
                     {(canKeep || canConvert) && <div className="student-class-wait-actions">
-                        {canKeep && <button type="button" className="student-class-button student-class-keep-wait" disabled={readOnly || Boolean(requestUnavailableReason)} onClick={() => onKeepWait(entry)}>원래 수업 빠지고 대기 유지</button>}
-                        {canConvert && <button type="button" className="student-class-button student-class-convert-wait" disabled={readOnly || Boolean(requestUnavailableReason)} onClick={() => onConvertWait(entry)}>다른 시간으로 보강 변경</button>}
+                        {canKeep && <button type="button" className="student-class-button student-class-keep-wait" disabled={blocked} onClick={() => onKeepWait(first)}>원래 수업 빠지고 대기 유지</button>}
+                        {canConvert && <button type="button" className="student-class-button student-class-convert-wait" disabled={blocked} onClick={() => onConvertWait(first)}>다른 시간으로 보강 변경</button>}
                     </div>}
-                </div><button type="button" className="student-class-link" disabled={readOnly || Boolean(requestUnavailableReason)} onClick={() => onWaitlist(entry)}>대기 취소</button></div>;
+                </div>{many
+                    ? <button type="button" className="student-class-link" disabled={blocked} onClick={() => onCancelWaitGroup?.(group.entries)}>전체 취소</button>
+                    : <button type="button" className="student-class-link" disabled={blocked} onClick={() => onWaitlist(first)}>대기 취소</button>}</div>;
             })}
             {/* 남은 수업·훈련일지·홀딩 내역 링크는 첫 화면에서 뺐다(2026-11-11 사용자 요청). 이번 주 남은 수업이 없으면
                 홀딩·결석 버튼도 없으므로 그때만 내역으로 가는 길을 남긴다. */}

@@ -1,0 +1,12 @@
+.push-nudge { border:2px solid var(--accent); border-radius:var(--r-md); background:var(--accent-10); padding:14px; margin:0 0 16px; color:var(--text); }
+.push-nudge-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.push-nudge-head h2 { font-size:15px; margin:0; }
+.push-nudge-later { border:0; background:none; color:var(--text-secondary); font-size:12px; padding:6px 0 6px 8px; min-height:32px; cursor:pointer; }
+.push-nudge-why { font-size:12px; line-height:1.6; color:var(--text-secondary); margin:6px 0 10px; }
+.push-nudge-why strong { color:var(--text); }
+.push-nudge p { font-size:13px; line-height:1.6; margin:0; }
+.push-nudge-steps { margin:0; padding-left:20px; font-size:13px; line-height:1.7; display:flex; flex-direction:column; gap:4px; }
+.push-nudge-actions { display:flex; gap:8px; margin-top:10px; }
+.push-nudge-button { flex:1; min-height:44px; border-radius:var(--r-md); border:1px solid var(--accent-30); background:var(--canvas); color:var(--accent-hover); font-weight:700; font-size:14px; cursor:pointer; font-family:inherit; }
+.push-nudge-button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.push-nudge-button:disabled { opacity:.6; cursor:default; }

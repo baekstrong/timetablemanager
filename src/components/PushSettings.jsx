@@ -20,7 +20,15 @@ export default function PushSettings({ user, readOnly = false }) {
             const token = available && permission === 'granted' ? await initPush(name) : null;
             if (!cancelled) setResult({ name, state: resolvePushState({ available, permission, token }) });
         })();
-        return () => { cancelled = true; };
+        // 첫 화면 '알림 켜기' 카드(PushNudge)에서 켜면 종 버튼도 다시 확인한다.
+        const recheck = async () => {
+            const available = await isPushAvailable();
+            const permission = getPushPermission();
+            const token = available && permission === 'granted' ? await initPush(name) : null;
+            if (!cancelled) setResult({ name, state: resolvePushState({ available, permission, token }) });
+        };
+        window.addEventListener('push-state-changed', recheck);
+        return () => { cancelled = true; window.removeEventListener('push-state-changed', recheck); };
     }, [name, readOnly]);
 
     async function enable() {

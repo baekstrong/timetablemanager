@@ -5,6 +5,7 @@ import StudentInfo from '../components/StudentInfo';
 import BottomNav from '../components/BottomNav';
 import NoticeTicker from '../components/board/NoticeTicker';
 import StudentGrowthHeader from '../components/StudentGrowthHeader';
+import PushNudge from '../components/PushNudge';
 import StudentGrowthModal from '../components/StudentGrowthModal';
 import MonthlyPRBanner from '../components/MonthlyPRBanner';
 import NoticeReviewDetail from './NoticeReviewDetail';
@@ -54,6 +55,7 @@ export default function StudentLocalReview() {
         {notice && <p className="slr-notice" role="status">{notice}</p>}
         {(page === 'schedule' || page === 'today') && <div className="schedule-container mode-student student-class-page">
             <StudentGrowthHeader user={reviewUser} tier="rookie" xp={18617} onOpen={() => navigate('ranking', 'graph')} />
+            <PushNudge user={reviewUser} previewState={new URLSearchParams(location.search).get('push') || 'ios-safari'} />
             <NoticeTicker user={reviewUser} services={fixtures.noticeServices} onOpen={id => { setNoticePostId(id); navigate('notice'); }} refreshKey={mountKey} />
             <MonthlyPRBanner services={reviewPRServices} onOpen={() => navigate('ranking')} refreshKey={mountKey} />
             <div className="schedule-page-header"><h1 className="schedule-page-title">내 수업</h1><button className="slr-refresh" onClick={() => setMountKey(value => value + 1)}>새로고침</button></div>

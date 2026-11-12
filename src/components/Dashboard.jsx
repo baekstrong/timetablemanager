@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useGoogleSheets } from '../contexts/GoogleSheetsContext';
 import { createPost, updatePost, getPendingContractForStudent, getTierMap, backfillTiersForMonth, getGradeMap, getGraduatedMap, setStudentGraduated, consumePRCelebration, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../services/firebaseService';
 import { pushNotice } from '../services/pushService';
 import { resolveInstallState } from '../utils/installState';
+import { getDeferredInstallPrompt, takeDeferredInstallPrompt } from '../utils/installPrompt';
 import { shouldShowInCoachStudentList } from '../utils/studentList';
 import { useBoardPosts } from './board/useBoardPosts';
 import PostList from './board/PostList';
@@ -40,7 +41,6 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
     }, [deepLinkPost, onDeepLinkDone]);
     const [showPostForm, setShowPostForm] = useState(false);
     const [installState, setInstallState] = useState(null); // 'installed'|'android'|'ios-safari'|'ios-other'|null
-    const deferredPromptRef = useRef(null);
     const [editingPost, setEditingPost] = useState(null);
 
     const { students } = useGoogleSheets();
@@ -76,20 +76,16 @@ const Dashboard = ({ user, onNavigate, onLogout, deepLinkPost, onDeepLinkDone })
     useEffect(() => {
         const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
         const decide = (canPrompt) => setInstallState(resolveInstallState({ standalone, ua: navigator.userAgent, canPrompt }));
-        decide(false);
-        const onBeforeInstall = (e) => {
-            e.preventDefault(); // 크롬 기본 배너 대신 우리 줄에서 띄운다
-            deferredPromptRef.current = e;
-            decide(true);
-        };
-        window.addEventListener('beforeinstallprompt', onBeforeInstall);
-        return () => window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+        // 이벤트는 앱 시작 때 붙잡아 둔다(utils/installPrompt) — 이 화면이 늦게 떠도 버튼을 띄울 수 있게.
+        decide(Boolean(getDeferredInstallPrompt()));
+        const onReady = () => decide(Boolean(getDeferredInstallPrompt()));
+        window.addEventListener('install-prompt-ready', onReady);
+        return () => window.removeEventListener('install-prompt-ready', onReady);
     }, []);
 
     const installApp = async () => {
-        const e = deferredPromptRef.current;
+        const e = takeDeferredInstallPrompt(); // 이벤트는 한 번만 쓸 수 있다
         if (!e) return;
-        deferredPromptRef.current = null; // 이벤트는 한 번만 쓸 수 있다
         e.prompt();
         const { outcome } = await e.userChoice;
         setInstallState(outcome === 'accepted' ? 'installed' : null);

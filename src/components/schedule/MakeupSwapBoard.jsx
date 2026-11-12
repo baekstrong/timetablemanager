@@ -1,15 +1,10 @@
 import { useState } from 'react';
 import ReviewModal from '../../features/today/ReviewModal';
-import { classTime } from './studentClassModel';
+import { periodClassLabel } from './studentClassModel';
+import { groupWaits, swapGroupOptions } from '../../utils/makeupSwap';
 import './MakeupSwapBoard.css';
 
-/** 11/19(목) 6교시(21:40) — 맞교환은 교시로 말하므로 교시를 앞에 (2026-11-11 사용자 요청) */
-function classLabel(session) {
-    if (!session?.date) return '';
-    const period = Number(session.period);
-    const time = classTime(session);
-    return `${Number(session.date.slice(5, 7))}/${Number(session.date.slice(8))}(${session.day}) ${period}교시${time ? `(${time})` : ''}`;
-}
+const classLabel = periodClassLabel;
 
 /**
  * 이번 주 맞교환 현황판 (2026-11-11 사용자 결정, docs/makeup-swap-2026-11-11.md).
@@ -22,8 +17,12 @@ function classLabel(session) {
 export default function MakeupSwapBoard({ entries = [], myName, check, onAccept, quotaUsed = 0, quotaLimit = 0, readOnly = false, disabledReason = '' }) {
     const [pending, setPending] = useState(null);
     const [busy, setBusy] = useState(false);
-    const mine = entries.filter(e => e.studentName === myName);
-    const others = entries.filter(e => e.studentName !== myName);
+    // 같은 사람·같은 원래 수업으로 건 여러 칸은 카드 한 장으로 (2026-11-12). 받아줄 수 있는 카드를 위로.
+    const mine = groupWaits(entries.filter(e => e.studentName === myName));
+    const others = groupWaits(entries.filter(e => e.studentName !== myName))
+        .map(group => ({ group, ...swapGroupOptions(group, check) }))
+        .sort((a, b) => Number(Boolean(b.actionable)) - Number(Boolean(a.actionable)));
+    const targetsLabel = group => group.entries.map(e => classLabel(e)).join(' · ') + (group.entries.length > 1 ? ' 중 한 곳' : '');
 
     async function confirm() {
         if (!pending || busy) return;
@@ -36,24 +35,21 @@ export default function MakeupSwapBoard({ entries = [], myName, check, onAccept,
     }
 
     return <section className="swap-board" aria-labelledby="swap-board-title">
-        <div className="swap-board-head"><h2 id="swap-board-title">이번 주 맞교환</h2><span>{entries.length}건</span></div>
+        <div className="swap-board-head"><h2 id="swap-board-title">이번 주 맞교환</h2><span>{mine.length + others.length}건</span></div>
         <p className="swap-board-help">만석이라 옮기기 어려울 때 서로 자리를 바꿔요. 만석 칸에 대기를 걸면 여기에 올라가요. 교환하면 두 사람 모두 이번 주 보강 1회를 쓰고, 확정되면 바로 알림이 가요.</p>
-        {mine.map(entry => <div className="swap-board-card is-mine" key={entry.id}>
+        {mine.map(group => <div className="swap-board-card is-mine" key={group.key}>
             <span className="swap-board-chip">내 교환 요청</span>
-            <div className="swap-board-move">{classLabel(entry.originalClass)}<span aria-hidden="true">→</span>{classLabel(entry)}</div>
-            <p>그 시간 수강생이 받아주면 바로 바뀌고 알림이 와요. 내리려면 위 대기 카드에서 대기를 취소하세요.</p>
+            <div className="swap-board-move">{classLabel(group.originalClass)}<span aria-hidden="true">→</span>{targetsLabel(group)}</div>
+            <p>그 시간 수강생이 받아주면 바로 바뀌고 알림이 와요.{group.entries.length > 1 ? ' 한 곳이 성사되면 나머지는 자동 취소돼요.' : ''} 내리려면 위 대기 카드에서 대기를 취소하세요.</p>
         </div>)}
-        {others.map(entry => {
-            const { session, reason } = check(entry);
-            return <div className={`swap-board-card${session ? '' : ' is-muted'}`} key={entry.id}>
-                <div className="swap-board-who"><strong>{entry.studentName}</strong>님</div>
-                <div className="swap-board-move">{classLabel(entry.originalClass)}<span aria-hidden="true">→</span>{classLabel(entry)}</div>
-                {!session ? <p>내 수업과 맞는 칸이 아니에요.</p>
-                    : reason ? <p>{reason}</p>
-                    : <button type="button" className="student-class-button primary" disabled={readOnly || Boolean(disabledReason)}
-                        onClick={() => setPending({ entry, session })}>내 {classLabel(session)} ↔ {classLabel(entry.originalClass)} 바꾸기</button>}
-            </div>;
-        })}
+        {others.map(({ group, actionable, matched }) => <div className={`swap-board-card${actionable ? ' is-actionable' : matched ? '' : ' is-muted'}`} key={group.key}>
+            <div className="swap-board-who"><strong>{group.studentName}</strong>님{actionable && <span className="swap-board-chip">내가 바꿀 수 있어요</span>}</div>
+            <div className="swap-board-move">{classLabel(group.originalClass)}<span aria-hidden="true">→</span>{targetsLabel(group)}</div>
+            {actionable ? <button type="button" className="student-class-button primary" disabled={readOnly || Boolean(disabledReason)}
+                    onClick={() => setPending({ entry: actionable.entry, session: actionable.session })}>내 {classLabel(actionable.session)} ↔ {classLabel(group.originalClass)} 바꾸기</button>
+                : matched ? <p>{matched.reason}</p>
+                : <p>내 수업과 맞는 칸이 아니에요.</p>}
+        </div>)}
         {!entries.length && <p className="swap-board-empty">이번 주 교환 요청이 없어요.</p>}
         {pending && <ReviewModal title="맞교환 확정" busy={busy} onClose={() => !busy && setPending(null)}>
             <div className="student-class-modal">

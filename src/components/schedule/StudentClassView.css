@@ -102,3 +102,12 @@
 @media (max-width: 600px) { .student-class-grid-scroll-hint { display: block; color: var(--text-secondary); font-size: 11px; line-height: 1.5; margin-bottom: 8px; } }
 .student-class-grid-time, .student-class-grid > .student-class-grid-heading-cell:first-child { position: sticky; left: 0; z-index: 1; background: var(--canvas); }
 .student-class-wait .student-class-wait-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+
+/* 대기 묶음·맞교환 요청 (2026-11-12) */
+.student-class-wait .student-class-wait-targets { list-style:none; margin:10px 0 0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.student-class-wait .student-class-wait-targets li { display:flex; align-items:center; gap:10px; }
+.student-class-wait .student-class-wait-targets strong { margin-top:0; }
+.student-class-wait .student-class-wait-targets .student-class-link { padding:0; min-height:0; font-size:12px; }
+.student-class-offer.is-swap { border-width:2px; border-color:var(--accent); }
+.student-class-wait-picks.has-picks { border:1px solid var(--accent); background:var(--accent-10); color:var(--text); }
+.student-class-wait-picks .student-class-actions { margin-top:10px; }

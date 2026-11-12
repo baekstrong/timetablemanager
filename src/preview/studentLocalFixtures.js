@@ -1,7 +1,7 @@
 import { shiftEndDateBySessions } from '../services/holidayEndDateDelta';
 import { isHolidayDate } from '../services/googleSheetsService';
 import { getNoticeRevision } from '../utils/noticeState';
-import { buildSwapMakeups, findMutualSwap } from '../utils/makeupSwap';
+import { buildSwapMakeups, findMutualSwap, siblingWaits } from '../utils/makeupSwap';
 const clone = value => structuredClone(value);
 export const reviewUser = { username: '예시 수강생', role: 'student' };
 export const reviewStudent = {
@@ -37,6 +37,9 @@ export function createStudentReviewServices(onChange) {
     };
     let offeredSeat = false;
     let sequence = 0;
+    // 맞교환 확정 트랜잭션이 하는 것처럼 같은 묶음의 다른 대기를 취소
+    const cancelGroup = entry => siblingWaits(entry, waitlists.map(w => ({ ...w })), new Date())
+        .forEach(t => Object.assign(waitlists.find(w => w.id === t.id), { status: 'cancelled' }));
     const update = (rows, id, fields) => { Object.assign(rows.find(row => row.id === id) || {}, fields); onChange(); };
     const services = {
         getActiveMakeupRequests: async () => clone(makeups.filter(row => row.status !== 'cancelled')),
@@ -81,6 +84,11 @@ export function createStudentReviewServices(onChange) {
         acceptMakeupWaitlist: async id => update(waitlists, id, { status: 'accepted' }),
         declineMakeupWaitlist: async id => update(waitlists, id, { status: 'declined' }),
         onSeatFreed: async () => {},
+        releaseSiblingWaits: async entry => {
+            const targets = siblingWaits(entry, waitlists.map(w => ({ ...w })), new Date());
+            for (const t of targets) Object.assign(waitlists.find(w => w.id === t.id), { status: 'cancelled' });
+            onChange(); return targets;
+        },
         // 맞교환 — 실제 서비스와 같은 순수 로직으로 메모리에 두 보강을 만든다(외부 호출 없음)
         acceptSwapRequest: async (entry, myName) => {
             const row = waitlists.find(w => w.id === entry.id);
@@ -88,6 +96,7 @@ export function createStudentReviewServices(onChange) {
             const m = buildSwapMakeups(row, myName);
             for (const x of [m.requester, m.partner]) makeups.push({ id: `review-makeup-${++sequence}`, ...clone(x), status: 'active' });
             Object.assign(row, { status: 'accepted', swapWith: myName });
+            cancelGroup(row);
             onChange(); return { makeups: m };
         },
         tryAutoSwap: async (id, myName) => {
@@ -99,6 +108,7 @@ export function createStudentReviewServices(onChange) {
             for (const x of [m.requester, m.partner]) makeups.push({ id: `review-makeup-${++sequence}`, ...clone(x), status: 'active' });
             Object.assign(waitlists.find(w => w.id === partner.id), { status: 'accepted', swapWith: myName });
             Object.assign(waitlists.find(w => w.id === id), { status: 'accepted', swapWith: partner.studentName });
+            cancelGroup(partner); cancelGroup(mine);
             onChange(); return { makeups: m, partner };
         },
         processHolidayMakeupEndDate: async () => ({ success: true, updated: false }),
@@ -117,7 +127,8 @@ export function createStudentReviewServices(onChange) {
         },
         getCellData(day, period) {
             const date = `2026-09-${String(Number(reviewWeekDates[day].split('/')[1])).padStart(2, '0')}`;
-            const currentCount = day === '금' && period.id === 5 ? (offeredSeat ? 6 : 7) : 4;
+            const fullSlot = (day === '금' && [5, 6].includes(period.id)) || (day === '수' && period.id === 6);
+            const currentCount = day === '금' && period.id === 5 ? (offeredSeat ? 6 : 7) : fullSlot ? 7 : 4;
             const makeupIn = makeups.filter(row => row.status !== 'cancelled' && row.makeupClass.date === date && row.makeupClass.period === period.id).length;
             const makeupOut = makeups.filter(row => row.status !== 'cancelled' && row.originalClass.date === date && row.originalClass.period === period.id).length;
             const count = currentCount + makeupIn - makeupOut;
@@ -148,6 +159,7 @@ export function createStudentReviewServices(onChange) {
                 { id: 'review-swap-2', studentName: '가상 박서연', ...c('2026-09-17', '목', 5), originalClass: c('2026-09-18', '금', 1), status: 'waiting', createdAtMs: 2 },
                 { id: 'review-swap-3', studentName: '가상 최민준', ...c('2026-09-18', '금', 2), originalClass: c('2026-09-17', '목', 1), status: 'waiting', createdAtMs: 3 },
                 { id: 'review-swap-4', studentName: '가상 김도윤', ...c('2026-09-17', '목', 5), originalClass: c('2026-09-18', '금', 5), status: 'waiting', createdAtMs: 4 },
+                { id: 'review-swap-5', studentName: '가상 김도윤', ...c('2026-09-16', '수', 6), originalClass: c('2026-09-18', '금', 5), status: 'waiting', createdAtMs: 5 },
             );
             onChange();
         },

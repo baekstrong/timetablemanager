@@ -27,6 +27,7 @@ import CoachSchedule from './schedule/CoachSchedule';
 import StudentSchedule from './schedule/StudentSchedule';
 import NoticeTicker from './board/NoticeTicker';
 import StudentGrowthHeader from './StudentGrowthHeader';
+import PushNudge from './PushNudge';
 import MonthlyPRBanner from './MonthlyPRBanner';
 import { useScheduleCore } from './schedule/useScheduleCore';
 import { buildUpdatedSchedule, parseSheetDate, weekDateToISO } from '../utils/scheduleUtils';
@@ -485,6 +486,7 @@ const WeeklySchedule = ({ user, studentData, studentGrowth, pushReadOnly = false
     return (
         <div className={`schedule-container ${containerModeClass}${user?.role === 'student' && !isForceMode ? ' student-class-page' : ''}`}>
             {user?.role === 'student' && !isForceMode && studentGrowth && <StudentGrowthHeader pushReadOnly={pushReadOnly} user={user} {...studentGrowth} onRetry={studentGrowth.retry} onOpen={() => onNavigate?.('ranking', 'graph')} />}
+            {user?.role === 'student' && !isForceMode && <PushNudge user={user} readOnly={pushReadOnly} />}
             {user?.role === 'student' && !isForceMode && <NoticeTicker user={user} onOpen={postId => onNavigate?.('post', postId)} refreshKey={refreshedAt} />}
             {user?.role === 'student' && !isForceMode && <MonthlyPRBanner onOpen={() => onNavigate?.('ranking')} refreshKey={refreshedAt} />}
             {weeklyDataError && <p role="alert" style={{ color: 'var(--error)' }}>{weeklyDataError}</p>}

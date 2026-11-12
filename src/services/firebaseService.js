@@ -27,6 +27,7 @@ import {
 import { scoreToTier, computeActiveScore, compareTiers } from '../utils/tiers';
 import { getUnpaidStudentNames } from '../utils/studentList';
 import { xpToGrade, gradeRank, FEMALE_COEF, recordVolume, resolveCoef } from '../utils/grades';
+import { swapLockId } from '../utils/makeupSwap';
 import { PR_REP_THRESHOLDS } from '../data/mockData';
 
 // ============================================
@@ -1210,12 +1211,13 @@ export const notifyMakeupWaitlist = async (id) => {
  * 대기에 keepAfterOriginal을 표시해 원래 수업이 지나도 대기를 유지한다.
  * 결석은 종료일을 바꾸지 않으므로 자리가 끝내 안 나면 그 수업은 소진된다.
  */
-export const keepMakeupWaitlistAfterOriginal = async (entry) => {
+export const keepMakeupWaitlistAfterOriginal = async (entry, siblingIds = []) => {
     const absence = await createAbsenceRequest(entry.studentName, entry.originalClass.date);
     try {
-        await safeWrite(() => updateDocStatus('makeupWaitlists', entry.id, {
+        // 같은 원래 수업의 대기 묶음은 결석 하나를 함께 쓴다(묶음 중 하나만 성사되므로).
+        await safeWrite(() => Promise.all([entry.id, ...siblingIds].map(id => updateDocStatus('makeupWaitlists', id, {
             keepAfterOriginal: true, keptAbsenceId: absence.id, keptAt: serverTimestamp(),
-        }));
+        }))));
     } catch (err) {
         await cancelAbsence(absence.id).catch(() => {});
         throw err;
@@ -1234,23 +1236,37 @@ export const acceptMakeupWaitlist = async (id) => {
  * 요청자 대기(waitId)가 아직 waiting인지 트랜잭션 안에서 다시 읽어, 두 사람이 동시에 받아주는 경우 한 명만 성공.
  * partnerWaitId가 있으면(자동 맞교환) 상대 대기도 waiting이어야 하며 함께 accepted로 바꾼다.
  * 대기 문서에 swapWith(상대 이름)를 남긴다 — 서버가 확정 알림을 보낼 때 이 문서로 대상·호출자를 확인한다.
+ *
+ * 2026-11-12 보강: 한 수업으로 대기를 여러 칸 걸 수 있게 되면서
+ * - 보강 문서 id를 swapLockId(이름·원래 수업)로 고정해 잠금으로 쓴다. 같은 원래 수업이 두 번 옮겨지면 거부.
+ * - cancelIds(같은 묶음의 다른 대기)를 같은 트랜잭션에서 취소한다. 자리 안내 중(notified)이던 것은
+ *   반환값 freedSlots로 넘겨 호출자가 다음 순번에게 자리를 넘긴다.
  * @param {{ requester: object, partner: object }} makeups - buildSwapMakeups 결과
  */
-export const confirmMakeupSwap = async ({ waitId, partnerWaitId = null, makeups }) => {
+export const confirmMakeupSwap = async ({ waitId, partnerWaitId = null, makeups, cancelIds = [] }) => {
     return safeWrite(() => runTransaction(db, async (tx) => {
         const waitRef = doc(db, 'makeupWaitlists', waitId);
         const partnerRef = partnerWaitId ? doc(db, 'makeupWaitlists', partnerWaitId) : null;
+        const requesterRef = doc(db, 'makeupRequests', swapLockId(makeups.requester.studentName, makeups.requester.originalClass));
+        const partnerMakeupRef = doc(db, 'makeupRequests', swapLockId(makeups.partner.studentName, makeups.partner.originalClass));
+        const siblingRefs = [...new Set(cancelIds)].filter(id => id !== waitId && id !== partnerWaitId)
+            .map(id => doc(db, 'makeupWaitlists', id));
+        // 트랜잭션은 읽기를 모두 끝낸 뒤 쓴다.
         const waitSnap = await tx.get(waitRef);
         const partnerSnap = partnerRef ? await tx.get(partnerRef) : null;
+        const lockSnaps = [await tx.get(requesterRef), await tx.get(partnerMakeupRef)];
+        const siblingSnaps = [];
+        for (const ref of siblingRefs) siblingSnaps.push(await tx.get(ref));
         if (!waitSnap.exists() || waitSnap.data().status !== 'waiting') {
             throw new Error('그 사이 상대의 교환 요청이 마감되었거나 다른 사람과 교환되었어요.');
         }
         if (partnerSnap && (!partnerSnap.exists() || partnerSnap.data().status !== 'waiting')) {
             throw new Error('그 사이 상대의 대기가 바뀌었어요.');
         }
+        if (lockSnaps.some(snap => snap.exists() && snap.data().status !== 'cancelled')) {
+            throw new Error('그 사이 이 수업이 이미 다른 시간으로 옮겨졌어요.');
+        }
         const swapId = waitId;
-        const requesterRef = doc(collection(db, 'makeupRequests'));
-        const partnerMakeupRef = doc(collection(db, 'makeupRequests'));
         for (const [ref, m] of [[requesterRef, makeups.requester], [partnerMakeupRef, makeups.partner]]) {
             tx.set(ref, {
                 studentName: m.studentName,
@@ -1266,11 +1282,19 @@ export const confirmMakeupSwap = async ({ waitId, partnerWaitId = null, makeups 
         const done = (swapWith) => ({ status: 'accepted', respondedAt: serverTimestamp(), swapWith, swapAt: serverTimestamp(), updatedAt: serverTimestamp() });
         tx.update(waitRef, done(makeups.partner.studentName));
         if (partnerRef) tx.update(partnerRef, done(makeups.requester.studentName));
+        const freedSlots = [];
+        siblingSnaps.forEach((snap, i) => {
+            const data = snap.exists() ? snap.data() : null;
+            if (!data || !['waiting', 'notified'].includes(data.status)) return;
+            tx.update(siblingRefs[i], { status: 'cancelled', cancelReason: 'swap-group', updatedAt: serverTimestamp() });
+            if (data.status === 'notified') freedSlots.push({ date: data.date, day: data.day, period: data.period });
+        });
         return {
             swapId,
             requesterMakeupId: requesterRef.id,
             partnerMakeupId: partnerMakeupRef.id,
             keptAbsenceIds: [waitSnap.data().keptAbsenceId, partnerSnap?.data()?.keptAbsenceId].filter(Boolean),
+            freedSlots,
         };
     }));
 };

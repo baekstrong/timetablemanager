@@ -11,6 +11,7 @@ import { findWaitlistsReleasedByHolding, isReleasedByOriginalStart, resolveAfter
 import { getThisWeekRange, parseScheduleString } from '../utils/scheduleUtils';
 import { PERIODS } from '../data/mockData';
 import { hasMakeupQuotaLeft } from '../utils/makeupQuota';
+import { siblingWaits } from '../utils/makeupSwap';
 
 /** Firestore 문서 → 순수 로직용 정규화 (Timestamp → ms) */
 export function normalizeWaitlistEntry(entry) {
@@ -142,6 +143,20 @@ export async function cancelWaitlistsForHeldDates(studentName, heldDates) {
     targets.filter(e => e.status === 'notified')
         .forEach(e => onSeatFreed(e.date, e.day, e.period).catch(() => {}));
     return targets.length;
+}
+
+/**
+ * 대기 묶음 정리 (2026-11-12) — 같은 원래 수업으로 건 다른 칸 대기를 취소한다. 취소한 대기 목록 반환.
+ * 묶음 중 하나가 보강으로 확정됐을 때(자리 수락·다른 시간 보강 변경) 부른다. 맞교환은 확정 트랜잭션이 직접 정리한다.
+ * 자리 안내(notified)를 받고 있던 칸은 다음 순번에게 넘긴다. 실패해도 확정된 보강에는 영향이 없다.
+ */
+export async function releaseSiblingWaits(entry) {
+    const mine = (await getMakeupWaitlistsByStudent(entry.studentName)).map(normalizeWaitlistEntry);
+    const targets = siblingWaits(entry, mine);
+    await Promise.all(targets.map(e => updateMakeupWaitlistStatus(e.id, 'cancelled')));
+    targets.filter(e => e.status === 'notified')
+        .forEach(e => onSeatFreed(e.date, e.day, e.period).catch(() => {}));
+    return targets;
 }
 
 /**

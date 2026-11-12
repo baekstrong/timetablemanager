@@ -1,5 +1,6 @@
 import { scheduleOnDate } from '../../utils/contractChange';
 import { DAYS, PERIODS } from '../../data/mockData';
+import { MAX_WAIT_TARGETS } from '../../utils/makeupSwap';
 
 export const CLASS_LABELS = { regular: '정규 수업', makeup: '보강', holding: '홀딩', absence: '결석', moved: '보강이동', holiday: '휴일', disabled: '수업 없음', freeWorkoutAttendance: '출석' };
 
@@ -76,6 +77,13 @@ export function classLabel(session) {
     return `${Number(session.date.slice(5, 7))}/${Number(session.date.slice(8))}(${session.day}) ${classTime(session)}`;
 }
 
+/** 11/19(목) 6교시(21:40) — 맞교환은 교시로 말하므로 교시를 앞에 (2026-11-11 사용자 요청) */
+export function periodClassLabel(session) {
+    if (!session?.date) return '';
+    const time = classTime(session);
+    return `${Number(session.date.slice(5, 7))}/${Number(session.date.slice(8))}(${session.day}) ${Number(session.period)}교시${time ? `(${time})` : ''}`;
+}
+
 export function isHeldOn(date, holdings = [], studentName) {
     return holdings.some(item => (!item.studentName || item.studentName === studentName) && item.status !== 'cancelled' &&
         (item.holdingDates?.length ? item.holdingDates.includes(date) : item.startDate <= date && item.endDate >= date));
@@ -131,11 +139,17 @@ export function nextStudentClass(sessions, now = new Date()) {
     return sessions.find(item => ['regular', 'makeup'].includes(item.type) && classStartMs(item) >= now.getTime()) || null;
 }
 
-export function sourceUnavailableReason(session, { now = new Date(), quotaUsed = 0, quotaLimit = Infinity, waits = [] } = {}) {
+/**
+ * 이 수업을 옮길 수 없는 이유('' = 가능).
+ * forWait: 대기를 거는 경로 — 같은 수업으로 대기를 최대 MAX_WAIT_TARGETS곳까지 걸 수 있다(adding = 새로 걸 칸 수).
+ * 그 밖의 경로(보강 신청·맞교환 받기)는 대기가 하나라도 걸린 수업이면 막는다.
+ */
+export function sourceUnavailableReason(session, { now = new Date(), quotaUsed = 0, quotaLimit = Infinity, waits = [], forWait = false, adding = 1 } = {}) {
     if (!['regular', 'holiday'].includes(session?.type)) return '이미 변경되었거나 쉬는 수업이에요.';
     if (session.makeup && ['active', 'completed'].includes(session.makeup.status)) return '이미 보강 신청 내역이 있는 수업이에요.';
     if (classStartMs(session) - now.getTime() <= 120 * 60 * 1000) return '원래 수업 시작 2시간 전까지 신청할 수 있어요.';
-    if (waits.some(item => ['waiting', 'notified'].includes(item.status) && item.originalClass?.date === session.date && Number(item.originalClass?.period) === Number(session.period))) return '이 수업은 보강 대기 중이에요.';
+    const waitCount = waits.filter(item => ['waiting', 'notified'].includes(item.status) && item.originalClass?.date === session.date && Number(item.originalClass?.period) === Number(session.period)).length;
+    if (forWait ? waitCount + adding > MAX_WAIT_TARGETS : waitCount > 0) return forWait ? `한 수업으로 대기는 ${MAX_WAIT_TARGETS}곳까지 걸 수 있어요.` : '이 수업은 보강 대기 중이에요. 빈자리로 옮기려면 대기 카드의 \'다른 시간으로 보강 변경\'을 눌러주세요.';
     if (quotaUsed >= quotaLimit) return '이번 주 보강 횟수를 모두 사용했어요.';
     return '';
 }

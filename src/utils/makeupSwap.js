@@ -8,6 +8,8 @@ import { getClassDateTime } from './scheduleUtils';
 import { isLiveWaitlist } from './makeupWaitlist';
 
 export const SWAP_DEADLINE_MS = 120 * 60 * 1000;
+/** 한 수업(원래 수업)으로 동시에 걸 수 있는 대기 칸 수 — 그중 하나만 성사된다 (2026-11-12 사용자 결정) */
+export const MAX_WAIT_TARGETS = 3;
 
 const samePeriod = (a, b) => Number(a) === Number(b);
 
@@ -72,4 +74,55 @@ export function buildSwapMakeups(entry, partnerName) {
 
 function pickClass(c) {
     return { date: c.date, day: c.day, period: c.period, periodName: c.periodName };
+}
+
+/** 같은 사람·같은 원래 수업의 대기 묶음 키 — 묶음 중 하나만 성사되고 보강 1회로 센다 */
+export function waitGroupKey(entry) {
+    const o = entry?.originalClass;
+    return o?.date ? `${entry.studentName}__${o.date}__${Number(o.period)}` : `${entry?.studentName}__${entry?.id}`;
+}
+
+/** 같은 묶음의 다른 살아 있는 대기(waiting·notified) */
+export function siblingWaits(entry, entries = [], now = new Date()) {
+    const key = waitGroupKey(entry);
+    return entries.filter(e => e.id !== entry.id && ['waiting', 'notified'].includes(e.status)
+        && isLiveWaitlist(e, now) && waitGroupKey(e) === key);
+}
+
+/** 대기 목록을 묶음으로 — 묶음 안은 원하는 칸 시간순, 묶음은 먼저 건 순 */
+export function groupWaits(entries = []) {
+    const groups = new Map();
+    for (const e of entries) {
+        const key = waitGroupKey(e);
+        if (!groups.has(key)) groups.set(key, { key, studentName: e.studentName, originalClass: e.originalClass, entries: [], createdAtMs: Infinity });
+        const g = groups.get(key);
+        g.entries.push(e);
+        g.createdAtMs = Math.min(g.createdAtMs, e.createdAtMs || 0);
+    }
+    const startMs = e => getClassDateTime(e.date, Number(e.period))?.getTime() || 0;
+    return [...groups.values()]
+        .map(g => ({ ...g, entries: g.entries.sort((a, b) => startMs(a) - startMs(b)) }))
+        .sort((a, b) => a.createdAtMs - b.createdAtMs);
+}
+
+/**
+ * 맞교환 보강 문서 id — 같은 사람의 같은 원래 수업은 한 번만 옮겨지게 하는 잠금.
+ * 묶음의 두 대기가 동시에 다른 사람에게 받아져도 트랜잭션이 이 문서를 읽어 하나만 성공한다.
+ */
+export function swapLockId(studentName, cls) {
+    return `swap__${studentName}__${cls.date}__${Number(cls.period)}`.replace(/\//g, '_');
+}
+
+/** 받아줄 수 있는 칸을 먼저 찾는다 — 묶음(같은 원래 수업으로 건 여러 칸) 중 내 정규 수업과 맞는 것 */
+export function swapGroupOptions(group, check) {
+    const options = group.entries.map(entry => ({ entry, ...check(entry) }));
+    return { options, actionable: options.find(o => o.session && !o.reason) || null, matched: options.find(o => o.session) || null };
+}
+
+/** 내가 받아줄 수 있는 맞교환 요청 — 첫 화면 위 한 줄 안내용 */
+export function swapOffersFor(entries, myName, check) {
+    return groupWaits(entries.filter(e => e.studentName !== myName))
+        .map(group => ({ group, ...swapGroupOptions(group, check) }))
+        .filter(item => item.actionable)
+        .map(({ group, actionable }) => ({ key: group.key, studentName: group.studentName, session: actionable.session, originalClass: group.originalClass }));
 }
