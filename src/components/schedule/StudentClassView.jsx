@@ -130,7 +130,7 @@ export default function StudentClassView({
             {/* 무엇을 해야 하는지 시간표 위에 고정으로 보여준다(2026-11-12 사용자 선택 A안) */}
             <div className={`student-class-grid-heading is-guide${source ? ' has-source' : ''}`}>
                 <div>{source ? <><h3>{periodClassLabel(source)} 수업을 어디로 옮길까요?</h3>
-                    <p>{waitPickMode ? <>빈자리는 누르면 바로 신청돼요. <strong>만석은 체크해서 대기</strong>를 걸 수 있어요(최대 {MAX_WAIT_TARGETS}곳).</> : '옮길 빈자리를 누르세요.'}</p></>
+                    <p>{waitPickMode ? <>빈자리는 누르면 바로 신청돼요. <strong>만석은 체크해서 대기</strong>를 걸 수 있어요(최대 {MAX_WAIT_TARGETS}곳).</> : '옮길 빈자리를 누르세요.'}{waitPickMode && <> 수업을 바꾸려면 ‘옮길 수업 ✓’ 칸을 다시 누르세요.</>}</p></>
                     : <><h3>어떤 수업을 옮길까요?</h3><p>시간표에서 <strong>‘눌러서 선택’</strong>이라고 쓰인 내 수업 칸을 누르세요.</p></>}</div>
                 <span>{quotaUsed}/{quotaLimit}회 사용</span>
             </div>

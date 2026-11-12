@@ -210,6 +210,13 @@ function CurrentWeekStudentSchedule({
         setWaitlistOriginalClass(original);
     }
 
+    /** 골라 둔 옮길 수업을 다시 누르면 선택과 대기 체크를 모두 푼다(2026-11-12 사용자 요청) */
+    function clearOriginal() {
+        setSelectedOriginalClass(null);
+        setWaitlistOriginalClass(null);
+        setWaitPicks([]);
+    }
+
     function startStudentMakeup(session) {
         if (!validateStudentDataReady()) return;
         chooseOriginal(session);
@@ -218,6 +225,15 @@ function CurrentWeekStudentSchedule({
 
     function closeStudentFlow() {
         if (isSubmittingMakeup || isSubmittingWaitlist) return;
+        setFlowStep(null);
+        setFlowTarget(null);
+    }
+
+    /** 대기 확인 창 → 이 칸은 체크해 둔 채 시간표로 돌아가 만석 칸을 더 고른다(2026-11-12 사용자 요청) */
+    function startMultiWait() {
+        if (isSubmittingWaitlist || !flowTarget || !selectedOriginalClass) return;
+        setWaitPicks([flowTarget]);
+        setStudentTab('all');
         setFlowStep(null);
         setFlowTarget(null);
     }
@@ -1450,11 +1466,14 @@ function CurrentWeekStudentSchedule({
                     className={`slot-kind-${getHolidayInfo(day) !== null || isClassDisabled(day, period.id) ? 'empty' : period.type === 'free' ? 'free' : 'lesson'}${isPickedSource || isWaitPick ? ' is-source' : ''}`}
                     disabled={Boolean(reason) || isSubmittingMakeup || isSubmittingWaitlist}
                     ariaLabel={`${classLabel(slot)} ${label}${reason && reason !== label ? ` · ${reason}` : ''}`}
-                    onClick={() => pickable ? chooseOriginal(session) : existingWait ? handleWaitlistChipClick(existingWait) : handleCellClick(day, period, data)} />;
+                    onClick={() => pickable ? (isPickedSource ? clearOriginal() : chooseOriginal(session)) : existingWait ? handleWaitlistChipClick(existingWait) : handleCellClick(day, period, data)} />;
             })}</Fragment>)}
         </div></>;
     }
 
+    // 같은 원래 수업으로 이미 건 대기 + 지금 칸을 빼고 더 고를 수 있는 칸 수
+    const flowExistingWaits = selectedOriginalClass ? validWaits.filter(entry => entry.originalClass?.date === selectedOriginalClass.date && Number(entry.originalClass?.period) === Number(selectedOriginalClass.period)).length : 0;
+    const flowMoreWaits = MAX_WAIT_TARGETS - flowExistingWaits - 1;
     const flowSourceSession = personalSessions.find(item => item.date === selectedOriginalClass?.date && item.period === selectedOriginalClass?.period);
     const flowWaitTargets = flowWaiting && waitPicks.length ? waitPicks : flowTarget ? [flowTarget] : [];
     const flowSourceError = studentRequestDataError || (flowSourceSession ? sourceUnavailableReason(flowSourceSession, { now, quotaUsed: myWeekCommitments, quotaLimit: makeupWeeklyLimit, waits: validWaits, forWait: flowWaiting, adding: flowWaitTargets.length || 1 }) : '옮길 수업을 선택해주세요.');
@@ -1646,6 +1665,7 @@ function CurrentWeekStudentSchedule({
                         {flowSourceSession?.type === 'holiday' && <p className="student-class-notice">휴일 수업을 미리 수강하면 수강 종료일이 앞당겨질 수 있어요.</p>}
                         <p className="student-class-help">{flowWaiting ? <>대기는 보강이 확정될 때 1회를 써요 (지금 {myWeekCommitments}/{makeupWeeklyLimit}회)<br />그 전에 보강 횟수를 다 쓰면 자리가 나도 안내되지 않고 대기가 취소돼요.</> : <>신청 후 이번 주 보강 {myWeekCommitments + 1}/{makeupWeeklyLimit}회<br />보강을 취소해도 사용 횟수는 돌아오지 않아요.</>}</p>
                         {(flowSourceError || flowTargetError) && <p className="student-class-notice" role="alert">{flowSourceError || flowTargetError}</p>}
+                        {flowWaiting && !waitPicks.length && flowMoreWaits > 0 && !flowSourceError && !flowTargetError && !readOnly && <button type="button" className="student-class-button student-class-multi-wait" disabled={isSubmittingWaitlist} onClick={startMultiWait}>대기 여러 곳 하기 ({flowMoreWaits}곳 더 가능)</button>}
                         <div className="student-class-actions"><button type="button" className="student-class-button" disabled={isSubmittingMakeup || isSubmittingWaitlist} onClick={closeStudentFlow}>다른 시간 선택</button><button type="button" className="student-class-button primary" disabled={readOnly || Boolean(flowSourceError || flowTargetError) || isSubmittingMakeup || isSubmittingWaitlist} onClick={flowWaiting ? handleWaitlistRequestSubmit : handleMakeupSubmit}>{readOnly ? '실데이터 조회 전용' : isSubmittingMakeup || isSubmittingWaitlist ? '신청 중…' : flowWaiting ? (flowWaitTargets.length > 1 ? `${flowWaitTargets.length}곳 대기 신청` : '대기 신청') : '보강 확정'}</button></div>
                     </>}
                 </div>
