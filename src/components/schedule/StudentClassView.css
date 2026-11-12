@@ -111,3 +111,15 @@
 .student-class-offer.is-swap { border-width:2px; border-color:var(--accent); }
 .student-class-wait-picks.has-picks { border:1px solid var(--accent); background:var(--accent-10); color:var(--text); }
 .student-class-wait-picks .student-class-actions { margin-top:10px; }
+
+/* 보강 시간표 안내 머리말·대기 실행 줄 (2026-11-12 A안) */
+.student-class-grid-heading.is-guide { position:sticky; top:0; z-index:3; align-items:flex-start; margin:8px 0 10px; padding:12px 14px; border:1px solid var(--hairline); border-radius:var(--r-md); background:var(--canvas); }
+.student-class-grid-heading.is-guide.has-source { border-color:var(--accent-30); background:var(--surface); }
+.student-class-grid-heading.is-guide h3 { margin:0 0 4px; font-size:15px; font-weight:700; color:var(--text); word-break:keep-all; }
+.student-class-grid-heading.is-guide p { margin:0; font-size:12px; line-height:1.6; color:var(--text-secondary); word-break:keep-all; }
+.student-class-grid-heading.is-guide p strong { color:var(--text); }
+.student-class-grid-heading.is-guide > span { flex-shrink:0; white-space:nowrap; }
+.student-class-wait-bar { position:sticky; bottom:calc(88px + env(safe-area-inset-bottom, 0px)); z-index:4; margin-top:12px; padding:12px 14px; border:1px solid var(--accent); border-radius:var(--r-md); background:var(--canvas); box-shadow:0 4px 16px rgba(0,0,0,.08); }
+.student-class-wait-bar p { margin:0; font-size:12px; line-height:1.6; color:var(--text-secondary); word-break:keep-all; }
+.student-class-wait-bar p strong { color:var(--text); }
+.student-class-wait-bar .student-class-actions { margin-top:10px; }

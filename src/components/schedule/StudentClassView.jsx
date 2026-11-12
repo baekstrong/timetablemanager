@@ -4,7 +4,7 @@ import { canKeepAfterOriginal, canConvertWaitToMakeup, getNotificationDeadline }
 import { ScheduleStatusBadge } from './ScheduleCell';
 import ReviewModal from '../../features/today/ReviewModal';
 import { courseNoticeSession } from '../../utils/courseNoticeSession';
-import { groupWaits } from '../../utils/makeupSwap';
+import { groupWaits, MAX_WAIT_TARGETS } from '../../utils/makeupSwap';
 import './StudentClassView.css';
 
 const STATUS_TAGS = { makeup: 'makeup', moved: 'makeupMoved', absence: 'absent', holding: 'holding' };
@@ -15,7 +15,7 @@ function ClassStatusChip({ session, now, detail = false }) {
 
 export default function StudentClassView({
     days, sessions = [], now, tab, onTabChange, readOnly = false, suppressCourseNotice = false,
-    loading = false, error = '', onRetry, studentName, membership, source, quotaUsed, quotaLimit,
+    loading = false, error = '', onRetry, studentName, membership, source, waitPickMode = false, quotaUsed, quotaLimit,
     requestUnavailableReason = '', requestError = '',
     waits = [], onWaitlist, onKeepWait, onConvertWait, onCancelWaitGroup, onMakeup, onCancelMakeup, onNavigate, swapBoard = null, swapOffers = [], topNotice = null, children,
 }) {
@@ -94,7 +94,7 @@ export default function StudentClassView({
                         {session.type === 'freeWorkoutAttendance' && <p className="student-class-help">자율운동 출석 기록이에요.</p>}
                         {!past && ['regular', 'holiday', 'makeup'].includes(session.type) && <>
                             {session.type !== 'makeup' && unavailable && <p className="student-class-help">{unavailable}</p>}
-                            <div className="student-class-actions">{session.type === 'makeup' ? <button type="button" className="student-class-button primary" disabled={readOnly || !canCancel || Boolean(requestUnavailableReason)} onClick={() => onCancelMakeup(session.makeup.id)}>보강 취소</button> : <button type="button" className="student-class-button primary" disabled={readOnly || Boolean(unavailable)} onClick={() => onMakeup(session)}>보강 신청</button>}{session.type !== 'holiday' && <button type="button" className="student-class-button" onClick={() => onNavigate?.('holding', session.date)}>홀딩·결석</button>}</div>
+                            <div className="student-class-actions">{session.type === 'makeup' ? <button type="button" className="student-class-button primary" disabled={readOnly || !canCancel || Boolean(requestUnavailableReason)} onClick={() => onCancelMakeup(session.makeup.id)}>보강 취소</button> : <button type="button" className="student-class-button primary" disabled={readOnly || Boolean(unavailable)} onClick={() => onMakeup(session)}>다른 시간으로 옮기기</button>}{session.type !== 'holiday' && <button type="button" className="student-class-button" onClick={() => onNavigate?.('holding', session.date)}>홀딩·결석</button>}</div>
                             {session.type === 'makeup' && !canCancel && <p className="student-class-help">{swapped ? '맞교환한 수업은 취소할 수 없어요.' : '보강 수업 시작 1시간 전까지 취소할 수 있어요.'}</p>}
                         </>}
                         {past && <p className="student-class-help">이미 시작했거나 지난 수업이에요.</p>}
@@ -127,7 +127,13 @@ export default function StudentClassView({
             {!focus.length && <button type="button" className="student-class-link" onClick={() => onNavigate?.('holding')}>홀딩·결석 신청 및 내역 ›</button>}
             {swapBoard}
         </> : requestUnavailableReason ? null : <>
-            <div className="student-class-grid-heading"><p>{source ? <><strong>{classLabel(source)}</strong> → 원하는 시간을 선택하세요</> : '옮길 내 수업 칸을 먼저 누르세요'}</p><span>{quotaUsed}/{quotaLimit}회 사용</span></div>
+            {/* 무엇을 해야 하는지 시간표 위에 고정으로 보여준다(2026-11-12 사용자 선택 A안) */}
+            <div className={`student-class-grid-heading is-guide${source ? ' has-source' : ''}`}>
+                <div>{source ? <><h3>{periodClassLabel(source)} 수업을 어디로 옮길까요?</h3>
+                    <p>{waitPickMode ? <>빈자리는 누르면 바로 신청돼요. <strong>만석은 체크해서 대기</strong>를 걸 수 있어요(최대 {MAX_WAIT_TARGETS}곳).</> : '옮길 빈자리를 누르세요.'}</p></>
+                    : <><h3>어떤 수업을 옮길까요?</h3><p>시간표에서 <strong>‘눌러서 선택’</strong>이라고 쓰인 내 수업 칸을 누르세요.</p></>}</div>
+                <span>{quotaUsed}/{quotaLimit}회 사용</span>
+            </div>
             {quotaUsed >= quotaLimit && <p className="student-class-notice">이번 주 보강 횟수를 모두 사용했어요.{waits.length > 0 && ' 걸어 둔 대기는 자리가 나도 안내되지 않고 취소돼요.'}</p>}
             {children}
             <p className="student-class-help">대기 신청만으로 수업이 이동하지 않아요. 자리가 나면 직접 수락해요.</p>

@@ -24,3 +24,8 @@
 /* 옮길 수업으로 고른 내 수업 칸 (2026-11-11) */
 .student-class-slot.student-makeup-slot.is-source { box-shadow:inset 0 0 0 2px var(--accent); }
 .student-class-slot.student-makeup-slot.is-source .student-makeup-slot-availability { color:var(--accent-hover); font-weight:700; }
+/* 대기로 고를 수 있는 만석 칸의 체크박스 (2026-11-12) */
+.student-class-slot.student-makeup-slot .student-makeup-slot-check { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border:1.5px solid var(--text-muted); border-radius:4px; background:var(--canvas); color:#fff; font-size:11px; font-weight:700; line-height:1; }
+.student-class-slot.student-makeup-slot[data-checked="true"] { background:var(--accent-10); box-shadow:inset 0 0 0 2px var(--accent); }
+.student-class-slot.student-makeup-slot[data-checked="true"] .student-makeup-slot-check { border-color:var(--accent); background:var(--accent); }
+.student-class-slot.student-makeup-slot[data-checked="true"] .student-makeup-slot-label { color:var(--accent-hover); }

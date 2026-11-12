@@ -18,6 +18,7 @@ const normalizeLabel = value => String(value || '').replace(/\s+/g, '');
  * disabled/onClick: passed through unchanged; this component never decides eligibility.
  * existingWait: optional waiting/notified entry, used only to label the existing action.
  * waitCount: 이 칸의 보강 대기 인원(만석일 때만). 대기 신청 전에 줄 길이를 알 수 있게 작게 표시.
+ * checked: true/false면 대기로 고를 수 있는 만석 칸 — 체크박스를 그려 여러 칸을 고를 수 있다는 걸 보여준다(2026-11-12).
  */
 export default function StudentMakeupSlot({
     session = null,
@@ -30,6 +31,7 @@ export default function StudentMakeupSlot({
     isFull = false,
     existingWait = null,
     waitCount = 0,
+    checked,
     className = '',
 }) {
     const fallbackType = reason === '홀딩' || label === '홀딩' ? 'holding' : reason === '휴일' || label === '휴일' ? 'holiday' : null;
@@ -57,6 +59,8 @@ export default function StudentMakeupSlot({
         data-personal-status={type || undefined}
         data-availability={availabilityKind}
         disabled={disabled}
+        aria-pressed={typeof checked === 'boolean' ? checked : undefined}
+        data-checked={typeof checked === 'boolean' ? String(checked) : undefined}
         onClick={onClick}
         title={reason || undefined}
         aria-label={accessibleLabel || undefined}>
@@ -66,6 +70,7 @@ export default function StudentMakeupSlot({
             {isAttendance && <ScheduleStatusBadge label={statusLabel} className="student-makeup-slot-badge is-attendance" />}
             {secondaryLabel && <span className={`student-makeup-slot-availability${existingWait ? ' is-wait' : ''}`}>{secondaryLabel}</span>}
         </> : <>
+            {typeof checked === 'boolean' && <span className="student-makeup-slot-check" aria-hidden="true">{checked ? '✓' : ''}</span>}
             <span className="student-makeup-slot-label">{availableLabel}</span>
             {waitCountLabel && <span className="student-makeup-slot-wait-count">{waitCountLabel}</span>}
         </>}

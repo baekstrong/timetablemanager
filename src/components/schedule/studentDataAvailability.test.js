@@ -239,7 +239,7 @@ describe('학생 명단이 없을 때 예시 시간표를 사용하지 않는다
         const mine = renderToStaticMarkup(React.createElement(StudentClassView, { ...view.props, tab: 'mine' }));
         expect(mine).toContain('요일별 내 일정');
         expect(mine).toContain('내 수업 상세');
-        expect(mine).toMatch(/disabled=""[^>]*>보강 신청/);
+        expect(mine).toMatch(/disabled=""[^>]*>다른 시간으로 옮기기/);
         const all = renderToStaticMarkup(React.createElement(StudentClassView, { ...view.props, tab: 'all' }));
         expect(all).not.toContain('7자리');
         expect(all).not.toContain('이번 주 보강 가능한 시간표');

@@ -41,7 +41,7 @@ import StudentMakeupSlot from './StudentMakeupSlot';
 import ReviewModal from '../../features/today/ReviewModal';
 import { getPushPermission, initPush, isPushAvailable } from '../../services/pushService';
 import { pushBlockedGuide, resolvePushState } from '../../utils/pushStatus';
-import { buildStudentWeek, studentWeekDays, classLabel, classStartMs, sourceUnavailableReason, studentDateISO } from './studentClassModel';
+import { buildStudentWeek, studentWeekDays, classLabel, periodClassLabel, classStartMs, sourceUnavailableReason, studentDateISO } from './studentClassModel';
 
 const DEFAULT_SERVICES = { getActiveMakeupRequests, getWeekMakeupRequests, createMakeupRequest, cancelMakeupRequest, completeMakeupRequest, getHolidays, createMakeupWaitlist, getActiveMakeupWaitlists, updateMakeupWaitlistStatus, acceptMakeupWaitlist, declineMakeupWaitlist, onSeatFreed, processHolidayMakeupEndDate, keepMakeupWaitlistAfterOriginal, cancelAbsence, onSeatsFreedForDates, acceptSwapRequest, tryAutoSwap, releaseSiblingWaits };
 const EMPTY_LIST = [];
@@ -1409,6 +1409,8 @@ function CurrentWeekStudentSchedule({
         return renderStudentCell(day, periodObj);
     }
 
+    const waitPickMode = Boolean(selectedOriginalClass) && !changingMakeup && !convertingWait;
+
     function renderModernGrid() {
         return <><div className="student-class-grid-legend" aria-label="시간표 색상 안내"><span className="is-lesson">수업</span><span className="is-free">자율운동</span><span className="is-empty">수업 없음</span></div><p className="student-class-grid-scroll-hint">시간표가 잘리면 좌우로 밀어보세요.</p><div className="student-class-grid" role="region" tabIndex={0} aria-label="이번 주 보강 가능한 시간표, 화면이 좁으면 좌우로 스크롤">
             <span className="student-class-grid-heading-cell">시간</span>{days.map(item => <div className="student-class-grid-heading-cell" key={item.date}>{item.day}<br />{item.dateNumber}</div>)}
@@ -1438,10 +1440,12 @@ function CurrentWeekStudentSchedule({
                 else if (source && wouldDoubleBookStudent(source, day, date, otherMakeups)) reason = label = '선택 불가';
                 else if (myQuotaUsed >= makeupWeeklyLimit) reason = '이번 주 보강 횟수를 모두 사용했어요.';
                 if (existingWait) { reason = ''; label = existingWait.status === 'notified' ? '자리 도착' : '대기 중'; }
-                else if (isWaitPick && !reason) label = '대기 선택 ✓';
+                // 대기로 고를 수 있는 만석 칸은 체크박스로 보여준다(여러 칸 선택 가능하다는 표시)
+                const checkable = waitPickMode && data.isFull && !reason && !existingWait;
+                if (checkable) label = isWaitPick ? '대기' : '만석';
                 if (convertingWait && data.isFull && !reason) reason = existingWait ? label : (label = '만석');
                 return <StudentMakeupSlot key={date} session={session} now={now} label={label} reason={reason}
-                    isFull={data.isFull} existingWait={existingWait}
+                    isFull={data.isFull} existingWait={existingWait} checked={checkable ? isWaitPick : undefined}
                     waitCount={data.isFull && !reason ? getSeatWaitCount(date, day, period.id) : 0}
                     className={`slot-kind-${getHolidayInfo(day) !== null || isClassDisabled(day, period.id) ? 'empty' : period.type === 'free' ? 'free' : 'lesson'}${isPickedSource || isWaitPick ? ' is-source' : ''}`}
                     disabled={Boolean(reason) || isSubmittingMakeup || isSubmittingWaitlist}
@@ -1472,7 +1476,7 @@ function CurrentWeekStudentSchedule({
                 days={days} sessions={personalSessions} now={now} tab={studentTab} onTabChange={changeStudentTab}
                 loading={personalLoading} error={personalError} onRetry={retryStudentData}
                 requestUnavailableReason={studentRequestDataError} requestError={requestDataError}
-                membership={membership} source={changingMakeup?.originalClass || convertingWait?.originalClass || selectedOriginalClass} quotaUsed={myQuotaUsed} quotaLimit={makeupWeeklyLimit}
+                membership={membership} waitPickMode={waitPickMode} source={changingMakeup?.originalClass || convertingWait?.originalClass || selectedOriginalClass} quotaUsed={myQuotaUsed} quotaLimit={makeupWeeklyLimit}
                 waits={validWaits} onWaitlist={handleWaitlistChipClick} onKeepWait={handleKeepAfterOriginal} onConvertWait={startWaitConversion} onCancelWaitGroup={handleCancelWaitGroup}
                 swapOffers={acceptSwapRequest && !readOnly && !studentRequestDataError ? swapOffersFor(swapEntries, user?.username, checkSwap) : []}
                 onMakeup={startStudentMakeup} onCancelMakeup={handleMakeupCancel} onNavigate={onNavigate}
@@ -1482,13 +1486,12 @@ function CurrentWeekStudentSchedule({
             >
                 {changingMakeup && <div className="student-class-notice"><strong>보강 시간 변경 중</strong><p>원래 수업이 만석이에요. 다른 빈자리를 선택해주세요.</p><button type="button" className="student-class-link" onClick={() => setChangingMakeup(null)}>변경 그만두기</button></div>}
                 {convertingWait && <div className="student-class-notice"><strong>대기를 보강으로 변경 중</strong><p>{classLabel(convertingWait.originalClass)} 수업을 옮길 빈자리를 선택해주세요. 고르면 {classLabel(convertingWait)} 대기는 취소돼요.</p><button type="button" className="student-class-link" onClick={() => setConvertingWait(null)}>변경 그만두기</button></div>}
-                {selectedOriginalClass && !changingMakeup && !convertingWait && <div className={`student-class-notice student-class-wait-picks${waitPicks.length ? ' has-picks' : ''}`}>
-                    {waitPicks.length ? <>
-                        <p><strong>대기할 만석 칸 {waitPicks.length}곳</strong> · {waitPicks.map(slot => classLabel(slot)).join(', ')}</p>
-                        <div className="student-class-actions"><button type="button" className="student-class-button" onClick={() => setWaitPicks([])}>선택 해제</button><button type="button" className="student-class-button primary" disabled={isSubmittingWaitlist} onClick={openWaitPicksConfirm}>{waitPicks.length}곳 대기 걸기</button></div>
-                    </> : <p>만석 칸을 누르면 대기할 칸으로 골라져요. 한 수업으로 {MAX_WAIT_TARGETS}곳까지 함께 걸 수 있고, 먼저 성사되는 한 곳으로 옮겨져요.</p>}
-                </div>}
                 {!studentRequestDataError && renderModernGrid()}
+                {/* 고른 만석 칸이 있으면 화면 아래에 따라붙는 실행 줄 */}
+                {waitPickMode && waitPicks.length > 0 && <div className="student-class-wait-bar" role="region" aria-label="고른 대기 칸">
+                    <p><strong>대기 {waitPicks.length}곳</strong> · {waitPicks.map(slot => periodClassLabel(slot)).join(', ')}</p>
+                    <div className="student-class-actions"><button type="button" className="student-class-button" onClick={() => setWaitPicks([])}>선택 해제</button><button type="button" className="student-class-button primary" disabled={isSubmittingWaitlist} onClick={openWaitPicksConfirm}>{waitPicks.length}곳 대기 걸기</button></div>
+                </div>}
             </StudentClassView>}
             {!modernStudent && <>
             {/* Student usage guide */}
