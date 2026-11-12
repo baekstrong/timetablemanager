@@ -24,6 +24,7 @@ export async function acceptScheduleTransfer(studentName, requestId, student) {
     const result = await processScheduleTransfer(studentName, newSchedule, holidays, {
         preferredSheetName: student._foundSheetName,
         preferredRowIndex: student._rowIndex,
+        studentWrite: true,
     });
     // 시트 저장이 끝난 뒤에만 수강생 승인 완료로 처리한다.
     await acceptWaitlistRequest(request.id);

@@ -17,7 +17,7 @@ describe('첫 화면 고정 시간표 변경 승인', () => {
     it('최신 코치 승인과 본인 등록을 확인하고 시트 저장 이후 완료 처리한다', async () => {
         expect(await acceptScheduleTransfer('예시학생', request.id, student)).toEqual({ currentSchedule: '월1수1', newSchedule: '화2수1', newEndDate: '261030' });
         expect(getActiveWaitlistRequests).toHaveBeenCalledWith('예시학생');
-        expect(processScheduleTransfer).toHaveBeenCalledWith('예시학생', '화2수1', [{ date: '2026-10-09' }], { preferredSheetName: student._foundSheetName, preferredRowIndex: 3 });
+        expect(processScheduleTransfer).toHaveBeenCalledWith('예시학생', '화2수1', [{ date: '2026-10-09' }], { preferredSheetName: student._foundSheetName, preferredRowIndex: 3, studentWrite: true });
         expect(acceptWaitlistRequest).toHaveBeenCalledWith(request.id);
         expect(processScheduleTransfer.mock.invocationCallOrder[0]).toBeLessThan(acceptWaitlistRequest.mock.invocationCallOrder[0]);
     });

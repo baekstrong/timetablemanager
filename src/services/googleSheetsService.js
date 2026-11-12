@@ -1,4 +1,4 @@
-import { preferScheduledRegistrations, scheduleOnDate, contractCalculationBase, readContractChange } from '../utils/contractChange';
+import { preferScheduledRegistrations, scheduleOnDate, contractCalculationBase, readContractChange, contractChangeNotesInline } from '../utils/contractChange';
 import { getMembershipRegistrations, getRegistrationHoldings } from '../utils/membershipRegistrations';
 import { isPausedRegistration } from '../utils/studentList';
 import { planPausedSessionAdjustment, pausedRegistrationSnapshot } from '../utils/pausedSessions';
@@ -3099,13 +3099,16 @@ export const processHolidayMakeupEndDate = async (studentName, countedHolidayDat
     holdingRanges.push({ start: existHoldStart, end: existHoldEnd });
   }
 
+  // 시간표 변경·계약변경 이력이 있으면 그 기준일부터 남은 회차로 센다(시작일부터 다시 세면
+  // 옛 시간표로 들은 수업이 사라져 종료일이 늘어난다).
+  const contractBase = contractCalculationBase(studentData, getStudentField);
   const newEndDate = calculateEndDate(
-    membershipStartDate,
-    totalSessions,
+    contractBase ? parseSheetDate(contractBase.from) : membershipStartDate,
+    totalSessions - (contractBase?.consumed || 0) - (contractBase?.reserved || 0),
     scheduleStr,
     holdingRanges,
     firebaseHolidays,
-    validHolidayDates
+    contractBase ? validHolidayDates.filter(d => d >= contractBase.from) : validHolidayDates
   );
 
   if (!newEndDate) {
@@ -3226,8 +3229,69 @@ async function applyNewScheduleToNextRegistration(sheetName, rows, headers, next
 }
 
 /**
+ * 진행 중인 등록의 시간표 변경 계산 (순수 함수).
+ *
+ * 예전엔 시작일부터 전체를 새 시간표로 다시 셌다. 그러면 옛 시간표에만 있던 요일에 이미 들은
+ * 수업이 사라져 종료일이 늘어났다(정진주: 화4금4로 10/20(화) 수업 → 월5목5로 바꾸자 11/12가 11/16).
+ * 그래서 계약변경과 같은 방식으로, 저장된 종료일(H) 기준으로 옛 시간표에 남은 정규 회차만 세서
+ * 새 시간표에 바꾼 날부터 깐다. H에 이미 반영된 결석·홀딩·휴일 보강 연장도 그대로 보존된다.
+ * 결과의 `notes`는 E열에 남길 [계약변경이력] 태그 — 지난 날짜 표시(scheduleOnDate)와
+ * 이후 홀딩 취소·휴일 보강 재계산(contractCalculationBase)이 이 기준을 다시 쓴다.
+ */
+export const planInProgressScheduleTransfer = ({ student, newScheduleStr, firebaseHolidays = [], now = new Date() }) => {
+  const start = parseSheetDate(getStudentField(student, '시작날짜'));
+  const end = parseSheetDate(getStudentField(student, '종료날짜'));
+  const oldSchedule = getStudentField(student, '요일 및 시간');
+  if (!start || !end || !oldSchedule) return null;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  // 오늘 옛 수업이 끝났으면 오늘은 소진. 새 시간표의 오늘 수업이 이미 지났으면 새 배치는 내일부터.
+  const oldDone = todaySessionDone(oldSchedule, now);
+  const newDone = todaySessionDone(newScheduleStr, now);
+  const consumptionFrom = oldDone ? tomorrow : today;
+  const from = oldDone || newDone ? tomorrow : today;
+
+  const notes = getStudentField(student, '특이사항') || '';
+  const excluded = new Set(parseAbsenceDatesFromNotes(notes));
+  const holdingInfo = parseHoldingStatus(getStudentField(student, '홀딩 사용여부'));
+  const holdingRanges = [];
+  const hs = parseSheetDate(getStudentField(student, '홀딩 시작일'));
+  const he = parseSheetDate(getStudentField(student, '홀딩 종료일'));
+  if (holdingInfo.isCurrentlyUsed && hs && he) holdingRanges.push({ start: hs, end: he });
+  const isHeld = d => holdingRanges.some(r => isSameOrAfter(d, r.start) && isSameOrBefore(d, r.end));
+
+  // 옛 시간표로 남은 정규 회차 = 바꾼 날 ~ 저장된 종료일 사이의 수업일 (휴일·홀딩·합의결석 제외)
+  let remaining = 0;
+  for (let d = new Date(consumptionFrom), guard = 0; d <= end && guard++ < 1500; d.setDate(d.getDate() + 1)) {
+    const iso = formatDateToISO(d);
+    if (getClassDays(scheduleOnDate(student, iso, getStudentField)).includes(d.getDay()) &&
+        !isHolidayDate(d, firebaseHolidays) && !excluded.has(iso) && !isHeld(d)) remaining++;
+  }
+  if (remaining <= 0) return null; // 이미 다 들은 등록 — 종료일을 바꿀 회차가 없다
+
+  const newEnd = calculateEndDate(from, remaining, newScheduleStr, holdingRanges, firebaseHolidays);
+  if (!newEnd) return null;
+
+  const weekly = parseInt(getStudentField(student, '주횟수')) || 2;
+  const total = getTotalSessions(weekly, holdingInfo);
+  const previous = readContractChange(notes);
+  const fromISO = formatDateToISO(from);
+  const segments = [...(previous?.segments || []),
+    { from: previous?.from || formatDateToISO(start), until: fromISO, schedule: oldSchedule }];
+  const metadata = {
+    v: 1, kind: 'scheduleTransfer', from: fromISO,
+    consumed: Math.max(0, total - remaining - (previous?.reserved || 0)),
+    reserved: previous?.reserved || 0, segments,
+    ...(previous?.reservations ? { reservations: previous.reservations } : {}),
+  };
+  const memo = `${fromISO.slice(2).replaceAll('-', '.')}부터 시간표 변경: ${oldSchedule} → ${newScheduleStr} (남은 ${remaining}회)`;
+  return { from, newEnd, remaining, metadata, notes: contractChangeNotesInline(notes, metadata, memo) };
+};
+
+/**
  * 시간표 영구 변경 처리
  * - 활성 등록 행: D열 + H열 갱신. 시작 전(미래) 등록이면 G열도 새 스케줄의 첫 수업일로 이동.
+ * - 진행 중 등록은 지난 수업을 옛 시간표 그대로 두고 남은 회차만 새 시간표로 깐다(planInProgressScheduleTransfer).
  * - 다음 등록(미리 등록) 행이 있으면 D/G/H 모두 새 스케줄로 갱신.
  *
  * @param {string} studentName
@@ -3291,12 +3355,17 @@ export const processScheduleTransfer = async (studentName, newScheduleStr, fireb
     throw new Error('시작날짜를 확인할 수 없습니다.');
   }
 
+  // 이미 시작한 등록은 지난 수업을 보존한다. 시작 전 등록·종료일 없는 옛 데이터만 전체 재계산.
+  const inProgress = originalStart && originalStart <= today
+    ? planInProgressScheduleTransfer({ student: studentData, newScheduleStr, firebaseHolidays })
+    : null;
   const contractBase = contractCalculationBase(studentData, getStudentField);
-  const newEndDate = calculateEndDate(contractBase ? parseSheetDate(contractBase.from) : activeStart,
+  const newEndDate = inProgress?.newEnd || calculateEndDate(contractBase ? parseSheetDate(contractBase.from) : activeStart,
     totalSessions - (contractBase?.consumed || 0) - (contractBase?.reserved || 0), newScheduleStr, holdingRanges, firebaseHolidays);
   if (!newEndDate) {
     throw new Error('종료일 계산에 실패했습니다.');
   }
+  const notesCol = findColumnIndex(headers, '특이사항');
 
   const newEndDateStr = formatDateToYYMMDD(newEndDate);
   const newStartDateStr = formatDateToYYMMDD(activeStart);
@@ -3310,6 +3379,10 @@ export const processScheduleTransfer = async (studentName, newScheduleStr, fireb
   }
   if (endDateCol !== -1) {
     updates.push({ range: `${foundSheetName}!${getColumnLetter(endDateCol)}${studentIndex + 1}`, values: [[newEndDateStr]] });
+  }
+  // 수강생 증표 쓰기는 E열을 한 줄·500자까지만 받는다. 그보다 길면 이력 태그만 빼고 종료일은 그대로 바로잡는다.
+  if (inProgress && notesCol !== -1 && (!options.studentWrite || /^[^\n]{0,500}$/.test(inProgress.notes))) {
+    updates.push({ range: `${foundSheetName}!${getColumnLetter(notesCol)}${studentIndex + 1}`, values: [[inProgress.notes]] });
   }
 
   // 다음 등록(미리 등록)에도 새 스케줄 적용 (D + G + H 모두) — 본 업데이트와 한 요청으로

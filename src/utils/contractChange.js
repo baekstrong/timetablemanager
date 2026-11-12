@@ -9,7 +9,13 @@ export const readContractChange = (notes = '') => {
     } catch { return null; }
 };
 export const contractChangeNotes = (notes, value) => `${String(notes || '').replace(TAG, '').trim()}\n[계약변경이력:${encodeURIComponent(JSON.stringify(value))}]`.trim();
-export const scheduleOnDate = (student, isoDate, field) => {
+// 한 줄짜리 짧은 태그. 수강생 증표의 E열 쓰기는 서버가 줄바꿈 없이 500자까지만 받으므로(_sheetOwnership)
+// 시간표 변경처럼 수강생도 저장하는 경로에서 쓴다. readContractChange(decodeURIComponent)로 그대로 읽힌다.
+export const contractChangeNotesInline = (notes, value, memo = '') => {
+    const json = JSON.stringify(value).replace(/%/g, '%25').replace(/\]/g, '%5D');
+    return [String(notes || '').replace(TAG, '').trim(), memo, `[계약변경이력:${json}]`].filter(Boolean).join(' ');
+};
+export const scheduleOnDate =(student, isoDate, field) => {
     const change = readContractChange(field(student, '특이사항'));
     return change?.segments.find(s => isoDate >= s.from && isoDate < s.until)?.schedule
         ?? field(student, '요일 및 시간');
