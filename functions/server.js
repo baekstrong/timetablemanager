@@ -502,6 +502,15 @@ app.post('/sms/settings', (req, res) => {
 
 const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID;
 
+// 입학반 일정 알림: 하루 전·이틀 전 (2026-11-13 사용자 요청). update는 이벤트를 통째로 바꾸므로 양쪽에 넣는다.
+const ENTRANCE_REMINDERS = {
+  useDefault: false,
+  overrides: [
+    { method: 'popup', minutes: 24 * 60 },
+    { method: 'popup', minutes: 2 * 24 * 60 },
+  ],
+};
+
 /**
  * POST /calendar/create
  * Google Calendar 이벤트 생성
@@ -520,6 +529,7 @@ app.post('/calendar/create', async (req, res) => {
       summary: title,
       start: { dateTime: `${date}T${startTime}:00`, timeZone: 'Asia/Seoul' },
       end: { dateTime: `${date}T${endTime || '13:00'}:00`, timeZone: 'Asia/Seoul' },
+      reminders: ENTRANCE_REMINDERS,
     };
     const result = await calendar.events.insert({ calendarId: CALENDAR_ID, requestBody: event });
     res.json({ success: true, eventId: result.data.id });
@@ -547,6 +557,7 @@ app.post('/calendar/update', async (req, res) => {
       summary: title,
       start: { dateTime: `${date}T${startTime}:00`, timeZone: 'Asia/Seoul' },
       end: { dateTime: `${date}T${endTime || '13:00'}:00`, timeZone: 'Asia/Seoul' },
+      reminders: ENTRANCE_REMINDERS,
     };
     await calendar.events.update({ calendarId: CALENDAR_ID, eventId, requestBody: event });
     res.json({ success: true });

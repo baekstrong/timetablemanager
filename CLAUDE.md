@@ -756,6 +756,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 
 - `calendarService.js` → Netlify `calendar.js`(로컬은 `server.js`) → Google Calendar API v3
 - 입학반 일정 추가/수정/삭제 시 `[입학반] M월 D일 (요일)` 형식 이벤트를 `GOOGLE_CALENDAR_ID` 캘린더에 자동 반영
+- 생성·수정 이벤트에 **하루 전·이틀 전 팝업 알림**(`ENTRANCE_REMINDERS`, `useDefault:false`)을 넣는다(2026-11-13 사용자 요청, calendar `6af6aa31…` 배포). `events.update`는 이벤트를 통째로 바꾸므로 수정 경로에서도 빼지 말 것. 그 전에 만든 이벤트엔 알림이 없다. ⚠️ API의 reminders는 '인증한 사용자' 기준이라 서비스 계정이 넣은 알림이 코치 캘린더에서 안 보이면 캘린더 기본 알림 설정으로 대신한다.
 - `calendarService.getCalendarBaseUrl()`은 `VITE_FUNCTIONS_URL`의 `/sheets`를 떼고 `/calendar`를 붙여 엔드포인트를 결정(없으면 `/.netlify/functions/calendar`, 로컬 `http://localhost:5001/calendar`)
 - 별개로 `google-apps-script/CalendarSync.gs`는 시트에 바인딩되어 수강생 **종료일**을 전용 캘린더로 동기화 (앱과 독립적으로 시트에서 직접 실행)
   - ⚠️ **이 파일은 리포에 있어도 자동 배포되지 않는다.** 고쳤으면 시트 > 확장 프로그램 > Apps Script 편집기에 **직접 붙여넣어야** 반영된다.
