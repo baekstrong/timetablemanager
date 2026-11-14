@@ -39,6 +39,7 @@ import { PRICING, PERIODS, DAYS, MAX_CAPACITY } from '../data/mockData';
 import StudentRegistrationModal from './StudentRegistrationModal';
 import PendingRegistrationEditor from './PendingRegistrationEditor';
 import RecruitmentManager from './RecruitmentManager';
+import RegistrationBlocklistManager from './RegistrationBlocklistManager';
 import CoachConsultationCard from './CoachConsultationCard';
 import { getConsultations } from '../services/consultationService';
 import { monthLabel, koreanDate, isAdmissionDate } from '../utils/recruitment';
@@ -1552,6 +1553,12 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                         >
                             FAQ 관리
                         </button>
+                        <button
+                            className={`cns-tab ${activeTab === 'blocklist' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('blocklist')}
+                        >
+                            차단 명단
+                        </button>
                     </div>
                     {activeTab === 'registrations' && (
                         <div className="cns-filter-row">
@@ -2091,6 +2098,8 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
                         )}
                     </div>
                 )}
+
+                {activeTab === 'blocklist' && <RegistrationBlocklistManager />}
 
                 {/* === FAQ 관리 탭 === */}
                 {activeTab === 'faq' && (

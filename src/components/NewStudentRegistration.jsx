@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { BLOCKED_SUBMIT_MESSAGE, isPermissionDenied } from '../utils/registrationBlocklist';
 import { getDisabledClasses, updateNewStudentRegistration, getFAQs } from '../services/firebaseService';
 import { getPublicSlotOccupancy } from '../services/googleSheetsService';
 import { getRecruitmentOverview, submitRecruitmentRegistration } from '../services/recruitmentService';
@@ -216,7 +217,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
 
             setSubmitted(true);
         } catch (error) {
-            alert('등록에 실패했습니다: ' + error.message);
+            alert(isPermissionDenied(error) ? BLOCKED_SUBMIT_MESSAGE : '등록에 실패했습니다: ' + error.message);
         } finally {
             setSubmitting(false);
         }

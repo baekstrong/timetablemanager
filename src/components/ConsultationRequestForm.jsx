@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { submitConsultation, validateConsultation } from '../services/consultationService';
+import { BLOCKED_SUBMIT_MESSAGE, isPermissionDenied } from '../utils/registrationBlocklist';
 
 export default function ConsultationRequestForm({ recruitmentMonth, requestedSlots, scheduleString, onBack, onSubmitted, onBusyChange }) {
     const [name, setName] = useState('');
@@ -23,7 +24,7 @@ export default function ConsultationRequestForm({ recruitmentMonth, requestedSlo
             await submitConsultation(data, requestId.current);
             onSubmitted();
         } catch (err) {
-            setError('상담 신청에 실패했습니다: ' + err.message);
+            setError(isPermissionDenied(err) ? BLOCKED_SUBMIT_MESSAGE : '상담 신청에 실패했습니다: ' + err.message);
         } finally {
             busy.current = false; setSubmitting(false); onBusyChange?.(false);
         }

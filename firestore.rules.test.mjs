@@ -93,7 +93,7 @@ describe('비로그인(anon) — 덤프 차단 + 신규등록 funnel만 허용',
 });
 
 describe('월별 모집의 서버 접수 차단', () => {
-  const registration = { weeklyFrequency: 2, name: '예시', recruitmentMonth: '2099-11', status: 'pending', entranceClassId: 'nov-open', entranceDate: '2099-11-07', entranceInquiry: '', entranceInquiryReason: '' };
+  const registration = { weeklyFrequency: 2, name: '예시', phone: '010-1234-5678', recruitmentMonth: '2099-11', status: 'pending', entranceClassId: 'nov-open', entranceDate: '2099-11-07', entranceInquiry: '', entranceInquiryReason: '' };
   it('비로그인도 열린 월의 입학반으로만 신청할 수 있다', async () => {
     await assertSucceeds(setDoc(doc(anon(), 'newStudentRegistrations', 'open-month'), registration));
   });
@@ -131,6 +131,15 @@ describe('월별 모집의 서버 접수 차단', () => {
     await assertFails(updateDoc(ref, { recruitmentMonth: '2099-10' }));
     await assertFails(updateDoc(ref, { status: 'approved' }));
     await assertSucceeds(updateDoc(ref, { 'smsLog.reception': { status: 'sent' } }));
+  });
+  it('차단 명단의 이름 또는 번호면 공개 신청을 거부하고, 명단은 코치만 본다', async () => {
+    await setDoc(doc(coach(), 'registrationBlocklist', 'main'), { entries: [], names: ['홍길동'], phones: ['01099998888'] });
+    await assertSucceeds(setDoc(doc(anon(), 'newStudentRegistrations', 'not-blocked'), registration));
+    await assertFails(setDoc(doc(anon(), 'newStudentRegistrations', 'blocked-name'), { ...registration, name: '홍 길동' }));
+    await assertFails(setDoc(doc(anon(), 'newStudentRegistrations', 'blocked-phone'), { ...registration, phone: '010-9999-8888' }));
+    await assertFails(getDoc(doc(anon(), 'registrationBlocklist', 'main')));
+    await assertFails(getDoc(doc(student(), 'registrationBlocklist', 'main')));
+    await assertSucceeds(setDoc(doc(coach(), 'newStudentRegistrations', 'coach-blocked'), { ...registration, name: '홍길동' }));
   });
   it('코치 직접 등록과 기존 신청의 후속 처리는 유지한다', async () => {
     await assertSucceeds(setDoc(doc(coach(), 'newStudentRegistrations', 'direct-coach'), { name: '직접', status: 'approved', registeredByCoach: true }));

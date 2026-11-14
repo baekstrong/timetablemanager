@@ -829,3 +829,18 @@
     .cns-filter-row { flex-wrap: wrap; }
     .cns-filter-btn { flex: 1 1 72px; }
 }
+
+/* 신청 차단 명단 (2026-11-14) */
+.cns-block-help { margin: 0 0 0.75rem; font-size: 0.8rem; line-height: 1.5; color: var(--text-secondary); }
+.cns-block-form { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem; }
+.cns-block-form .cns-form-input:nth-child(3) { grid-column: 1 / -1; }
+.cns-block-form .cns-add-btn { grid-column: 1 / -1; min-height: 44px; }
+.cns-block-form .cns-add-btn:disabled { opacity: 0.5; cursor: default; }
+.cns-block-error { margin: 0 0 0.75rem; font-size: 0.8rem; color: var(--error); }
+.cns-block-remove {
+    min-height: 36px; padding: 0 0.75rem; border-radius: var(--r-chip);
+    border: 1px solid #E94E584D; background: #E94E581A; color: var(--error);
+    font-size: 0.8rem; font-weight: 700; cursor: pointer;
+}
+.cns-block-remove:disabled { opacity: 0.5; cursor: default; }
+@media (max-width: 480px) { .cns-block-form { grid-template-columns: 1fr; } }

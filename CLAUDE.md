@@ -396,6 +396,7 @@ React Router 미사용. `App.jsx`의 `currentPage` state로 수동 관리:
 | `disabledClasses` | 비활성화된 수업 슬롯 (키: `"월-1"`) |
 | `waitlistRequests` | 시간표 대기 신청 — 영구 시간표 변경 (status: waiting/notified/accepted/cancelled) |
 | `newStudentRegistrations` | 신규 수강 신청 (pending/approved/rejected). `smsLog{reception,approval,reminder}` 필드에 자동 문자 발송 결과 기록 → 신규 페이지 SMS 상황판(상태칩+재발송)이 이를 읽음. `registeredByCoach=true`(코치 직접 등록)는 자동문자 대상 아님. `referralSource`(유입경로: 인스타그램/네이버/지인추천/직접방문/기타) 필드를 포함하며 매출·통계 대시보드 유입경로 집계에 사용 |
+| `registrationBlocklist` | 신규 신청 차단 명단 단일 문서 `main` = `{entries:[{id,name,phone,memo,createdAt}], names, phones}`. 코치만 조회·수정, 공개 신청은 규칙에서만 비교 |
 | `recruitmentMonths` | 월별 신규 모집 설정. 문서 ID=YYYY-MM, 코치만 수정·공개 조회. 미설정은 문의만 가능 |
 | `entranceClasses` | 입학반 정보. `closed=true`면 코치가 수동으로 모집 마감한 상태 — 학생 신청 위자드에서 만석과 동일하게 '마감' 표시·선택 불가(코치의 승인/수동 추가는 계속 가능). 코치 입학반 카드 🔒/🔓 버튼으로 토글 |
 | `registrationFAQ` | 신규 등록 FAQ |
@@ -689,6 +690,7 @@ React → googleSheetsService.js → [프로덕션] netlify/functions/sheets.js
 - 모집 설정은 코치만 수정한다. 2026-10-06 운영 규칙 배포는 월별 모집·신규 신청 제한만 추가하고 운영에 남아 있던 다른 컬렉션의 쓰기 권한은 보존했다. 저장소의 기존 권한 강화 전체를 이번 기능에 묶어 배포하지 않았다.
 
 - **코치 대기 직접 등록 (2026-11-04 사용자 요청)**: 전화·DM 문의를 받은 사람을 코치가 신규 `대기(만석)` 탭의 `+ 대기 직접 등록`(`CoachWaitlistEntryModal`)으로 넣는다. 이름·연락처·주횟수(2/3/4)·희망 시간(주횟수 이상, 마감 칸도 선택 가능) 필수, 성별·입학 희망 달·유입경로·코치 메모(수강생 비공개) 선택. `buildCoachWaitlistRegistration`(`utils/coachWaitlistEntry.js`)이 공개 대기 신청서와 같은 모양(`status:'waitlist'`, 비밀번호=전화번호 뒤 4자리, `paymentMethod:'transfer'`)에 `coachEntered:true`·`coachMemo`를 붙여 만들므로 자리 생김 표시·SMS 안내·대기 시간표 편집·수강 승인이 그대로 동작한다. `registeredByCoach`는 쓰지 않는다(접수 문자 상황판이 숨겨짐). 대기 접수 안내 문자는 기본 발송(체크 해제 가능, 코치 `/send` 경로, 결과를 `smsLog.reception`에 기록 — 서버 `/registration-received`는 코치에게도 알림 문자를 보내므로 쓰지 않는다). **대기 순번은 앱 등록 시각 순**(사용자 결정): 대기 탭은 `orderWaitlist`로 오래된 순 정렬 + `대기 N번` 배지, 코치 등록 건은 `코치 등록` 배지. 같은 이름이 명단·신청에 있으면 승인 때 계정이 겹치므로 확인을 받는다.
+- **신청 차단 명단 (2026-11-14 사용자 요청)**: 코치 `신규 → 차단 명단` 탭(`RegistrationBlocklistManager`)에서 이름·핸드폰 번호(둘 중 하나 이상)·메모를 넣으면 **이름 또는 번호 하나만 같아도** 공개 신규 수강·대기·상담 신청이 접수되지 않는다. 정본 `registrationBlocklist/main` = `{entries, names, phones, updatedAt}` (코치만 읽기·쓰기). 공개 화면은 명단을 읽지 않고, Firestore 규칙 `notBlocked`가 `newStudentRegistrations`·`recruitmentConsultations` 생성 때 `names`/`phones`와 비교한다 — 정규화(이름 공백 제거+소문자, 번호 숫자만)를 `utils/registrationBlocklist.js`와 규칙에서 **같게 유지할 것**. 거부되면 신청자에겐 차단 사실 대신 `근력학교로 직접 문의해주세요`만 보인다. 코치 직접 등록은 막지 않는다. 운영 규칙 배포 `9684b014-…`(운영 규칙에 이 변경만 3-way 병합, Rules API 테스트 13건·readback 일치).
 - **입학반 다른 날짜 문의 제거 (2026-10-26)**: 지정일보다 일찍 당기려는 악용만 있어 신청 화면에서 `다른 날짜 문의` 달력·사유 입력을 뺐다. 입학반은 지정일 선택만 가능하며 제출 `entranceInquiry`는 항상 빈 값. 서버 검증·코치 화면의 문의 처리 경로는 예전 신청 표시용으로 남아 있다.
 - **정규 신청은 같은 요일에 한 교시만**(2026-10-23): 같은 요일 다른 교시를 누르면 그 교시로 바뀐다. 대기 신청은 가능한 시간 여러 개라 허용. 저장 트랜잭션에서도 `assertRegularSlots`로 재검증한다.
 - **신규 배정 여석은 현재 활성 시간표 기준**: 코치 `신규 전용` 화면의 기준이 정본이다. `computeSlotOccupancy`는 D열 `요일 및 시간`과 pending 신규 신청을 합산하며, 미리 등록된 다음 시간표는 아직 선반영하지 않는다. 외부 신규 신청 페이지와 신규 대기 여석 판정도 반드시 이 계산을 공유한다.
