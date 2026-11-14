@@ -8,6 +8,7 @@ describe('신규 신청 차단 명단', () => {
         expect(blocklistIndex(entries)).toEqual({ names: ['홍길동'], phones: ['01012345678'] });
         expect(normalizeBlockName('Kim Ann')).toBe('kimann');
         expect(normalizeBlockName('홍\t길\u200b동\u3000')).toBe('홍길동');
+        expect(normalizeBlockName('홍길동'.normalize('NFD'))).toBe('홍길동');
     });
 
     it('이름 또는 번호 하나만 있어도 등록하고, 하나만 같아도 걸린다', () => {

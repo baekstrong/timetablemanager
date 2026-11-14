@@ -165,7 +165,7 @@ export const RegistrationWizard = ({ recruitmentMonth, onChangeMonth }) => {
             const phoneStr = `${phone1.trim()}-${phone2.trim()}-${phone3.trim()}`;
             const data = {
                 recruitmentMonth,
-                name: name.trim(),
+                name: name.trim().normalize('NFC'),
                 password: phone3.trim(),
                 phone: phoneStr,
                 gender: gender,

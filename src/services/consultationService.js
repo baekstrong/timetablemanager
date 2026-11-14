@@ -36,7 +36,7 @@ export async function submitConsultation(data, requestId) {
             throw new Error('선택한 월의 모집이 마감되었습니다. 모집 안내를 다시 확인해주세요.');
         }
         transaction.set(ref, {
-            recruitmentMonth: data.recruitmentMonth, name: data.name.trim(), phone: normalizeInquiryPhone(data.phone),
+            recruitmentMonth: data.recruitmentMonth, name: data.name.trim().normalize('NFC'), phone: normalizeInquiryPhone(data.phone),
             message: String(data.message || '').trim(), wantsFourTimes: data.wantsFourTimes === true,
             requestedSlots: (data.requestedSlots || []).map(({ day, period }) => ({ day, period }))
                 .sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day)),

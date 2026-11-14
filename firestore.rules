@@ -63,7 +63,8 @@ service cloud.firestore {
     }
     function notBlocked(name, phone) {
       let path = /databases/$(database)/documents/registrationBlocklist/main;
-      return name is string && phone is string
+      // 정규화 후 빈 이름(한글 자모 분해·다른 문자만 쓴 이름)은 비교를 피해 가므로 공개 신청에서 받지 않는다.
+      return name is string && phone is string && name.replace('[^가-힣a-zA-Z0-9]', '').size() > 0
         && (!exists(path) || (!(name.replace('[^가-힣a-zA-Z0-9]', '').lower() in get(path).data.get('names', []))
           && !(phone.replace('[^0-9]', '') in get(path).data.get('phones', []))));
     }
