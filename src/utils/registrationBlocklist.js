@@ -1,11 +1,12 @@
 // 신규 신청 차단 명단(블랙리스트) 순수 로직 (2026-11-14 사용자 요청).
 // 정본 문서 registrationBlocklist/main = { entries:[{id,name,phone,memo,createdAt}], names:[], phones:[], updatedAt }
 // names/phones 는 Firestore 규칙이 신청서와 비교하는 정규화 값이다 — 규칙의 정규화와 반드시 같게 유지할 것.
-//   이름: 공백 제거 + 소문자 (규칙: name.replace(' ', '').lower())
+//   이름: 한글·영문·숫자만 남기고 소문자 (규칙: name.replace('[^가-힣a-zA-Z0-9]', '').lower())
+//         — 탭·제로폭 공백 같은 보이지 않는 문자로 이름 비교를 피해 가지 못하게 한다.
 //   번호: 숫자만 (규칙: phone.replace('[^0-9]', ''))
 // 이름 또는 번호 중 하나라도 같으면 신청을 막는다.
 
-export const normalizeBlockName = name => String(name || '').replace(/ /g, '').toLowerCase();
+export const normalizeBlockName = name => String(name || '').replace(/[^가-힣a-zA-Z0-9]/g, '').toLowerCase();
 export const normalizeBlockPhone = phone => String(phone || '').replace(/[^0-9]/g, '');
 
 export function validateBlockEntry({ name, phone } = {}) {
