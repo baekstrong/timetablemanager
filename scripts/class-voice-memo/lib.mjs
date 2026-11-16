@@ -224,3 +224,116 @@ export function dropRepeats(text) {
     }
     return out.join('\n');
 }
+
+// ── 대화 구간 (2026-11-16 사용자 요청: A한테 한 말과 B한테 한 말이 섞인다)
+// 76분 수업에 정확한 호명이 4번뿐이라, 분석이 이름 없는 대화를 직전에 부른 사람에게 붙이며 섞였다.
+// 코드가 호명마다 "그 사람과 나눈 대화"로 볼 줄 범위를 정하고, 제안 항목은 근거 줄이 그 범위 안일 때만 그 사람 것으로 둔다.
+// - 앞으로 BEFORE_SEC, 뒤로 AFTER_SEC(같은 사람을 다시 부르면 연장)까지
+// - 다른 사람 호명·애매한 호명이 나오면 끊는다
+// - 목소리 구분이 있으면: 호명 뒤 처음 대답한 목소리 = 상대. 코치도 상대도 아닌 목소리가 제대로 말하면(1.2초 이상) 끊는다
+export const WINDOW = { BEFORE_SEC: 30, AFTER_SEC: 120, PARTNER_SEC: 30, MIN_VOICE_SEC: 1.2 };
+
+export function conversationWindows(lines, roster, coach = null, opt = WINDOW) {
+    const calls = lines.map(l => nameCall(l.text, roster));
+    const diarized = coach != null && lines.some(l => l.speaker != null);
+    const voice = (l) => diarized && l.speaker != null && l.speaker !== coach && l.end - l.start >= opt.MIN_VOICE_SEC ? l.speaker : null;
+    const owner = lines.map(() => null);
+    const anchors = []; // {name, from, call, to}
+    for (let i = 0; i < lines.length; i++) {
+        const c = calls[i];
+        if (!c?.name) continue;
+        const name = c.name;
+        let partner = null, last = lines[i].start, to = i;
+        for (let j = i + 1; j < lines.length; j++) {
+            const cj = calls[j];
+            if (cj && cj.name !== name) break;              // 다른 사람·애매한 호명
+            if (cj?.name === name) last = lines[j].start;     // 같은 사람 재호명 → 연장
+            if (lines[j].start - last > opt.AFTER_SEC) break;
+            const v = voice(lines[j]);
+            if (v != null) {
+                if (partner == null && lines[j].start - lines[i].end <= opt.PARTNER_SEC) partner = v;
+                else if (v !== partner) break;               // 다른 목소리가 끼어듦
+            }
+            to = j;
+        }
+        let from = i;
+        for (let j = i - 1; j >= 0; j--) {
+            if (calls[j] || lines[i].start - lines[j].start > opt.BEFORE_SEC) break;
+            const v = voice(lines[j]);
+            if (v != null && v !== partner) break;
+            from = j;
+        }
+        anchors.push({ name, call: i, from, to });
+    }
+    for (const a of anchors) {
+        for (let k = a.from; k <= a.to; k++) owner[k] = owner[k] && owner[k] !== a.name ? '' : a.name; // 겹치면 주인 없음('')
+    }
+    return { owner: owner.map(o => o || null), calls, anchors };
+}
+
+const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+// 분석에 넘길 받아쓰기: 줄 번호(L12) + 목소리 + 호명 표시, 대화 구간이 바뀌는 곳에 구분선.
+export function renderForAnalysis(lines, coach, { owner, calls }) {
+    const voices = new Map();
+    const who = (l) => {
+        if (coach == null || l.speaker == null) return '';
+        if (l.speaker === coach) return '[코치] ';
+        if (!voices.has(l.speaker)) voices.set(l.speaker, `목소리${voices.size + 1}`);
+        return `[${voices.get(l.speaker)}] `;
+    };
+    const out = [];
+    lines.forEach((l, i) => {
+        if (i === 0 || owner[i] !== owner[i - 1]) out.push(owner[i] ? `──── ${owner[i]}님과의 대화 ────` : '──── 호명 없는 구간 (누구 얘기인지 모름) ────');
+        const c = calls[i];
+        const tag = !c ? '' : c.name ? ` ⟪호명: ${c.name}⟫` : ` ⟪호명?: ${c.ambiguous.join('/')}⟫`;
+        out.push(`L${i + 1} ${mmss(l.start)} ${who(l)}${l.text}${tag}`);
+    });
+    return out.join('\n');
+}
+
+// 분석 결과를 대화 구간으로 검사한다. 근거 줄(refs, L번호)이 모두 그 사람 대화 안에 있는 항목만 그 사람 것으로 두고,
+// 아니면 ❓ 누군지 모르는 메모(uncertain)로 보낸다 — 코치가 이름을 고른다. 코치 전용 메모 최종본도 여기서 만든다
+// (분석이 준 바꿀 줄만 적용하므로 관련 없는 기존 줄은 그대로).
+export function enforceWindows(parsed, { lines, owner, anchors, names, baseNotes }) {
+    const refsOf = (x) => (Array.isArray(x?.refs) ? x.refs : []).map(r => Number(String(r).replace(/^L/i, '')) - 1)
+        .filter(k => Number.isInteger(k) && k >= 0 && k < lines.length);
+    const inWindow = (name, x) => { const r = refsOf(x); return r.length > 0 && r.every(k => owner[k] === name); };
+    const quote = (k) => `L${k + 1} ${lines[k].text}`;
+    const uncertain = [...(parsed.uncertain || [])];
+    const moveOut = (name, text, x) => {
+        const r = refsOf(x);
+        const others = [...new Set(r.map(k => owner[k]).filter(o => o && o !== name))];
+        uncertain.push({
+            line: text, candidates: [name, ...others].filter(n => names.includes(n)),
+            why: `${r.length ? r.map(quote).join(' / ') : '근거 줄 없음'} — ${name}님 호명 대화 밖이라 누구 얘기인지 확실하지 않음`,
+        });
+    };
+    const students = [];
+    for (const s of parsed.students || []) {
+        if (!names.includes(s.name)) continue;
+        const used = new Set();
+        const checklist = [];
+        for (const c of s.checklist || []) {
+            if (inWindow(s.name, c)) { checklist.push(c); refsOf(c).forEach(k => used.add(k)); }
+            else moveOut(s.name, c.exercise ? `${c.exercise} — ${c.text}` : c.text, c);
+        }
+        const base = baseNotes?.[s.name] ?? '';
+        const next = base ? base.split('\n') : [], removed = [];
+        let changed = false;
+        for (const ch of s.coachNote?.changes || []) {
+            const line = String(ch.line ?? '').trim();
+            if (!inWindow(s.name, ch)) { if (line) moveOut(s.name, line, ch); continue; }
+            refsOf(ch).forEach(k => used.add(k));
+            const at = ch.replaces ? next.findIndex(l => l.trim() === String(ch.replaces).trim()) : -1;
+            if (at >= 0) { removed.push(next[at].trim()); if (line) next[at] = line; else next.splice(at, 1); changed = true; }
+            else if (line && !next.some(l => l.trim() === line)) { next.push(line); changed = true; }
+        }
+        const coachNote = changed ? { proposed: next.join('\n').trimEnd(), removed } : null;
+        if (!coachNote && !checklist.length) continue;
+        const calls = anchors.filter(a => a.name === s.name && [...used].some(k => k >= a.from && k <= a.to)).map(a => a.call);
+        const evidence = [...new Set([...calls, ...[...used].sort((a, b) => a - b)])].slice(0, 6).map(quote);
+        students.push({ name: s.name, guessed: false, evidence, coachNote, checklist });
+    }
+    return { students, uncertain: uncertain.slice(0, 10) };
+}

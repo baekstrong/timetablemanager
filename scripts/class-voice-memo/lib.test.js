@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideGroup, decideNames, groupByClass, nameCall, rebaseNote, tagNameCalls, tagSpeakers, dropRepeats, findNames, matchVoiceprints, parseRecordingStart, parseSrt, periodFor, renderLabeled, updateVoiceprints, voteNames, ymd } from './lib.mjs';
+import { decideGroup, decideNames, groupByClass, nameCall, rebaseNote, tagNameCalls, tagSpeakers, dropRepeats, findNames, matchVoiceprints, parseRecordingStart, parseSrt, periodFor, renderLabeled, updateVoiceprints, voteNames, ymd , conversationWindows, renderForAnalysis, enforceWindows } from './lib.mjs';
 
 describe('수업 음성 메모 lib', () => {
     it('음성 메모 파일명에서 시작 시각을 읽는다', () => {
@@ -100,5 +100,61 @@ describe('수업 음성 메모 lib', () => {
 
     it('연속 반복 줄만 지운다', () => {
         expect(dropRepeats('가\n가\n가\n나\n\n가')).toBe('가\n나\n가');
+    });
+
+    describe('대화 구간 (A에게 한 말이 B 메모로 가지 않게, 2026-11-16)', () => {
+        const roster = ['김수미', '도성재', '서정민'];
+        const L = (start, speaker, text) => ({ start, end: start + 2, speaker, text });
+        const lines = [
+            L(-40, 0, '다들 스윙 준비하세요'),                 // L1 호명 30초보다 앞
+            L(10, 0, '김수미 선생님 처음에 힘이 안 들어가죠?'),   // L2 호명
+            L(13, 5, '네 좀 그래요'),                          // L3 상대 목소리
+            L(16, 0, '첫 개는 힘을 빼세요'),                      // L4
+            L(20, 7, '선생님 저 무릎이 아파요'),                  // L5 다른 목소리 → 끊김
+            L(23, 0, '그럼 박스 스쿼트로 바꿔요'),                // L6 호명 없는 구간
+            L(200, 0, '도성재 선생님 많이 늘었네요'),             // L7
+            L(203, 0, '힘을 빼야 돼요'),                          // L8
+            L(400, 0, '이건 아까 그 얘기'),                       // L9 2분 넘음 → 끊김
+        ];
+
+        it('목소리 구분이 있으면 다른 목소리가 끼어드는 곳에서 끊는다', () => {
+            const { owner } = conversationWindows(lines, roster, 0);
+            expect(owner).toEqual([null, '김수미', '김수미', '김수미', null, null, '도성재', '도성재', null]);
+        });
+
+        it('목소리 구분이 없으면 다른 호명·2분 경과에서 끊는다', () => {
+            const { owner } = conversationWindows(lines.map(l => ({ ...l, speaker: null })), roster, null);
+            expect(owner.slice(0, 6)).toEqual([null, '김수미', '김수미', '김수미', '김수미', '김수미']);
+            expect(owner[8]).toBe(null);
+        });
+
+        it('분석용 받아쓰기에 줄 번호·목소리·구간 구분선을 붙인다', () => {
+            const text = renderForAnalysis(lines, 0, conversationWindows(lines, roster, 0));
+            expect(text).toContain('──── 김수미님과의 대화 ────\nL2 00:10 [코치] 김수미 선생님 처음에 힘이 안 들어가죠? ⟪호명: 김수미⟫\nL3 00:13 [목소리1] 네 좀 그래요');
+            expect(text).toContain('──── 호명 없는 구간 (누구 얘기인지 모름) ────\nL5 00:20 [목소리2] 선생님 저 무릎이 아파요');
+        });
+
+        it('근거 줄이 그 사람 구간 밖인 항목은 ❓로 보내고, 메모는 바꿀 줄만 적용한다', () => {
+            const w = conversationWindows(lines, roster, 0);
+            const parsed = { students: [{
+                name: '김수미',
+                coachNote: { changes: [
+                    { line: '스윙 첫 개 힘 과다 -> 첫 개는 힘 빼기', replaces: '스윙 힘 들어감 -> (처방 미정)', refs: ['L2', 'L4'] },
+                    { line: '무릎 통증 -> 박스 스쿼트', replaces: null, refs: ['L5', 'L6'] }, // 다른 사람 말
+                ] },
+                checklist: [
+                    { exercise: '케틀벨 스윙', text: '첫 개는 힘 빼기', refs: ['L4'] },
+                    { exercise: '스쿼트', text: '박스 스쿼트로', refs: [] },               // 근거 없음
+                ],
+            }], uncertain: [] };
+            const out = enforceWindows(parsed, { lines, ...w, names: roster, baseNotes: { 김수미: '어깨 조심\n스윙 힘 들어감 -> (처방 미정)' } });
+            expect(out.students).toHaveLength(1);
+            const s = out.students[0];
+            expect(s.coachNote).toEqual({ proposed: '어깨 조심\n스윙 첫 개 힘 과다 -> 첫 개는 힘 빼기', removed: ['스윙 힘 들어감 -> (처방 미정)'] });
+            expect(s.checklist.map(c => c.text)).toEqual(['첫 개는 힘 빼기']);
+            expect(s.evidence[0]).toBe('L2 김수미 선생님 처음에 힘이 안 들어가죠?');
+            expect(out.uncertain.map(u => u.line)).toEqual(['스쿼트 — 박스 스쿼트로', '무릎 통증 -> 박스 스쿼트']);
+            expect(out.uncertain[1].candidates).toEqual(['김수미']);
+        });
     });
 });

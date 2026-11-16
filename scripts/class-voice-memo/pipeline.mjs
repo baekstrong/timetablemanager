@@ -8,7 +8,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { decideGroup, decideNames, groupByClass, tagNameCalls, tagSpeakers, matchVoiceprints, parseRecordingStart, parseSrt, periodFor, renderLabeled, updateVoiceprints, voteNames, ymd } from './lib.mjs';
+import { conversationWindows, decideGroup, enforceWindows, groupByClass, parseRecordingStart, parseSrt, periodFor, renderForAnalysis, tagSpeakers, ymd } from './lib.mjs';
 import { loadClassContext, readCoachExerciseMemos, readExerciseNames } from './firestore.mjs';
 
 const HOME = os.homedir();
@@ -52,14 +52,14 @@ if (seeding) {
 }
 
 const VENV_PY = path.join(HOME, '.local/share/class-voice-memo/venv/bin/python');
-const VOICEPRINTS = path.join(STATE, 'voiceprints.json'); // 생체정보 — 이 Mac에만, 600. Firestore·Git에 올리지 않는다.
-// 화자 구분은 기본 꺼짐: 10/22 4교시 시험에서 코치/수강생 구분이 70~88%, 수강생끼리는 섞여서 틀린 이름이 분석을 오도할 위험이 더 컸다.
-// 켜려면 `touch ~/Library/Application\ Support/ClassVoiceMemo/diarize.on` (끄려면 그 파일 삭제).
-const DIARIZE = existsSync(path.join(STATE, 'diarize.on')) && existsSync(VENV_PY);
+// 목소리 구분: 2026-11-16부터 기본 켜짐(끄려면 `touch ~/Library/Application\ Support/ClassVoiceMemo/diarize.off`).
+// 예전(10/22)엔 목소리에 이름을 붙여 보여줬는데 수강생끼리 섞여 틀린 이름이 분석을 오도했다 → 이름은 붙이지 않고
+// 코치 / 목소리N 구분과 "호명 뒤 다른 목소리가 끼면 대화가 끊긴다"는 경계로만 쓴다. 특징값은 이번 실행 메모리에서만 쓰고 저장하지 않는다(성문 미사용).
+const DIARIZE = !existsSync(path.join(STATE, 'diarize.off')) && existsSync(VENV_PY);
 
-// 받아쓰기(+켜져 있으면 화자 구분) → 줄마다 [코치]/[이름]/[이름?]/[다른 사람N]. 화자 구분 실패 시 받아쓰기만.
+// 받아쓰기(+목소리 구분) → { text: 줄마다 한 문장, lines: [{start,end,speaker}], coach }. 목소리 구분 실패 시 speaker 없이.
 // files가 여럿이면(전화로 끊긴 녹음) 시간순으로 이어 붙여 하나로 받아쓴다.
-function transcribe(files, names, date) {
+function transcribe(files, names) {
     const id = path.basename(files[0], '.m4a');
     const wav = path.join(dirs.tmp, `${id}.wav`);
     const out = path.join(dirs.tmp, id);
@@ -72,23 +72,18 @@ function transcribe(files, names, date) {
             '--prompt', `근력학교 수업. ${names.join(', ')}`, '-osrt', '-of', out, '-f', wav]);
         const lines = parseSrt(readFileSync(`${out}.srt`, 'utf8'))
             .filter((l, i, a) => i === 0 || l.text !== a[i - 1].text); // 반복 환각 잔여 제거
-        const plain = lines.map(l => l.text).join('\n');
-        if (!DIARIZE) return { text: plain, speakers: null };
+        const result = { text: lines.map(l => l.text).join('\n'), lines: lines.map(l => ({ start: l.start, end: l.end, speaker: null })), coach: null };
+        if (!DIARIZE) return result;
         try {
             const t0 = Date.now();
             writePrivate(`${out}.lines.json`, JSON.stringify(lines.map(l => ({ start: l.start, end: l.end }))));
             const dz = JSON.parse(run(VENV_PY, [path.join(import.meta.dirname, 'diarize.py'), wav, `${out}.lines.json`, '0.8'], { timeout: 30 * 60_000 }).toString());
             const { coach, lines: tagged } = tagSpeakers(lines, dz.speakers);
-            const voted = decideNames(voteNames(tagged, coach, names));
-            const voiceprints = existsSync(VOICEPRINTS) ? JSON.parse(readFileSync(VOICEPRINTS)) : {};
-            const byVoice = matchVoiceprints(dz.embeddings, voiceprints, voted, names);
-            const all = new Map([...voted, ...byVoice]);
-            writePrivate(VOICEPRINTS, JSON.stringify(updateVoiceprints(voiceprints, dz.embeddings, voted, date)));
-            log(`화자 구분 ${Math.round((Date.now() - t0) / 1000)}초: 이름 매칭 ${[...all.values()].map(v => v.name + (v.sure ? '' : '?')).join(', ') || '없음'}`);
-            return { text: renderLabeled(tagged, coach, all), speakers: [...all].map(([spk, v]) => ({ speaker: spk, ...v })) };
+            log(`목소리 구분 ${Math.round((Date.now() - t0) / 1000)}초: 목소리 ${new Set(dz.speakers.filter(x => x != null)).size}개`);
+            return { ...result, lines: tagged.map(l => ({ start: l.start, end: l.end, speaker: l.speaker })), coach };
         } catch (e) {
-            log(`화자 구분 실패(받아쓰기만 사용): ${String(e.stderr || e.message).slice(0, 200)}`);
-            return { text: plain, speakers: null };
+            log(`목소리 구분 실패(받아쓰기만 사용): ${String(e.stderr || e.message).slice(0, 200)}`);
+            return result;
         }
     } finally {
         rmSync(wav, { force: true });
@@ -106,8 +101,12 @@ async function propose(transcriptFile) {
         ...names.map(n => readCoachExerciseMemos(n).then(r => r.memos.filter(m => !m.done)).catch(() => [])),
     ]);
     const exerciseMemos = Object.fromEntries(names.map((n, i) => [n, memoLists[i].map(m => ({ exercise: m.exercise, memo: m.memo }))]));
-    // 이름을 자주 잘못 듣으므로 코드가 명단과 자모 비교로 호명을 미리 표시한다(애매하면 후보만). 분석은 표시된 호명 대화만 메모로 만든다.
-    const input = JSON.stringify({ ...meta.context, exerciseMemos, exercises, transcript: tagNameCalls(readFileSync(transcriptFile, 'utf8'), names) });
+    // 이름을 자주 잘못 듣으므로 코드가 명단과 자모 비교로 호명을 표시하고, 호명마다 그 사람과의 대화 구간을 정해 구분선으로 보여준다.
+    // 분석 결과는 근거 줄이 그 구간 안인지 코드가 다시 검사한다(enforceWindows) — A에게 한 말이 B 메모로 가지 않게.
+    const texts = readFileSync(transcriptFile, 'utf8').split('\n');
+    const lines = texts.map((text, i) => ({ text, ...(meta.lines?.[i] || { start: i * 5, end: i * 5 + 5, speaker: null }) })); // 예전 받아쓰기: 줄당 5초로 근사
+    const windows = conversationWindows(lines, names, meta.coach ?? null);
+    const input = JSON.stringify({ ...meta.context, exerciseMemos, exercises, transcript: renderForAnalysis(lines, meta.coach ?? null, windows) });
     const out = run('claude', ['-p', '--tools', '', '--no-session-persistence',
         '--system-prompt-file', path.join(import.meta.dirname, 'RULES.md'),
         '위 규칙대로 이 수업의 메모 변경안을 JSON으로 작성해줘.'], { input, timeout: 15 * 60_000 }).toString();
@@ -120,13 +119,14 @@ async function propose(transcriptFile) {
         writePrivate(`${base}.md`, `# ${meta.context.date} ${label} (분석 결과 형식 오류 — 원문)\n\n${out}`);
         return { label, date: meta.context.date, none: false };
     }
+    const checked = enforceWindows(parsed, { lines, ...windows, names, baseNotes: meta.context.coachNotes });
     writePrivate(`${base}.json`, JSON.stringify({
         date: meta.context.date, period: meta.context.period, names, source: meta.context.source,
         recording: meta.recording, minutes: meta.minutes,
         baseNotes: meta.context.coachNotes, // 제안이 고쳐 쓴 원래 메모 — 나중에 메모가 바뀌면 이 기준으로 다시 얹는다(rebaseNote)
-        students: (parsed.students || []).filter(s => names.includes(s.name) || s.guessed), uncertain: parsed.uncertain || [],
+        ...checked,
     }, null, 1));
-    return { label, date: meta.context.date, none: !(parsed.students || []).length && !(parsed.uncertain || []).length };
+    return { label, date: meta.context.date, none: !checked.students.length && !checked.uncertain.length };
 }
 
 const PAGE = 'http://127.0.0.1:5179';
@@ -179,11 +179,11 @@ for (const g of groupByClass(inClass)) {
     }
     const context = await loadClassContext(g.date, g.period);
     const t0 = Date.now();
-    const { text, speakers } = transcribe(g.parts.map(f => path.join(REC, f)), context.names, g.date);
+    const { text, lines, coach } = transcribe(g.parts.map(f => path.join(REC, f)), context.names);
     const stem = path.basename(g.parts[0], '.m4a').replace(/\s+/g, '_') + (g.parts.length > 1 ? '-합침' : '');
     const base = path.join(dirs.transcripts, `${context.date}_${context.period ?? 'x'}교시_${stem}`);
     writePrivate(`${base}.txt`, text);
-    writePrivate(`${base}.txt.json`, JSON.stringify({ recording: g.parts.join(' + '), minutes: Math.round(g.seconds / 60), context, speakers }, null, 1));
+    writePrivate(`${base}.txt.json`, JSON.stringify({ recording: g.parts.join(' + '), minutes: Math.round(g.seconds / 60), context, lines, coach }, null, 1));
     g.parts.forEach(f => processed.add(f)); saveProcessed();
     log(`받아쓰기 ${g.parts.join(' + ')} ${Math.round(g.seconds / 60)}분 → ${Math.round((Date.now() - t0) / 1000)}초`);
 }
