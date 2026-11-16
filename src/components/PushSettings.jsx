@@ -1,12 +1,13 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { getPushPermission, initPush, isPushAvailable } from '../services/pushService';
-import { pushBlockedGuide, resolvePushState } from '../utils/pushStatus';
+import { getPushPermission, initPush, initPushDetailed, isPushAvailable } from '../services/pushService';
+import { pushBlockedGuide, pushFailureGuide, resolvePushState } from '../utils/pushStatus';
 import './PushSettings.css';
 
 export default function PushSettings({ user, readOnly = false }) {
     const [result, setResult] = useState(null);
     const [open, setOpen] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [failStep, setFailStep] = useState(null);
     const working = useRef(false);
     const detailsId = useId();
     const name = user?.username;
@@ -36,9 +37,11 @@ export default function PushSettings({ user, readOnly = false }) {
         working.current = true;
         setBusy(true);
         try {
-            const token = await initPush(name, true);
+            const { token, step } = await initPushDetailed(name, true);
             const available = await isPushAvailable();
-            setResult({ name, state: resolvePushState({ available, permission: getPushPermission(), token }) });
+            const next = resolvePushState({ available, permission: getPushPermission(), token });
+            setResult({ name, state: next });
+            setFailStep(next === 'off' ? step || null : null);
             setOpen(!token);
         } finally {
             working.current = false;
@@ -51,6 +54,7 @@ export default function PushSettings({ user, readOnly = false }) {
     const label = busy ? '설정 중…' : state === 'on' ? '알림 켜짐' : state === 'off' ? '알림 켜기' : state ? '알림 설정' : '알림 확인 중';
     const message = state === 'on' ? '공지·댓글·답글·보강 자리 알림을 받을 수 있어요.'
         : state === 'denied' || state === 'unsupported' ? pushBlockedGuide(state, isIOS)
+        : failStep ? pushFailureGuide(failStep, isIOS)
         : '공지·댓글·답글·보강 자리 알림을 받아보세요. 허용했는데 켜지지 않으면 다시 시도해주세요.';
     return <span className="push-settings">
         <button type="button" className={`push-settings-button${state === 'on' ? ' is-on' : ''}`} disabled={!state || busy}

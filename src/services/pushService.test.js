@@ -76,3 +76,54 @@ describe('푸시 기기 토큰 계정 확인', () => {
         expect(mocks.setDoc).not.toHaveBeenCalled();
     });
 });
+
+describe('알림 켜기 단계별 시간 제한 (갤럭시 설정 중 멈춤)', () => {
+    let initPushDetailed;
+    beforeEach(async () => {
+        vi.useFakeTimers();
+        ({ initPushDetailed } = await import('./pushService'));
+    });
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('토큰 발급이 끝나지 않으면 기존 구독을 지우고 한 번 더 시도한 뒤 token 단계 실패로 끝낸다', async () => {
+        const unsubscribe = vi.fn().mockResolvedValue(true);
+        vi.stubGlobal('navigator', { userAgent: 'test', serviceWorker: { ready: Promise.resolve({ pushManager: { getSubscription: async () => ({ unsubscribe }) } }) } });
+        mocks.getToken.mockReturnValue(new Promise(() => {}));
+        const pending = initPushDetailed('김수강', true);
+        await vi.advanceTimersByTimeAsync(30000);
+        expect(await pending).toEqual({ token: null, step: 'token', reason: 'timeout' });
+        expect(unsubscribe).toHaveBeenCalled();
+        expect(mocks.getToken).toHaveBeenCalledTimes(2);
+    });
+
+    it('재시도에서 받으면 정상 저장한다', async () => {
+        mocks.getToken.mockReturnValueOnce(new Promise(() => {})).mockResolvedValueOnce('new-token');
+        const pending = initPushDetailed('김수강', true);
+        await vi.advanceTimersByTimeAsync(13000);
+        expect(await pending).toEqual({ token: 'new-token' });
+        expect(mocks.setDoc).toHaveBeenCalled();
+    });
+
+    it('허용 요청이 끝나지 않으면 permission 단계 실패', async () => {
+        vi.stubGlobal('Notification', { permission: 'default', requestPermission: () => new Promise(() => {}) });
+        const pending = initPushDetailed('김수강', true);
+        await vi.advanceTimersByTimeAsync(31000);
+        expect(await pending).toMatchObject({ token: null, step: 'permission' });
+    });
+
+    it('저장이 끝나지 않으면 save 단계 실패, 캐시를 남기지 않는다', async () => {
+        mocks.setDoc.mockReturnValue(new Promise(() => {}));
+        const pending = initPushDetailed('김수강', true);
+        await vi.advanceTimersByTimeAsync(11000);
+        expect(await pending).toMatchObject({ token: null, step: 'save' });
+        expect(localStorage.setItem).not.toHaveBeenCalled();
+    });
+
+    it('조용한 재확인(ask=false)은 재시도 없이 실패만 돌려준다', async () => {
+        mocks.getToken.mockReturnValue(new Promise(() => {}));
+        const pending = initPushDetailed('김수강', false);
+        await vi.advanceTimersByTimeAsync(13000);
+        expect(await pending).toMatchObject({ token: null, step: 'token' });
+        expect(mocks.getToken).toHaveBeenCalledTimes(1);
+    });
+});

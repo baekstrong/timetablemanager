@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { getPushPermission, initPush, isPushAvailable } from '../services/pushService';
-import { pushBlockedGuide, resolvePushState } from '../utils/pushStatus';
+import { getPushPermission, initPush, initPushDetailed, isPushAvailable } from '../services/pushService';
+import { pushBlockedGuide, pushFailureGuide, resolvePushState } from '../utils/pushStatus';
 import { resolveInstallState } from '../utils/installState';
 import { getDeferredInstallPrompt, takeDeferredInstallPrompt } from '../utils/installPrompt';
 import './PushNudge.css';
@@ -31,6 +31,7 @@ export default function PushNudge({ user, readOnly = false, previewState = null 
     const [state, setState] = useState(null); // resolvePushState 결과
     const [install, setInstall] = useState(null);
     const [busy, setBusy] = useState(false);
+    const [failStep, setFailStep] = useState(null);
     const [dismissed, setDismissed] = useState(() => readDismissed(name));
     const working = useRef(false);
     const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
@@ -55,11 +56,13 @@ export default function PushNudge({ user, readOnly = false, previewState = null 
         if (working.current || previewState) return;
         working.current = true;
         setBusy(true);
+        setFailStep(null);
         try {
-            const token = await initPush(name, true);
+            const { token, step } = await initPushDetailed(name, true);
             const available = await isPushAvailable();
             const next = resolvePushState({ available, permission: getPushPermission(), token });
             setState(next);
+            setFailStep(next === 'off' ? step || null : null);
             window.dispatchEvent(new Event('push-state-changed'));
             if (next === 'on') alert('알림이 켜졌어요. 보강 자리·맞교환 소식을 바로 알려드릴게요.');
         } finally {
@@ -101,6 +104,7 @@ export default function PushNudge({ user, readOnly = false, previewState = null 
                 {showAndroidInstall && <button type="button" className="push-nudge-button" onClick={installApp}>홈 화면에 추가</button>}
                 <button type="button" className="push-nudge-button primary" disabled={busy} onClick={enable}>{busy ? '설정 중…' : '알림 켜기'}</button>
             </div>
+            {failStep && <p className="push-nudge-error" role="alert">{pushFailureGuide(failStep, isIOS)}</p>}
         </>;
     } else if (view === 'unsupported' && isIOS) {
         body = <p>아이폰 iOS 16.4 이상에서 알림을 받을 수 있어요. 설정 → 일반 → 소프트웨어 업데이트 후 다시 열어주세요.</p>;
