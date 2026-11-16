@@ -96,6 +96,16 @@ export function nameCall(line, roster) {
             }
         }
     }
+    // 세 글자 + 호칭에서 한 글자만 통째로 잘못 들린 경우("김수현 선생님"→김수미): 호칭이 붙으면 이름일 가능성이 높아 자모 차이 3까지.
+    // 두 글자 이상 다르면(10/22 '김태성 선생님'≠김기상) 인정하지 않는다. (2026-11-16 사용자 요청 — 그 대화가 ❓로 갔다)
+    for (const m of line.matchAll(/([가-힣]{3})\s*(선생|쌤|씨|님)/g)) {
+        if (m[1].includes('선생')) continue;
+        for (const name of roster.filter(n => n.length === 3)) {
+            const diff = [...name].filter((c, k) => c !== m[1][k]).length;
+            const d = wordDist(m[1], name);
+            if (diff === 1 && d <= 3) consider(name, d);
+        }
+    }
     // 이름 두 글자 + 호칭("재현 씨", "진주 선생님") — 두 글자는 우연히 비슷한 말이 많아 호칭이 붙을 때만
     for (const m of line.matchAll(/([가-힣]{2})\s*(선생|쌤|씨|님)/g)) {
         for (const name of roster.filter(n => n.length === 3)) { const d = wordDist(m[1], name.slice(1)); if (d <= 2) consider(name, d + 0.5); }

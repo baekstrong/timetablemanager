@@ -102,6 +102,14 @@ describe('수업 음성 메모 lib', () => {
         expect(dropRepeats('가\n가\n가\n나\n\n가')).toBe('가\n나\n가');
     });
 
+    it('세 글자 + 호칭은 한 글자쯤 틀려도 맞춘다, 후보가 비슷하면 고르지 않는다 (11/16 4교시 실제 사례)', () => {
+        const roster = ['도성재', '서정민', '심성희', '김수미'];
+        expect(nameCall('김수현 선생님 너무 힘든 거 아니에요?', roster)).toEqual({ name: '김수미' });
+        expect(nameCall('김수현 너무 힘든 거 아니에요?', roster)).toBe(null);           // 호칭 없으면 그대로 엄격
+        expect(nameCall('김수현 선생님', [...roster, '김수영'])).toEqual({ ambiguous: ['김수영', '김수미'] });
+        expect(nameCall('그러니까 선생님 대단해요', roster)).toBe(null);
+    });
+
     describe('대화 구간 (A에게 한 말이 B 메모로 가지 않게, 2026-11-16)', () => {
         const roster = ['김수미', '도성재', '서정민'];
         const L = (start, speaker, text) => ({ start, end: start + 2, speaker, text });
