@@ -14,11 +14,25 @@ const scheduleOf = (row) => parseScheduleString(String(
  *   같은 칸이 보강이자 새 등록 첫 수업이 되어 1회가 사라진다(김수영 11/2→11/4 사례).
  */
 export function isOwnTimetableSlot(student, date, day, period) {
+    return timetableSlotsOn(student, date).some(slot => slot.day === day && Number(slot.period) === Number(period));
+}
+
+/** 그 날짜를 포함하는 등록이 있는지 (없으면 종료 뒤·등록 사이 공백). */
+export function isDateInAnyRegistration(student, date) {
+    return getMembershipRegistrations(student).some(reg => registrationContainsDate(reg, date));
+}
+
+/**
+ * 그 날짜 기준 '원래 시간표' 칸 목록. 등록 기간 안이면 그 등록의 시간표,
+ * 기간 밖(종료 뒤·공백)이면 모든 등록 시간표의 합집합 — isOwnTimetableSlot과 같은 기준.
+ * 보강 이중 수강 판정(wouldDoubleBookDay)도 종료 뒤 날짜는 이걸로 본다(2026-11-18 한익수 사례:
+ * 종료일 11/16(월4)을 11/18 수5로 옮겼는데 수요일 정규 수업(수4)이 등록 밖이라 안 막혔다).
+ */
+export function timetableSlotsOn(student, date) {
     const registrations = getMembershipRegistrations(student);
-    if (!registrations.length) return false;
+    if (!registrations.length) return [];
     const covering = registrations.find(reg => registrationContainsDate(reg, date));
-    const slots = covering ? scheduleOf(covering) : registrations.flatMap(scheduleOf);
-    return slots.some(slot => slot.day === day && Number(slot.period) === Number(period));
+    return covering ? scheduleOf(covering) : registrations.flatMap(scheduleOf);
 }
 
 export const OWN_TIMETABLE_SLOT_MESSAGE = '원래 수업 시간표(요일·교시)에는 보강을 신청할 수 없어요.\n다른 시간을 선택해주세요.';

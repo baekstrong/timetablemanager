@@ -1,4 +1,4 @@
-import { isOwnTimetableSlot, OWN_TIMETABLE_SLOT_MESSAGE } from '../../utils/ownTimetableSlot';
+import { isOwnTimetableSlot, isDateInAnyRegistration, timetableSlotsOn, OWN_TIMETABLE_SLOT_MESSAGE } from '../../utils/ownTimetableSlot';
 import { Fragment, useState, useMemo, useEffect, useRef } from 'react';
 import { PERIODS, DAYS, MAX_CAPACITY, KOREAN_HOLIDAYS } from '../../data/mockData';
 import {
@@ -299,9 +299,13 @@ function CurrentWeekStudentSchedule({
 
     function wouldDoubleBookStudent(original, day, date, makeups = activeMakeupRequests) {
         // 등록 교체가 주중에 있으면 대표 등록 한 행의 요일로 판단하지 않는다.
-        const schedule = modernStudent && days.some(item => item.date === date)
-            ? personalSessions.filter(item => item.origin?.date === item.date && Number(item.origin?.period) === item.period).map(item => ({ day: item.day, period: item.period }))
-            : studentSchedule;
+        // 종료일 뒤 날짜는 이번 주 수업 목록에 정규 수업이 없으므로 원래 시간표(합집합)로 본다 —
+        // 마지막 수업(월4)을 종료 뒤 수5로 옮기면 재등록 시 수4와 겹친다(한익수 11/16→11/18, 2026-11-18).
+        const schedule = modernStudent && studentData && !isDateInAnyRegistration(studentData, date)
+            ? timetableSlotsOn(studentData, date)
+            : modernStudent && days.some(item => item.date === date)
+                ? personalSessions.filter(item => item.origin?.date === item.date && Number(item.origin?.period) === item.period).map(item => ({ day: item.day, period: item.period }))
+                : studentSchedule;
         return wouldDoubleBookDay(schedule, makeups, original, day, date);
     }
 
