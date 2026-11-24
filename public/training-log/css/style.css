@@ -412,6 +412,8 @@ body.modal-open {
 .student-form-details textarea { width:100%; border:1px solid #EFEFF0; border-radius:8px; padding:10px; font-size:16px; margin-top:8px; }
 .student-pain-label { display:flex; align-items:center; gap:8px; min-height:44px; }
 .student-pain-label input { min-height:0; width:18px; height:18px; }
+/* 2026-11-24: 운동 메모 칸(내 운동 메모 카드와 중복)을 빼고 통증 체크만 항상 보인다 */
+.student-pain-always { margin:14px 0; padding-top:4px; border-top:1px solid #EFEFF0; font-size:14px; color:rgba(0,0,0,.85); cursor:pointer; }
 .student-saved-notice { font-size:12px; color:#327AB8; line-height:1.8; padding-top:14px; }
 .student-saved-notice button { margin-right:10px; background:none; font-size:12px; }
 .bottom-nav[data-role=student] { max-width:700px; margin-inline:auto; box-shadow:none; border-color:#EFEFF0; border-radius:20px; }

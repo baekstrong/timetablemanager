@@ -90,7 +90,7 @@ export function renderStudentScreen() {
                     <div id="oneRMQuickCard"></div><div id="exerciseMemoCard"></div>
                     <div id="studentReference"></div>
                     <div id="setsContainer"></div>
-                    <details class="student-form-details"><summary>메모·통증 남기기</summary><label for="memo">운동 메모</label><textarea id="memo" placeholder="기록 저장 시 이 종목 메모에 한 줄 추가돼요" rows="2" oninput="autoSaveFormData()"></textarea><label class="student-pain-label"><input type="checkbox" id="painCheck" onchange="autoSaveFormData()"> 운동 중 통증이 있었습니다</label></details>
+                    <input type="hidden" id="memo" value=""><label class="student-pain-label student-pain-always"><input type="checkbox" id="painCheck" onchange="autoSaveFormData()"> 운동 중 통증이 있었습니다</label>
                     <button id="addRecordBtn" onclick="addRecord()" class="student-main-button">기록 저장</button>
                     <div id="studentRecordSaved" class="student-saved-notice" hidden><p role="status"></p><button type="button" onclick="document.getElementById('exercise').focus()">다른 운동 기록</button></div>
                 </div>
