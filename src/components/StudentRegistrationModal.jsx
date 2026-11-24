@@ -16,6 +16,7 @@ import { getHolidays, createRenewalContract, createNewStudentRegistration, getEn
 import { setStudentPassword } from '../services/authService';
 import { sendApprovalNotifications } from '../services/smsService';
 import { formatEntranceDate } from '../utils/dateUtils';
+import { defaultRegistrationSheet } from '../utils/registrationTargetSheet';
 import { db } from '../config/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { CONTRACT_VERSION } from '../data/contractTerms';
@@ -166,6 +167,8 @@ const StartDateCalendar = ({ value, onChange, holidays }) => {
 const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, initialEntranceId }) => {
     const [registrationType, setRegistrationType] = useState(initialRenewalName ? 'renew' : 'new');
     const [targetSheet, setTargetSheet] = useState('');
+    // 코치가 드롭다운으로 직접 고르면 그 선택을 유지하고 자동 기본값을 덮어쓰지 않는다.
+    const [sheetTouched, setSheetTouched] = useState(false);
     const [availableSheets, setAvailableSheets] = useState([]);
     const [holidays, setHolidays] = useState([]);
     const [submitting, setSubmitting] = useState(false);
@@ -269,6 +272,12 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
             setForm(prev => ({ ...prev, 종료날짜: formatYYMMDD(endDate) }));
         }
     }, [form.시작날짜, form.주횟수, form.등록개월수, form['요일 및 시간'], holidays, absenceDates]);
+
+    // 대상 시트 기본값: 신규는 시작날짜의 달, 재등록은 이번 달 (직접 고른 뒤엔 유지)
+    useEffect(() => {
+        if (sheetTouched || availableSheets.length === 0) return;
+        setTargetSheet(defaultRegistrationSheet({ type: registrationType, startDate: form.시작날짜, availableSheets }));
+    }, [registrationType, form.시작날짜, availableSheets, sheetTouched]);
 
     // 신규 모드: 요일 및 시간 변경 시 시작날짜 자동 세팅
     useEffect(() => {
@@ -755,7 +764,7 @@ const StudentRegistrationModal = ({ onClose, onSuccess, initialRenewalName, init
                 {/* 대상 시트 선택 */}
                 <div className="reg-field-group">
                     <label>대상 시트 *</label>
-                    <select value={targetSheet} onChange={(e) => setTargetSheet(e.target.value)}>
+                    <select value={targetSheet} onChange={(e) => { setSheetTouched(true); setTargetSheet(e.target.value); }}>
                         <option value="">시트를 선택하세요</option>
                         {availableSheets.map(sheet => (
                             <option key={sheet} value={sheet}>{sheet}</option>
