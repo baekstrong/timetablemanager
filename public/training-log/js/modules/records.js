@@ -2,10 +2,11 @@ import { localDate, escapeHTML } from './student-workspace-logic.js?v=20260925-s
 import { coachChecklistListHTML } from './coach-checklist-card.js?v=20261105-record-coach-checklist';
 import { state, db, firebaseInitialized, persistenceEnabled } from '../state.js';
 import { normalizeSet, renderSets, numericOnly, isFreeformIntensity, sanitizeSet, syncInputValue, moveButtons, swapSets } from './sets.js?v=20260925-student-ux';
-import { renderEditModalContent, generatePinnedMemosHTML, memoItems, memoText, memoListHTML } from '../ui.js?v=20261110-edit-memo-one';
+import { renderEditModalContent, generatePinnedMemosHTML, memoItems, memoText, memoListHTML } from '../ui.js?v=20261124-memo-photo';
 import { isRegisteredExercise, isCustomExercise, clearExerciseSelection } from './admin.js?v=20260925-student-ux';
 import { evaluatePR, pastSetsFrom } from './pr-logic.js';
 import { xpToGrade, gradeRank, recordVolume, GRADES } from './grades.js';
+import { uploadMemoPhoto, memoPhotoUrl, openMemoPhotoViewer, showMemoPhotoBusy, pickImageFile } from './memo-photo.js';
 
 // ============================================
 // 운동 기록 추가 (수강생)
@@ -1063,7 +1064,11 @@ export function saveWorkoutMemo(exercise, memo, showMessage = true, pain) {
     const existing = state.pinnedExercises.find(p => p.exercise === exercise);
     const oldItems = memoItems(existing);
     const items = String(memo || '').split('\n').map(t => t.trim()).filter(Boolean)
-        .map(text => ({ text, at: oldItems.find(i => i.text === text)?.at || now }));
+        .map(text => {
+            // 내용이 그대로인 줄은 날짜·사진을 유지한다(2026-11-24 메모 줄 사진).
+            const prev = oldItems.find(i => i.text === text);
+            return prev?.photo ? { text, at: prev.at || now, photo: prev.photo } : { text, at: prev?.at || now };
+        });
 
     if (existing) {
         existing.items = items;
@@ -1080,7 +1085,7 @@ export function saveWorkoutMemo(exercise, memo, showMessage = true, pain) {
 }
 
 // 체크리스트에 한 줄 추가 (기록 저장 시 메모 칸, 카드의 '메모 한 줄 추가'). pain을 넘기지 않으면 통증 표시는 그대로.
-export function addMemoItem(exercise, text, pain) {
+export function addMemoItem(exercise, text, pain, photo) {
     text = String(text || '').trim();
     if (!exercise || !text) return;
     let entry = state.pinnedExercises.find(p => p.exercise === exercise);
@@ -1088,7 +1093,9 @@ export function addMemoItem(exercise, text, pain) {
         entry = { exercise, userName: state.currentUser, pain: false };
         state.pinnedExercises.push(entry);
     }
-    const items = [...memoItems(entry), { text, at: new Date().toISOString() }];
+    const item = { text, at: new Date().toISOString() };
+    if (photo) item.photo = photo;
+    const items = [...memoItems(entry), item];
     entry.items = items;
     entry.memo = memoText(items);
     if (pain !== undefined) entry.pain = pain;
@@ -1140,6 +1147,67 @@ export function completeStudentMemoItem(exercise, index) {
     setTimeout(() => updatePinnedDisplay(false), 600);
 }
 window.completeStudentMemoItem = completeStudentMemoItem;
+
+// 메모 줄마다 사진 한 장 (2026-11-24 사용자 결정). index -1 = '메모 한 줄 추가' 칸의 글과 함께 새 줄로.
+// 올리는 동안 실시간 구독이 목록을 바꿀 수 있어, 줄은 위치가 아니라 내용+날짜로 다시 찾는다.
+const sameItem = (a, b) => a && b && a.text === b.text && (a.at || '') === (b.at || '');
+let memoPhotoUploading = false;
+
+export function pickStudentMemoPhoto(exercise, index, input) {
+    if (!exercise || memoPhotoUploading) return;
+    const target = index >= 0 ? memoItems(state.pinnedExercises.find(p => p.exercise === exercise))[index] : null;
+    if (index >= 0 && !target) return;
+    pickImageFile(async (file) => {
+        memoPhotoUploading = true;
+        showMemoPhotoBusy(true);
+        try {
+            const photo = await uploadMemoPhoto(file);
+            if (index < 0) {
+                const text = (input?.value || '').trim() || '사진 메모';
+                addMemoItem(exercise, text, undefined, photo);
+                return;
+            }
+            const entry = state.pinnedExercises.find(p => p.exercise === exercise);
+            const items = [...memoItems(entry)];
+            const at = items.findIndex(i => sameItem(i, target));
+            if (at === -1) { alert('메모가 바뀌어 사진을 붙이지 못했어요. 다시 시도해주세요.'); return; }
+            items[at] = { ...items[at], photo };
+            entry.items = items;
+            entry.memo = memoText(items);
+            savePinnedExercisesToStorage();
+            updatePinnedDisplay(false);
+        } catch (e) {
+            console.error('메모 사진 업로드 실패:', e);
+            alert(e?.name === 'AbortError' ? '사진 올리기가 너무 오래 걸려요. 인터넷 연결을 확인하고 다시 시도해주세요.' : `사진을 올리지 못했어요.\n${e?.message || ''}`);
+        } finally {
+            memoPhotoUploading = false;
+            showMemoPhotoBusy(false);
+        }
+    });
+}
+window.pickStudentMemoPhoto = pickStudentMemoPhoto;
+
+export function viewStudentMemoPhoto(exercise, index) {
+    const item = memoItems(state.pinnedExercises.find(p => p.exercise === exercise))[index];
+    if (!item?.photo) return;
+    openMemoPhotoViewer(memoPhotoUrl(item.photo, 'full'), () => removeStudentMemoPhoto(exercise, item));
+}
+window.viewStudentMemoPhoto = viewStudentMemoPhoto;
+
+// 메모에서만 뺀다. unsigned 업로드라 Cloudinary의 사진 파일은 남는다.
+function removeStudentMemoPhoto(exercise, target) {
+    const entry = state.pinnedExercises.find(p => p.exercise === exercise);
+    const items = [...memoItems(entry)];
+    const at = items.findIndex(i => sameItem(i, target));
+    if (at === -1) return;
+    const rest = { ...items[at] };
+    delete rest.photo;
+    items[at] = rest;
+    entry.items = items;
+    entry.memo = memoText(items);
+    savePinnedExercisesToStorage();
+    updatePinnedDisplay(false);
+}
 
 export function togglePinExercise() {
     const exercise = document.getElementById('exercise').value.trim();

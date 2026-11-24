@@ -6,6 +6,7 @@ import { normalizeSet } from './sets.js?v=20260925-student-ux';
 import { groupSessionsByDate, defaultSessionDate } from './session-logic.js';
 import { resolveClassSlot, previousSlot, rosterFor, slotHasEnded, weekdayDates, PERIODS } from './class-period.js';
 import { nextStage, stageHint } from './quick-nav-stage.js';
+import { memoPhotoThumbHTML, memoPhotoUrl } from './memo-photo.js';
 
 // 기록의 date는 로컬 기준 YYYY-MM-DD → 오늘도 로컬로 계산(toISOString은 UTC라 KST 새벽에 하루 밀림)
 function localToday() {
@@ -1885,7 +1886,7 @@ function renderCoachRecordCard(item, pinnedList = []) {
             </div>
         </div>
         ${setsDisplay}
-        ${memoRows.length ? `<ul class="mt-2 bg-[#F7F7F8] border-l-4 border-[#329BE7] rounded px-3 py-1.5">${memoRows.map(item => `<li class="flex items-start gap-2 py-1 text-sm text-gray-800 leading-relaxed"><span class="text-[#329BE7] shrink-0">•</span><span class="flex-1 min-w-0" style="white-space:pre-wrap;">${escCoach(item.text)}</span>${item.at ? `<span class="text-[11px] text-gray-400 shrink-0 pt-0.5">${md(item.at)}</span>` : ''}</li>`).join('')}</ul>` : ''}
+        ${memoRows.length ? `<ul class="mt-2 bg-[#F7F7F8] border-l-4 border-[#329BE7] rounded px-3 py-1.5">${memoRows.map(item => `<li class="flex items-start gap-2 py-1 text-sm text-gray-800 leading-relaxed"><span class="text-[#329BE7] shrink-0">•</span><span class="flex-1 min-w-0" style="white-space:pre-wrap;">${escCoach(item.text)}</span>${memoPhotoThumbHTML(item.photo, `window.openMemoPhotoViewer?.('${escCoach(memoPhotoUrl(item.photo, 'full'))}')`, 32)}${item.at ? `<span class="text-[11px] text-gray-400 shrink-0 pt-0.5">${md(item.at)}</span>` : ''}</li>`).join('')}</ul>` : ''}
     </div>`;
 }
 

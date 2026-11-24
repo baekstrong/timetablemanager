@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { localDate, escapeHTML } from './modules/student-workspace-logic.js?v=20260925-student-ux';
 import { formatDate, loadSavedLogin } from './utils.js';
+import { memoPhotoThumbHTML, memoPhotoUrl } from './modules/memo-photo.js';
 
 // ============================================
 // 화면 렌더링 함수들 (HTML String Generation)
@@ -344,6 +345,7 @@ export function memoListHTML(pinned, fallbackMemo = '') {
         <li class="flex items-start gap-2 py-1 text-sm text-gray-800 leading-relaxed">
             <span class="text-[#329BE7] shrink-0">•</span>
             <span class="flex-1 min-w-0" style="white-space: pre-wrap;">${esc(item.text)}</span>
+            ${memoPhotoThumbHTML(item.photo, `window.openMemoPhotoViewer?.('${jsArg(memoPhotoUrl(item.photo, 'full'))}')`, 32)}
             ${item.at ? `<span class="text-[11px] text-gray-400 shrink-0 pt-0.5">${md(item.at)}</span>` : ''}
         </li>`).join('')}</ul>`;
 }
@@ -364,7 +366,8 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, fi
             <input type="text" data-exercise="${esc(filterExercise)}" placeholder="메모 한 줄 추가" maxlength="200"
                 class="flex-1 min-w-0 px-2.5 py-1.5 text-sm border border-[#329BE74D] rounded-lg bg-white focus:outline-none focus:border-[#329BE7]"
                 onkeydown="if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); window.addStudentMemoItemFrom?.(this); }">
-            <button type="button" onclick="window.addStudentMemoItemFrom?.(this.previousElementSibling)" class="text-xs px-3 rounded-lg bg-[#329BE7] text-white whitespace-nowrap">추가</button>
+            <button type="button" aria-label="사진과 함께 메모 추가" onclick="if (window.pickStudentMemoPhoto) pickStudentMemoPhoto('${jsArg(filterExercise)}', -1, this.parentElement.querySelector('input')); else alert('앱을 새로고침한 뒤 다시 시도해주세요.');" class="text-sm px-2.5 rounded-lg border border-[#329BE74D] bg-white">📷</button>
+            <button type="button" onclick="window.addStudentMemoItemFrom?.(this.parentElement.querySelector('input'))" class="text-xs px-3 rounded-lg bg-[#329BE7] text-white whitespace-nowrap">추가</button>
         </div>` : '';
 
     if (coachList.length === 0 && doneCount === 0 && !pinned) return addRow;
@@ -420,6 +423,9 @@ export function generatePinnedMemosHTML(coachPinnedMemos, studentPinnedMemos, fi
                             onchange="if (window.completeStudentMemoItem) { this.disabled = true; this.closest('[data-memo-item]').classList.add('line-through', 'opacity-40'); completeStudentMemoItem('${jsArg(pinned.exercise)}', ${i}); }">
                         <span class="flex-1 min-w-0 text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">${esc(item.text)}${item.at ? `<span class="text-[11px] text-gray-400 ml-1.5 whitespace-nowrap">${md(item.at)}</span>` : ''}</span>
                     </label>
+                    ${memoPhotoUrl(item.photo)
+                        ? memoPhotoThumbHTML(item.photo, `window.viewStudentMemoPhoto?.('${jsArg(pinned.exercise)}', ${i})`, 40)
+                        : `<button type="button" aria-label="이 메모에 사진 붙이기" onclick="window.pickStudentMemoPhoto?.('${jsArg(pinned.exercise)}', ${i})" class="text-base leading-none py-2 px-1 flex-shrink-0 opacity-50">📷</button>`}
                     <button type="button" onclick="window.editStudentMemoItem?.('${jsArg(pinned.exercise)}', ${i})" class="text-xs text-[#327AB8] py-2 flex-shrink-0">수정</button>
                     </div>
                 `).join('') : '<div class="text-sm text-gray-400 py-1">메모 없음</div>'}
