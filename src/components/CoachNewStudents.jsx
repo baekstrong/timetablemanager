@@ -54,13 +54,14 @@ const shortEntranceDate = (d) => {
     return m && day ? `${Number(m)}/${Number(day)}` : d;
 };
 
-const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
+const CoachNewStudents = ({ onBack, initialFilter = 'approved', initialApproveId = '', onInitialApproveDone }) => {
     const { refresh: refreshSheets, students: allStudents } = useGoogleSheets();
     const [activeTab, setActiveTab] = useState('registrations');
     const [loading, setLoading] = useState(false);
 
     // === 등록 목록 ===
     const [registrations, setRegistrations] = useState([]);
+    const [registrationsLoaded, setRegistrationsLoaded] = useState(false);
     const [consultations, setConsultations] = useState([]);
     const [consultationError, setConsultationError] = useState('');
     const [regFilter, setRegFilter] = useState(initialFilter);
@@ -209,6 +210,7 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
             console.error('등록 목록 조회 실패:', err);
         }
         setLoading(false);
+        setRegistrationsLoaded(true);
         loadRegCounts();
     };
 
@@ -784,6 +786,18 @@ const CoachNewStudents = ({ onBack, initialFilter = 'approved' }) => {
         setWaitlistSelectedSlots(avail.slice(0, freq));
         setWaitlistApproveReg(reg);
     };
+
+    // 오늘 할 일에서 '수강 승인'을 누르고 들어오면 그 신청의 승인 창을 한 번 연다.
+    // 이미 승인·삭제돼 목록에 없으면 열지 않고 대기 목록만 보여준다.
+    const [initialApproveHandled, setInitialApproveHandled] = useState(!initialApproveId);
+    useEffect(() => {
+        if (initialApproveHandled || !registrationsLoaded || loading || regFilter !== 'waitlist') return;
+        setInitialApproveHandled(true);
+        onInitialApproveDone?.();
+        const reg = registrations.find(item => item.id === initialApproveId && item.status === 'waitlist');
+        if (reg) handleWaitlistApproveOpen(reg);
+        else alert('이 대기 신청은 이미 처리되어 목록에 없습니다.');
+    }, [initialApproveHandled, registrationsLoaded, loading, regFilter, registrations]);
 
     const handleWaitlistApproveConfirm = async () => {
         if (!waitlistApproveReg) return;

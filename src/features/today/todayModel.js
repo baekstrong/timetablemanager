@@ -61,3 +61,28 @@ export function buildCoachTaskGroups({ lastDayStudents = [], delayedStudents = [
         { id: 'delayed', title: '수강 종료·미재등록', items: unique(delayedStudents).map(student => itemFor(student, true)) },
     ];
 }
+
+// 신규 대기(만석) 신청을 코치 할 일에 보여준다. 여석 판정은 checkWaitlistAvailability와 같은 기준
+// (신규 전용 점유 < 정원, 휴강 칸 제외, 희망 칸 중 여석 수 ≥ 주횟수). 자리가 난 사람만 승인 버튼을 준다.
+// ready=false(시트·휴강 로드 전/실패)면 빈 점유로 오판하지 않도록 자리 여부를 판정하지 않는다.
+export function buildNewWaitlistGroup({ waitlist = [], occupancy = {}, disabledClasses = [], maxCapacity = 7, ready = false }) {
+    const label = slot => `${slot.day}${slot.period}`;
+    const items = waitlist.map((reg, index) => {
+        const requested = reg.requestedSlots || [];
+        const frequency = reg.weeklyFrequency || 2;
+        const open = ready ? requested.filter(slot => {
+            const key = `${slot.day}-${slot.period}`;
+            return !disabledClasses.includes(key) && (occupancy[key] || 0) < maxCapacity;
+        }) : [];
+        const seatOpen = ready && open.length >= frequency;
+        const wish = requested.map(label).join('·') || '희망 시간 없음';
+        const state = !ready ? '여석 확인 중' : seatOpen ? `자리 생김: ${open.map(label).join(', ')}` : open.length ? `자리 ${open.length}/${frequency}칸` : '자리 없음';
+        return {
+            id: `wait-${reg.id}`, type: 'newWaitlist', regId: reg.id, name: reg.name, seatOpen, order: index,
+            title: `${reg.name}(주${frequency}회)`,
+            description: `대기 ${index + 1}번 · 희망 ${wish} · ${state}`,
+            ...(seatOpen ? { actionLabel: '수강 승인' } : { statusLabel: state === '여석 확인 중' ? '확인 중' : '대기' }),
+        };
+    }).sort((a, b) => Number(b.seatOpen) - Number(a.seatOpen) || a.order - b.order);
+    return { id: 'newWaitlist', title: '신규 대기(만석)', items };
+}

@@ -4,9 +4,17 @@ import { createRoot } from 'react-dom/client';
 import '../index.css';
 import { StudentToday, CoachToday, ActionButton } from '../features/today/TodayViews';
 import ReviewModal from '../features/today/ReviewModal';
+import { buildNewWaitlistGroup } from '../features/today/todayModel';
 import BottomNav from '../components/BottomNav';
 import './preview.css';
 import StudentTimetablePreview from './StudentTimetablePreview';
+const previewWaitlistGroup = buildNewWaitlistGroup({
+    waitlist: [
+        { id: 'w1', name: '대기 예시A', weeklyFrequency: 2, requestedSlots: [{ day: '화', period: 5 }, { day: '목', period: 5 }] },
+        { id: 'w2', name: '대기 예시B', weeklyFrequency: 2, requestedSlots: [{ day: '월', period: 1 }, { day: '수', period: 1 }] },
+    ],
+    occupancy: { '화-5': 7, '목-5': 6, '월-1': 5, '수-1': 6 }, disabledClasses: [], maxCapacity: 7, ready: true,
+});
 
 const roster = (...names) => names.map(name => ({ name }));
 const lessons = [
@@ -52,7 +60,7 @@ function Preview() {
     const [requestType, setRequestType] = useState('홀딩');
     const [held, setHeld] = useState({});
     const [fixedWaiting, setFixedWaiting] = useState(true);
-    const groups = empty ? [] : (role === 'coach' ? coachGroups : studentTasks).map(group => ({ ...group, items: group.items.filter(item => !done.includes(item.id)) }));
+    const groups = empty ? [] : (role === 'coach' ? [...coachGroups, previewWaitlistGroup] : studentTasks).map(group => ({ ...group, items: group.items.filter(item => !done.includes(item.id)) }));
     const week = regularWeek.flatMap(item => item.id === 'wed' && done.includes('offer') ? [{ ...item, cancelled: true, status: '보강으로 변경', description: '9/24 목 18:00으로 이동' }, { id: 'makeup', date: '2026-09-24', day: '목', time: '18:00 — 19:30', status: '보강', description: '9/23 수업에서 변경' }] : [{ ...item, ...(held[item.date] ? { cancelled: true, status: held[item.date], description: '오지 않는 날이에요' } : {}) }]);
     const open = item => { setModal(item); setAgreed(false); };
     const navigate = target => { if (target === 'dashboard') setNewPost(false); setPage(target); window.scrollTo(0, 0); };

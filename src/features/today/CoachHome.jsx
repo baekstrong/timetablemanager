@@ -1,16 +1,17 @@
 import { publishRoster, publishLastClasses, publishReregX, syncStudentFrequencies, syncStudentSchedules, syncUnpaidStudents } from '../../services/firebaseService';
 import { weekDateToISO } from '../../utils/scheduleUtils';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { PERIODS, DAYS } from '../../data/mockData';
+import { PERIODS, DAYS, MAX_CAPACITY } from '../../data/mockData';
 import { readCoachNotes, saveCoachNote, confirmStudentPayment } from './todayService';
-import { attendingNames, lessonRefreshId, buildCoachTaskGroups } from './todayModel';
+import { attendingNames, lessonRefreshId, buildCoachTaskGroups, buildNewWaitlistGroup } from './todayModel';
+import { orderWaitlist } from '../../utils/coachWaitlistEntry';
 import { CoachToday, ActionButton } from './TodayViews';
 import ReviewModal from './ReviewModal';
 import { createVisibleTask } from '../../utils/visibleTask';
 
 const StudentRegistrationModal = lazy(() => import('../../components/StudentRegistrationModal'));
 
-export default function CoachHome({ user, freeWorkoutByDate = {}, hasNewPostNotification = false, core, students, disabledClasses, registrations, scheduleTransfers, onNavigate, refresh, refreshedAt, refreshing, refreshMessage, dataReady = core.weeklyDataLoaded }) {
+export default function CoachHome({ user, freeWorkoutByDate = {}, hasNewPostNotification = false, core, students, disabledClasses, registrations, newStudentWaitlist = [], waitlistReady = false, scheduleTransfers, onNavigate, refresh, refreshedAt, refreshing, refreshMessage, dataReady = core.weeklyDataLoaded }) {
     const [now, setNow] = useState(() => new Date());
     const [notes, setNotes] = useState({});
     const [notesReady, setNotesReady] = useState(false);
@@ -105,11 +106,16 @@ export default function CoachHome({ user, freeWorkoutByDate = {}, hasNewPostNoti
         lastDayStudents: core.lastDayStudents,
         delayedStudents: core.delayedReregistrationStudents,
         unpaidRows, periodFor,
-    });
+    }).concat(buildNewWaitlistGroup({
+        waitlist: orderWaitlist(newStudentWaitlist), occupancy: core.newStudentSlotOccupancy || {},
+        disabledClasses, maxCapacity: MAX_CAPACITY, ready: waitlistReady,
+    }));
     const onAction = item => {
         setError('');
         if (item.type === 'renewal') setRenewal(item.name);
         else if (item.type === 'payment') setPayment(item.student);
+        // 승인은 신규 화면의 기존 '수강 승인' 창(시간표·입학반 선택 → 시트·계정·문자)을 그대로 연다.
+        else if (item.type === 'newWaitlist') onNavigate('newstudents', { filter: 'waitlist', approveId: item.regId });
     };
     async function saveNote(name, value) {
         await saveCoachNote(name, value);

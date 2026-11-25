@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import React, { createElement } from 'react';
 import { TaskSection } from './TodayViews';
-import { attendingNames, automaticLessonId, currentLessonId, lessonRefreshId, buildCoachTaskGroups } from './todayModel';
+import { attendingNames, automaticLessonId, currentLessonId, lessonRefreshId, buildCoachTaskGroups, buildNewWaitlistGroup } from './todayModel';
 
 beforeEach(() => vi.stubGlobal('React', React));
 afterEach(() => vi.unstubAllGlobals());
@@ -67,5 +67,37 @@ describe('코치 첫 화면 종료 안내', () => {
     it('대상이 없으면 첫 화면 업무 영역을 숨긴다', () => {
         const groups = buildCoachTaskGroups({ unpaidRows: [unpaid('진행 중')] });
         expect(renderToStaticMarkup(createElement(TaskSection, { coach: true, groups }))).toBe('');
+    });
+});
+
+describe('코치 첫 화면 신규 대기(만석)', () => {
+    const waitlist = [
+        { id: 'a', name: '먼저', weeklyFrequency: 2, requestedSlots: [{ day: '화', period: 5 }, { day: '목', period: 5 }] },
+        { id: 'b', name: '나중', weeklyFrequency: 2, requestedSlots: [{ day: '월', period: 1 }, { day: '수', period: 1 }, { day: '금', period: 1 }] },
+    ];
+    const occupancy = { '화-5': 7, '목-5': 6, '월-1': 6, '수-1': 3, '금-1': 7 };
+    it('희망 칸 중 여석이 주횟수 이상이면 승인 버튼, 아니면 대기 표시 — 자리 난 사람이 위로', () => {
+        const group = buildNewWaitlistGroup({ waitlist, occupancy, disabledClasses: [], maxCapacity: 7, ready: true });
+        expect(group.items.map(item => item.name)).toEqual(['나중', '먼저']);
+        expect(group.items[0]).toMatchObject({ actionLabel: '수강 승인', seatOpen: true, regId: 'b' });
+        expect(group.items[0].description).toBe('대기 2번 · 희망 월1·수1·금1 · 자리 생김: 월1, 수1');
+        expect(group.items[1].actionLabel).toBeUndefined();
+        expect(group.items[1].description).toContain('대기 1번');
+        expect(group.items[1].description).toContain('자리 1/2칸');
+    });
+    it('휴강 칸은 여석으로 보지 않는다', () => {
+        const group = buildNewWaitlistGroup({ waitlist, occupancy, disabledClasses: ['수-1'], maxCapacity: 7, ready: true });
+        expect(group.items.every(item => !item.seatOpen)).toBe(true);
+    });
+    it('시트·휴강 로드 전에는 빈 점유로 승인 버튼을 띄우지 않는다', () => {
+        const group = buildNewWaitlistGroup({ waitlist, occupancy: {}, disabledClasses: [], maxCapacity: 7, ready: false });
+        expect(group.items.every(item => !item.actionLabel && item.statusLabel === '확인 중')).toBe(true);
+    });
+    it('승인 가능 항목은 노란 버튼, 자리 없는 항목은 버튼 없이 대기 표시', () => {
+        const group = buildNewWaitlistGroup({ waitlist, occupancy, disabledClasses: [], maxCapacity: 7, ready: true });
+        const html = renderToStaticMarkup(createElement(TaskSection, { coach: true, groups: [group], onAction: () => {} }));
+        expect(html).toContain('today-button-pending');
+        expect((html.match(/<button/g) || []).length).toBe(1);
+        expect(html).toContain('신규 대기(만석)');
     });
 });

@@ -22,7 +22,8 @@ export function TaskSection({ groups, onAction, currentPeriod, coach = false, ex
             {group.items.map(item => <div key={item.id} className={`today-task-row${currentPeriod != null && item.period === currentPeriod ? ' is-current' : ''}`}>
                 <div><p className="today-task-title">{item.title}{coach && item.unpaid && <span className="today-task-unpaid">미결제</span>}</p>{item.description && <p className="today-muted">{item.description}</p>}</div>
                 <div className="today-task-actions">
-                    <ActionButton pending={coach && item.type === 'new'} onClick={() => onAction(item)} aria-label={`${item.title} ${item.actionLabel}`}>{item.actionLabel}</ActionButton>
+                    {item.actionLabel ? <ActionButton pending={coach && ['new', 'newWaitlist'].includes(item.type)} onClick={() => onAction(item)} aria-label={`${item.title} ${item.actionLabel}`}>{item.actionLabel}</ActionButton>
+                        : item.statusLabel && <span className="today-muted">{item.statusLabel}</span>}
                     {coach && item.paymentAction && <ActionButton onClick={() => onAction(item.paymentAction)} aria-label={`${item.name} 결제 확인`}>결제 확인</ActionButton>}
                 </div>
             </div>)}

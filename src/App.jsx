@@ -47,6 +47,7 @@ function AppContent() {
   const [currentPage, setCurrentPage] = useState('login');
   const [holdingInitialDate, setHoldingInitialDate] = useState('');
   const [newStudentFilter, setNewStudentFilter] = useState('approved');
+  const [newStudentApproveId, setNewStudentApproveId] = useState('');
   const [calendarDay, setCalendarDay] = useState(() => new Date().toLocaleDateString('sv-SE'));
   useEffect(() => {
     const timer = setInterval(() => setCalendarDay(new Date().toLocaleDateString('sv-SE')), 30_000);
@@ -400,7 +401,11 @@ function AppContent() {
     }
     if (page === 'holding') setHoldingInitialDate(typeof subTab === 'string' ? subTab : '');
     if (page === 'post') { setDeepLinkPost(subTab); setCurrentPage('dashboard'); return; }
-    if (page === 'newstudents') setNewStudentFilter(subTab || 'approved');
+    if (page === 'newstudents') {
+      // 오늘 할 일의 신규 대기 '수강 승인'은 { filter, approveId }로 와서 그 신청의 승인 창을 연다.
+      setNewStudentFilter(subTab?.filter || subTab || 'approved');
+      setNewStudentApproveId(subTab?.approveId || '');
+    }
 
     if (page === 'dashboard') {
       localStorage.setItem('board_last_seen', String(Date.now()));
@@ -448,7 +453,7 @@ function AppContent() {
         return <HolidayManager user={user} onBack={handleBackToDashboard} />;
 
       case 'newstudents':
-        return <CoachNewStudents key={newStudentFilter} initialFilter={newStudentFilter} user={user} onBack={handleBackToDashboard} />;
+        return <CoachNewStudents key={newStudentFilter} initialFilter={newStudentFilter} initialApproveId={newStudentApproveId} onInitialApproveDone={() => setNewStudentApproveId('')} user={user} onBack={handleBackToDashboard} />;
 
       case 'contractView':
         return <ContractView user={user} onBack={handleBackToDashboard} onAgreed={() => setPendingContract(null)} />;
